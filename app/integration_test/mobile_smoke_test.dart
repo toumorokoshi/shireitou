@@ -65,7 +65,7 @@ void main() {
     addTearDown(() => tester.runAsync(host.close));
     final h = await AppHarness.launch(
       tester,
-      size: const Size(400, 860),
+      size: const Size(320, 560),
       describeHost: () => [
         for (final r in host.received) '${r.channel} ${r.action}',
       ],
