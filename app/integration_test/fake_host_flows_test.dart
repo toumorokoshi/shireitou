@@ -15,7 +15,24 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:shireitou/src/app.dart';
 import 'package:shireitou/src/host_connection.dart';
+import 'package:shireitou/src/hosts/host_store.dart';
+import 'package:shireitou/src/hosts/saved_hosts.dart';
 import 'package:shireitou/src/session_detail/session_status_widgets.dart';
+
+/// Keeps remembered hosts in memory. Secure storage is covered by the
+/// desktop smoke test; here it would only add keychain prompts (macOS
+/// asks before another build of the app reads the smoke test's item).
+class _MemoryHostStore extends HostStore {
+  _MemoryHostStore() : super(secureStorage);
+
+  List<SavedHost> _hosts = const [];
+
+  @override
+  Future<List<SavedHost>> loadHosts() async => _hosts;
+
+  @override
+  Future<void> saveHosts(List<SavedHost> hosts) async => _hosts = hosts;
+}
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -27,7 +44,9 @@ void main() {
       stepDelay: const Duration(milliseconds: 20),
     );
     final url = (await tester.runAsync(host.start))!;
-    final container = ProviderContainer();
+    final container = ProviderContainer(
+      overrides: [hostStoreProvider.overrideWithValue(_MemoryHostStore())],
+    );
     addTearDown(() async {
       await tester.runAsync(
         () => container.read(hostConnectionProvider.notifier).disconnect(),
@@ -152,5 +171,5 @@ void main() {
       host.received.where((r) => r.action['type'] == '#authenticate'),
       hasLength(1),
     );
-  });
+  }, timeout: const Timeout(Duration(minutes: 3)));
 }

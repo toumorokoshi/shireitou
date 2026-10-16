@@ -69,7 +69,7 @@ Paste the printed `ws://…?tkn=…` URL into the app's connect screen, open
 test-fake-host-app [linux|macos]`, run by CI on both desktops): the real
   app, with the host in the same process, connects through the connect
   screen and drives approve, deny, answer, decline, the "Waiting for you"
-  panel and MCP sign-in through the UI. Linux needs a display and a
-  Secret Service, as for the desktop smoke test (see
-  [desktop.md](desktop.md)); with a fresh keyring, also point
-  `XDG_DATA_HOME` at an empty directory so gnome-keyring does not prompt.
+  panel and MCP sign-in through the UI. Remembered hosts are kept in
+  memory (an overridden `hostStoreProvider`), so it needs no keyring or
+  keychain; secure storage is the desktop smoke test's job. Linux needs a
+  display (`xvfb-run -a just test-fake-host-app linux`).
