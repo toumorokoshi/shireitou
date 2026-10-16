@@ -577,7 +577,8 @@ void main() {
       find.widgetWithText(TextField, 'Prompt'),
       'settings',
     );
-    await tester.tap(find.text('Start session'));
+    // Below the fold on small windows (the parallel runs row adds height).
+    await h.tapVisible(find.text('Start session'));
     await h.waitFor(find.textContaining('thinkingLevel: high'));
     // Let the composer close.
     await h.settle();
@@ -606,7 +607,7 @@ void main() {
       '/missing',
     );
     await tester.enterText(find.widgetWithText(TextField, 'Prompt'), 'hi');
-    await tester.tap(find.text('Start session'));
+    await h.tapVisible(find.text('Start session'));
     final started = DateTime.now();
     await h.waitFor(
       find.text('The session could not start: No such folder: /missing'),
