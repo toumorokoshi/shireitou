@@ -262,6 +262,20 @@ class _Harness {
     await tester.tap(finder);
   }
 
+  /// Taps [finder] after scrolling it into view, then scrolls the
+  /// timeline back to the newest row, so replies that arrive next are
+  /// built on screen (a tall approval bar can push the list up on a
+  /// small window).
+  Future<void> tapAndFollow(Finder finder) async {
+    await tapVisible(finder);
+    await settle();
+    final jump = find.byTooltip('Jump to latest');
+    if (jump.evaluate().isNotEmpty) {
+      await tester.tap(jump.first);
+      await settle();
+    }
+  }
+
   /// Types [text] into the follow-up box.
   Future<void> type(String text) async {
     // The box keeps focus after sending, and enterText only attaches the
@@ -456,9 +470,12 @@ void main() {
     await h.send('choose');
     await h.waitFor(find.textContaining('High risk (safety 35%)'));
     expect(find.text('Approve'), findsNothing);
-    await h.tapVisible(find.text('Allow in this session'));
+    await h.tapAndFollow(find.text('Allow in this session'));
     await h.waitFor(
-      find.text('You chose "Allow in this session", so I deleted build/.'),
+      find.text(
+        'You chose "Allow in this session", so I deleted build/.',
+        skipOffstage: false,
+      ),
     );
 
     // Edit the input before approving.
@@ -473,10 +490,13 @@ void main() {
     );
     await tester.tap(find.text('Save'));
     await h.settle();
-    await h.tapVisible(find.text('Approve edited'));
+    await h.tapAndFollow(find.text('Approve edited'));
     // Markdown drops the backticks around the command.
     await h.waitFor(
-      find.textContaining('Ran your edited command: git push origin feature.'),
+      find.textContaining(
+        'Ran your edited command: git push origin feature.',
+        skipOffstage: false,
+      ),
     );
 
     // A result that waits for confirmation.
@@ -484,9 +504,12 @@ void main() {
     await h.send('result');
     await h.waitFor(find.text('Use result'));
     expect(find.text('Status: all systems operational'), findsWidgets);
-    await h.tapVisible(find.text('Use result'));
+    await h.tapAndFollow(find.text('Use result'));
     await h.waitFor(
-      find.text('Using the result: all systems are operational.'),
+      find.text(
+        'Using the result: all systems are operational.',
+        skipOffstage: false,
+      ),
     );
 
     // Input drafts: another client's draft fills a field, this client's
@@ -504,7 +527,7 @@ void main() {
         (r) => r.action['type'] == 'chat/inputAnswerChanged',
       ),
     );
-    await h.tapVisible(find.widgetWithText(FilledButton, 'Submit'));
+    await h.tapAndFollow(find.widgetWithText(FilledButton, 'Submit'));
     await h.waitFor(
       find.textContaining(
         'summary=Faster builds, notes=$otherClientDraft. Drafts synced: 1.',
