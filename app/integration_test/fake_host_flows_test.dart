@@ -18,6 +18,7 @@ import 'package:shireitou/src/host_connection.dart';
 import 'package:shireitou/src/hosts/host_store.dart';
 import 'package:shireitou/src/hosts/saved_hosts.dart';
 import 'package:shireitou/src/session_detail/session_status_widgets.dart';
+import 'package:window_manager/window_manager.dart';
 
 /// Keeps remembered hosts in memory. Secure storage is covered by the
 /// desktop smoke test; here it would only add keychain prompts (macOS
@@ -44,6 +45,11 @@ void main() {
       stepDelay: const Duration(milliseconds: 20),
     );
     final url = (await tester.runAsync(host.start))!;
+    // Room for the list, the panel and a whole input form.
+    await tester.runAsync(() async {
+      await windowManager.ensureInitialized();
+      await windowManager.setSize(const Size(1400, 1000));
+    });
     final container = ProviderContainer(
       overrides: [hostStoreProvider.overrideWithValue(_MemoryHostStore())],
     );
@@ -88,6 +94,13 @@ void main() {
       await tester.pump();
     }
 
+    /// Scrolls [finder] into view (small windows), then taps it.
+    Future<void> tapVisible(Finder finder) async {
+      await tester.ensureVisible(finder);
+      await tester.pump();
+      await tester.tap(finder);
+    }
+
     Future<void> send(String text) async {
       // Wait for the previous turn to end, so this starts a new one.
       await waitFor(find.byTooltip('Send'));
@@ -103,6 +116,7 @@ void main() {
     }
 
     // Connect through the connect screen.
+    debugPrint('fake host flows: connect');
     await tester.enterText(
       find.widgetWithText(TextField, 'Host URL'),
       url.toString(),
@@ -113,53 +127,59 @@ void main() {
     await waitFor(find.text('No messages yet. Say something.'));
 
     // Approve a tool call.
+    debugPrint('fake host flows: approve');
     await send('run the tool');
     await waitFor(find.text('Approve'));
     expect(find.text('Allow Bash to run `ls -la`?'), findsOneWidget);
     expect(find.text('Needs input'), findsWidgets);
-    await tester.tap(find.text('Approve'));
+    await tapVisible(find.text('Approve'));
     await waitFor(find.text('The folder has 3 entries.'));
     expect(find.text('Ran `ls -la`'), findsOneWidget);
 
     // Deny one.
+    debugPrint('fake host flows: deny');
     await send('tool again');
     await waitFor(find.text('Deny'));
-    await tester.tap(find.text('Deny'));
+    await tapVisible(find.text('Deny'));
     await waitFor(find.text('OK, I did not run it.'));
 
     // Answer an elicitation.
+    debugPrint('fake host flows: answer');
     await send('ask me');
     await waitFor(find.text('Where should I deploy?'));
     await tester.enterText(
       find.widgetWithText(TextFormField, 'Release name *'),
       'v1',
     );
-    await tester.tap(find.text('Environment *'));
+    await tapVisible(find.text('Environment *'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Staging').last);
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'Submit'));
+    await tapVisible(find.widgetWithText(FilledButton, 'Submit'));
     await waitFor(find.textContaining('name=v1, env=staging'));
 
     // Decline one.
+    debugPrint('fake host flows: decline');
     await send('ask once more');
     await waitFor(find.widgetWithText(OutlinedButton, 'Decline'));
-    await tester.tap(find.widgetWithText(OutlinedButton, 'Decline'));
+    await tapVisible(find.widgetWithText(OutlinedButton, 'Decline'));
     await waitFor(find.text('You declined, so I stopped.'));
 
     // A request from another chat, answered in the session panel.
+    debugPrint('fake host flows: side chat');
     await send('side');
     final panel = find.byType(SessionInputPanel);
     await waitFor(panel);
     expect(find.text('In Reviewer'), findsOneWidget);
-    await tester.tap(find.descendant(of: panel, matching: find.text('Submit')));
+    await tapVisible(find.descendant(of: panel, matching: find.text('Submit')));
     await waitFor(find.textContaining('merge=yes'));
     expect(panel, findsNothing);
 
     // MCP sign-in with a pasted token.
+    debugPrint('fake host flows: MCP sign-in');
     await send('auth');
     await waitFor(find.text('Sign in'));
-    await tester.tap(find.text('Sign in'));
+    await tapVisible(find.text('Sign in'));
     await tester.pumpAndSettle();
     await tester.enterText(
       find.widgetWithText(TextField, 'Access token'),

@@ -95,7 +95,12 @@ jobs:
           PI_AHP_HOST_DIR: ${{ github.workspace }}/pi-agent-host-protocol
       - name: App flows against the fake host
         timeout-minutes: 15
-        run: xvfb-run -a just test-fake-host-app linux
+        run: |
+          set -o pipefail
+          xvfb-run -a just test-fake-host-app linux 2>&1 | tee fake-host-app.log
+      - name: Report fake host test failures
+        if: failure()
+        run: scripts/annotate-test-failure fake-host-app.log
       - name: Package .tar.gz and .deb
         run: scripts/package-linux
       - uses: actions/upload-artifact@v4
@@ -132,7 +137,12 @@ jobs:
           PI_AHP_HOST_DIR: ${{ github.workspace }}/pi-agent-host-protocol
       - name: App flows against the fake host
         timeout-minutes: 15
-        run: just test-fake-host-app macos
+        run: |
+          set -o pipefail
+          just test-fake-host-app macos 2>&1 | tee fake-host-app.log
+      - name: Report fake host test failures
+        if: failure()
+        run: scripts/annotate-test-failure fake-host-app.log
       - name: Package unsigned .dmg
         run: scripts/package-macos
       - uses: actions/upload-artifact@v4
