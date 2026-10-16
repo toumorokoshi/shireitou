@@ -155,6 +155,17 @@ String describeRpcError(int code, String message, Object? data) {
     return 'Unsupported protocol version. Client offers '
         '${offeredProtocolVersions.join(', ')}; host supports $versions.';
   }
+  if (code == AhpErrorCodes.authRequired) {
+    final resources = data is Map ? data['resources'] : null;
+    final names = [
+      if (resources is List)
+        for (final r in resources)
+          if (r is Map) '${r['resource_name'] ?? r['resource']}',
+    ];
+    return names.isEmpty
+        ? 'Sign-in required: $message'
+        : 'Sign-in required: ${names.join(', ')}';
+  }
   return '$message (code $code)';
 }
 

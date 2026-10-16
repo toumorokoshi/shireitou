@@ -3,6 +3,7 @@ library;
 
 import 'dart:convert';
 
+import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -167,6 +168,20 @@ class HostStore {
   Future<void> saveOpenHosts(List<String> keys) =>
       storage.write(key: _openHostsKey, value: jsonEncode(keys));
 
+  /// The OAuth and pasted tokens saved for the host with [hostKey], by
+  /// resource (AHP-060, AHP-063). Throws the storage error.
+  Future<Map<String, ResourceToken>> loadTokens(String hostKey) async =>
+      decodeTokens(await storage.read(key: _tokensKey(hostKey)));
+
+  /// Saves [hostKey]'s tokens (an empty map deletes them). Throws the
+  /// storage error.
+  Future<void> saveTokens(String hostKey, Map<String, ResourceToken> tokens) =>
+      tokens.isEmpty
+      ? storage.delete(key: _tokensKey(hostKey))
+      : storage.write(key: _tokensKey(hostKey), value: encodeTokens(tokens));
+
+  static String _tokensKey(String hostKey) => 'tokens:$hostKey';
+
   Future<List<SavedHost>> _migrateLegacy() async {
     final url = await storage.read(key: _legacyUrlKey);
     if (url == null || url.isEmpty) return const [];
@@ -177,4 +192,52 @@ class HostStore {
     await storage.delete(key: _legacyTokenKey);
     return hosts;
   }
+}
+
+/// [tokens] as JSON, for [HostStore.saveTokens].
+String encodeTokens(Map<String, ResourceToken> tokens) => jsonEncode({
+  for (final MapEntry(:key, :value) in tokens.entries) key: value.toJson(),
+});
+
+/// The tokens [encoded] by [encodeTokens]; entries that do not decode are
+/// dropped, and null or garbage decodes as none.
+Map<String, ResourceToken> decodeTokens(String? encoded) {
+  if (encoded == null || encoded.isEmpty) return const {};
+  try {
+    final json = jsonDecode(encoded);
+    if (json is! Map<String, Object?>) return const {};
+    return {
+      for (final MapEntry(:key, :value) in json.entries)
+        if (value is Map<String, Object?>) key: ?_decodeToken(value),
+    };
+  } on FormatException {
+    return const {};
+  }
+}
+
+ResourceToken? _decodeToken(Map<String, Object?> json) {
+  try {
+    return ResourceToken.fromJson(json);
+  } on Object {
+    return null;
+  }
+}
+
+/// A host's tokens in the [HostStore], for its [HostAuthenticator].
+class HostTokenStore implements TokenStore {
+  /// Creates the token store of the host with [hostKey].
+  const HostTokenStore(this.store, this.hostKey);
+
+  /// Where hosts are kept.
+  final HostStore store;
+
+  /// The host's key ([SavedHost.key]).
+  final String hostKey;
+
+  @override
+  Future<Map<String, ResourceToken>> load() => store.loadTokens(hostKey);
+
+  @override
+  Future<void> save(Map<String, ResourceToken> tokens) =>
+      store.saveTokens(hostKey, tokens);
 }

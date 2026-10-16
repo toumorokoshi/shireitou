@@ -10,6 +10,8 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
+import 'auth/oauth_browser.dart';
+import 'auth/sign_in_dialog.dart';
 import 'hosts/host_store.dart';
 import 'hosts/saved_hosts.dart';
 
@@ -20,6 +22,13 @@ final hostConnectionProvider =
     NotifierProvider.family<HostConnection, HostState, String>(
       HostConnection.new,
     );
+
+/// The protected resources a host holds a token for (AHP-060), by host
+/// key.
+final signedInResourcesProvider = StreamProvider.family<Set<String>, String>(
+  (ref, host) =>
+      ref.watch(hostConnectionProvider(host).notifier).signedInChanges,
+);
 
 /// Tells the widgets below which host (a [SavedHost.key]) they show, so
 /// they can watch `hostConnectionProvider(context.host)`. Routes pushed
@@ -59,6 +68,10 @@ class HostConnection extends Notifier<HostState> {
   StreamSubscription<HostState>? _subscription;
   StreamSubscription<ActionFailure>? _failureSubscription;
   final _failures = StreamController<ActionFailure>.broadcast();
+  HostAuthenticator? _auth;
+  StreamSubscription<Set<String>>? _authSubscription;
+  final _signedIn = StreamController<Set<String>>.broadcast();
+  Set<String> _signedInNow = const {};
 
   @override
   HostState build() {
@@ -83,6 +96,20 @@ class HostConnection extends Notifier<HostState> {
     _client = client;
     _subscription = client.states.listen((next) => state = next);
     _failureSubscription = client.failures.listen(_failures.add);
+    // Before connecting, so saved tokens are pushed on the first
+    // connection and -32007 is answered from the start.
+    final auth = HostAuthenticator(
+      client: client,
+      store: HostTokenStore(ref.read(hostStoreProvider), host),
+      interactive: (challenge) =>
+          promptSignIn(challenge, browserSignIn: browserSignIn),
+    );
+    _auth = auth;
+    _authSubscription = auth.changes.listen((resources) {
+      _signedInNow = resources;
+      _signedIn.add(resources);
+    });
+    await auth.start();
     await client.connect();
     if (client.state.status == ConnectionStatus.connected) {
       await ref
@@ -156,12 +183,37 @@ class HostConnection extends Notifier<HostState> {
   /// This client's `clientId` on the host, while connected.
   String? get clientId => _client?.clientId;
 
-  /// Pushes a bearer [token] for the protected [resource] (`authenticate`),
-  /// for example to resume a tool call waiting on MCP sign-in.
-  Future<void> authenticate({
-    required String resource,
-    required String token,
-  }) => _connected.authenticate(resource: resource, token: token);
+  /// Pushes [token] for the protected [resource] (`authenticate`, with
+  /// its remaining lifetime and scopes), keeps it for this host (secure
+  /// storage) and refreshes it before it expires (AHP-060). Throws when
+  /// the host refuses it.
+  Future<void> pushToken(String resource, ResourceToken token) =>
+      (_auth ?? (throw StateError('not connected to a host'))).push(
+        resource,
+        token,
+      );
+
+  /// Signs in to [challenge]'s resource in the browser (OAuth with PKCE)
+  /// and returns the token, without pushing it.
+  Future<ResourceToken> browserSignIn(AuthChallenge challenge) async {
+    final browser = ref.read(oauthBrowserProvider);
+    return signInWithBrowser(
+      resource: challenge.resource,
+      oauthClient: challenge.oauthClient,
+      requiredScopes: challenge.requiredScopes,
+      receiver: await browser.receiver(),
+      openBrowser: browser.open,
+    );
+  }
+
+  /// The protected resources this host holds a token for.
+  Set<String> get signedIn => _signedInNow;
+
+  /// [signedIn], now and after every change.
+  Stream<Set<String>> get signedInChanges async* {
+    yield _signedInNow;
+    yield* _signedIn.stream;
+  }
 
   /// Lists a folder on the host (`resourceList`, AV-043).
   Future<List<DirectoryEntry>> listDirectory(String uri) =>
@@ -232,6 +284,10 @@ class HostConnection extends Notifier<HostState> {
       _client ?? (throw StateError('not connected to a host'));
 
   Future<void> _dispose() async {
+    await _authSubscription?.cancel();
+    _authSubscription = null;
+    await _auth?.close();
+    _auth = null;
     await _subscription?.cancel();
     _subscription = null;
     await _failureSubscription?.cancel();

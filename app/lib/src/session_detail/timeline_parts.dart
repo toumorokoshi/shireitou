@@ -2,12 +2,16 @@
 /// input requests and errors (AV-061 to AV-067, AV-083, AV-084).
 library;
 
+import 'dart:async';
+
 import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../auth/sign_in_dialog.dart';
+import 'approval_bar.dart';
 import 'chat_commands.dart';
 import 'code_highlight.dart';
 import 'timeline_items.dart';
@@ -15,19 +19,13 @@ import 'todo_list.dart';
 import 'todo_widgets.dart';
 import 'tool_previews.dart';
 
-/// Pushes a token for a protected resource (`authenticate`).
-typedef Authenticate = Future<void> Function({
-  required String resource,
-  required String token,
-});
-
 /// Builds the widget for one [item]. [onAction] dispatches a chat action;
-/// [onAuthenticate] signs a tool call in to its MCP server; [onOpenChat]
+/// [onSignIn] signs a tool call in to its MCP server; [onOpenChat]
 /// opens a subagent's chat; [onLoadOlder] pages in older turns.
 Widget buildTimelineItem(
   TimelineItem item,
   ValueChanged<JsonMap> onAction, {
-  Authenticate? onAuthenticate,
+  SignIn? onSignIn,
   OpenChat? onOpenChat,
   VoidCallback? onLoadOlder,
 }) => switch (item) {
@@ -47,7 +45,7 @@ Widget buildTimelineItem(
       turnId: turnId,
       toolCall: toolCall,
       onAction: active ? onAction : null,
-      onAuthenticate: active ? onAuthenticate : null,
+      onSignIn: active ? onSignIn : null,
       onOpenChat: onOpenChat,
     ),
     InputRequestResponsePart() => InputRequestCard(
@@ -211,7 +209,7 @@ class ToolCallCard extends StatelessWidget {
     required this.turnId,
     required this.toolCall,
     this.onAction,
-    this.onAuthenticate,
+    this.onSignIn,
     this.onOpenChat,
   });
 
@@ -225,7 +223,7 @@ class ToolCallCard extends StatelessWidget {
   final ValueChanged<JsonMap>? onAction;
 
   /// Pushes an MCP sign-in token; null hides "Sign in".
-  final Authenticate? onAuthenticate;
+  final SignIn? onSignIn;
 
   /// Opens a subagent's chat.
   final OpenChat? onOpenChat;
@@ -283,81 +281,20 @@ class ToolCallCard extends StatelessWidget {
               live: !toolCall.isFinished,
               onOpenChat: onOpenChat,
             ),
-          if (waiting && onAction != null) _approvalBar(context),
+          if (waiting && onAction != null)
+            ApprovalBar(
+              key: ValueKey('approval-${toolCall.toolCallId}'),
+              turnId: turnId,
+              toolCall: toolCall,
+              onAction: onAction!,
+            ),
           if (toolCall case final ToolCallAuthRequiredState call
               when onAction != null)
             _AuthBar(
               auth: call.auth,
-              onSignIn: onAuthenticate,
+              onSignIn: onSignIn,
               onCancel: () => onAction!(cancelAuthAction(turnId, call)),
             ),
-        ],
-      ),
-    );
-  }
-
-  Widget _approvalBar(BuildContext context) {
-    final onAction = this.onAction!;
-    final pending = switch (toolCall) {
-      final ToolCallPendingConfirmationState pending => pending,
-      _ => null,
-    };
-    final title = pending?.confirmationTitle?.text;
-    final options = pending?.options ?? const <ConfirmationOption>[];
-    final buttons = options.isEmpty
-        ? [
-            FilledButton(
-              onPressed: () => onAction(
-                confirmToolCallAction(turnId, toolCall, approve: true),
-              ),
-              child: const Text('Approve'),
-            ),
-            OutlinedButton(
-              onPressed: () => onAction(
-                confirmToolCallAction(turnId, toolCall, approve: false),
-              ),
-              child: const Text('Deny'),
-            ),
-          ]
-        : [
-            for (final option in options)
-              option.kind == ConfirmationOptionKind.approve
-                  ? FilledButton(
-                      onPressed: () => onAction(
-                        confirmToolCallAction(
-                          turnId,
-                          toolCall,
-                          approve: true,
-                          option: option,
-                        ),
-                      ),
-                      child: Text(option.label),
-                    )
-                  : OutlinedButton(
-                      onPressed: () => onAction(
-                        confirmToolCallAction(
-                          turnId,
-                          toolCall,
-                          approve: false,
-                          option: option,
-                        ),
-                      ),
-                      child: Text(option.label),
-                    ),
-          ];
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (title != null) ...[Text(title), const SizedBox(height: 8)],
-          if (pending?.riskAssessment case ToolCallRiskAssessmentCompleteState(
-            :final safety,
-          )) ...[
-            Text('Risk assessment: safety ${safety.toStringAsFixed(2)}'),
-            const SizedBox(height: 8),
-          ],
-          Wrap(spacing: 8, runSpacing: 8, children: buttons),
         ],
       ),
     );
@@ -373,7 +310,7 @@ class _AuthBar extends StatelessWidget {
   });
 
   final McpAuthRequirement auth;
-  final Authenticate? onSignIn;
+  final SignIn? onSignIn;
   final VoidCallback onCancel;
 
   @override
@@ -396,11 +333,8 @@ class _AuthBar extends StatelessWidget {
                 FilledButton.icon(
                   icon: const Icon(Icons.key),
                   label: const Text('Sign in'),
-                  onPressed: () => signInWithToken(
-                    context,
-                    resource: resource,
-                    onAuthenticate: onSignIn,
-                  ),
+                  onPressed: () =>
+                      onSignIn(AuthChallenge.fromRequirement(auth)),
                 ),
               OutlinedButton(
                 onPressed: onCancel,
@@ -410,87 +344,6 @@ class _AuthBar extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-/// Asks for a token for [resource] and pushes it with [onAuthenticate].
-/// Shows a snackbar when the host refuses it.
-///
-/// There is no OAuth flow yet (AHP-060): the user pastes a token.
-Future<void> signInWithToken(
-  BuildContext context, {
-  required ProtectedResourceMetadata resource,
-  required Authenticate onAuthenticate,
-}) async {
-  final token = await showDialog<String>(
-    context: context,
-    builder: (context) => _TokenDialog(resource: resource),
-  );
-  if (token == null || token.isEmpty) return;
-  try {
-    await onAuthenticate(resource: resource.resource, token: token);
-  } on Object catch (error) {
-    if (context.mounted) {
-      ScaffoldMessenger.maybeOf(context)
-          ?.showSnackBar(SnackBar(content: Text('Sign-in failed: $error')));
-    }
-  }
-}
-
-class _TokenDialog extends StatefulWidget {
-  const _TokenDialog({required this.resource});
-
-  final ProtectedResourceMetadata resource;
-
-  @override
-  State<_TokenDialog> createState() => _TokenDialogState();
-}
-
-class _TokenDialogState extends State<_TokenDialog> {
-  final _token = TextEditingController();
-
-  @override
-  void dispose() {
-    _token.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final resource = widget.resource;
-    final docs = resource.resourceDocumentation;
-    return AlertDialog(
-      title: Text('Sign in to ${resource.resourceName ?? resource.resource}'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Paste an access token for ${resource.resource}.'),
-          if (docs != null)
-            TextButton(
-              onPressed: () => launchUrl(Uri.parse(docs)),
-              child: const Text('How to get a token'),
-            ),
-          TextField(
-            controller: _token,
-            autofocus: true,
-            obscureText: true,
-            decoration: const InputDecoration(labelText: 'Access token'),
-            onSubmitted: (value) => Navigator.pop(context, value.trim()),
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.pop(context, _token.text.trim()),
-          child: const Text('Sign in'),
-        ),
-      ],
     );
   }
 }
@@ -544,8 +397,13 @@ class _CodeBlock extends StatelessWidget {
   }
 }
 
+/// How long the user may pause typing before an input draft is synced.
+const draftSyncDelay = Duration(milliseconds: 400);
+
 /// An input request: an inline form while open, a summary once answered
-/// (AV-084).
+/// (AV-084). Answers are synced as drafts while the user types
+/// (`chat/inputAnswerChanged`), and drafts from other clients fill the
+/// fields the user has not touched.
 class InputRequestCard extends StatefulWidget {
   /// Creates an [InputRequestCard]. The form needs [onAction].
   const InputRequestCard({super.key, required this.part, this.onAction});
@@ -562,20 +420,108 @@ class InputRequestCard extends StatefulWidget {
 
 class _InputRequestCardState extends State<InputRequestCard> {
   late final Map<String, Object?> _values = {
-    for (final q in widget.part.request.questions ?? <ChatInputQuestion>[])
-      q.id: switch (q) {
-        ChatInputMultiSelectQuestion() => <String>{},
-        ChatInputBooleanQuestion(:final defaultValue) => defaultValue ?? false,
-        ChatInputTextQuestion(:final defaultValue?) => defaultValue,
-        ChatInputNumberQuestion(:final defaultValue?) => '$defaultValue',
-        _ => '',
-      },
+    for (final q in _questions(widget.part))
+      q.id:
+          answerFormValue(q, widget.part.request.answers?[q.id])?.value ??
+          switch (q) {
+            ChatInputMultiSelectQuestion() => <String>{},
+            ChatInputBooleanQuestion(:final defaultValue) =>
+              defaultValue ?? false,
+            ChatInputTextQuestion(:final defaultValue?) => defaultValue,
+            ChatInputNumberQuestion(:final defaultValue?) => '$defaultValue',
+            _ => '',
+          },
   };
 
   /// Free-form text by question ID, for select questions that allow it.
-  final Map<String, String> _freeform = {};
+  late final Map<String, String> _freeform = {
+    for (final q in _questions(widget.part))
+      if (answerFormValue(q, widget.part.request.answers?[q.id]) case (
+        :final freeform?,
+        value: _,
+      ))
+        q.id: freeform,
+  };
 
-  void _set(String id, Object? value) => setState(() => _values[id] = value);
+  /// Questions the user changed here: drafts from other clients no longer
+  /// replace them.
+  final _touched = <String>{};
+
+  /// Bumped when another client's draft replaces a field, so the field
+  /// starts over from the new value.
+  final _revisions = <String, int>{};
+
+  final _draftTimers = <String, Timer>{};
+
+  static List<ChatInputQuestion> _questions(InputRequestResponsePart part) =>
+      part.request.questions ?? const <ChatInputQuestion>[];
+
+  @override
+  void didUpdateWidget(InputRequestCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final before = oldWidget.part.request.answers;
+    final after = widget.part.request.answers;
+    for (final q in _questions(widget.part)) {
+      if (_touched.contains(q.id) || before?[q.id] == after?[q.id]) continue;
+      final form = answerFormValue(q, after?[q.id]);
+      if (form == null) continue;
+      _values[q.id] = form.value;
+      if (form.freeform case final text?) _freeform[q.id] = text;
+      _revisions[q.id] = (_revisions[q.id] ?? 0) + 1;
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final timer in _draftTimers.values) {
+      timer.cancel();
+    }
+    super.dispose();
+  }
+
+  /// Syncs [q]'s draft to the host (`chat/inputAnswerChanged`) once the
+  /// user pauses, so other clients see it.
+  void _syncDraft(ChatInputQuestion q) {
+    _touched.add(q.id);
+    final onAction = widget.onAction;
+    if (onAction == null || widget.part.response != null) return;
+    _draftTimers.remove(q.id)?.cancel();
+    _draftTimers[q.id] = Timer(draftSyncDelay, () {
+      _draftTimers.remove(q.id);
+      if (!mounted || widget.part.response != null) return;
+      onAction(
+        inputAnswerChangedAction(
+          widget.part.request,
+          q,
+          _values[q.id],
+          freeform: _freeform[q.id],
+        ),
+      );
+    });
+  }
+
+  void _set(ChatInputQuestion q, Object? value) {
+    setState(() => _values[q.id] = value);
+    _syncDraft(q);
+  }
+
+  void _submit(ValueChanged<JsonMap> onAction, {required bool accept}) {
+    for (final timer in _draftTimers.values) {
+      timer.cancel();
+    }
+    _draftTimers.clear();
+    final request = widget.part.request;
+    onAction(
+      accept
+          ? inputCompletedAction(
+              request,
+              accept: true,
+              values: _values,
+              freeform: _freeform,
+            )
+          : inputCompletedAction(request, accept: false),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -612,20 +558,12 @@ class _InputRequestCardState extends State<InputRequestCard> {
                   FilledButton(
                     onPressed:
                         inputComplete(request, _values, freeform: _freeform)
-                        ? () => onAction(
-                            inputCompletedAction(
-                              request,
-                              accept: true,
-                              values: _values,
-                              freeform: _freeform,
-                            ),
-                          )
+                        ? () => _submit(onAction, accept: true)
                         : null,
                     child: const Text('Submit'),
                   ),
                   OutlinedButton(
-                    onPressed: () =>
-                        onAction(inputCompletedAction(request, accept: false)),
+                    onPressed: () => _submit(onAction, accept: false),
                     child: const Text('Decline'),
                   ),
                 ],
@@ -659,7 +597,7 @@ class _InputRequestCardState extends State<InputRequestCard> {
           help: help,
           options: options,
           selected: value as String?,
-          onSelected: (id) => _set(q.id, id),
+          onSelected: (id) => _set(q, id),
         ),
       _ => _field(q, label, help, value),
     };
@@ -672,7 +610,7 @@ class _InputRequestCardState extends State<InputRequestCard> {
               children: [
                 field,
                 TextFormField(
-                  key: ValueKey('freeform-${q.id}'),
+                  key: ValueKey('freeform-${q.id}-${_revisions[q.id] ?? 0}'),
                   initialValue: _freeform[q.id],
                   minLines: 1,
                   maxLines: 4,
@@ -680,7 +618,10 @@ class _InputRequestCardState extends State<InputRequestCard> {
                     labelText: 'Or write your own answer',
                     helperText: 'Sent with the choice, or instead of it',
                   ),
-                  onChanged: (v) => setState(() => _freeform[q.id] = v),
+                  onChanged: (v) {
+                    setState(() => _freeform[q.id] = v);
+                    _syncDraft(q);
+                  },
                 ),
               ],
             ),
@@ -698,17 +639,18 @@ class _InputRequestCardState extends State<InputRequestCard> {
       title: Text(label),
       subtitle: help == null ? null : Text(help),
       value: value == true,
-      onChanged: (v) => _set(q.id, v),
+      onChanged: (v) => _set(q, v),
     ),
     ChatInputSingleSelectQuestion(:final options) =>
       DropdownButtonFormField<String>(
+        key: ValueKey('select-${q.id}-${_revisions[q.id] ?? 0}'),
         decoration: InputDecoration(labelText: label, helperText: help),
         initialValue: (value as String?)?.isEmpty ?? true ? null : value,
         items: [
           for (final o in options)
             DropdownMenuItem(value: o.id, child: Text(o.label)),
         ],
-        onChanged: (v) => _set(q.id, v ?? ''),
+        onChanged: (v) => _set(q, v ?? ''),
       ),
     ChatInputMultiSelectQuestion(:final options) => Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -724,7 +666,7 @@ class _InputRequestCardState extends State<InputRequestCard> {
                 onSelected: (on) {
                   final next = {...(value as Set<String>)};
                   on ? next.add(o.id) : next.remove(o.id);
-                  _set(q.id, next);
+                  _set(q, next);
                 },
               ),
           ],
@@ -732,12 +674,13 @@ class _InputRequestCardState extends State<InputRequestCard> {
       ],
     ),
     _ => TextFormField(
+      key: ValueKey('text-${q.id}-${_revisions[q.id] ?? 0}'),
       initialValue: value as String?,
       decoration: InputDecoration(labelText: label, helperText: help),
       keyboardType: q is ChatInputNumberQuestion
           ? TextInputType.number
           : TextInputType.text,
-      onChanged: (v) => _set(q.id, v),
+      onChanged: (v) => _set(q, v),
     ),
   };
 }

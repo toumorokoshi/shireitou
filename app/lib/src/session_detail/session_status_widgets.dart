@@ -6,6 +6,7 @@ library;
 import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter/material.dart';
 
+import '../auth/sign_in_dialog.dart';
 import 'session_inputs.dart';
 import 'timeline_parts.dart';
 import 'tool_previews.dart';
@@ -26,7 +27,7 @@ class SessionInputPanel extends StatelessWidget {
     required this.session,
     required this.openChat,
     required this.onAnswer,
-    this.onAuthenticate,
+    this.onSignIn,
   });
 
   /// The requests to show.
@@ -42,7 +43,7 @@ class SessionInputPanel extends StatelessWidget {
   final AnswerPrompt onAnswer;
 
   /// Pushes an MCP sign-in token.
-  final Authenticate? onAuthenticate;
+  final SignIn? onSignIn;
 
   @override
   Widget build(BuildContext context) {
@@ -104,7 +105,7 @@ class SessionInputPanel extends StatelessWidget {
           turnId: turnId,
           toolCall: toolCall,
           onAction: dispatch,
-          onAuthenticate: onAuthenticate,
+          onSignIn: onSignIn,
         ),
       SessionToolClientExecutionRequest() => const SizedBox.shrink(),
       SessionInputRequestUnknown(:final kind) => Text(
@@ -222,21 +223,17 @@ class BackgroundWorkChip extends StatelessWidget {
 /// needs sign-in asks for a token.
 class McpServerAlertChips extends StatelessWidget {
   /// Creates [McpServerAlertChips] for [alerts].
-  const McpServerAlertChips({
-    super.key,
-    required this.alerts,
-    this.onAuthenticate,
-  });
+  const McpServerAlertChips({super.key, required this.alerts, this.onSignIn});
 
   /// The servers that need attention.
   final List<McpServerAlert> alerts;
 
   /// Pushes a sign-in token.
-  final Authenticate? onAuthenticate;
+  final SignIn? onSignIn;
 
   @override
   Widget build(BuildContext context) {
-    final onAuthenticate = this.onAuthenticate;
+    final onSignIn = this.onSignIn;
     return Wrap(
       spacing: 4,
       children: [
@@ -253,13 +250,8 @@ class McpServerAlertChips extends StatelessWidget {
               ),
               label: Text(server.name),
               onPressed: switch (server.state) {
-                McpServerAuthRequiredState(:final resource)
-                    when onAuthenticate != null =>
-                  () => signInWithToken(
-                    context,
-                    resource: resource,
-                    onAuthenticate: onAuthenticate,
-                  ),
+                final McpServerAuthRequiredState state when onSignIn != null =>
+                  () => onSignIn(AuthChallenge.fromServerState(state)),
                 _ => null,
               },
             ),

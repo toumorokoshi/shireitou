@@ -14,8 +14,11 @@ with a UX modeled on the GitHub Agents view and Cursor's Agents Window.
 > replies with highlighted code, groups similar tool calls, shows live
 > terminal output and inline diffs, switches between a session's chats
 > (subagents, side chats), sends, queues, edits and reorders follow-ups,
-> syncs drafts, stops turns, answers tool approvals, input requests (also
-> from other chats) and MCP sign-in prompts, reviews changesets (files,
+> syncs drafts, stops turns, answers tool approvals (with the host's
+> options, risk assessments, edited input and result confirmation), input
+> requests (also from other chats, with synced drafts) and sign-in
+> prompts (OAuth in the browser with PKCE, or a pasted token; expired
+> tokens are refreshed), reviews changesets (files,
 > diffs, "reviewed" marks, host operations), shows background work,
 > canvases and session details, and starts new sessions (host, agent,
 > model and its options such as the thinking level, a folder browsed on
@@ -37,7 +40,8 @@ with a UX modeled on the GitHub Agents view and Cursor's Agents Window.
   Flutter dependency). Wire types, pure reducers, and the WebSocket JSON-RPC
   connection.
 - [`packages/ahp_fake_host/`](packages/ahp_fake_host/): a scripted AHP
-  host for tests that asks for tool approvals, input and MCP sign-in,
+  host for tests that asks for tool approvals, input and MCP sign-in
+  (with an in-process OAuth authorization server),
   streams terminals, edits files into changesets, spawns subagent chats
   and serves a windowed long session (see
   [docs/fake-host.md](docs/fake-host.md)).

@@ -17,14 +17,17 @@
 /// ```
 library;
 
+import 'package:ahp_client/ahp_client.dart';
 import 'package:ahp_fake_host/ahp_fake_host.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 import 'package:integration_test/integration_test.dart';
 import 'package:shireitou/src/app.dart';
+import 'package:shireitou/src/auth/oauth_browser.dart';
 import 'package:shireitou/src/desktop/app_menu.dart';
 import 'package:shireitou/src/desktop/desktop_window.dart';
 import 'package:shireitou/src/hosts/open_hosts.dart';
@@ -58,7 +61,33 @@ class _MemoryHostStore extends HostStore {
 
   @override
   Future<void> saveOpenHosts(List<String> keys) async => _open = keys;
+
+  final _tokens = <String, Map<String, ResourceToken>>{};
+
+  @override
+  Future<Map<String, ResourceToken>> loadTokens(String hostKey) async =>
+      _tokens[hostKey] ?? const {};
+
+  @override
+  Future<void> saveTokens(
+    String hostKey,
+    Map<String, ResourceToken> tokens,
+  ) async => _tokens[hostKey] = tokens;
 }
+
+/// URLs the test's "browser" opened.
+final _browsed = <Uri>[];
+
+/// The system browser, played by the test: it loads the authorization
+/// URL; the fake authorization server approves at once and redirects to
+/// the app's loopback receiver, which `http` follows.
+final _testBrowser = OAuthBrowser(
+  receiver: LoopbackRedirectReceiver.start,
+  open: (url) async {
+    _browsed.add(url);
+    await http.get(url);
+  },
+);
 
 /// The app connected to a fresh fake host, with helpers that let real
 /// I/O run between frames.
@@ -127,6 +156,7 @@ class _Harness {
           // No OS notifications (or permission prompts) from the tests.
           notifierProvider.overrideWithValue(null),
           prefsStoreProvider.overrideWithValue(MemoryPrefsStore()),
+          oauthBrowserProvider.overrideWithValue(_testBrowser),
         ],
       );
 
@@ -333,17 +363,19 @@ void main() {
     await waitFor(find.textContaining('merge=yes'));
     expect(panel, findsNothing);
 
-    // MCP sign-in with a pasted token.
+    // MCP sign-in with a pasted token (the fallback to OAuth).
     debugPrint('fake host flows: MCP sign-in');
     await send('auth');
     await waitFor(find.text('Sign in'));
     await tapVisible(find.text('Sign in'));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('Use an access token instead'));
+    await tester.pumpAndSettle();
     await tester.enterText(
       find.widgetWithText(TextField, 'Access token'),
-      'mcp-token',
+      fakePersonalToken,
     );
-    await tester.tap(find.widgetWithText(FilledButton, 'Sign in').last);
+    await tester.tap(find.text('Use token'));
     await waitFor(find.text('Signed in. I found 2 pages.'));
     expect(
       host.received.where((r) => r.action['type'] == '#authenticate'),
@@ -374,6 +406,141 @@ void main() {
     await send('open a pr');
     await waitFor(find.widgetWithText(ActionChip, 'PR #42 · open'));
     expect(find.widgetWithText(ActionChip, 'main'), findsOneWidget);
+  }, timeout: const Timeout(Duration(minutes: 3)));
+
+  testWidgets('OAuth sign-in, re-authentication, and host-provided '
+      'confirmation options, risk, edited input, result confirmation and '
+      'input drafts', (tester) async {
+    final h = await _Harness.start(tester);
+    final host = h.host;
+    _browsed.clear();
+    await tester.tap(find.text('Scripted session'));
+    await h.waitFor(find.text('No messages yet. Say something.'));
+
+    // Sign in with the browser: discovery, registration, PKCE, the
+    // loopback redirect and the token exchange (AHP-060).
+    debugPrint('fake host flows: OAuth sign-in');
+    await h.send('auth');
+    await h.waitFor(find.text('Sign in'));
+    await h.tapVisible(find.text('Sign in'));
+    await h.settle();
+    expect(find.text('Access requested: $docsScope'), findsOneWidget);
+    await tester.tap(find.text('Sign in with browser'));
+    await h.waitFor(find.text('Signed in. I found 2 pages.'));
+    expect(
+      _browsed.single.queryParameters,
+      containsPair('resource', docsResource),
+    );
+    final pushed = host.received
+        .where((r) => r.action['type'] == '#authenticate')
+        .single
+        .action;
+    expect(pushed['token'], startsWith('at-'));
+    expect(pushed['scopes'], [docsScope]);
+    expect(host.oauthServer.log, [
+      startsWith('register '),
+      startsWith('authorize '),
+      startsWith('token '),
+    ]);
+
+    // The host says the token expired: it is refreshed without asking
+    // (AHP-061).
+    debugPrint('fake host flows: expired token');
+    await h.send('expire');
+    await h.waitFor(find.text('Signed in to Example Docs again.'));
+    expect(find.text('Sign in with browser'), findsNothing);
+    expect(host.oauthServer.log.last, startsWith('refresh '));
+
+    // Host-provided options in groups and a risk assessment (AV-083).
+    debugPrint('fake host flows: options and risk');
+    await h.send('choose');
+    await h.waitFor(find.textContaining('High risk (safety 35%)'));
+    expect(find.text('Approve'), findsNothing);
+    await h.tapVisible(find.text('Allow in this session'));
+    await h.waitFor(
+      find.text('You chose "Allow in this session", so I deleted build/.'),
+    );
+
+    // Edit the input before approving.
+    debugPrint('fake host flows: edited input');
+    await h.send('command');
+    await h.waitFor(find.text('Edit input'));
+    await h.tapVisible(find.text('Edit input'));
+    await h.settle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Input'),
+      '{"command": "git push origin feature"}',
+    );
+    await tester.tap(find.text('Save'));
+    await h.settle();
+    await h.tapVisible(find.text('Approve edited'));
+    // Markdown drops the backticks around the command.
+    await h.waitFor(
+      find.textContaining('Ran your edited command: git push origin feature.'),
+    );
+
+    // A result that waits for confirmation.
+    debugPrint('fake host flows: result confirmation');
+    await h.send('result');
+    await h.waitFor(find.text('Use result'));
+    expect(find.text('Status: all systems operational'), findsWidgets);
+    await h.tapVisible(find.text('Use result'));
+    await h.waitFor(
+      find.text('Using the result: all systems are operational.'),
+    );
+
+    // Input drafts: another client's draft fills a field, this client's
+    // typing is synced (chat/inputAnswerChanged).
+    debugPrint('fake host flows: input drafts');
+    await h.send('draft');
+    await h.waitFor(find.text(otherClientDraft));
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Summary *'),
+      'Faster builds',
+    );
+    await h.waitUntil(
+      'the draft to reach the host',
+      () => host.received.any(
+        (r) => r.action['type'] == 'chat/inputAnswerChanged',
+      ),
+    );
+    await h.tapVisible(find.widgetWithText(FilledButton, 'Submit'));
+    await h.waitFor(
+      find.textContaining(
+        'summary=Faster builds, notes=$otherClientDraft. Drafts synced: 1.',
+      ),
+    );
+
+    // An agent that needs sign-in: the composer says so, and starting a
+    // session answers -32007 with a sign-in, then retries (AHP-061).
+    debugPrint('fake host flows: -32007');
+    await tester.tap(find.byTooltip(RegExp(r'^New session \(')));
+    await h.waitFor(find.text('Start session'));
+    await tester.tap(find.text('Fake agent'));
+    await h.settle();
+    await tester.tap(find.text('Secured agent').last);
+    await h.settle();
+    expect(
+      find.text('Secured agent needs you to sign in to Fake agent service.'),
+      findsOneWidget,
+    );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Working directory'),
+      '/workspace',
+    );
+    await tester.enterText(find.widgetWithText(TextField, 'Prompt'), 'hi');
+    await h.tapVisible(find.text('Start session'));
+    await h.waitFor(find.text('Sign in to Fake agent service'));
+    await tester.tap(find.text('Sign in with browser'));
+    await h.waitFor(find.textContaining('You said: hi'));
+    expect(
+      host.received.where(
+        (r) =>
+            r.action['type'] == '#authenticate' &&
+            r.action['resource'] == agentResource,
+      ),
+      hasLength(1),
+    );
   }, timeout: const Timeout(Duration(minutes: 3)));
 
   testWidgets('terminals, diffs, review, subagents, queued messages, drafts '

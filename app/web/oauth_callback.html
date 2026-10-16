@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>shireitou sign-in</title>
+  </head>
+  <body>
+    <p id="message">Finishing sign-in…</p>
+    <script>
+      // Hands the redirect (code and state) to the app's tab, which is
+      // waiting on this channel (see redirect_receiver_web.dart).
+      const channel = new BroadcastChannel("shireitou-oauth");
+      channel.postMessage(window.location.href);
+      channel.close();
+      const failed = new URLSearchParams(window.location.search).has("error");
+      document.getElementById("message").textContent =
+        (failed ? "Sign-in did not finish." : "Signed in.") +
+        " You can close this window and return to shireitou.";
+      window.close();
+    </script>
+  </body>
+</html>

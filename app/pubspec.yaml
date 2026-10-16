@@ -24,6 +24,7 @@ dependencies:
   shared_preferences: ^2.5.3
   url_launcher: ^6.3.3
   uuid: ^4.6.0
+  web: ^1.1.1
   window_manager: ^0.5.2
 
 dev_dependencies:
@@ -31,6 +32,7 @@ dev_dependencies:
     path: ../packages/ahp_fake_host
   flutter_test:
     sdk: flutter
+  http: ^1.6.0
   integration_test:
     sdk: flutter
   flutter_lints: ^6.0.0

@@ -17,6 +17,7 @@ import 'package:stream_channel/stream_channel.dart';
 import 'package:web_socket_channel/io.dart';
 
 import 'fake_config.dart';
+import 'fake_oauth_server.dart';
 import 'script.dart';
 
 /// The agent provider the fake host offers.
@@ -74,6 +75,9 @@ class _Connection {
   final Peer peer;
   String? clientId;
   final subscriptions = <String>{};
+
+  /// The tokens this connection pushed with `authenticate`, by resource.
+  final tokens = <String, String>{};
 }
 
 /// A scripted AHP host. Serve it over WebSocket with [start], or connect
@@ -91,7 +95,9 @@ class FakeAhpHost {
     this.slowDuration = const Duration(seconds: 4),
     this.name = 'ahp-fake-host',
     this.titlePrefix = '',
-  }) : directories = fakeDirectories(defaultDirectory),
+    Duration tokenLifetime = const Duration(hours: 1),
+  }) : oauthServer = FakeOAuthServer(tokenLifetime: tokenLifetime),
+       directories = fakeDirectories(defaultDirectory),
        files = fakeFiles(defaultDirectory) {
     _addSession(
       longSession,
@@ -143,6 +149,17 @@ class FakeAhpHost {
 
   /// The files `resourceList` lists.
   final Set<String> files;
+
+  /// The OAuth authorization server of the host's protected resources,
+  /// started with the host by [start] (AHP-060). Tokens it issued, and
+  /// [fakePersonalToken], are accepted by `authenticate`.
+  final FakeOAuthServer oauthServer;
+
+  /// [oauthServer]'s issuer once [start]ed; null for [serve]-only use.
+  Uri? _issuer;
+
+  /// Tokens the host was told have expired; never accepted again.
+  final _expiredTokens = <String>{};
 
   HttpServer? _server;
   final _connections = <_Connection>{};
@@ -197,6 +214,7 @@ class FakeAhpHost {
   /// Listens on [port] (0 for any) at [address] and returns the URL to
   /// connect to, with `tkn` when a [token] is set.
   Future<Uri> start({int port = 0, String address = '127.0.0.1'}) async {
+    _issuer = await oauthServer.start(address: address);
     final server = await HttpServer.bind(address, port);
     _server = server;
     server.listen(_onRequest);
@@ -214,6 +232,7 @@ class FakeAhpHost {
       timer.cancel();
     }
     await _server?.close(force: true);
+    await oauthServer.close();
     await Future.wait([for (final c in _connections) c.peer.close()]);
     _connections.clear();
     await _received.close();
@@ -269,7 +288,7 @@ class FakeAhpHost {
         connection.subscriptions.remove((p.value as JsonMap)['channel']);
       })
       ..registerMethod('createSession', (Parameters p) {
-        _createSession(p.value as JsonMap);
+        _createSession(connection, p.value as JsonMap);
         return null;
       })
       ..registerMethod('resourceList', (Parameters p) {
@@ -336,15 +355,10 @@ class FakeAhpHost {
         return _moveChat(MoveChatParams.fromJson(p.value as JsonMap));
       })
       ..registerMethod('authenticate', (Parameters p) {
-        final params = AuthenticateParams.fromJson(p.value as JsonMap);
-        _record((
-          channel: '*',
-          action: {
-            'type': '#authenticate',
-            'resource': params.resource,
-            'token': params.token,
-          },
-        ));
+        _authenticate(
+          connection,
+          AuthenticateParams.fromJson(p.value as JsonMap),
+        );
         return <String, Object?>{};
       })
       ..registerMethod('dispatchAction', (Parameters p) {
@@ -391,12 +405,19 @@ class FakeAhpHost {
   }
 
   RootState get _root => RootState(
-    agents: const [
-      AgentInfo(
+    agents: [
+      const AgentInfo(
         provider: fakeProvider,
         displayName: 'Fake agent',
         description: 'Scripted host for tests',
         models: fakeModels,
+      ),
+      AgentInfo(
+        provider: securedProvider,
+        displayName: 'Secured agent',
+        description: 'Needs a token for the fake agent service',
+        models: fakeModels,
+        protectedResources: [agentMetadata(_issuer)],
       ),
     ],
     activeSessions: _chats.values.where((c) => c.activeTurn != null).length,
@@ -520,8 +541,73 @@ class FakeAhpHost {
     );
   }
 
-  void _createSession(JsonMap json) {
+  /// The metadata of the protected resource [resource], if the host has
+  /// one by that identifier.
+  ProtectedResourceMetadata? _protectedResource(String resource) =>
+      switch (resource) {
+        docsResource => docsMetadata(_issuer),
+        agentResource => agentMetadata(_issuer),
+        _ => null,
+      };
+
+  /// Whether [token] is good for [resource]: [fakePersonalToken] or an
+  /// unexpired token from [oauthServer], and not expired by the `expire`
+  /// flow.
+  bool _tokenValid(String? token, String resource) =>
+      token != null &&
+      !_expiredTokens.contains(token) &&
+      (token == fakePersonalToken ||
+          (_issuer != null && oauthServer.accepts(token, resource)));
+
+  RpcException _authRequired(ProtectedResourceMetadata resource) =>
+      RpcException(
+        AhpErrorCodes.authRequired,
+        'Sign in to ${resource.resourceName ?? resource.resource}',
+        data: AuthRequiredErrorData(resources: [resource]).toJson(),
+      );
+
+  /// `authenticate`: an empty token signs [connection] out of the
+  /// resource; a valid one is kept for the connection and recorded as
+  /// `#authenticate`; anything else is `-32007`.
+  void _authenticate(_Connection connection, AuthenticateParams params) {
+    final resource = _protectedResource(params.resource);
+    if (resource == null) {
+      throw RpcException(
+        error_code.INVALID_PARAMS,
+        'unknown resource ${params.resource}',
+      );
+    }
+    if (params.token.isEmpty) {
+      connection.tokens.remove(params.resource);
+      _record((
+        channel: '*',
+        action: {'type': '#revoke', 'resource': params.resource},
+      ));
+      return;
+    }
+    if (!_tokenValid(params.token, params.resource)) {
+      throw _authRequired(resource);
+    }
+    connection.tokens[params.resource] = params.token;
+    _record((
+      channel: '*',
+      action: {
+        'type': '#authenticate',
+        'resource': params.resource,
+        'token': params.token,
+        'expiresIn': ?params.expiresIn,
+        'scopes': ?params.scopes,
+        'clientId': ?connection.clientId,
+      },
+    ));
+  }
+
+  void _createSession(_Connection connection, JsonMap json) {
     final params = CreateSessionParams.fromJson(json);
+    if (params.provider == securedProvider &&
+        !_tokenValid(connection.tokens[agentResource], agentResource)) {
+      throw _authRequired(agentMetadata(_issuer));
+    }
     final session = params.channel;
     if (_sessions.containsKey(session)) {
       throw RpcException(AhpErrorCodes.sessionAlreadyExists, 'exists');
@@ -839,6 +925,11 @@ class FakeAhpHost {
         Scenario.todo => _todoFlow(chat, turnId),
         Scenario.plan => _planFlow(chat, turnId),
         Scenario.pr => _pullRequestFlow(chat, turnId),
+        Scenario.expire => _expireFlow(chat, turnId),
+        Scenario.choose => _chooseFlow(chat, turnId),
+        Scenario.command => _commandFlow(chat, turnId),
+        Scenario.result => _resultFlow(chat, turnId),
+        Scenario.draft => _draftFlow(chat, turnId),
       };
       if (!finished || !await _step(chat, turnId)) return;
     }
@@ -1121,7 +1212,7 @@ class FakeAhpHost {
       ).toJson(),
     );
     if (!await _step(chat, turnId)) return false;
-    final auth = docsAuth();
+    final auth = docsAuth(_issuer);
     _emit(
       chat,
       ChatToolCallAuthRequiredAction(
@@ -1173,6 +1264,269 @@ class FakeAhpHost {
     } else {
       _say(chat, turnId, 'Sign-in was cancelled, so I skipped the search.');
     }
+    return true;
+  }
+
+  /// The connection of the client that started turn [turnId].
+  _Connection? _turnConnection(String turnId) {
+    final clientId = _turnClients[turnId];
+    return _connections.where((c) => c.clientId == clientId).firstOrNull;
+  }
+
+  Future<bool> _expireFlow(String chat, String turnId) async {
+    final connection = _turnConnection(turnId);
+    final token = connection?.tokens.remove(docsResource);
+    if (connection == null || token == null) {
+      _say(chat, turnId, 'You are not signed in to Example Docs.');
+      return true;
+    }
+    _expiredTokens.add(token);
+    oauthServer.expire(token);
+    connection.peer.sendNotification(
+      'auth/required',
+      AuthRequiredParams(
+        channel: _sessionOfChat[chat]!,
+        resource: docsMetadata(_issuer),
+        reason: AuthRequiredReason.expired,
+      ).toJson(),
+    );
+    _say(chat, turnId, 'Your Example Docs sign-in expired.');
+    final renewed = await _waitFor(
+      chat,
+      turnId,
+      (a) => a['type'] == '#authenticate' && a['resource'] == docsResource,
+    );
+    if (renewed == null || !await _step(chat, turnId)) return false;
+    _say(chat, turnId, 'Signed in to Example Docs again.');
+    return true;
+  }
+
+  /// Starts a `bash` call [id] and asks for confirmation with [ready],
+  /// listed in `inputNeeded`; returns the answer (null when the turn
+  /// ended), with the entry removed.
+  Future<JsonMap?> _confirm(
+    String chat,
+    String turnId,
+    String id,
+    ChatToolCallReadyAction ready, {
+    Future<void> Function(String requestId)? whileWaiting,
+  }) async {
+    _emit(
+      chat,
+      ChatToolCallStartAction(
+        turnId: turnId,
+        toolCallId: id,
+        toolName: 'bash',
+        displayName: 'Bash',
+      ).toJson(),
+    );
+    _emit(chat, ready.toJson());
+    final requestId = 'confirm-$id';
+    _setInputNeeded(
+      chat,
+      SessionToolConfirmationRequest(
+        id: requestId,
+        chat: chat,
+        turnId: turnId,
+        toolCall: _toolCall<ToolCallPendingConfirmationState>(chat, id)!,
+      ),
+    );
+    final answer = _waitFor(
+      chat,
+      turnId,
+      (a) => a['type'] == 'chat/toolCallConfirmed' && a['toolCallId'] == id,
+    );
+    await whileWaiting?.call(requestId);
+    final result = await answer;
+    _removeInputNeeded(chat, requestId);
+    return result;
+  }
+
+  Future<bool> _chooseFlow(String chat, String turnId) async {
+    final id = _nextId('bash');
+    _say(chat, turnId, 'The build folder is stale; I want to delete it.');
+    final answer = await _confirm(
+      chat,
+      turnId,
+      id,
+      chooseReady(
+        turnId,
+        id,
+        const ToolCallRiskAssessmentLoadingState(
+          kind: ToolCallRiskAssessmentKind.judge,
+        ),
+      ),
+      whileWaiting: (requestId) async {
+        // The judge finishes while the user looks at the prompt.
+        if (!await _step(chat, turnId)) return;
+        if (_toolCall<ToolCallPendingConfirmationState>(chat, id) == null) {
+          return;
+        }
+        _emit(chat, chooseReady(turnId, id, chooseRisk).toJson());
+        _setInputNeeded(
+          chat,
+          SessionToolConfirmationRequest(
+            id: requestId,
+            chat: chat,
+            turnId: turnId,
+            toolCall: _toolCall<ToolCallPendingConfirmationState>(chat, id)!,
+          ),
+        );
+      },
+    );
+    if (answer == null || !await _step(chat, turnId)) return false;
+    final action = ChatToolCallConfirmedAction.fromJson(answer);
+    if (action is ChatToolCallApprovedAction) {
+      _emit(
+        chat,
+        ChatToolCallCompleteAction(
+          turnId: turnId,
+          toolCallId: id,
+          result: const ToolCallResult(
+            success: true,
+            pastTenseMessage: PlainString('Ran `rm -rf build`'),
+          ),
+        ).toJson(),
+      );
+    }
+    _say(chat, turnId, chooseReply(action));
+    return true;
+  }
+
+  Future<bool> _commandFlow(String chat, String turnId) async {
+    final id = _nextId('bash');
+    final answer = await _confirm(chat, turnId, id, commandReady(turnId, id));
+    if (answer == null || !await _step(chat, turnId)) return false;
+    final action = ChatToolCallConfirmedAction.fromJson(answer);
+    if (action is! ChatToolCallApprovedAction) {
+      _say(chat, turnId, 'OK, I did not push.');
+      return true;
+    }
+    // The reducer already applied an edited inline input.
+    final input = switch (_toolCall<ToolCallRunningState>(
+      chat,
+      id,
+    )?.toolInput) {
+      InlineToolInput(:final value) => value,
+      _ => action.editedToolInput ?? '',
+    };
+    final command = commandOf(input);
+    _emit(
+      chat,
+      ChatToolCallCompleteAction(
+        turnId: turnId,
+        toolCallId: id,
+        result: ToolCallResult(
+          success: true,
+          pastTenseMessage: PlainString('Ran `$command`'),
+        ),
+      ).toJson(),
+    );
+    _say(
+      chat,
+      turnId,
+      action.editedToolInput == null
+          ? 'Ran `$command` as proposed.'
+          : 'Ran your edited command: `$command`.',
+    );
+    return true;
+  }
+
+  Future<bool> _resultFlow(String chat, String turnId) async {
+    final id = _nextId('fetch');
+    _emit(
+      chat,
+      ChatToolCallStartAction(
+        turnId: turnId,
+        toolCallId: id,
+        toolName: 'fetch',
+        displayName: 'Fetch',
+      ).toJson(),
+    );
+    _emit(
+      chat,
+      ChatToolCallReadyAction(
+        turnId: turnId,
+        toolCallId: id,
+        invocationMessage: const PlainString('Fetch the status page'),
+        toolInput: const InlineToolInput(
+          '{"url":"https://status.example.com"}',
+        ),
+        confirmed: ToolCallConfirmationReason.notNeeded,
+      ).toJson(),
+    );
+    if (!await _step(chat, turnId)) return false;
+    _emit(
+      chat,
+      ChatToolCallCompleteAction(
+        turnId: turnId,
+        toolCallId: id,
+        result: fetchResult,
+        requiresResultConfirmation: true,
+      ).toJson(),
+    );
+    final requestId = 'result-$id';
+    _setInputNeeded(
+      chat,
+      SessionToolConfirmationRequest(
+        id: requestId,
+        chat: chat,
+        turnId: turnId,
+        toolCall: _toolCall<ToolCallPendingResultConfirmationState>(chat, id)!,
+      ),
+    );
+    final answer = await _waitFor(
+      chat,
+      turnId,
+      (a) =>
+          a['type'] == 'chat/toolCallResultConfirmed' && a['toolCallId'] == id,
+    );
+    _removeInputNeeded(chat, requestId);
+    if (answer == null || !await _step(chat, turnId)) return false;
+    _say(
+      chat,
+      turnId,
+      answer['approved'] == true
+          ? 'Using the result: all systems are operational.'
+          : 'I discarded the fetched page.',
+    );
+    return true;
+  }
+
+  Future<bool> _draftFlow(String chat, String turnId) async {
+    final request = releaseNotesRequest(_nextId('input'));
+    _emit(chat, ChatInputRequestedAction(request: request).toJson());
+    final entryId = 'input-${request.id}';
+    _setInputNeeded(
+      chat,
+      SessionChatInputRequest(id: entryId, chat: chat, request: request),
+    );
+    final answer = _waitFor(
+      chat,
+      turnId,
+      (a) => a['type'] == 'chat/inputCompleted' && a['requestId'] == request.id,
+    );
+    // Another client starts on the notes.
+    if (await _step(chat, turnId)) {
+      _emit(chat, otherClientDraftAction(request.id).toJson());
+    }
+    final completed = await answer;
+    _removeInputNeeded(chat, entryId);
+    if (completed == null || !await _step(chat, turnId)) return false;
+    final drafts = _log
+        .where(
+          (r) =>
+              r.channel == chat &&
+              r.action['type'] == 'chat/inputAnswerChanged' &&
+              r.action['requestId'] == request.id,
+        )
+        .length;
+    _say(
+      chat,
+      turnId,
+      '${answerReply(ChatInputCompletedAction.fromJson(completed))} '
+      'Drafts synced: $drafts.',
+    );
     return true;
   }
 

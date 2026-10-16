@@ -1,5 +1,91 @@
 # Design Decision Log
 
+## 2026-10-16: OAuth sign-in, re-authentication, and the rest of tool call interaction
+
+- **OAuth client written on `http` and `crypto`, not the `oauth2`
+  package.** The MCP authorization spec (2025-11-25), which AHP's
+  `McpAuthRequirement` follows, needs RFC 8414/OpenID discovery, RFC 7591
+  dynamic registration, PKCE `S256` (refusing servers that do not
+  advertise it) and the RFC 8707 `resource` parameter in both the
+  authorization and the token request. `oauth2` has none of discovery,
+  registration or resource indicators and hides its PKCE verifier, so it
+  would have been wrapped and patched around. `oauth.dart` in
+  `ahp_client` is small, pure where it can be (PKCE, URLs, response
+  parsing) and tested against RFC 7636's vector; `OAuthHttp` does the
+  HTTP. Endpoints must be HTTPS except on loopback (for the fake server).
+- **Clients: the host's `McpOAuthClient`, else dynamic registration.**
+  When the challenge carries a pre-registered client the spec requires
+  using it (confidential clients authenticate with
+  `client_secret_basic`, or `client_secret_post` when that is all the
+  server offers). Otherwise a public client is registered for the
+  redirect URI on every sign-in; caching registrations was rejected
+  because the loopback port changes each time. Client ID Metadata
+  Documents need a hosted HTTPS document for shireitou and are left out
+  (GAPS.md); without either, the user can still paste a token.
+- **Redirects: loopback on `dart:io`, a callback page on the web.** The
+  native apps listen on `http://127.0.0.1:<random port>/callback`
+  (RFC 8252 §7.3; the macOS release build gains the
+  `network.server` entitlement) and open the system browser with
+  `url_launcher`. The web app redirects to its own
+  `oauth_callback.html`, which posts the URL on a `BroadcastChannel`
+  (sturdier than `window.opener`, which cross-origin pages often lose).
+  `flutter_web_auth_2` was not added: it would add custom URL schemes on
+  desktop that need registering per platform, and the loopback receiver
+  is testable in-process.
+- **`HostAuthenticator` in `ahp_client` owns tokens and re-auth
+  (AHP-061).** `AhpClient` gained an `authRequired` stream
+  (`auth/required`) and an `onAuthRequired` hook: commands go through
+  `_request`, which on `-32007` lets the hook sign in to the error's
+  resources and then retries once (not `initialize`, `reconnect`,
+  `authenticate` or `ping`). The authenticator refreshes when it can,
+  else asks the user through an injected `InteractiveSignIn`; it never
+  replays a token the host called `expired`, replays a held unexpired
+  token on `required`, refreshes a minute (or a fifth of the lifetime)
+  before `expiresIn` runs out, and pushes held tokens after every
+  (re)connect, which is how the spec's "re-check after reconnecting" is
+  met. `authenticate` sends the remaining lifetime as `expiresIn`
+  (elapsed time subtracted, as the spec requires) and the granted
+  `scopes`. Concurrent renewals of one resource share one attempt.
+- **Tokens persist per host in secure storage.** `HostStore` saves each
+  host's tokens (refresh tokens included) under `tokens:<host key>`;
+  the authenticator loads them before connecting. Keeping them in memory
+  only was rejected: users would sign in again after every restart.
+- **One dialog, two entry points.** "Sign in" buttons (tool cards, MCP
+  server chips, the composer's notice for an agent's required
+  `protectedResources`) call `signInFromUi`; prompts nobody clicked for
+  (`auth/required`, `-32007`) open the same `SignInDialog` on a root
+  `navigatorKey`. The dialog offers "Sign in with browser" when the
+  resource names an authorization server, with "Use an access token
+  instead" folded below it (or shown alone otherwise), and lists the
+  scopes requested (the challenge's `requiredScopes`, else
+  `scopes_supported`).
+- **Fake OAuth authorization server in the fake host.** `FakeOAuthServer`
+  runs in-process on a loopback port with metadata, registration, an
+  authorization endpoint that approves at once (or refuses on cue) with a
+  `302` back to the redirect URI, and a token endpoint that verifies the
+  PKCE verifier, client, redirect URI and resource, and rotates refresh
+  tokens. Tests play the browser by fetching the authorization URL with
+  `http`, which follows the redirect into the app's loopback receiver.
+  The host now checks `authenticate` tokens (its server's, or the
+  `mcp-token` stand-in for a pasted one), answers `-32007` for a bad
+  token, adds a "Secured agent" whose `protectedResources` make
+  `createSession` fail with `-32007` until signed in, and an `expire`
+  flow that sends `auth/required` (`expired`).
+- **Tool call interaction completed against the fake host.** New flows:
+  `choose` (grouped confirmation options and a risk assessment that
+  loads, then completes), `command` (`editable` input), `result`
+  (`requiresResultConfirmation`) and `draft` (another client's
+  `chat/inputAnswerChanged`). The app's `ApprovalBar` renders options in
+  the host's order with a divider between groups (the first approval
+  filled, others tonal, denials outlined), the risk as a level (low from
+  0.7, high under 0.4), safety percentage and reason, "Edit input" with a
+  JSON check (the edit is sent compact, and only when it differs), and
+  "Use result"/"Discard result". A denial option whose ID or label says
+  "skip" is sent with reason `skipped`, since the protocol does not mark
+  skip options. Input forms sync each answer as a draft 400 ms after the
+  user stops typing, and take other clients' drafts for fields the user
+  has not touched.
+
 ## 2026-10-16: Open questions answered: todos, PR links, best-of-N, notifications, web transport, `ahp_sdk`
 
 Researched against AHP 1.0.0 and its main branch

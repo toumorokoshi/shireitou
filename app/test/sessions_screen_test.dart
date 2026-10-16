@@ -399,7 +399,9 @@ void main() {
       find.widgetWithText(TextField, 'Access token'),
       'tok',
     );
-    await tester.tap(find.widgetWithText(FilledButton, 'Sign in').last);
+    // No authorization server in the challenge: only a token can be used.
+    expect(find.text('Sign in with browser'), findsNothing);
+    await tester.tap(find.widgetWithText(FilledButton, 'Use token'));
     await tester.pumpAndSettle();
     expect(connection.authenticated, [('https://mcp.example.com', 'tok')]);
 

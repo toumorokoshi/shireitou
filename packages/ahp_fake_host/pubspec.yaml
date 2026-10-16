@@ -11,9 +11,11 @@ environment:
 dependencies:
   ahp_client:
     path: ../ahp_client
+  crypto: ^3.0.7
   json_rpc_2: ^4.1.0
   stream_channel: ^2.1.4
   web_socket_channel: ^3.0.3
 dev_dependencies:
+  http: ^1.6.0
   lints: ^6.1.0
   test: ^1.31.1

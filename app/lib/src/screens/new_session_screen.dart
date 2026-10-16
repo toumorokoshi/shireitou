@@ -12,6 +12,7 @@ import 'package:uuid/uuid.dart';
 import '../composer/config_fields.dart';
 import '../composer/config_form.dart';
 import '../composer/directory_browser.dart';
+import '../auth/sign_in_dialog.dart';
 import '../host_connection.dart';
 import '../hosts/open_hosts.dart';
 import '../runs/run_group_store.dart';
@@ -338,6 +339,12 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
         : recentFolders(ref.watch(allSessionsProvider), host);
     final resolved = _resolved;
     final settingFields = sessionConfigFields(resolved?.schema);
+    final signIns = host == null || agent == null
+        ? const <AgentSignIn>[]
+        : missingAgentSignIns(
+            RootState(agents: [agent]),
+            ref.watch(signedInResourcesProvider(host)).value ?? const {},
+          );
     return Scaffold(
       appBar: AppBar(title: const Text('New session')),
       body: Center(
@@ -475,6 +482,27 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
                     ],
                   ),
                 ],
+                for (final (:agent, :resource) in signIns)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 16),
+                    child: Card(
+                      child: ListTile(
+                        leading: const Icon(Icons.key),
+                        title: Text(
+                          '${agent.displayName} needs you to sign in to '
+                          '${resource.resourceName ?? resource.resource}.',
+                        ),
+                        trailing: TextButton(
+                          onPressed: () => signInFromUi(
+                            context,
+                            ref.read(hostConnectionProvider(host!).notifier),
+                            AuthChallenge(resource: resource),
+                          ),
+                          child: const Text('Sign in'),
+                        ),
+                      ),
+                    ),
+                  ),
                 if (settingFields.isNotEmpty) ...[
                   const SizedBox(height: 16),
                   ConfigForm(

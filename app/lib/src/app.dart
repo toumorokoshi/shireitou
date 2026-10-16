@@ -6,6 +6,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'auth/sign_in_dialog.dart';
 import 'desktop/app_menu.dart';
 import 'desktop/desktop_window.dart';
 import 'hosts/open_hosts.dart';
@@ -39,6 +40,7 @@ class _ShireitouAppState extends ConsumerState<ShireitouApp> {
       unawaited(setWindowTitle(title));
     }
     return MaterialApp(
+      navigatorKey: rootNavigatorKey,
       title: title,
       theme: buildTheme(Brightness.light),
       darkTheme: buildTheme(Brightness.dark),

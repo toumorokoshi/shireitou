@@ -77,7 +77,28 @@ enum Scenario {
 
   /// Opens a pull request for the session's branch and publishes it in
   /// the session's `_meta` (`copilot.githubReferences`, AV-105).
-  pr('pr');
+  pr('pr'),
+
+  /// Expires this client's Example Docs token and sends `auth/required`
+  /// (`expired`), then waits for a new token (AHP-061).
+  expire('expire'),
+
+  /// A tool call with host-provided confirmation options in two groups and
+  /// a risk assessment that loads, then completes (AV-083).
+  choose('choose'),
+
+  /// A tool call whose input the user may edit before approving
+  /// (`editable`, `editedToolInput`).
+  command('command'),
+
+  /// A tool call whose result waits for the user's confirmation
+  /// (`requiresResultConfirmation`, `pending-result-confirmation`).
+  result('result'),
+
+  /// An input request that another client starts answering: the host
+  /// relays its draft (`chat/inputAnswerChanged`) and reports the drafts
+  /// this client synced.
+  draft('draft');
 
   const Scenario(this.keyword);
 
@@ -205,15 +226,188 @@ String answerReply(ChatInputCompletedAction action) {
   return 'Thanks. Answers: ${described.join(', ')}.';
 }
 
+/// The protected resource of the `auth` flow's MCP server.
+const docsResource = 'https://mcp.example.com';
+
+/// The protected resource the secured agent ([securedProvider]) requires.
+const agentResource = 'https://agent.example.com';
+
+/// The agent that requires a token for [agentResource] before
+/// `createSession` (otherwise `-32007 AuthRequired`).
+const securedProvider = 'fake-secure';
+
+/// A token the host accepts for any resource without OAuth, like a
+/// personal access token pasted by hand.
+const fakePersonalToken = 'mcp-token';
+
+/// The scope the `auth` flow's challenge requires.
+const docsScope = 'docs.search';
+
+/// The RFC 9728 metadata of [docsResource], naming [issuer] as its
+/// authorization server when the host runs one.
+ProtectedResourceMetadata docsMetadata(Uri? issuer) =>
+    ProtectedResourceMetadata(
+      resource: docsResource,
+      resourceName: 'Example Docs',
+      authorizationServers: issuer == null ? null : ['$issuer'],
+      scopesSupported: const ['docs.read', docsScope],
+      resourceDocumentation: 'https://docs.example.com/tokens',
+    );
+
+/// The RFC 9728 metadata of [agentResource] (required, the default).
+ProtectedResourceMetadata agentMetadata(Uri? issuer) =>
+    ProtectedResourceMetadata(
+      resource: agentResource,
+      resourceName: 'Fake agent service',
+      authorizationServers: issuer == null ? null : ['$issuer'],
+      scopesSupported: const ['agent'],
+      required: true,
+    );
+
 /// The MCP sign-in the `auth` flow needs.
-McpAuthRequirement docsAuth() => const McpAuthRequirement(
+McpAuthRequirement docsAuth([Uri? issuer]) => McpAuthRequirement(
   reason: McpAuthRequiredReason.required,
-  resource: ProtectedResourceMetadata(
-    resource: 'https://mcp.example.com',
-    resourceName: 'Example Docs',
-  ),
+  resource: docsMetadata(issuer),
+  requiredScopes: const [docsScope],
   description: 'Sign in to Example Docs to search it.',
 );
+
+/// The `rm` call of the `choose` flow, waiting with host-provided options
+/// and [risk].
+ChatToolCallReadyAction chooseReady(
+  String turnId,
+  String toolCallId,
+  ToolCallRiskAssessment risk,
+) => ChatToolCallReadyAction(
+  turnId: turnId,
+  toolCallId: toolCallId,
+  invocationMessage: const PlainString('Run `rm -rf build`'),
+  toolInput: const InlineToolInput('{"command":"rm -rf build"}'),
+  confirmationTitle: const PlainString('Allow Bash to delete build/?'),
+  riskAssessment: risk,
+  options: confirmationOptions,
+);
+
+/// The options the `choose` flow offers: approvals, then denials.
+const confirmationOptions = [
+  ConfirmationOption(
+    id: 'allow-once',
+    label: 'Allow once',
+    kind: ConfirmationOptionKind.approve,
+    group: 1,
+  ),
+  ConfirmationOption(
+    id: 'allow-session',
+    label: 'Allow in this session',
+    kind: ConfirmationOptionKind.approve,
+    group: 1,
+  ),
+  ConfirmationOption(
+    id: 'skip',
+    label: 'Skip this step',
+    kind: ConfirmationOptionKind.deny,
+    group: 2,
+  ),
+  ConfirmationOption(
+    id: 'never',
+    label: 'Deny',
+    kind: ConfirmationOptionKind.deny,
+    group: 2,
+  ),
+];
+
+/// The judge's verdict in the `choose` flow.
+const chooseRisk = ToolCallRiskAssessmentCompleteState(
+  kind: ToolCallRiskAssessmentKind.judge,
+  safety: 0.35,
+  reason: PlainString('Deletes files that are not under version control.'),
+);
+
+/// The reply to the `choose` flow's answer: which option was picked.
+String chooseReply(ChatToolCallConfirmedAction action) {
+  final (approved, optionId) = switch (action) {
+    ChatToolCallApprovedAction(:final selectedOptionId) => (
+      true,
+      selectedOptionId,
+    ),
+    ChatToolCallDeniedAction(:final selectedOptionId) => (
+      false,
+      selectedOptionId,
+    ),
+  };
+  final label =
+      confirmationOptions.where((o) => o.id == optionId).firstOrNull?.label ??
+      'no option';
+  return approved
+      ? 'You chose "$label", so I deleted build/.'
+      : 'You chose "$label", so I kept build/.';
+}
+
+/// The `bash` call of the `command` flow, whose input may be edited.
+ChatToolCallReadyAction commandReady(String turnId, String toolCallId) =>
+    ChatToolCallReadyAction(
+      turnId: turnId,
+      toolCallId: toolCallId,
+      invocationMessage: const PlainString('Run `git push origin main`'),
+      toolInput: const InlineToolInput('{"command":"git push origin main"}'),
+      confirmationTitle: const PlainString('Allow Bash to push?'),
+      editable: true,
+    );
+
+/// The command in a `bash` tool input (`{"command": …}`), or the input
+/// itself when it is not that JSON.
+String commandOf(String input) {
+  try {
+    final json = jsonDecode(input);
+    if (json is Map && json['command'] is String) {
+      return json['command'] as String;
+    }
+  } on FormatException {
+    // Not JSON: the input is the command.
+  }
+  return input;
+}
+
+/// The result the `result` flow asks the user to confirm.
+const fetchResult = ToolCallResult(
+  success: true,
+  pastTenseMessage: PlainString('Fetched the status page'),
+  content: [ToolResultTextContent(text: 'Status: all systems operational')],
+);
+
+/// The input request of the `draft` flow, with ID [id].
+ChatInputRequest releaseNotesRequest(String id) => ChatInputRequest(
+  id: id,
+  message: 'Describe the release',
+  questions: const [
+    ChatInputTextQuestion(
+      id: 'summary',
+      title: 'Summary',
+      message: 'One line for the changelog',
+      required: true,
+    ),
+    ChatInputTextQuestion(
+      id: 'notes',
+      title: 'Notes',
+      message: 'Anything else',
+    ),
+  ],
+);
+
+/// The draft the `draft` flow's other client ([otherClientId]) types.
+const otherClientDraft = 'Drafted on fake-ide';
+
+/// The `chat/inputAnswerChanged` that relays [otherClientDraft] for the
+/// `notes` question of request [requestId].
+ChatInputAnswerChangedAction otherClientDraftAction(String requestId) =>
+    ChatInputAnswerChangedAction(
+      requestId: requestId,
+      questionId: 'notes',
+      answer: const ChatInputAnswered(
+        state: 'draft',
+        value: ChatInputTextAnswerValue(value: otherClientDraft),
+      ),
+    );
 
 /// The MCP server customization behind the `auth` flow's tool.
 const docsCustomizationId = 'docs-mcp';

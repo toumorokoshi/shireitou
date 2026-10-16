@@ -54,7 +54,9 @@ arm64 machine):
   `xattr -d com.apple.quarantine`).
 - Entitlements: both `DebugProfile.entitlements` and `Release.entitlements`
   have `com.apple.security.network.client`, which the app sandbox needs for
-  outgoing WebSocket connections to hosts.
+  outgoing WebSocket connections to hosts, and
+  `com.apple.security.network.server`, which the loopback server that
+  receives the browser's OAuth redirect needs (MCP sign-in, AHP-060).
 - Secure storage: `flutter_secure_storage` is configured with
   `MacOsOptions(usesDataProtectionKeychain: false)`, so tokens go in the
   login keychain. That needs no `keychain-access-groups` entitlement and so

@@ -2,6 +2,8 @@
 /// (AV-080 to AV-084, AHP-041 to AHP-043).
 library;
 
+import 'dart:convert';
+
 import 'package:ahp_client/ahp_client.dart';
 
 /// The action that sends [text] (AV-080).
@@ -48,12 +50,16 @@ JsonMap? stopAction(ChatState chat, DateTime now) {
 ///
 /// Waiting results (`pending-result-confirmation`) get
 /// `chat/toolCallResultConfirmed`; calls waiting to run get
-/// `chat/toolCallConfirmed`, with [option] when the host offered choices.
+/// `chat/toolCallConfirmed`, with [option] when the host offered choices
+/// and [editedInput] (see [editedToolInput]) when the user changed an
+/// `editable` call's input. A denial chosen from a host's "skip" option
+/// (an ID or label that says so) is sent as `skipped`.
 JsonMap confirmToolCallAction(
   String turnId,
   ToolCallState toolCall, {
   required bool approve,
   ConfirmationOption? option,
+  String? editedInput,
 }) {
   final StateAction action = switch (toolCall) {
     ToolCallPendingResultConfirmationState() =>
@@ -67,15 +73,59 @@ JsonMap confirmToolCallAction(
       toolCallId: toolCall.toolCallId,
       confirmed: ToolCallConfirmationReason.userAction,
       selectedOptionId: option?.id,
+      editedToolInput: editedInput,
     ),
     _ => ChatToolCallDeniedAction(
       turnId: turnId,
       toolCallId: toolCall.toolCallId,
-      reason: ToolCallCancellationReason.denied,
+      reason: option != null && _isSkip(option)
+          ? ToolCallCancellationReason.skipped
+          : ToolCallCancellationReason.denied,
       selectedOptionId: option?.id,
     ),
   };
   return action.toJson();
+}
+
+bool _isSkip(ConfirmationOption option) =>
+    '${option.id} ${option.label}'.toLowerCase().contains('skip');
+
+/// [input] for reading: indented when it is JSON.
+String prettyToolInput(String input) {
+  try {
+    return const JsonEncoder.withIndent('  ').convert(jsonDecode(input));
+  } on FormatException {
+    return input;
+  }
+}
+
+/// What to send as `editedToolInput` after the user changed [original]
+/// to [edited]: compact JSON when the input is JSON, the text otherwise,
+/// and null when nothing changed (whitespace in JSON does not count).
+String? editedToolInput(String original, String edited) {
+  try {
+    final before = jsonDecode(original);
+    final after = jsonDecode(edited);
+    return jsonEncode(before) == jsonEncode(after) ? null : jsonEncode(after);
+  } on FormatException {
+    return edited == original ? null : edited;
+  }
+}
+
+/// Why [edited] cannot replace [original]: a JSON input must stay JSON
+/// (tools validate it against their schema); null when it can.
+String? toolInputEditError(String original, String edited) {
+  try {
+    jsonDecode(original);
+  } on FormatException {
+    return null;
+  }
+  try {
+    jsonDecode(edited);
+    return null;
+  } on FormatException catch (error) {
+    return 'Not valid JSON: ${error.message}';
+  }
 }
 
 /// A submitted answer for [question] with [value] (AV-084), or null when
@@ -92,6 +142,7 @@ ChatInputAnswer? inputAnswer(
   ChatInputQuestion question,
   Object? value, {
   String? freeform,
+  bool draft = false,
 }) {
   final text = freeform?.trim() ?? '';
   final extra = text.isEmpty ? null : [text];
@@ -124,7 +175,70 @@ ChatInputAnswer? inputAnswer(
   };
   return answerValue == null
       ? null
-      : ChatInputAnswered(state: 'submitted', value: answerValue);
+      : ChatInputAnswered(
+          state: draft ? 'draft' : 'submitted',
+          value: answerValue,
+        );
+}
+
+/// The `chat/inputAnswerChanged` that syncs the draft of [question] in
+/// [request] ([value] and [freeform] as [inputAnswer] takes them), so
+/// other clients see it; an empty value clears the draft.
+JsonMap inputAnswerChangedAction(
+  ChatInputRequest request,
+  ChatInputQuestion question,
+  Object? value, {
+  String? freeform,
+}) => ChatInputAnswerChangedAction(
+  requestId: request.id,
+  questionId: question.id,
+  answer: inputAnswer(question, value, freeform: freeform, draft: true),
+).toJson();
+
+/// [answer] (a draft or submitted answer the host holds) as the form's
+/// value for [question], the inverse of [inputAnswer]; null when there is
+/// nothing to show.
+({Object? value, String? freeform})? answerFormValue(
+  ChatInputQuestion question,
+  ChatInputAnswer? answer,
+) {
+  if (answer is! ChatInputAnswered) return null;
+  final allowsFreeform = switch (question) {
+    ChatInputSingleSelectQuestion(:final allowFreeformInput) ||
+    ChatInputMultiSelectQuestion(
+      :final allowFreeformInput,
+    ) => allowFreeformInput ?? false,
+    _ => false,
+  };
+  return switch ((question, answer.value)) {
+    (ChatInputBooleanQuestion(), ChatInputBooleanAnswerValue(:final value)) => (
+      value: value,
+      freeform: null,
+    ),
+    (ChatInputNumberQuestion(), ChatInputNumberAnswerValue(:final value)) => (
+      value: '$value',
+      freeform: null,
+    ),
+    (
+      ChatInputSingleSelectQuestion(),
+      ChatInputSelectedAnswerValue(:final value, :final freeformValues),
+    ) =>
+      (value: value, freeform: freeformValues?.join(' ')),
+    (
+      ChatInputMultiSelectQuestion(),
+      ChatInputSelectedManyAnswerValue(:final value, :final freeformValues),
+    ) =>
+      (value: value.toSet(), freeform: freeformValues?.join(' ')),
+    (ChatInputTextQuestion(), ChatInputTextAnswerValue(:final value)) => (
+      value: value,
+      freeform: null,
+    ),
+    (_, ChatInputTextAnswerValue(:final value)) when allowsFreeform => (
+      value: question is ChatInputMultiSelectQuestion ? <String>{} : '',
+      freeform: value,
+    ),
+    _ => null,
+  };
 }
 
 /// The action that answers (or declines) input request [request] (AV-084).

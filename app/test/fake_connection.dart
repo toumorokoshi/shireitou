@@ -102,10 +102,8 @@ class FakeHostConnection extends HostConnection {
   final authenticated = <(String, String)>[];
 
   @override
-  Future<void> authenticate({
-    required String resource,
-    required String token,
-  }) async => authenticated.add((resource, token));
+  Future<void> pushToken(String resource, ResourceToken token) async =>
+      authenticated.add((resource, token.token));
 
   /// Channels passed to [subscribe], in order.
   final subscribed = <String>[];

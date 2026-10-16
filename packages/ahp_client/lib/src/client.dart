@@ -10,6 +10,7 @@ import 'package:stream_channel/stream_channel.dart';
 import 'package:uuid/uuid.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
+import 'auth.dart';
 import 'host_state.dart';
 import 'channel_mirror.dart';
 import 'connection_problems.dart';
@@ -66,6 +67,13 @@ Future<StreamChannel<String>> connectWebSocket(Uri uri) =>
 /// optional commands such as `resolveSessionConfig` or `resourceList`.
 bool isMethodNotFound(Object error) =>
     error is RpcException && error.code == -32601;
+
+/// Gets tokens for [resources] after a command failed with `-32007
+/// AuthRequired` and pushes them; true when the command should be retried
+/// (AHP-061). See [HostAuthenticator].
+typedef AuthRequiredHandler = Future<bool> Function(
+  List<ProtectedResourceMetadata> resources,
+);
 
 /// Root-channel notifications that update the session catalogue.
 const _catalogueNotifications = [
@@ -130,6 +138,7 @@ class AhpClient {
   final _states = StreamController<HostState>.broadcast();
   final _actions = StreamController<ActionEnvelope>.broadcast();
   final _failures = StreamController<ActionFailure>.broadcast();
+  final _authRequired = StreamController<AuthRequiredParams>.broadcast();
   final _pendingTimers = <Timer>{};
   final _loadingTurns = <String>{};
   final _subscribing = <String, Future<Snapshot?>>{};
@@ -154,6 +163,15 @@ class AhpClient {
   /// This client's dispatched actions that were rolled back: rejected by
   /// the host, not echoed in time, or lost in a reconnect (AHP-022).
   Stream<ActionFailure> get failures => _failures.stream;
+
+  /// `auth/required` notifications: a protected resource needs a (new)
+  /// token (AHP-061). They are not replayed after a reconnect.
+  Stream<AuthRequiredParams> get authRequired => _authRequired.stream;
+
+  /// Called when a command fails with `-32007 AuthRequired`; when it
+  /// returns true the command is sent once more (AHP-061). Without it the
+  /// error reaches the caller.
+  AuthRequiredHandler? onAuthRequired;
 
   /// Connects, runs `initialize`, and loads the session catalogue.
   ///
@@ -248,8 +266,7 @@ class AhpClient {
         ),
       );
     }
-    final result =
-        await peer.sendRequest('subscribe', {'channel': channel}) as JsonMap;
+    final result = await _request('subscribe', {'channel': channel}) as JsonMap;
     final snapshot = switch (result['snapshot']) {
       final JsonMap json => Snapshot.fromJson(json),
       _ => null,
@@ -349,7 +366,7 @@ class AhpClient {
   Future<void> fetchTurns(String chat, {String? cursor}) async {
     final peer = _peer;
     if (peer == null) throw StateError('not connected');
-    await peer.sendRequest('fetchTurns', {'channel': chat, 'cursor': ?cursor});
+    await _request('fetchTurns', {'channel': chat, 'cursor': ?cursor});
   }
 
   /// Loads the next page of older turns into [chat] when its mirror has a
@@ -376,7 +393,7 @@ class AhpClient {
     final peer = _peer;
     if (peer == null) throw StateError('not connected');
     return ResourceReadResult.fromJson(
-      await peer.sendRequest(
+      await _request(
         'resourceRead',
         ResourceReadParams(uri: uri, encoding: encoding).toJson(),
       ) as JsonMap,
@@ -394,7 +411,7 @@ class AhpClient {
     final peer = _peer;
     if (peer == null) throw StateError('not connected');
     return InvokeChangesetOperationResult.fromJson(
-      await peer.sendRequest(
+      await _request(
         'invokeChangesetOperation',
         InvokeChangesetOperationParams(
           channel: changeset,
@@ -419,7 +436,7 @@ class AhpClient {
       throw UnsupportedFeatureError(ProtocolFeature.moveChat, version!);
     }
     return MoveChatResult.fromJson(
-      await peer.sendRequest(
+      await _request(
         'moveChat',
         MoveChatParams(channel: chat, destination: destination).toJson(),
       ) as JsonMap,
@@ -447,7 +464,7 @@ class AhpClient {
     for (var attempt = 0; ; attempt++) {
       final session = 'ahp-session:/${const Uuid().v4()}';
       try {
-        await peer.sendRequest('createSession', {
+        await _request('createSession', {
           'channel': session,
           'provider': ?provider,
           'workingDirectories': ?workingDirectories,
@@ -504,10 +521,8 @@ class AhpClient {
     final peer = _peer;
     if (peer == null) throw StateError('not connected');
     return ResourceListResult.fromJson(
-      await peer.sendRequest(
-        'resourceList',
-        ResourceListParams(uri: uri).toJson(),
-      ) as JsonMap,
+      await _request('resourceList', ResourceListParams(uri: uri).toJson())
+          as JsonMap,
     ).entries;
   }
 
@@ -523,7 +538,7 @@ class AhpClient {
     final peer = _peer;
     if (peer == null) throw StateError('not connected');
     return ResolveSessionConfigResult.fromJson(
-      await peer.sendRequest(
+      await _request(
         'resolveSessionConfig',
         ResolveSessionConfigParams(
           provider: provider,
@@ -547,7 +562,7 @@ class AhpClient {
     final peer = _peer;
     if (peer == null) throw StateError('not connected');
     return SessionConfigCompletionsResult.fromJson(
-      await peer.sendRequest(
+      await _request(
         'sessionConfigCompletions',
         SessionConfigCompletionsParams(
           property: property,
@@ -592,6 +607,27 @@ class AhpClient {
     await peer.sendRequest('ping', {'channel': rootChannel});
   }
 
+  /// Sends [method] on the current connection; after a `-32007
+  /// AuthRequired` error, lets [onAuthRequired] sign in and sends it once
+  /// more (AHP-061).
+  Future<Object?> _request(String method, Object? params) async {
+    final peer = _peer;
+    if (peer == null) throw StateError('not connected');
+    try {
+      return await peer.sendRequest(method, params);
+    } on RpcException catch (error) {
+      final handler = onAuthRequired;
+      if (error.code != AhpErrorCodes.authRequired || handler == null) {
+        rethrow;
+      }
+      final resources = authRequiredResources(error.data);
+      if (resources.isEmpty || !await handler(resources)) rethrow;
+      final again = _peer;
+      if (again == null) throw StateError('not connected');
+      return again.sendRequest(method, params);
+    }
+  }
+
   Future<Peer> _open() async {
     final peer = Peer(await connector(uri));
     peer
@@ -603,6 +639,13 @@ class AhpClient {
         if (rejectionOf(envelope, clientId: clientId) case final failure?) {
           _fail(failure);
         }
+      })
+      ..registerMethod('auth/required', (Parameters params) {
+        final notification = AuthRequiredParams.fromJson(
+          params.value as JsonMap,
+        );
+        _log.info('${notification.resource.resource} needs sign-in');
+        if (!_authRequired.isClosed) _authRequired.add(notification);
       })
       ..registerFallback((Parameters params) {
         _log.fine('ignored ${params.method}');

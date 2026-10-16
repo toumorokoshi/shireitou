@@ -111,9 +111,22 @@ WebSocket ──► json_rpc_2 Peer ──► AhpClient (I/O edge)
   failures (HTTP 401/403, TLS, refused, and on the web the causes a
   browser hides). `webSocketConnector` throws a `ConnectionProblem` with
   that message, which becomes `HostState.error`.
-- **Authentication:** `authenticate(resource, token)` pushes a token
-  (AHP-060), which is how a client resumes a tool call waiting on MCP
-  sign-in. `expiresIn` is dropped under 0.9.0.
+- **Authentication:** `authenticate(resource, token, expiresIn, scopes)`
+  pushes a token (AHP-060), which is how a client resumes a tool call
+  waiting on MCP sign-in. `expiresIn` is dropped under 0.9.0.
+  `oauth.dart` gets tokens: pure helpers (PKCE, metadata URLs,
+  `authorizationUrl`, `authorizationCodeFrom`, `tokenFromResponse`,
+  `ResourceToken.remainingSeconds`) plus `OAuthHttp` (RFC 8414 discovery,
+  RFC 7591 registration, the token endpoint, refresh) and
+  `signInWithBrowser`, which runs the authorization code flow with PKCE
+  and the RFC 8707 `resource` through a `RedirectReceiver`
+  (`LoopbackRedirectReceiver` on `dart:io`). `auth.dart`'s
+  `HostAuthenticator` keeps one client's resources signed in: it answers
+  `-32007` (the client's `onAuthRequired` hook, after which `_request`
+  retries the command once) and `auth/required` (the client's
+  `authRequired` stream), refreshes tokens before they expire, pushes
+  held tokens after every (re)connect and saves them in a `TokenStore`.
+  An interactive callback asks the user when no refresh is possible.
 - **Creating sessions:** `createSession` retries on `-32003`, then waits for
   the session in the catalogue and returns the URI the host lists
   (`resolveSessionResource` matches pi's `pi:/<id>` to the
@@ -191,6 +204,17 @@ Dart source); `bin/generate.dart` does the file I/O. See
   connected is dropped again. The connect screen prefills the most recent
   host and lists the rest; "Add host…" in the host switcher pushes it
   again.
+- `lib/src/auth/`: sign-in (AHP-060 to AHP-062). `sign_in_dialog.dart`
+  is the dialog ("Sign in with browser" when the resource names an
+  authorization server, or paste a token), `signInFromUi` for buttons and
+  `promptSignIn` for prompts nobody clicked for (`auth/required`,
+  `-32007`), shown on `rootNavigatorKey`. `oauth_browser.dart`
+  (`oauthBrowserProvider`) opens the system browser with `url_launcher`
+  and starts the platform's redirect receiver: a loopback server on
+  native platforms, or `web/oauth_callback.html`, which posts the
+  redirect on a `BroadcastChannel`, on the web. `HostConnection` creates
+  a `HostAuthenticator` per connection with a `HostTokenStore` (tokens
+  per host in the `HostStore`'s secure storage).
 - `lib/src/composer/`: `config_fields.dart` is pure: a model's
   `configSchema` and a session config schema become `ConfigField`s, with
   `configValues`, `modelSelection` and `mutableSessionFields`.
@@ -248,6 +272,11 @@ Dart source); `bin/generate.dart` does the file I/O. See
   the keyed, lazily built list. It also groups consecutive calls of one
   tool (AV-064) and adds a "load older turns" row while the host holds
   turns back (AV-068).
+  `approval_bar.dart` is the bar under a waiting tool call: Approve/Deny
+  or the host's options in groups, the risk assessment, "Edit input" for
+  `editable` calls and "Use result"/"Discard result" for results that
+  need confirmation. Input request forms sync drafts
+  (`chat/inputAnswerChanged`) and take other clients' drafts.
   `tool_previews.dart` renders tool call previews: live terminals,
   mini-diffs and subagent cards. `diff_lines.dart` (pure, with
   `diffutil_dart`) and `diff_view.dart` show diffs, unified or side by

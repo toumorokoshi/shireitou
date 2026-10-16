@@ -46,9 +46,11 @@ List<SessionInputRequest> sessionPrompts(
 }
 
 /// The action types that answer a "Waiting for you" entry: approve or
-/// deny a tool call, answer or decline input, or give up on a sign-in.
+/// deny a tool call or its result, answer or decline input, or give up
+/// on a sign-in.
 const answerActionTypes = {
   'chat/toolCallConfirmed',
+  'chat/toolCallResultConfirmed',
   'chat/inputCompleted',
   'chat/toolCallComplete',
 };

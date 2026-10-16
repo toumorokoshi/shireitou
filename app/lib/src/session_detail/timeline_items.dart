@@ -463,3 +463,43 @@ List<ToolResultContent> toolCallPreviews(ToolCallState toolCall) => [
         diff: edit.diff,
       ),
 ];
+
+/// [options] split into runs of the same `group`, in the host's order,
+/// so a divider can go between groups (AV-083).
+List<List<ConfirmationOption>> confirmationOptionGroups(
+  List<ConfirmationOption> options,
+) {
+  final groups = <List<ConfirmationOption>>[];
+  for (final option in options) {
+    if (groups.isNotEmpty && groups.last.last.group == option.group) {
+      groups.last.add(option);
+    } else {
+      groups.add([option]);
+    }
+  }
+  return groups;
+}
+
+/// How risky a judged tool call is, from its safety score.
+enum RiskLevel {
+  /// Safety of 0.7 or more.
+  low('Low risk'),
+
+  /// Safety from 0.4 to 0.7.
+  medium('Medium risk'),
+
+  /// Safety under 0.4.
+  high('High risk');
+
+  const RiskLevel(this.label);
+
+  /// The label shown.
+  final String label;
+}
+
+/// The [RiskLevel] of a judge's [safety] score (0 unsafe, 1 safe).
+RiskLevel riskLevel(num safety) => safety >= 0.7
+    ? RiskLevel.low
+    : safety >= 0.4
+    ? RiskLevel.medium
+    : RiskLevel.high;

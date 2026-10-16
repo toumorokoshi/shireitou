@@ -168,6 +168,216 @@ void main() {
     });
   });
 
+  group('host-provided confirmation details (AV-083)', () {
+    Future<ToolCallState> blocked(String text) async {
+      await send(text);
+      await until(
+        (_) => parts().any(
+          (p) => p is ToolCallResponsePart && p.toolCall.isBlocking,
+        ),
+      );
+      return toolCall();
+    }
+
+    test('options in groups and a risk assessment that completes', () async {
+      final call = await blocked('choose');
+      final pending = call as ToolCallPendingConfirmationState;
+      expect(
+        [for (final o in pending.options!) o.label],
+        ['Allow once', 'Allow in this session', 'Skip this step', 'Deny'],
+      );
+      expect([for (final o in pending.options!) o.group], [1, 1, 2, 2]);
+      await until(
+        (_) =>
+            (toolCall() as ToolCallPendingConfirmationState).riskAssessment
+                is ToolCallRiskAssessmentCompleteState,
+      );
+      final risk =
+          (toolCall() as ToolCallPendingConfirmationState).riskAssessment!
+              as ToolCallRiskAssessmentCompleteState;
+      expect(risk.safety, 0.35);
+      await until(
+        (_) => switch (sessionState().inputNeeded?.single) {
+          SessionToolConfirmationRequest(
+            toolCall: ToolCallPendingConfirmationState(
+              riskAssessment: ToolCallRiskAssessmentCompleteState(),
+            ),
+          ) =>
+            true,
+          _ => false,
+        },
+      );
+      client.dispatch(
+        chat,
+        ChatToolCallApprovedAction(
+          turnId: chatState().activeTurn!.id,
+          toolCallId: call.toolCallId,
+          confirmed: ToolCallConfirmationReason.userAction,
+          selectedOptionId: 'allow-session',
+        ).toJson(),
+      );
+      await turnDone();
+      expect(replies(), contains('You chose "Allow in this session"'));
+      final done = toolCall() as ToolCallCompletedState;
+      expect(done.selectedOption?.id, 'allow-session');
+    });
+
+    test('a denial option is reported', () async {
+      final call = await blocked('choose');
+      client.dispatch(
+        chat,
+        ChatToolCallDeniedAction(
+          turnId: chatState().activeTurn!.id,
+          toolCallId: call.toolCallId,
+          reason: ToolCallCancellationReason.skipped,
+          selectedOptionId: 'skip',
+        ).toJson(),
+      );
+      await turnDone();
+      expect(replies(), contains('You chose "Skip this step", so I kept'));
+    });
+
+    test('an editable input is run as edited', () async {
+      final call = await blocked('command');
+      expect((call as ToolCallPendingConfirmationState).editable, isTrue);
+      client.dispatch(
+        chat,
+        ChatToolCallApprovedAction(
+          turnId: chatState().activeTurn!.id,
+          toolCallId: call.toolCallId,
+          confirmed: ToolCallConfirmationReason.userAction,
+          editedToolInput: '{"command":"git push origin feature"}',
+        ).toJson(),
+      );
+      await turnDone();
+      expect(
+        replies(),
+        contains('Ran your edited command: `git push origin feature`.'),
+      );
+      expect(
+        toolCall().toolInput,
+        const InlineToolInput('{"command":"git push origin feature"}'),
+      );
+    });
+
+    test('a result waits for confirmation, and can be discarded', () async {
+      final call = await blocked('result');
+      expect(call, isA<ToolCallPendingResultConfirmationState>());
+      await until((_) => sessionState().inputNeeded != null);
+      expect(
+        (sessionState().inputNeeded!.single as SessionToolConfirmationRequest)
+            .toolCall,
+        isA<ToolCallPendingResultConfirmationState>(),
+      );
+      client.dispatch(
+        chat,
+        ChatToolCallResultConfirmedAction(
+          turnId: chatState().activeTurn!.id,
+          toolCallId: call.toolCallId,
+          approved: false,
+        ).toJson(),
+      );
+      await turnDone();
+      expect(replies(), contains('I discarded the fetched page.'));
+      expect(
+        (toolCall() as ToolCallCancelledState).reason,
+        ToolCallCancellationReason.resultDenied,
+      );
+    });
+
+    test('an accepted result is used', () async {
+      final call = await blocked('result');
+      client.dispatch(
+        chat,
+        ChatToolCallResultConfirmedAction(
+          turnId: chatState().activeTurn!.id,
+          toolCallId: call.toolCallId,
+          approved: true,
+        ).toJson(),
+      );
+      await turnDone();
+      expect(replies(), contains('Using the result'));
+      expect(toolCall(), isA<ToolCallCompletedState>());
+    });
+  });
+
+  test('input drafts are relayed with chat/inputAnswerChanged', () async {
+    await send('draft');
+    await until(
+      (_) => parts().any(
+        (p) =>
+            p is InputRequestResponsePart &&
+            p.request.answers?['notes'] != null,
+      ),
+    );
+    final request = parts()
+        .whereType<InputRequestResponsePart>()
+        .single
+        .request;
+    expect(
+      request.answers!['notes'],
+      const ChatInputAnswered(
+        state: 'draft',
+        value: ChatInputTextAnswerValue(value: otherClientDraft),
+      ),
+    );
+    // A cleared draft, then a new one.
+    client.dispatch(
+      chat,
+      ChatInputAnswerChangedAction(
+        requestId: request.id,
+        questionId: 'summary',
+      ).toJson(),
+    );
+    client.dispatch(
+      chat,
+      ChatInputAnswerChangedAction(
+        requestId: request.id,
+        questionId: 'summary',
+        answer: const ChatInputAnswered(
+          state: 'draft',
+          value: ChatInputTextAnswerValue(value: 'Faster'),
+        ),
+      ).toJson(),
+    );
+    await until(
+      (_) =>
+          host
+              .chat(chat)
+              ?.activeTurn
+              ?.responseParts
+              .whereType<InputRequestResponsePart>()
+              .single
+              .request
+              .answers?['summary'] !=
+          null,
+    );
+    client.dispatch(
+      chat,
+      ChatInputCompletedAction(
+        requestId: request.id,
+        response: ChatInputResponseKind.accept,
+        answers: const {
+          'summary': ChatInputAnswered(
+            state: 'submitted',
+            value: ChatInputTextAnswerValue(value: 'Faster builds'),
+          ),
+          'notes': ChatInputAnswered(
+            state: 'submitted',
+            value: ChatInputTextAnswerValue(value: otherClientDraft),
+          ),
+        },
+      ).toJson(),
+    );
+    await turnDone();
+    expect(
+      replies(),
+      contains(
+        'summary=Faster builds, notes=$otherClientDraft. Drafts synced: 2.',
+      ),
+    );
+  });
+
   group('input requests (AV-084)', () {
     Future<ChatInputRequest> asked() async {
       await send('ask me');

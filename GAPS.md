@@ -34,18 +34,27 @@ restoring the open hosts after a restart. Iteration 10 (2026-10-16)
 answered the open questions (see `DESIGN-DECISION-LOG.md`): todo lists
 and plan reviews, pull request and branch links from `_meta`, parallel
 runs with a comparison page, desktop notifications, clearer connection
-errors for LAN and tunnel hosts, and the push relay design. Remaining
-work:
+errors for LAN and tunnel hosts, and the push relay design. Iteration
+11 (2026-10-16) added OAuth sign-in for protected resources (discovery,
+dynamic registration, PKCE, the browser and a loopback or web redirect,
+refresh), `auth/required` and `-32007` handling, and the remaining tool
+call interaction (host options, risk, edited input, result
+confirmation, input drafts), with a fake OAuth authorization server in
+the fake host. Remaining work:
 
-- **Approvals and input against a real host:** tool approvals (AV-083),
-  input requests (AV-084), session-level requests and MCP sign-in are
-  verified against the scripted fake host only (client flows in
-  `just test`, the app in `just test-fake-host-app`; see
-  [docs/fake-host.md](docs/fake-host.md)). No production host that asks
-  (for example VS Code's agent host) has been tried; pi never asks. The
-  fake host does not cover host-provided confirmation `options`, risk
-  assessments, editable tool input, result confirmation
-  (`pending-result-confirmation`) or `chat/inputAnswerChanged` drafts.
+- **Approvals and input against a real host:** tool approvals (AV-083)
+  with host options, risk assessments, edited input and result
+  confirmation, input requests (AV-084) with synced drafts,
+  session-level requests and MCP sign-in are verified against the
+  scripted fake host only (client flows in `just test`, the app in
+  `just test-fake-host-app`; see [docs/fake-host.md](docs/fake-host.md)).
+  No production host that asks (for example VS Code's agent host) has
+  been tried; pi never asks. Editing a tool input held by reference
+  (`ContentRef`, read with `resourceRead` when "Edit input" is pressed)
+  is implemented but no fake host flow sends one. A denial option is
+  sent as `skipped` when its ID or label says "skip" (the protocol does
+  not say which options skip), otherwise `denied`; no `userSuggestion`
+  or `reasonMessage` is offered.
 - **"Waiting for you" panel and client tools:** an answered entry is
   hidden until the host removes it and comes back when the host rejects
   the answer or does not remove the entry within 30 s (a fixed timeout,
@@ -162,11 +171,34 @@ work:
   (client flows in `just test`, the app in `just test-fake-host-app`);
   pi was not seen to provide any of them, and no other real host was
   tried.
-- **MCP sign-in:** "Sign in" asks the user to paste a token and calls
-  `authenticate`. There is no OAuth/PKCE flow from
-  `ProtectedResourceMetadata`/`McpOAuthClient` (AHP-060), no handling of
-  `auth/required` or `-32007` (AHP-061), and no `expiresIn` or scopes in
-  the dialog.
+- **Sign-in (AHP-060, AHP-061), remaining details:**
+  - Verified only against the fake host's in-process authorization
+    server; no real authorization server (GitHub, Entra ID, Auth0, …) or
+    real MCP server challenge was tried.
+  - Clients come from the challenge's `McpOAuthClient` or dynamic
+    registration only. Client ID Metadata Documents (the MCP 2025-11-25
+    alternative to registration) are not supported, so a server that
+    offers neither can only be used with a pasted token. A client is
+    registered on every browser sign-in (the loopback port, and so the
+    redirect URI, changes each time); registrations are not reused.
+  - Web: the redirect page (`oauth_callback.html`, `BroadcastChannel`)
+    was built but not tried in a browser. The authorization server must
+    allow CORS for its metadata, registration and token endpoints, and
+    the browser may block the new tab, because it opens after the
+    discovery and registration requests rather than directly on the
+    click.
+  - iOS and Android use the same loopback receiver, untested; iOS may
+    suspend the app while the browser is in front, which would need
+    `ASWebAuthenticationSession` or a custom URL scheme instead.
+  - Tokens are refreshed only while the app runs (a minute, or a fifth
+    of the lifetime, before expiry); after a restart an expired token is
+    refreshed on connect. There is no UI to list or sign out of
+    resources (`HostAuthenticator.signOut` sends the empty-token
+    revocation), and a step-up challenge (`insufficientScope`) requests
+    only its `requiredScopes`, not the union with scopes granted before.
+  - `auth/required` and `-32007` open the sign-in dialog on their own
+    (on the root navigator) when no refresh is possible; there is no
+    quieter notice for a resource the user is not using right now.
 - **Session list and shortcuts, remaining details:**
   - Search matches titles and the `agent:`, `status:`, `repo:` and
     `host:` qualifiers only, not chat content; there is no negation
@@ -272,8 +304,10 @@ work:
   the fake host, on Linux and macOS (and headless with
   `just test-fake-host-app flutter-tester`), and a second fake host with
   the host switcher, the composer (host picker, folder browser, model
-  options, session settings, creation failure) and the mode picker, and a
-  fourth test drives the session list (search, filters, archive from the
+  options, session settings, creation failure) and the mode picker, a
+  test of OAuth sign-in, a refreshed token, host options and risk, edited
+  input, result confirmation, input drafts and `-32007` from the
+  composer, and a test that drives the session list (search, filters, archive from the
   list, multi-select), the shortcuts, a rejected panel answer, client
   tools and a restart that restores the open host. Reconnecting after a
   dropped connection is not driven end to end, and the web app is still

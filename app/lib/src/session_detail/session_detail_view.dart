@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
 
+import '../auth/sign_in_dialog.dart';
 import '../connection_notices.dart';
 import '../host_connection.dart';
 import '../session_list/folder_grouping.dart';
@@ -255,10 +256,8 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
     }
   }
 
-  Future<void> _authenticate({
-    required String resource,
-    required String token,
-  }) => _connection.authenticate(resource: resource, token: token);
+  Future<void> _signIn(AuthChallenge challenge) =>
+      signInFromUi(context, _connection, challenge);
 
   void _setRead(bool read) => _dispatch(
     widget.session,
@@ -370,7 +369,7 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
         key: ValueKey(chatUri),
         chat: chat,
         onAction: (action) => _dispatch(chatUri!, action),
-        onAuthenticate: _authenticate,
+        onSignIn: _signIn,
         onOpenChat: _selectChat,
         onLoadOlder: () => _loadOlder(chatUri!),
       ),
@@ -412,7 +411,7 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
             session: sessionState,
             openChat: chatUri,
             onAnswer: _answer,
-            onAuthenticate: _authenticate,
+            onSignIn: _signIn,
           ),
           const Divider(height: 1),
         ],
@@ -509,7 +508,7 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
       links: sourceLinksOf(session: sessionState?.meta, summary: summary?.meta),
       session: sessionState,
       clientExecutions: elsewhere,
-      onAuthenticate: _authenticate,
+      onSignIn: _signIn,
       onOpenChat: _selectChat,
       onStop: chat == null || readOnly
           ? null
@@ -590,7 +589,7 @@ class _Header extends StatelessWidget {
     required this.links,
     required this.session,
     required this.clientExecutions,
-    required this.onAuthenticate,
+    required this.onSignIn,
     required this.onOpenChat,
     required this.onStop,
     required this.onArchive,
@@ -609,7 +608,7 @@ class _Header extends StatelessWidget {
   final SourceLinks links;
   final SessionState? session;
   final List<SessionToolClientExecutionRequest> clientExecutions;
-  final Authenticate onAuthenticate;
+  final SignIn onSignIn;
   final OpenChat onOpenChat;
   final VoidCallback? onStop;
   final ValueChanged<bool> onArchive;
@@ -696,7 +695,7 @@ class _Header extends StatelessWidget {
                     if (mcpAlerts.isNotEmpty)
                       McpServerAlertChips(
                         alerts: mcpAlerts,
-                        onAuthenticate: onAuthenticate,
+                        onSignIn: onSignIn,
                       ),
                     if (clientExecutions.isNotEmpty)
                       ClientExecutionChip(
@@ -792,14 +791,14 @@ class _Timeline extends StatefulWidget {
     super.key,
     required this.chat,
     required this.onAction,
-    required this.onAuthenticate,
+    required this.onSignIn,
     required this.onOpenChat,
     required this.onLoadOlder,
   });
 
   final ChatState chat;
   final ValueChanged<JsonMap> onAction;
-  final Authenticate onAuthenticate;
+  final SignIn onSignIn;
   final OpenChat onOpenChat;
   final VoidCallback onLoadOlder;
 
@@ -854,7 +853,7 @@ class _TimelineState extends State<_Timeline> {
                 child: buildTimelineItem(
                   item,
                   widget.onAction,
-                  onAuthenticate: widget.onAuthenticate,
+                  onSignIn: widget.onSignIn,
                   onOpenChat: widget.onOpenChat,
                   onLoadOlder: widget.onLoadOlder,
                 ),
