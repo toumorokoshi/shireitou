@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
+import '../connection_notices.dart';
 import '../host_connection.dart';
 import '../session_list/folder_grouping.dart';
 import '../session_list/session_list_view.dart';
@@ -33,7 +34,7 @@ class SessionDetailView extends ConsumerStatefulWidget {
 
 class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
   late final HostConnection _connection;
-  StreamSubscription<String>? _rejections;
+  StreamSubscription<ActionFailure>? _failures;
   String? _chat;
   Object? _error;
   bool _opening = true;
@@ -46,7 +47,9 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
   void initState() {
     super.initState();
     _connection = ref.read(hostConnectionProvider.notifier);
-    _rejections = _connection.rejections.listen(_showRejection);
+    _failures = _connection.failures.listen(
+      (failure) => _showMessage(describeActionFailure(failure)),
+    );
     unawaited(_open());
   }
 
@@ -75,23 +78,22 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
 
   @override
   void dispose() {
-    unawaited(_rejections?.cancel());
+    unawaited(_failures?.cancel());
     if (!_opening) _connection.closeSession(widget.session, _chat);
     super.dispose();
   }
 
-  void _showRejection(String reason) {
+  void _showMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.maybeOf(
-      context,
-    )?.showSnackBar(SnackBar(content: Text('The host rejected that: $reason')));
+    ScaffoldMessenger.maybeOf(context)
+        ?.showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _dispatch(String channel, JsonMap action) {
     try {
       _connection.dispatch(channel, action);
     } on StateError catch (error) {
-      _showRejection(error.message);
+      _showMessage('Could not send that: ${error.message}');
     }
   }
 
@@ -130,7 +132,18 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
               (s) => s.chatChannels[chatUri]?.state,
             ),
           );
+    // The host could not resume the session after a reconnect (AHP-004).
+    final missing = ref.watch(
+      hostConnectionProvider.select(
+        (s) =>
+            s.missingChannels.contains(widget.session) ||
+            (chatUri != null && s.missingChannels.contains(chatUri)),
+      ),
+    );
     final body = switch ((chat, _error)) {
+      _ when missing => const Center(
+        child: Text('This session is no longer available on the host.'),
+      ),
       (_, final error?) => Center(child: Text('Could not open: $error')),
       (null, _) when _opening => const Center(
         child: CircularProgressIndicator(),

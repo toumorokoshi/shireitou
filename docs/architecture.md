@@ -60,6 +60,20 @@ WebSocket ──► json_rpc_2 Peer ──► AhpClient (I/O edge)
   `chat/toolCallConfirmed` / `chat/toolCallResultConfirmed`, answers are
   `chat/inputCompleted`, and read/archive are `session/isReadChanged` /
   `session/isArchivedChanged`.
+- **Undone actions:** a pending action is rolled back when the host
+  rejects it, when no echo arrives within `pendingActionTimeout` (30 s; a
+  one-shot timer per action calls the pure `expirePendingAction`), or when
+  the client reconnects (`clearAllPendingActions`, after the replay has
+  echoed whatever the host accepted; before a snapshot replaces the
+  mirrors). Each one is an `ActionFailure` on `AhpClient.failures`, which
+  the app shows as a snackbar (`connection_notices.dart`). A late echo
+  still applies, since the host's state wins. `dispatch` is refused while
+  reconnecting.
+- **Protocol versions:** `protocol_version.dart` lists what 1.0.0 added
+  over 0.9.0 (`actionsAddedIn100`, `ProtocolFeature`). Under 0.9.0,
+  `applyEnvelope` ignores those actions and `dispatch` throws
+  `UnsupportedActionError` for them; the app shows an "AHP 0.9.0" chip.
+  See the spec's "0.9.0 compatibility" section.
 - **Creating sessions:** `createSession` retries on `-32003`, then waits for
   the session in the catalogue and returns the URI the host lists
   (`resolveSessionResource` matches pi's `pi:/<id>` to the
@@ -67,7 +81,19 @@ WebSocket ──► json_rpc_2 Peer ──► AhpClient (I/O edge)
 - **Reconnect:** when the socket drops after a successful connect, the client
   retries with exponential backoff (0.5 s doubling to 30 s) using
   `reconnect`, and falls back to `initialize` when the host answers
-  `-32008 NotFound` (pi does this after a host restart).
+  `-32008 NotFound` (pi does this after a host restart). Channels in the
+  replay's `missing` list, and mirrored session or chat channels that a
+  snapshot result or the `initialize` fallback has no snapshot for
+  (`unresumedChannels`; only field-less channels may omit one), are
+  unsubscribed, unmirrored and recorded in
+  `HostState.missingChannels` (cleared by subscribing again); the session
+  view then says the session is gone.
+- **Liveness:** while connected the client sends `ping` every
+  `pingInterval` (15 s). No answer within `pingTimeout` (10 s) drops the
+  socket and starts the reconnect loop, so a dead socket (sleeping laptop,
+  dropped Wi-Fi, a proxy that swallowed the close) is noticed within about
+  25 s instead of waiting for TCP. Any JSON-RPC answer, even an error,
+  counts as alive (`isLivenessFailure`).
 - **URIs are opaque:** pi publishes sessions as `pi:/<id>` even when they
   were created as `ahp-session:/<id>`, so the catalogue is keyed by the
   `resource` the host sends.

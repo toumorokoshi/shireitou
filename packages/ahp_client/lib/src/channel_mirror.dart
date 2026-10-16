@@ -75,3 +75,77 @@ ChannelMirror<S> applyHostEnvelope<S>(
     pending.fold(confirmed, (state, p) => reduce(state, p.action)),
   );
 }
+
+/// Removes the pending action [clientSeq] without confirming it, which
+/// rolls its optimistic change back. Unknown sequence numbers are a no-op.
+ChannelMirror<S> dropPendingAction<S>(
+  ChannelMirror<S> mirror,
+  int clientSeq,
+  JsonReducer<S> reduce,
+) {
+  if (!mirror.pending.any((p) => p.clientSeq == clientSeq)) return mirror;
+  final pending = [
+    for (final p in mirror.pending)
+      if (p.clientSeq != clientSeq) p,
+  ];
+  return ChannelMirror._(
+    mirror.confirmed,
+    List.unmodifiable(pending),
+    pending.fold(mirror.confirmed, (state, p) => reduce(state, p.action)),
+  );
+}
+
+/// Drops every pending action, leaving the confirmed state. Used after a
+/// reconnect, when the host has either echoed an action (in the replay) or
+/// never received it.
+ChannelMirror<S> clearPendingActions<S>(ChannelMirror<S> mirror) =>
+    mirror.pending.isEmpty
+    ? mirror
+    : ChannelMirror._(mirror.confirmed, const [], mirror.confirmed);
+
+/// Why a write-ahead action was undone.
+enum ActionFailureKind {
+  /// The host echoed it with a `rejectionReason`.
+  rejected,
+
+  /// The host did not echo it within the pending-action timeout.
+  timedOut,
+
+  /// The connection dropped before the host echoed it. After a replay the
+  /// host never received it; after a snapshot (or a fresh `initialize`) it
+  /// may have, and the snapshot shows the host's state either way.
+  connectionLost,
+}
+
+/// A dispatched action that was rolled back, reported to observers.
+@immutable
+class ActionFailure {
+  /// Creates an [ActionFailure].
+  const ActionFailure({
+    required this.channel,
+    required this.clientSeq,
+    required this.action,
+    required this.kind,
+    this.reason,
+  });
+
+  /// Channel the action was dispatched on.
+  final String channel;
+
+  /// The action's `clientSeq`.
+  final int clientSeq;
+
+  /// The action as dispatched.
+  final JsonMap action;
+
+  /// Why it was undone.
+  final ActionFailureKind kind;
+
+  /// The host's `rejectionReason`, for [ActionFailureKind.rejected].
+  final String? reason;
+
+  @override
+  String toString() =>
+      'ActionFailure($channel #$clientSeq ${action['type']}: ${kind.name}'
+      '${reason == null ? '' : ' $reason'})';
+}

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -19,6 +21,12 @@ class FakeHostConnection extends HostConnection {
 
   /// (channel, action) pairs, in order.
   final dispatched = <(String, JsonMap)>[];
+
+  /// Undone actions to report to the UI.
+  final failureController = StreamController<ActionFailure>.broadcast();
+
+  @override
+  Stream<ActionFailure> get failures => failureController.stream;
 
   @override
   HostState build() => initial;
@@ -301,5 +309,58 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(connection.types, ['session/isReadChanged']);
+  });
+
+  testWidgets('a 0.9.0 host shows the compatibility chip', (tester) async {
+    await _pump(
+      tester,
+      connected().copyWith(protocolVersion: '0.9.0'),
+      const Size(1400, 900),
+    );
+    expect(find.text('AHP 0.9.0'), findsOneWidget);
+    final tooltip = tester.widget<Tooltip>(
+      find.ancestor(of: find.text('AHP 0.9.0'), matching: find.byType(Tooltip)),
+    );
+    expect(tooltip.message, contains('archiving single chats'));
+  });
+
+  testWidgets('a 1.0.0 host shows no compatibility chip', (tester) async {
+    await _pump(
+      tester,
+      connected().copyWith(protocolVersion: '1.0.0'),
+      const Size(1400, 900),
+    );
+    expect(find.textContaining('AHP '), findsNothing);
+  });
+
+  testWidgets('a session the host could not resume says so', (tester) async {
+    final connection = await _pump(tester, connected(), const Size(1400, 900));
+    await tester.tap(find.text('Fix login'));
+    await tester.pumpAndSettle();
+    connection.state = connection.state.copyWith(
+      missingChannels: {'ahp-chat:/1'},
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.text('This session is no longer available on the host.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('undone actions show a snackbar', (tester) async {
+    final connection = await _pump(tester, connected(), const Size(1400, 900));
+    await tester.tap(find.text('Fix login'));
+    await tester.pumpAndSettle();
+    connection.failureController.add(
+      const ActionFailure(
+        channel: 'ahp-chat:/1',
+        clientSeq: 3,
+        action: {'type': 'chat/turnStarted'},
+        kind: ActionFailureKind.timedOut,
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.textContaining('did not confirm that in time'), findsOneWidget);
   });
 }

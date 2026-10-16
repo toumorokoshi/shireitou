@@ -130,6 +130,28 @@ void main() {
 
       await client.ping();
     });
+
+    test('negotiates 0.9.0 when offered only that', () async {
+      final client = AhpClient(
+        uri: host.url,
+        protocolVersions: const ['0.9.0'],
+      );
+      addTearDown(client.close);
+      await client.connect();
+      expect(client.state.error, isNull);
+      expect(client.state.protocolVersion, '0.9.0');
+      expect(unavailableFeatures('0.9.0'), isNotEmpty);
+      final session = client.state.sessions.keys.firstOrNull;
+      if (session == null) return;
+      final chat = await client.openSession(session);
+      expect(
+        () => client.dispatch(chat!, const {
+          'type': 'chat/isReadChanged',
+          'isRead': true,
+        }),
+        throwsA(isA<UnsupportedActionError>()),
+      );
+    });
   });
 
   group('pi with a connection token', skip: skip, () {

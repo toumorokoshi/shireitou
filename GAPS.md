@@ -9,7 +9,9 @@ app shell. Iteration 2 (2026-10-15) made the app usable end to end on web:
 open a session, stream replies, send follow-ups, stop turns, approve tools,
 answer input requests, and start sessions. Iteration 3 (2026-10-16) added
 the macOS and Linux desktop apps (CI builds, smoke tests and packages),
-the native token header, and remembered hosts. Remaining work:
+the native token header, and remembered hosts. Iteration 4 (2026-10-16)
+finished reconnect (`missing` channels, liveness pings), write-ahead
+rollback on timeout and reconnect, and 0.9.0 degradation. Remaining work:
 
 - **Not verified against a host:** tool approvals (AV-083) and input
   requests (AV-084) are covered by reducer and widget tests only, because pi
@@ -33,9 +35,6 @@ the native token header, and remembered hosts. Remaining work:
   auth (`chat/toolCallAuthRequired`), working-directory and draft actions
   are ignored. Session customizations, MCP servers, changesets and server
   tools are ignored.
-- **Write-ahead edge cases:** pending actions are kept across a reconnect
-  snapshot and are never timed out, so an action the host dropped silently
-  stays applied locally.
 - **Session list:** no "Done" filter (AV-022), archive only from the session
   header (AV-024), no attention count in the title (AV-120), no keyboard
   shortcuts (AV-140), no search or sort.
@@ -53,9 +52,19 @@ the native token header, and remembered hosts. Remaining work:
 - **Wire type generation:** types are hand-written freezed classes modeled on
   the 1.0.0 TypeScript types. A generator from the JSON Schemas in
   `schema/` is still to do.
-- **Reconnect details (AHP-004):** report `missing` channels to observers,
-  and send client-side liveness `ping`s so dead sockets are detected sooner.
-- **0.9.0 degradation:** nothing yet checks the negotiated version.
+- **1.0.0-only features:** under 0.9.0 the client ignores the ten
+  1.0.0-only actions and refuses to dispatch them, and the app shows an
+  "AHP 0.9.0" chip (see "0.9.0 compatibility" in
+  [specs/agent-host-protocol-client.md](specs/agent-host-protocol-client.md)).
+  None of the 1.0.0-only UI exists yet; when per-chat read/archive,
+  background work, per-chat changes, chat moving/reordering or canvases are
+  built, they must check `supportsFeature`. No real host that speaks only
+  0.9.0 was tested: pi was made to negotiate 0.9.0 by offering only that.
+- **Write-ahead and liveness tuning:** the pending-action timeout (30 s),
+  ping interval (15 s) and ping timeout (10 s) are fixed defaults, not
+  user settings, and were not tuned on slow or mobile networks. A long
+  `chat/turnStarted` round trip on a slow link could be rolled back and
+  then reapplied by its late echo.
 - **macOS and Linux desktop apps (priority):** both build, pass the desktop
   smoke test and are packaged in CI (see [docs/desktop.md](docs/desktop.md)).
   Remaining:
@@ -88,9 +97,6 @@ the native token header, and remembered hosts. Remaining work:
 
 ## Open questions
 
-- **0.9.0 compatibility:** list exactly which 1.0.0 actions and fields are
-  missing in 0.9.0, and which UI features need to degrade when 0.9.0 is
-  negotiated.
 - **Worktree metadata:** check whether hosts report repo and branch for a
   working directory. If they don't, folder labels fall back to the path only.
 - **Agent/model selection:** pi takes the model per message

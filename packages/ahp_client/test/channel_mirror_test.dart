@@ -80,4 +80,23 @@ void main() {
     expect(next.pending, hasLength(1));
     expect(next.state, ['other', 'local']);
   });
+
+  test('dropPendingAction rolls one action back and keeps the rest', () {
+    final two = applyPendingAction(pending, (
+      clientSeq: 2,
+      action: {'v': 'second'},
+    ), _append);
+    final next = dropPendingAction(two, 1, _append);
+    expect(next.pending.single.clientSeq, 2);
+    expect(next.state, ['second']);
+    expect(dropPendingAction(two, 5, _append), same(two));
+  });
+
+  test('clearPendingActions leaves the confirmed state', () {
+    final next = clearPendingActions(pending);
+    expect(next.pending, isEmpty);
+    expect(next.state, isEmpty);
+    final clean = clearPendingActions(next);
+    expect(clean, same(next));
+  });
 }

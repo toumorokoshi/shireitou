@@ -1,5 +1,60 @@
 # Design Decision Log
 
+## 2026-10-16: Reconnect details, write-ahead rollback, and 0.9.0 degradation
+
+- **0.9.0 vs 1.0.0, from the releases:** the list of 1.0.0 additions comes
+  from diffing the `src/types` TypeScript of
+  `@microsoft/agent-host-protocol@0.9.0` and `@1.0.0` (interfaces, enums
+  and action types, with the TypeScript compiler API), not from the
+  protocol's `ACTION_INTRODUCED_IN` registry. The registry dates
+  `chat/isReadChanged`, `chat/backgroundWork*`, `session/chatsReordered`
+  and others `0.9.0`, and the canvas actions `0.10.0` (never released),
+  but none of them is in the 0.9.0 package; the 1.0.0 changelog agrees
+  with the diff. The result is ten actions, one command (`moveChat`) and a
+  set of optional fields, listed in the spec.
+- **Degradation is a version check, not per-feature capability probing:**
+  0.9.0 and 1.0.0 are the only versions offered, so one pure module
+  (`protocol_version.dart`) holds the added actions and a
+  `ProtocolFeature` enum; `isActionKnownToVersion` and `supportsFeature`
+  compare versions. Under 0.9.0, incoming 1.0.0-only actions are ignored
+  (a safety net; hosts should not send them) and dispatching one throws
+  `UnsupportedActionError` (a `StateError`, which the UI already catches)
+  rather than sending something the host would reject. Fields need no
+  handling, since all of them are optional and nothing reads them yet. The
+  app shows an "AHP 0.9.0" chip whose tooltip lists the missing features,
+  instead of a dismissable banner, because nothing the user can do today
+  is affected.
+- **`AhpClient.protocolVersions`:** the offered list is a constructor
+  option (default `['1.0.0', '0.9.0']`) so the integration test can make
+  pi negotiate 0.9.0.
+- **Pending actions are rolled back, and the user is told:** the
+  write-ahead guide says a client clears `pendingActions` after a
+  reconnect. The client does that after applying a replay (which echoes
+  whatever the host accepted) and before applying snapshots (which carry
+  no echoes). It also rolls back an action not echoed within 30 s (the
+  TypeScript client's default request timeout), with a one-shot timer per
+  action calling a pure function. Each rollback, and each host rejection,
+  is an `ActionFailure` on `AhpClient.failures`; the app shows a snackbar
+  per failure. After a snapshot the action may in fact have been applied,
+  so that message says it "may not have gone through" instead of claiming
+  it was lost. A late echo is still applied (the host's state wins).
+  `dispatch` is refused while reconnecting, so an action cannot be sent on
+  the new socket and then cleared by the reconnect.
+- **Missing channels:** the replay's `missing` channels are released
+  (subscription counts dropped, so later `unsubscribe` calls are no-ops),
+  unmirrored, and listed in `HostState.missingChannels` instead of a
+  separate event stream, so widgets observe them like any other state.
+  Subscribing again clears the entry. A snapshot result or the
+  `initialize` fallback has no `missing` list; since a host may only omit
+  snapshots of field-less channels, a session or chat mirror without a
+  snapshot is treated as missing too.
+- **Liveness pings:** `ping` every 15 s with a 10 s timeout, so a dead
+  socket is found within about 25 s. Only a timeout or a closed peer
+  counts as dead; any JSON-RPC answer, including `MethodNotFound` from a
+  host without `ping`, counts as alive. A failed ping starts the normal
+  reconnect loop. Protocol-level pings were chosen over WebSocket ping
+  frames because browsers cannot send those.
+
 ## 2026-10-16: Desktop apps, native token header, and remembered hosts
 
 - **Token header (AHP-002):** the AHP spec leaves connection gating to the

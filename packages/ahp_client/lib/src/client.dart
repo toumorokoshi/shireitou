@@ -11,7 +11,9 @@ import 'package:uuid/uuid.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import 'host_state.dart';
+import 'channel_mirror.dart';
 import 'protocol.dart';
+import 'protocol_version.dart';
 import 'session_catalogue.dart';
 import 'session_wire.dart';
 import 'subscriptions.dart';
@@ -68,6 +70,10 @@ class AhpClient {
     this.clientInfo = const Implementation(name: 'shireitou'),
     this.locale,
     this.connector = connectWebSocket,
+    this.pingInterval = const Duration(seconds: 15),
+    this.pingTimeout = const Duration(seconds: 10),
+    this.pendingActionTimeout = const Duration(seconds: 30),
+    this.protocolVersions = offeredProtocolVersions,
   }) : clientId = clientId ?? const Uuid().v4();
 
   /// Host URL, including the `tkn` query parameter when needed. The
@@ -87,8 +93,30 @@ class AhpClient {
   /// Opens the transport; replaced in tests.
   final ChannelConnector connector;
 
+  /// Versions offered in `initialize`, most preferred first (AHP-003).
+  /// Offering only `0.9.0` exercises the degraded mode against a host that
+  /// supports both.
+  final List<String> protocolVersions;
+
+  /// How often to send a liveness `ping` while connected (AHP-005).
+  /// [Duration.zero] disables liveness pings.
+  final Duration pingInterval;
+
+  /// How long a liveness `ping` may take before the socket is treated as
+  /// dead and the client reconnects (AHP-004).
+  final Duration pingTimeout;
+
+  /// How long a dispatched action may stay unechoed before it is rolled
+  /// back and reported as [ActionFailureKind.timedOut] (AHP-022).
+  /// [Duration.zero] disables the timeout.
+  final Duration pendingActionTimeout;
+
   final _states = StreamController<HostState>.broadcast();
   final _actions = StreamController<ActionEnvelope>.broadcast();
+  final _failures = StreamController<ActionFailure>.broadcast();
+  final _pendingTimers = <Timer>{};
+  Timer? _pingTimer;
+  bool _pingInFlight = false;
   HostState _state = const HostState();
   SubscriptionCounts _subscriptions = const {rootChannel: 1};
   Peer? _peer;
@@ -104,6 +132,10 @@ class AhpClient {
 
   /// Every action envelope received, for channel observers.
   Stream<ActionEnvelope> get actions => _actions.stream;
+
+  /// This client's dispatched actions that were rolled back: rejected by
+  /// the host, not echoed in time, or lost in a reconnect (AHP-022).
+  Stream<ActionFailure> get failures => _failures.stream;
 
   /// Connects, runs `initialize`, and loads the session catalogue.
   ///
@@ -121,12 +153,14 @@ class AhpClient {
             clientInfo: clientInfo.toJson(),
             initialSubscriptions: _subscriptions.keys.toList(),
             locale: locale,
+            protocolVersions: protocolVersions,
           ),
         ) as JsonMap,
       );
       _set(applyInitializeResult(_state, result));
       await _loadSessions(peer);
       _set(_state.copyWith(status: ConnectionStatus.connected));
+      _startPings(peer);
       _log.info(
         'connected to ${result.serverInfo?.name} '
         '(protocol ${result.protocolVersion})',
@@ -146,6 +180,11 @@ class AhpClient {
   /// Closes the connection and stops reconnecting.
   Future<void> close() async {
     _closed = true;
+    _stopPings();
+    for (final timer in _pendingTimers) {
+      timer.cancel();
+    }
+    _pendingTimers.clear();
     await _closePeer();
     _set(_state.copyWith(status: ConnectionStatus.disconnected));
   }
@@ -161,6 +200,15 @@ class AhpClient {
     _subscriptions = change.counts;
     final peer = _peer;
     if (!change.sendToHost || peer == null) return null;
+    if (_state.missingChannels.contains(channel)) {
+      _set(
+        _state.copyWith(
+          missingChannels: Set.unmodifiable(
+            {..._state.missingChannels}..remove(channel),
+          ),
+        ),
+      );
+    }
     final result =
         await peer.sendRequest('subscribe', {'channel': channel}) as JsonMap;
     final snapshot = switch (result['snapshot']) {
@@ -202,10 +250,23 @@ class AhpClient {
   /// `clientSeq`.
   ///
   /// The action is applied to the channel's mirror at once; the host's echo
-  /// confirms it, or a `rejectionReason` rolls it back.
+  /// confirms it. A `rejectionReason`, no echo within
+  /// [pendingActionTimeout], or a reconnect before the echo rolls it back
+  /// and reports it on [failures].
+  ///
+  /// Throws [StateError] when not connected (also while reconnecting), and
+  /// [UnsupportedActionError] when the negotiated protocol version does not
+  /// know the action.
   int dispatch(String channel, JsonMap action) {
     final peer = _peer;
-    if (peer == null) throw StateError('not connected');
+    if (peer == null || _state.status != ConnectionStatus.connected) {
+      throw StateError('not connected');
+    }
+    final type = action['type'];
+    final version = _state.protocolVersion;
+    if (type is String && !isActionKnownToVersion(type, version)) {
+      throw UnsupportedActionError(type, version!);
+    }
     final clientSeq = ++_clientSeq;
     _set(
       applyDispatchedAction(_state, channel, (
@@ -218,7 +279,30 @@ class AhpClient {
       'clientSeq': clientSeq,
       'action': action,
     });
+    _expireLater(channel, clientSeq);
     return clientSeq;
+  }
+
+  void _expireLater(String channel, int clientSeq) {
+    if (pendingActionTimeout <= Duration.zero) return;
+    late final Timer timer;
+    timer = Timer(pendingActionTimeout, () {
+      _pendingTimers.remove(timer);
+      final (:state, :failure) = expirePendingAction(
+        _state,
+        channel,
+        clientSeq,
+      );
+      if (failure == null) return;
+      _log.warning('no echo for $failure; rolled back');
+      _set(state);
+      _fail(failure);
+    });
+    _pendingTimers.add(timer);
+  }
+
+  void _fail(ActionFailure failure) {
+    if (!_failures.isClosed) _failures.add(failure);
   }
 
   /// Asks the host to page older turns into [chat] (`fetchTurns`). The turns
@@ -283,6 +367,9 @@ class AhpClient {
         final envelope = ActionEnvelope.fromJson(params.value as JsonMap);
         _set(applyEnvelope(_state, envelope, clientId: clientId));
         _actions.add(envelope);
+        if (rejectionOf(envelope, clientId: clientId) case final failure?) {
+          _fail(failure);
+        }
       })
       ..registerFallback((Parameters params) {
         _log.fine('ignored ${params.method}');
@@ -328,6 +415,7 @@ class AhpClient {
 
   void _onDisconnect() {
     _peer = null;
+    _stopPings();
     if (_closed ||
         _reconnecting ||
         _state.status != ConnectionStatus.connected) {
@@ -358,7 +446,12 @@ class AhpClient {
               ),
             ) as JsonMap,
           );
+          // A snapshot replaces mirrors without echoing anything, so report
+          // their pending actions first; a replay echoes the accepted ones.
+          if (result is ReconnectSnapshot) _clearPendingActions();
+          final missing = missingAfterReconnect(_state, result);
           _set(applyReconnectResult(_state, result, clientId: clientId));
+          _dropSubscriptions(missing);
         } on RpcException catch (error) {
           if (error.code != AhpErrorCodes.notFound) rethrow;
           final result = InitializeResult.fromJson(
@@ -369,14 +462,27 @@ class AhpClient {
                 clientInfo: clientInfo.toJson(),
                 initialSubscriptions: subscriptions,
                 locale: locale,
+                protocolVersions: protocolVersions,
               ),
             ) as JsonMap,
           );
-          _set(applyInitializeResult(_state, result));
+          _clearPendingActions();
+          final missing = unresumedChannels(_state, result.snapshots);
+          _set(
+            applyMissingChannels(
+              applyInitializeResult(_state, result),
+              missing,
+            ),
+          );
+          _dropSubscriptions(missing);
         }
+        // Whatever the host accepted is in the replay or snapshot; actions
+        // still pending were lost with the old socket.
+        _clearPendingActions();
         // Catalogue notifications are not replayed, so reload the list.
         await _loadSessions(peer);
         _set(_state.copyWith(status: ConnectionStatus.connected, error: null));
+        _startPings(peer);
         _log.info('reconnected after ${attempt + 1} attempt(s)');
         break;
       } on Object catch (error) {
@@ -386,6 +492,56 @@ class AhpClient {
       }
     }
     _reconnecting = false;
+  }
+
+  /// Rolls back every pending action and reports each one as
+  /// [ActionFailureKind.connectionLost].
+  void _clearPendingActions() {
+    final (:state, :failures) = clearAllPendingActions(_state);
+    if (failures.isEmpty) return;
+    _set(state);
+    failures.forEach(_fail);
+  }
+
+  /// Forgets every observer of the [missing] channels: the host can no
+  /// longer resume them, so later `unsubscribe` calls are no-ops.
+  void _dropSubscriptions(List<String> missing) {
+    if (missing.isEmpty) return;
+    _log.info('host could not resume ${missing.join(', ')}');
+    _subscriptions = Map.unmodifiable(
+      {..._subscriptions}..removeWhere((key, _) => missing.contains(key)),
+    );
+  }
+
+  /// Sends a liveness `ping` every [pingInterval] on [peer] (AHP-005).
+  void _startPings(Peer peer) {
+    _stopPings();
+    if (pingInterval <= Duration.zero) return;
+    _pingTimer = Timer.periodic(pingInterval, (_) => _checkLiveness(peer));
+  }
+
+  void _stopPings() {
+    _pingTimer?.cancel();
+    _pingTimer = null;
+    _pingInFlight = false;
+  }
+
+  Future<void> _checkLiveness(Peer peer) async {
+    if (_pingInFlight || !identical(_peer, peer)) return;
+    _pingInFlight = true;
+    try {
+      await peer
+          .sendRequest('ping', {'channel': rootChannel})
+          .timeout(pingTimeout);
+    } on Object catch (error) {
+      if (isLivenessFailure(error) && identical(_peer, peer)) {
+        _log.warning('ping failed ($error); reconnecting');
+        _onDisconnect();
+        unawaited(peer.close());
+      }
+    } finally {
+      if (identical(_peer, peer)) _pingInFlight = false;
+    }
   }
 
   Future<void> _closePeer() async {

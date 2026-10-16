@@ -20,7 +20,8 @@ final hostConnectionProvider = NotifierProvider<HostConnection, HostState>(
 class HostConnection extends Notifier<HostState> {
   AhpClient? _client;
   StreamSubscription<HostState>? _subscription;
-  final _rejections = StreamController<String>.broadcast();
+  StreamSubscription<ActionFailure>? _failureSubscription;
+  final _failures = StreamController<ActionFailure>.broadcast();
 
   @override
   HostState build() {
@@ -28,8 +29,9 @@ class HostConnection extends Notifier<HostState> {
     return const HostState();
   }
 
-  /// Reasons the host gave for rejecting this client's actions (AHP-022).
-  Stream<String> get rejections => _rejections.stream;
+  /// This client's actions that were undone: rejected by the host, not
+  /// confirmed in time, or lost in a reconnect (AHP-022).
+  Stream<ActionFailure> get failures => _failures.stream;
 
   /// Connects to [url], adding [token] as the `tkn` query parameter, and
   /// remembers the host (with its optional [name]) once connected. On
@@ -43,13 +45,7 @@ class HostConnection extends Notifier<HostState> {
     );
     _client = client;
     _subscription = client.states.listen((next) => state = next);
-    client.actions
-        .where(
-          (e) =>
-              e.rejectionReason != null &&
-              e.origin?.clientId == client.clientId,
-        )
-        .listen((e) => _rejections.add(e.rejectionReason!));
+    _failureSubscription = client.failures.listen(_failures.add);
     await client.connect();
     if (client.state.status == ConnectionStatus.connected) {
       await ref
@@ -79,6 +75,8 @@ class HostConnection extends Notifier<HostState> {
       _client?.closeSession(session, chat);
 
   /// Dispatches a client action on [channel] (write-ahead, AHP-022).
+  /// Throws [StateError] when not connected or when the negotiated protocol
+  /// version does not know the action ([UnsupportedActionError]).
   void dispatch(String channel, JsonMap action) =>
       _connected.dispatch(channel, action);
 
@@ -117,6 +115,8 @@ class HostConnection extends Notifier<HostState> {
   Future<void> _dispose() async {
     await _subscription?.cancel();
     _subscription = null;
+    await _failureSubscription?.cancel();
+    _failureSubscription = null;
     await _client?.close();
     _client = null;
   }

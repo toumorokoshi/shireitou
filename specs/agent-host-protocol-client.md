@@ -36,9 +36,81 @@ That host negotiates with `@microsoft/agent-host-protocol` **1.0.0**, whose
 - `initialize` offers `protocolVersions: ['1.0.0', '0.9.0']`.
 - When `0.9.0` is negotiated (the version VS Code currently resolves to on
   that host), the client ignores actions and fields that 1.0.0 added and
-  degrades features that depend on them.
+  degrades features that depend on them. See
+  [0.9.0 compatibility](#090-compatibility).
 - Upgrading the target version is a deliberate change: bump it here,
   regenerate the types, and re-test against pi-agent-host-protocol.
+
+### 0.9.0 compatibility
+
+Found by diffing the TypeScript sources (`src/types`) of
+`@microsoft/agent-host-protocol@0.9.0` and `@1.0.0` from npm, and checked
+against the 1.0.0 entry of the protocol's `CHANGELOG.md`. The protocol's
+`ACTION_INTRODUCED_IN` registry dates some of these actions `0.9.0` or
+`0.10.0` (an unreleased version), but none of them is in the 0.9.0
+release. Notifications (`root/*`, `auth/required`, `otlp/*`) are the same
+in both.
+
+Actions in 1.0.0 that 0.9.0 does not have:
+
+| Action                                 | Dispatched by | What it does                                      |
+| -------------------------------------- | ------------- | ------------------------------------------------- |
+| `chat/isReadChanged`                   | client        | Read state of one chat.                           |
+| `chat/isArchivedChanged`               | client        | Archives one chat without its session.            |
+| `chat/backgroundWorkSet`               | host          | Adds or updates a background shell or subagent.   |
+| `chat/backgroundWorkRemoved`           | host          | Removes background work.                          |
+| `chat/changesetsChanged`               | host          | Replaces the chat's changeset catalogue.          |
+| `chat/movableChanged`                  | host          | Whether `moveChat` may move the chat.             |
+| `chat/canvasesChanged`                 | host          | Replaces the chat's canvas references.            |
+| `canvas/stateChanged`                  | host          | Canvas channel state (experimental channel).      |
+| `session/chatsReordered`               | client        | Reorders the session's chats.                     |
+| `session/mcpServerBackgroundRequested` | client        | Asks the host to background a blocking MCP start. |
+
+Commands in 1.0.0 that 0.9.0 does not have: `moveChat` (`MoveChatParams`,
+`MoveChatResult`, `ChatMoveDestination`).
+
+Fields and enum values in 1.0.0 that 0.9.0 does not have (all optional):
+
+| Type                          | Added                                                               |
+| ----------------------------- | ------------------------------------------------------------------- |
+| `SessionSummary`              | `chats` (`SessionChatSummary[]`), `defaultChat`                     |
+| `SessionChatSummary` (new)    | `resource`, `title`, `origin`, `interactivity`, `status`, `changes` |
+| `ChatState`                   | `changes`, `movable`, `changesets`, `backgroundWork`, `canvases`    |
+| `ChatSummary`                 | `changes`, `movable`                                                |
+| `AuthenticateParams`          | `expiresIn`                                                         |
+| `ConfigPropertySchema`        | `minItems`, `maxItems`                                              |
+| `McpServerStartingState`      | `blocking`                                                          |
+| `AutomationDefinition`, patch | `disableConditions`                                                 |
+| `AutomationEntry`             | `runCount`, `customizations`                                        |
+| `AutomationSessionTemplate`   | `customizations`                                                    |
+| `AutomationCapabilities`      | `customizations`                                                    |
+| `ChangesetStatus`             | `recomputing`                                                       |
+| `Snapshot.state`              | `CanvasState` (canvas channel)                                      |
+
+`FileEdit.before`/`after`/`diff` and the tool-call `edits` became named
+types (`FileEditSide`, `FileEditDiffStats`, `FileEditCollection`) with the
+same JSON shape, so they need no handling.
+
+How the client degrades (`protocol_version.dart`):
+
+- `applyEnvelope` ignores (only advances `serverSeq` for) the ten actions
+  above when `0.9.0` is negotiated, as a safety net: the versioning spec
+  says the host only sends actions known to the negotiated version.
+- `AhpClient.dispatch` throws `UnsupportedActionError` for them instead of
+  sending an action the host would reject.
+- Every added field is optional in the wire types, and the client treats
+  its absence as "unknown". Nothing the client or app does today depends
+  on one: the app reads `SessionSummary.changes` (present in 0.9.0), and
+  `openSession` takes the default chat from the session channel's
+  `SessionState.defaultChat` (0.4.0), not from `SessionSummary`.
+- `ProtocolFeature` names each 1.0.0 feature, and `supportsFeature` /
+  `unavailableFeatures` answer which ones the negotiated version lacks.
+  UI for those features (per-chat read/archive, background work, per-chat
+  changes, moving or reordering chats, canvases, MCP backgrounding, token
+  expiry, config array bounds) must check `supportsFeature` before it is
+  shown. None of it is built yet.
+- The app shows an "AHP 0.9.0" chip in the session list's app bar whose
+  tooltip lists the unavailable features (`compatibilityNotice`).
 
 ## Requirements
 
@@ -119,24 +191,24 @@ Priority: **P0** = MVP, **P1** = next, **P2** = later.
 
 ## Implementation status
 
-As of 2026-10-16, iteration 3 (`packages/ahp_client`):
+As of 2026-10-16, iteration 4 (`packages/ahp_client`):
 
-| ID      | Status  | Notes                                                                                                                                                                                                                                                                  |
-| ------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| AHP-001 | Done    | `web_socket_channel` + `json_rpc_2` `Peer`.                                                                                                                                                                                                                            |
-| AHP-002 | Done    | Token in the `tkn` query parameter on web; on native platforms also as `Authorization: Bearer <token>` (the spec names no header; this matches the protocol repo's Swift client). `webSocketConnector` selects query, header or both.                                  |
-| AHP-003 | Done    | Offers `['1.0.0', '0.9.0']`; `-32005` shows the host's `supportedVersions`.                                                                                                                                                                                            |
-| AHP-004 | Basic   | Tracks `serverSeq`, reconnects with backoff, handles `replay`/`snapshot`, falls back to `initialize` on `-32008`. `missing` channels are not yet reported to observers.                                                                                                |
-| AHP-005 | Done    | Answers `ping`; exposes `ConnectionStatus`. No client-side liveness pings yet.                                                                                                                                                                                         |
-| AHP-020 | Done    | Pure reference counting in `subscriptions.dart`.                                                                                                                                                                                                                       |
-| AHP-021 | Done    | Root, session and chat reducers; chat and session are tested against recorded pi traffic (`examples/ahp/pi-host-chat-turns.json`). Actions not modeled are no-ops.                                                                                                     |
-| AHP-022 | Done    | `ChannelMirror`: optimistic apply, rebase on the host's echo, rollback on `rejectionReason`.                                                                                                                                                                           |
-| AHP-023 | Done    | Root state plus session catalogue (`listSessions` paging and `root/session*` notifications).                                                                                                                                                                           |
-| AHP-024 | Done    | `SessionState` mirror; customizations, MCP, changesets, server tools and working-directory actions are not reduced.                                                                                                                                                    |
-| AHP-025 | Partial | Turns, deltas, reasoning, tool calls, usage, errors, pending messages and input requests. `fetchTurns` is sent; turns arrive as `chat/turnsLoaded` (pi always sends full history). Background work, canvases, changesets and MCP auth actions are not reduced.         |
-| AHP-026 | Done    | `SessionStatus` extension type with bitwise checks.                                                                                                                                                                                                                    |
-| AHP-040 | Partial | Client-chosen URI, `-32003` retry, and returns the URI the host lists. A `session/creationFailed` session never reaches pi's catalogue, so the call times out.                                                                                                         |
-| AHP-041 | Done    | `chat/turnStarted`, `chat/pendingMessageSet` (queued/steering), `chat/turnCancelled`, `chat/toolCallConfirmed`, `chat/toolCallResultConfirmed`. pi rejects confirmations (it never asks).                                                                              |
-| AHP-042 | Done    | `chat/inputCompleted` with typed answers. Not verified against a host; pi sends no input requests.                                                                                                                                                                     |
-| AHP-043 | Done    | `session/isReadChanged`, `session/isArchivedChanged`.                                                                                                                                                                                                                  |
-| AHP-063 | Done    | Saved hosts (URLs and tokens) in `flutter_secure_storage`: verified on web (encrypted local storage) and Linux (libsecret, desktop smoke test). macOS uses the login keychain; covered by the CI smoke test. shireitou never logs tokens or shows them in host labels. |
+| ID      | Status  | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| AHP-001 | Done    | `web_socket_channel` + `json_rpc_2` `Peer`.                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| AHP-002 | Done    | Token in the `tkn` query parameter on web; on native platforms also as `Authorization: Bearer <token>` (the spec names no header; this matches the protocol repo's Swift client). `webSocketConnector` selects query, header or both.                                                                                                                                                                                                                                         |
+| AHP-003 | Done    | Offers `['1.0.0', '0.9.0']` (overridable with `protocolVersions`); `-32005` shows the host's `supportedVersions`. 0.9.0 degrades as in [0.9.0 compatibility](#090-compatibility); tested against pi offering only `0.9.0`.                                                                                                                                                                                                                                                    |
+| AHP-004 | Done    | Tracks `serverSeq`, reconnects with backoff, handles `replay`/`snapshot`, falls back to `initialize` on `-32008`. `missing` channels (and, for a `snapshot` result or the `initialize` fallback, which have no `missing` list, mirrored session and chat channels left without a snapshot) are unsubscribed, unmirrored and listed in `HostState.missingChannels`; the session view says the session is gone. A liveness ping that times out drops the socket and reconnects. |
+| AHP-005 | Done    | Answers `ping`; exposes `ConnectionStatus`. Sends a liveness `ping` every 15 s while connected; no answer within 10 s means the socket is dead. Any JSON-RPC answer, even an error, counts as alive.                                                                                                                                                                                                                                                                          |
+| AHP-020 | Done    | Pure reference counting in `subscriptions.dart`.                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| AHP-021 | Done    | Root, session and chat reducers; chat and session are tested against recorded pi traffic (`examples/ahp/pi-host-chat-turns.json`). Actions not modeled are no-ops.                                                                                                                                                                                                                                                                                                            |
+| AHP-022 | Done    | `ChannelMirror`: optimistic apply, rebase on the host's echo, rollback on `rejectionReason`. An action not echoed within 30 s is rolled back. After a reconnect every action still pending is rolled back (a replay already echoed the accepted ones). Each rollback is reported on `AhpClient.failures`. Dispatch is refused while reconnecting.                                                                                                                             |
+| AHP-023 | Done    | Root state plus session catalogue (`listSessions` paging and `root/session*` notifications).                                                                                                                                                                                                                                                                                                                                                                                  |
+| AHP-024 | Done    | `SessionState` mirror; customizations, MCP, changesets, server tools and working-directory actions are not reduced.                                                                                                                                                                                                                                                                                                                                                           |
+| AHP-025 | Partial | Turns, deltas, reasoning, tool calls, usage, errors, pending messages and input requests. `fetchTurns` is sent; turns arrive as `chat/turnsLoaded` (pi always sends full history). Background work, canvases, changesets and MCP auth actions are not reduced.                                                                                                                                                                                                                |
+| AHP-026 | Done    | `SessionStatus` extension type with bitwise checks.                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| AHP-040 | Partial | Client-chosen URI, `-32003` retry, and returns the URI the host lists. A `session/creationFailed` session never reaches pi's catalogue, so the call times out.                                                                                                                                                                                                                                                                                                                |
+| AHP-041 | Done    | `chat/turnStarted`, `chat/pendingMessageSet` (queued/steering), `chat/turnCancelled`, `chat/toolCallConfirmed`, `chat/toolCallResultConfirmed`. pi rejects confirmations (it never asks).                                                                                                                                                                                                                                                                                     |
+| AHP-042 | Done    | `chat/inputCompleted` with typed answers. Not verified against a host; pi sends no input requests.                                                                                                                                                                                                                                                                                                                                                                            |
+| AHP-043 | Done    | `session/isReadChanged`, `session/isArchivedChanged`.                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| AHP-063 | Done    | Saved hosts (URLs and tokens) in `flutter_secure_storage`: verified on web (encrypted local storage) and Linux (libsecret, desktop smoke test). macOS uses the login keychain; covered by the CI smoke test. shireitou never logs tokens or shows them in host labels.                                                                                                                                                                                                        |

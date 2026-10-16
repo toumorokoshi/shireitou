@@ -5,6 +5,7 @@ import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../connection_notices.dart';
 import '../host_connection.dart';
 import '../layout.dart';
 import '../session_detail/session_detail_view.dart';
@@ -64,6 +65,10 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
     final serverName = ref.watch(
       hostConnectionProvider.select((s) => s.serverInfo?.name),
     );
+    final version = ref.watch(
+      hostConnectionProvider.select((s) => s.protocolVersion),
+    );
+    final notice = compatibilityNotice(version);
     final groups = groupSessionsByFolder(
       filterSessions(sessions.values, _filter),
     );
@@ -77,6 +82,17 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
             icon: const Icon(Icons.add),
             onPressed: _newSession,
           ),
+          if (notice != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Tooltip(
+                message: notice,
+                child: Chip(
+                  avatar: const Icon(Icons.info_outline, size: 18),
+                  label: Text('AHP $version'),
+                ),
+              ),
+            ),
           if (status == ConnectionStatus.reconnecting)
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 12),

@@ -62,6 +62,13 @@ class FakeHost {
   /// Overrides the `initialize` handler.
   Object? Function(JsonMap params)? onInitialize;
 
+  /// Overrides the `reconnect` handler.
+  Object? Function(JsonMap params)? onReconnect;
+
+  /// Overrides the `ping` handler; return a never-completing future to
+  /// simulate a dead socket.
+  Object? Function()? onPing;
+
   Future<StreamChannel<String>> connect(Uri uri) async {
     final controller = StreamChannelController<String>(sync: true);
     final peer = Peer(controller.foreign);
@@ -81,6 +88,8 @@ class FakeHost {
         requests.add((method, params));
         return switch (method) {
           'initialize' => (onInitialize ?? (_) => _initializeResult)(params),
+          'ping' => onPing?.call(),
+          'reconnect' when onReconnect != null => onReconnect!(params),
           'reconnect' => {
             'type': 'replay',
             'actions': [
@@ -130,17 +139,32 @@ class FakeHost {
 
 Future<void> _settle() => Future<void>.delayed(Duration.zero);
 
+JsonMap _turnStarted(String id) => ChatAction.turnStarted(
+  turnId: id,
+  startedAt: '2026-01-01T00:00:00.000Z',
+  message: userMessage('hi'),
+).toJson();
+
 void main() {
   late FakeHost host;
   late AhpClient client;
 
+  AhpClient newClient({
+    Duration pingInterval = Duration.zero,
+    Duration pingTimeout = const Duration(seconds: 1),
+    Duration pendingActionTimeout = Duration.zero,
+  }) => AhpClient(
+    uri: Uri.parse('ws://fake'),
+    clientId: 'test-client',
+    connector: host.connect,
+    pingInterval: pingInterval,
+    pingTimeout: pingTimeout,
+    pendingActionTimeout: pendingActionTimeout,
+  );
+
   setUp(() {
     host = FakeHost();
-    client = AhpClient(
-      uri: Uri.parse('ws://fake'),
-      clientId: 'test-client',
-      connector: host.connect,
-    );
+    client = newClient();
   });
 
   tearDown(() => client.close());
@@ -274,5 +298,215 @@ void main() {
     expect(session, startsWith('pi:/'));
     final (_, params) = host.requests.lastWhere((r) => r.$1 == 'createSession');
     expect(params['channel'], 'ahp-session:/${session.substring(4)}');
+  });
+
+  Future<void> dropAndReconnect() async {
+    final reconnected = client.states.firstWhere(
+      (s) => s.status == ConnectionStatus.connected,
+    );
+    await host.peers.last.close();
+    await _settle();
+    await reconnected;
+  }
+
+  test('a ping timeout drops the socket and reconnects', () async {
+    client = newClient(
+      pingInterval: const Duration(milliseconds: 10),
+      pingTimeout: const Duration(milliseconds: 10),
+    );
+    await client.connect();
+    host.onPing = () => Completer<void>().future;
+    final reconnecting = client.states.firstWhere(
+      (s) => s.status == ConnectionStatus.reconnecting,
+    );
+    await reconnecting;
+    host.onPing = null;
+    await client.states.firstWhere(
+      (s) => s.status == ConnectionStatus.connected,
+    );
+    expect(host.requests.map((r) => r.$1), contains('reconnect'));
+  });
+
+  test('answered pings, even with an error, keep the connection', () async {
+    client = newClient(
+      pingInterval: const Duration(milliseconds: 5),
+      pingTimeout: const Duration(milliseconds: 50),
+    );
+    await client.connect();
+    host.onPing = () => throw RpcException.methodNotFound('ping');
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+    expect(client.state.status, ConnectionStatus.connected);
+    expect(host.requests.where((r) => r.$1 == 'ping'), isNotEmpty);
+    expect(host.requests.map((r) => r.$1), isNot(contains('reconnect')));
+  });
+
+  test('missing channels are dropped and reported', () async {
+    await client.connect();
+    await client.openSession('pi:/a');
+    host.onReconnect = (_) => {
+      'type': 'replay',
+      'actions': <Object?>[],
+      'missing': ['pi:/a', 'ahp-chat:/a'],
+    };
+    await dropAndReconnect();
+    expect(client.state.missingChannels, {'pi:/a', 'ahp-chat:/a'});
+    expect(client.state.sessionChannels, isEmpty);
+    expect(client.state.chatChannels, isEmpty);
+
+    // Releasing a missing channel sends nothing; subscribing again clears
+    // it.
+    client.closeSession('pi:/a', 'ahp-chat:/a');
+    await _settle();
+    expect(host.requests.where((r) => r.$1 == 'unsubscribe'), isEmpty);
+    await client.openSession('pi:/a');
+    expect(client.state.missingChannels, isEmpty);
+
+    // The next reconnect no longer asks for channels it dropped... until
+    // they were subscribed again.
+    host.onReconnect = null;
+    await dropAndReconnect();
+    final (_, params) = host.requests.lastWhere((r) => r.$1 == 'reconnect');
+    expect(params['subscriptions'], [rootChannel, 'pi:/a', 'ahp-chat:/a']);
+  });
+
+  test(
+    'after a host restart, channels it has no snapshot for are missing',
+    () async {
+      await client.connect();
+      await client.openSession('pi:/a');
+      host.onReconnect = (_) =>
+          throw RpcException(AhpErrorCodes.notFound, 'unknown client');
+      await dropAndReconnect();
+      expect(host.requests.where((r) => r.$1 == 'initialize'), hasLength(2));
+      expect(client.state.missingChannels, {'pi:/a', 'ahp-chat:/a'});
+      expect(client.state.sessionChannels, isEmpty);
+    },
+  );
+
+  test('a reconnect replay rolls back actions the host never got', () async {
+    await client.connect();
+    await client.openSession('pi:/a');
+    final failures = <ActionFailure>[];
+    client.failures.listen(failures.add);
+    final echoed = client.dispatch('ahp-chat:/a', _turnStarted('t1'));
+    final lost = client.dispatch(
+      'pi:/a',
+      SessionAction.isArchivedChanged(isArchived: true).toJson(),
+    );
+    host.onReconnect = (_) => {
+      'type': 'replay',
+      'actions': [
+        {
+          'channel': 'ahp-chat:/a',
+          'action': _turnStarted('t1'),
+          'serverSeq': 6,
+          'origin': {'clientId': 'test-client', 'clientSeq': echoed},
+        },
+      ],
+    };
+    await dropAndReconnect();
+    await _settle();
+    expect(
+      client.state.chatChannels['ahp-chat:/a']!.confirmed.activeTurn?.id,
+      't1',
+    );
+    expect(client.state.sessionChannels['pi:/a']!.pending, isEmpty);
+    expect(
+      client.state.sessionChannels['pi:/a']!.state.status.isArchivedFlag,
+      isFalse,
+    );
+    expect(failures.single.clientSeq, lost);
+    expect(failures.single.kind, ActionFailureKind.connectionLost);
+  });
+
+  test('a reconnect snapshot reports pending actions it replaces', () async {
+    await client.connect();
+    await client.openSession('pi:/a');
+    final failures = <ActionFailure>[];
+    client.failures.listen(failures.add);
+    client.dispatch('ahp-chat:/a', _turnStarted('t1'));
+    host.onReconnect = (_) => {
+      'type': 'snapshot',
+      'snapshots': [_snapshots['ahp-chat:/a'], _snapshots['pi:/a']],
+    };
+    await dropAndReconnect();
+    await _settle();
+    final chat = client.state.chatChannels['ahp-chat:/a']!;
+    expect(chat.pending, isEmpty);
+    expect(chat.state.activeTurn, isNull);
+    expect(failures.single.kind, ActionFailureKind.connectionLost);
+  });
+
+  test('an action the host never echoes times out and rolls back', () async {
+    client = newClient(pendingActionTimeout: const Duration(milliseconds: 10));
+    await client.connect();
+    await client.openSession('pi:/a');
+    final failure = client.failures.first;
+    final seq = client.dispatch('ahp-chat:/a', _turnStarted('t1'));
+    expect(
+      client.state.chatChannels['ahp-chat:/a']!.state.activeTurn,
+      isNotNull,
+    );
+    final failed = await failure;
+    expect(failed.clientSeq, seq);
+    expect(failed.kind, ActionFailureKind.timedOut);
+    final chat = client.state.chatChannels['ahp-chat:/a']!;
+    expect(chat.pending, isEmpty);
+    expect(chat.state.activeTurn, isNull);
+  });
+
+  test('host rejections are reported as failures', () async {
+    await client.connect();
+    await client.openSession('pi:/a');
+    final failure = client.failures.first;
+    final seq = client.dispatch('ahp-chat:/a', _turnStarted('t1'));
+    host.peers.single.sendNotification('action', {
+      'channel': 'ahp-chat:/a',
+      'action': _turnStarted('t1'),
+      'serverSeq': 6,
+      'origin': {'clientId': 'test-client', 'clientSeq': seq},
+      'rejectionReason': 'busy',
+    });
+    final failed = await failure;
+    expect(failed.kind, ActionFailureKind.rejected);
+    expect(failed.reason, 'busy');
+  });
+
+  group('protocol 0.9.0', () {
+    setUp(() {
+      host.onInitialize = (_) => {
+        ..._initializeResult,
+        'protocolVersion': '0.9.0',
+      };
+    });
+
+    test('dispatch refuses actions 0.9.0 does not know', () async {
+      await client.connect();
+      await client.openSession('pi:/a');
+      expect(client.state.protocolVersion, '0.9.0');
+      expect(
+        () => client.dispatch('ahp-chat:/a', {
+          'type': 'chat/isArchivedChanged',
+          'isArchived': true,
+        }),
+        throwsA(isA<UnsupportedActionError>()),
+      );
+      expect(client.state.chatChannels['ahp-chat:/a']!.pending, isEmpty);
+      client.dispatch('ahp-chat:/a', _turnStarted('t1'));
+    });
+
+    test('actions 0.9.0 does not know are ignored', () async {
+      await client.connect();
+      await client.openSession('pi:/a');
+      final before = client.state.chatChannels['ahp-chat:/a'];
+      host.peers.single.sendNotification('action', {
+        'channel': 'ahp-chat:/a',
+        'action': {'type': 'chat/movableChanged', 'movable': true},
+        'serverSeq': 7,
+      });
+      await _settle();
+      expect(client.state.chatChannels['ahp-chat:/a'], same(before));
+      expect(client.state.serverSeq, 7);
+    });
   });
 }
