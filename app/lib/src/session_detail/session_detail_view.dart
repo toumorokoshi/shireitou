@@ -391,86 +391,117 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
       ),
     );
     final sessionFields = mutableSessionFields(sessionState?.config);
-    final conversation = Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (chats.length > 1 && !missing) ...[
-          ChatSwitcher(
-            chats: chats,
-            selected: chatUri,
-            onSelect: _selectChat,
-            onMove: supports(ProtocolFeature.moveChat) && sessionState != null
-                ? (chat, delta) => _moveChat(sessionState, chat, delta)
-                : null,
-          ),
-          const Divider(height: 1),
-        ],
-        if (prompts.isNotEmpty && !missing) ...[
-          SessionInputPanel(
-            prompts: prompts,
-            session: sessionState,
-            openChat: chatUri,
-            onAnswer: _answer,
-            onSignIn: _signIn,
-          ),
-          const Divider(height: 1),
-        ],
-        Expanded(
-          child: _selectedChat == null
-              ? timeline
-              : ChannelSubscriber(
-                  key: ValueKey(_selectedChat),
-                  channel: _selectedChat!,
-                  kind: ChannelKind.chat,
-                  builder: (context, failed) => failed && chat == null
-                      ? const Center(child: Text('Could not open this chat.'))
-                      : timeline,
-                ),
-        ),
-        if (chat != null && !missing)
-          if (latestTodoList(chat) case final todos? when !todos.done) ...[
-            const Divider(height: 1),
-            TodoPanel(list: todos),
-          ],
-        if (pending.isNotEmpty)
-          PendingMessagesPanel(
-            pending: pending,
-            onAction: (action) => _dispatch(chatUri!, action),
-          ),
-        if (chat != null && readOnly)
-          const Padding(
-            padding: EdgeInsets.all(16),
-            child: Text('This chat is read-only.'),
-          )
-        else if (chat != null)
-          FollowUpInput(
-            key: ValueKey(chatUri),
-            focusRequests: _composerFocus,
-            working: chat.activeTurn != null,
-            draft: chat.draft,
-            models: models,
-            initialModel: lastModelSelection(chat),
-            sessionFields: sessionFields,
-            sessionValues: sessionState?.config?.values ?? const {},
-            onSessionSettingChanged: (id, value) => _dispatch(
-              widget.session,
-              SessionConfigChangedAction(config: {id: value}).toJson(),
+    // Panels above and below the timeline get at most a share of the
+    // height and scroll past it, so a short phone screen (or one with the
+    // keyboard up) never overflows; the timeline takes what is left.
+    final conversation = LayoutBuilder(
+      builder: (context, constraints) {
+        final height = constraints.maxHeight.isFinite
+            ? constraints.maxHeight
+            : null;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (chats.length > 1 && !missing) ...[
+              ChatSwitcher(
+                chats: chats,
+                selected: chatUri,
+                onSelect: _selectChat,
+                onMove:
+                    supports(ProtocolFeature.moveChat) && sessionState != null
+                    ? (chat, delta) => _moveChat(sessionState, chat, delta)
+                    : null,
+              ),
+              const Divider(height: 1),
+            ],
+            if (prompts.isNotEmpty && !missing) ...[
+              SessionInputPanel(
+                prompts: prompts,
+                session: sessionState,
+                openChat: chatUri,
+                onAnswer: _answer,
+                onSignIn: _signIn,
+                maxHeight: height == null ? null : height * 0.35,
+              ),
+              const Divider(height: 1),
+            ],
+            Expanded(
+              child: _selectedChat == null
+                  ? timeline
+                  : ChannelSubscriber(
+                      key: ValueKey(_selectedChat),
+                      channel: _selectedChat!,
+                      kind: ChannelKind.chat,
+                      builder: (context, failed) => failed && chat == null
+                          ? const Center(
+                              child: Text('Could not open this chat.'),
+                            )
+                          : timeline,
+                    ),
             ),
-            onDraftChanged: (text) =>
-                _dispatch(chatUri!, draftAction(text, previous: chat.draft)),
-            onSend: (text, {required steer, model}) => _dispatch(
-              chatUri!,
-              sendMessageAction(
-                chat,
-                text: text,
-                id: const Uuid().v4(),
-                now: DateTime.now(),
-                steer: steer,
-                model: model,
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: height == null ? double.infinity : height * 0.45,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (chat != null && !missing)
+                      if (latestTodoList(chat) case final todos?
+                          when !todos.done) ...[
+                        const Divider(height: 1),
+                        TodoPanel(list: todos),
+                      ],
+                    if (pending.isNotEmpty)
+                      PendingMessagesPanel(
+                        pending: pending,
+                        onAction: (action) => _dispatch(chatUri!, action),
+                      ),
+                    if (chat != null && readOnly)
+                      const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Text('This chat is read-only.'),
+                      )
+                    else if (chat != null)
+                      FollowUpInput(
+                        key: ValueKey(chatUri),
+                        focusRequests: _composerFocus,
+                        working: chat.activeTurn != null,
+                        draft: chat.draft,
+                        models: models,
+                        initialModel: lastModelSelection(chat),
+                        sessionFields: sessionFields,
+                        sessionValues: sessionState?.config?.values ?? const {},
+                        onSessionSettingChanged: (id, value) => _dispatch(
+                          widget.session,
+                          SessionConfigChangedAction(config: {id: value})
+                              .toJson(),
+                        ),
+                        onDraftChanged: (text) => _dispatch(
+                          chatUri!,
+                          draftAction(text, previous: chat.draft),
+                        ),
+                        onSend: (text, {required steer, model}) => _dispatch(
+                          chatUri!,
+                          sendMessageAction(
+                            chat,
+                            text: text,
+                            id: const Uuid().v4(),
+                            now: DateTime.now(),
+                            steer: steer,
+                            model: model,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
-          ),
-      ],
+          ],
+        );
+      },
     );
     final hasChanges = availableChangesets(
       sessionState,

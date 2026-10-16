@@ -28,7 +28,12 @@ class SessionInputPanel extends StatelessWidget {
     required this.openChat,
     required this.onAnswer,
     this.onSignIn,
+    this.maxHeight,
   });
+
+  /// The panel's height limit (it scrolls past it); 45 % of the screen
+  /// when null.
+  final double? maxHeight;
 
   /// The requests to show.
   final List<SessionInputRequest> prompts;
@@ -52,7 +57,7 @@ class SessionInputPanel extends StatelessWidget {
       color: theme.colorScheme.surfaceContainerLow,
       child: ConstrainedBox(
         constraints: BoxConstraints(
-          maxHeight: MediaQuery.sizeOf(context).height * 0.45,
+          maxHeight: maxHeight ?? MediaQuery.sizeOf(context).height * 0.45,
         ),
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
