@@ -16,7 +16,12 @@ rollback on timeout and reconnect, and 0.9.0 degradation. Iteration 5
 Iteration 6 (2026-10-16) completed the session and chat reducers, showed
 session-level input requests, MCP sign-in, background work and change
 counts, and added a scripted fake host (`packages/ahp_fake_host`) that
-approvals and input requests are tested against. Remaining work:
+approvals and input requests are tested against. Iteration 7 (2026-10-16)
+built the rest of the timeline (code highlighting, grouped tool calls,
+live terminals, inline diffs, the chat switcher, queued message editing,
+paging of windowed history) and UI for the mirrored session state
+(review pane, drafts, canvases, session details), with terminal,
+changeset and canvas channels mirrored by the client. Remaining work:
 
 - **Approvals and input against a real host:** tool approvals (AV-083),
   input requests (AV-084), session-level requests and MCP sign-in are
@@ -37,22 +42,50 @@ approvals and input requests are tested against. Remaining work:
   `configSchema`, and no "+" button on folder headers. A session whose
   creation fails (`session/creationFailed`) is never listed by pi, so
   `createSession` waits for its 30 s timeout instead of showing the error.
-- **Timeline:** no syntax highlighting or code-block copy button (AV-061),
-  no grouping of similar tool calls (AV-064), no terminal output or inline
-  diffs (AV-065), no subagent/chat switcher (AV-069). Queued messages cannot
-  be edited or reordered (AV-081). Older turns are not paged in on scroll
-  (AV-068; pi always sends full history). Very long chats rebuild the whole
-  `ChatState` per delta; windowed delivery (AHP-029) is not built.
-- **Mirrored state without UI:** every chat and session action is
-  reduced, but these have no UI yet: chat drafts (`chat/draftChanged`; the
-  follow-up box neither shows nor sends drafts), canvases, per-chat and
-  per-session working directory changes, `movable` and chat order (no
-  chat switcher, AV-069), server tools, active clients, `_meta`,
-  customizations (only MCP servers needing sign-in or failing show, as
-  header chips; no list, toggles, start/stop or backgrounding of a
-  blocking start), and changesets (counts only; no file list or review,
-  AV-100 to AV-103). Background work is a chip with labels only: no
-  terminal output for shells and no link to a subagent's chat.
+- **Timeline, remaining details:**
+  - Diff lines are highlighted one line at a time, so constructs that span
+    lines (block comments, multi-line strings) can be coloured wrongly.
+    Only 24 common languages are registered with `re_highlight`.
+  - Terminals are shown as plain text: VT escape sequences are stripped
+    (no colours, cursor movement only as far as `\r` line redraws), and
+    there is no input, resize or claim (`terminal/input`,
+    `terminal/resized`, `terminal/claimed`), so a terminal cannot be
+    taken over.
+  - Grouping (AV-064) folds consecutive finished-or-running calls with the
+    same tool name only, and never calls with a terminal, diff or
+    subagent preview; the label is "Read · 3 calls", not a verb phrase
+    such as "Read 3 files" (hosts send no plural form).
+  - Paged-in turns stay in memory: AHP 1.0.0 lets a host deliver a tail
+    window (`turnsNextCursor`) and page older turns in with `fetchTurns`,
+    but has no way to unload them again, and the host's chat state is
+    shared by every client, so the client cannot drop turns it has loaded
+    without diverging from the host. pi always sends full history, so
+    paging is exercised only against the fake host's "Long session".
+  - Hidden chats (`interactivity: hidden`) are not listed; chats can only
+    be moved within their session (no move to another or a new session,
+    `ChatMoveToNewSessionDestination`), and only "left/right" from a menu,
+    not by dragging.
+  - Drafts sync the follow-up text only (no model, agent or attachments,
+    since the box has no pickers); a draft from another client replaces
+    the box's text only while the user has not typed since the last sync.
+- **Review pane, remaining details (AV-100 to AV-105):** compare-turns
+  changesets (`{originalTurnId}`/`{modifiedTurnId}`) always compare the
+  oldest and the newest turn (there is no picker for the two turns);
+  `range`-scoped operations are not offered (no line selection, and no
+  diff comments, AV-104); a non-external operation follow-up is shown as
+  plain text; there is no PR/branch link (AV-105). Side-by-side diffs
+  appear from 900 dp in the full diff page only.
+- **Session details:** customizations are listed with MCP server
+  start/stop and "Continue in background", but plugins cannot be enabled
+  or disabled (`session/customizationToggled`), plugin children are not
+  listed, and `_meta` is shown as raw JSON. The app does not announce
+  itself in `activeClients` (it provides no tools).
+- **Verified against the fake host only:** terminals, changesets and
+  their operations, canvases, subagent chats, `moveChat`, drafts and
+  windowed history are driven end to end against the scripted fake host
+  (client flows in `just test`, the app in `just test-fake-host-app`);
+  pi was not seen to provide any of them, and no other real host was
+  tried.
 - **MCP sign-in:** "Sign in" asks the user to paste a token and calls
   `authenticate`. There is no OAuth/PKCE flow from
   `ProtectedResourceMetadata`/`McpOAuthClient` (AHP-060), no handling of
@@ -74,14 +107,12 @@ approvals and input requests are tested against. Remaining work:
   - iOS, Android, Windows: not run.
 - **Generated wire types, limits** (see [docs/wire-types.md](docs/wire-types.md)):
   - `Snapshot.state` and `ActionEnvelope.action` stay raw JSON, decoded per
-    channel kind by `host_state.dart` and the reducers; snapshots of
-    channels the client does not mirror (terminal, changeset, canvas,
-    annotations, resource watch, automation) are not decoded at all yet.
-    `reduceChangeset` and `reduceCanvasJson` exist (tested, not wired:
-    `ChannelKind` has no changeset or canvas kind and nothing subscribes
-    to those channels). `TerminalAction`, `AnnotationsAction`,
-    `ResourceWatchAction`, `AutomationAction` and `AutomationRunAction`
-    have no reducers.
+    channel kind by `host_state.dart` and the reducers. Root, session,
+    chat, terminal, changeset and canvas channels are mirrored; snapshots
+    of annotations, resource watch and automation channels are not
+    decoded, and `AnnotationsAction`, `ResourceWatchAction`,
+    `AutomationAction` and `AutomationRunAction` have no reducers (no UI
+    needs them).
   - The partial summaries (`session/chatUpdated` and
     `root/sessionSummaryChanged` `changes`) are `JsonMap` and merged as
     JSON, because hosts clear a field with an explicit `null`.
@@ -104,11 +135,13 @@ approvals and input requests are tested against. Remaining work:
   1.0.0-only actions and refuses to dispatch them, and the app shows an
   "AHP 0.9.0" chip (see "0.9.0 compatibility" in
   [specs/agent-host-protocol-client.md](specs/agent-host-protocol-client.md)).
-  The background work chip checks `supportsFeature`; when per-chat
-  read/archive, per-chat changes, chat moving/reordering, canvases or MCP
-  backgrounding get UI, they must check it too. The fake host can
+  The background work chip, canvases, per-chat changesets in the review
+  pane, moving chats and "Continue in background" for MCP servers check
+  `supportsFeature`; per-chat read/archive have no UI yet and must check
+  it when they get one. The fake host can
   negotiate 0.9.0 but its scripts still send 1.0.0-only actions
-  (`chat/backgroundWorkSet`), which the client drops under 0.9.0. No real host that speaks only
+  (`chat/backgroundWorkSet`, `chat/canvasesChanged`), which the client
+  drops under 0.9.0. No real host that speaks only
   0.9.0 was tested: pi was made to negotiate 0.9.0 by offering only that.
 - **Write-ahead and liveness tuning:** the pending-action timeout (30 s),
   ping interval (15 s) and ping timeout (10 s) are fixed defaults, not
@@ -140,10 +173,12 @@ approvals and input requests are tested against. Remaining work:
   window setup, connecting with a token and saving the host against pi;
   `app/integration_test/fake_host_flows_test.dart` drives the connect
   screen, a session, approvals, input requests, the "Waiting for you"
-  panel and MCP sign-in against the fake host, on Linux and macOS. The
-  composer, session list filters, archive and reconnect are not driven
-  end to end, and the web app is still only driven by a Playwright script
-  kept outside the repo.
+  panel, MCP sign-in, code blocks, grouped calls, terminals, diffs, the
+  review pane, subagent chats, queued messages, drafts and paging against
+  the fake host, on Linux and macOS (and headless with
+  `just test-fake-host-app flutter-tester`). The composer, session list
+  filters, archive and reconnect are not driven end to end, and the web
+  app is still only driven by a Playwright script kept outside the repo.
 - Everything else in [specs/agents-view.md](specs/agents-view.md) and
   [specs/agent-host-protocol-client.md](specs/agent-host-protocol-client.md)
   not listed as done in their status sections.

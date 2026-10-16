@@ -3,6 +3,7 @@ library;
 
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import 'changeset_reducer.dart';
 import 'channel_mirror.dart';
 import 'chat_reducer.dart';
 import 'protocol.dart';
@@ -10,6 +11,7 @@ import 'protocol_version.dart';
 import 'root_reducer.dart';
 import 'session_catalogue.dart';
 import 'session_reducer.dart';
+import 'terminal_reducer.dart';
 import 'wire.dart';
 
 part 'host_state.freezed.dart';
@@ -70,6 +72,19 @@ abstract class HostState with _$HostState {
     @Default(<String, ChannelMirror<ChatState>>{})
     Map<String, ChannelMirror<ChatState>> chatChannels,
 
+    /// Subscribed terminal channels, keyed by terminal URI (AHP-028).
+    @Default(<String, ChannelMirror<TerminalState>>{})
+    Map<String, ChannelMirror<TerminalState>> terminalChannels,
+
+    /// Subscribed changeset channels, keyed by the expanded changeset URI
+    /// (AHP-027).
+    @Default(<String, ChannelMirror<ChangesetState>>{})
+    Map<String, ChannelMirror<ChangesetState>> changesetChannels,
+
+    /// Subscribed canvas channels, keyed by canvas URI (AHP-031, 1.0.0).
+    @Default(<String, ChannelMirror<CanvasState>>{})
+    Map<String, ChannelMirror<CanvasState>> canvasChannels,
+
     /// Channels the host could not resume after a reconnect (`missing` in
     /// the `reconnect` result, AHP-004), for example disposed sessions. They
     /// are no longer subscribed or mirrored. Subscribing again clears the
@@ -89,19 +104,93 @@ enum ChannelKind {
   /// A chat channel (`ChatState`).
   chat,
 
+  /// A terminal channel (`TerminalState`).
+  terminal,
+
+  /// A changeset channel (`ChangesetState`).
+  changeset,
+
+  /// A canvas channel (`CanvasState`).
+  canvas,
+
   /// Any other channel; only `serverSeq` is tracked.
   other,
 }
+
+/// The mirrored channel kinds, each with its own map in [HostState].
+const mirroredKinds = [
+  ChannelKind.session,
+  ChannelKind.chat,
+  ChannelKind.terminal,
+  ChannelKind.changeset,
+  ChannelKind.canvas,
+];
+
+/// The mirrors of [kind] in [state] (empty for unmirrored kinds).
+Map<String, ChannelMirror<Object>> mirrorsOf(
+  HostState state,
+  ChannelKind kind,
+) => switch (kind) {
+  ChannelKind.session => state.sessionChannels,
+  ChannelKind.chat => state.chatChannels,
+  ChannelKind.terminal => state.terminalChannels,
+  ChannelKind.changeset => state.changesetChannels,
+  ChannelKind.canvas => state.canvasChannels,
+  ChannelKind.root || ChannelKind.other => const {},
+};
 
 /// The kind of [channel] in [state], from the maps it is held in.
 ChannelKind channelKindOf(HostState state, String channel) =>
     channel == rootChannel
     ? ChannelKind.root
-    : state.sessionChannels.containsKey(channel)
-    ? ChannelKind.session
-    : state.chatChannels.containsKey(channel)
-    ? ChannelKind.chat
-    : ChannelKind.other;
+    : mirroredKinds.firstWhere(
+        (kind) => mirrorsOf(state, kind).containsKey(channel),
+        orElse: () => ChannelKind.other,
+      );
+
+/// Changes one [ChannelMirror], whatever its state type.
+typedef MirrorUpdate = ChannelMirror<S> Function<S>(
+  ChannelMirror<S> mirror,
+  JsonReducer<S> reduce,
+);
+
+/// Applies [update] to the mirror of [channel] (of [kind], by default the
+/// kind it has in [state]). Unmirrored channels leave [state] unchanged.
+HostState updateMirror(
+  HostState state,
+  String channel,
+  MirrorUpdate update, [
+  ChannelKind? kind,
+]) {
+  Map<String, ChannelMirror<S>> put<S>(
+    Map<String, ChannelMirror<S>> mirrors,
+    JsonReducer<S> reduce,
+  ) => switch (mirrors[channel]) {
+    final mirror? => Map.unmodifiable({
+      ...mirrors,
+      channel: update(mirror, reduce),
+    }),
+    null => mirrors,
+  };
+  return switch (kind ?? channelKindOf(state, channel)) {
+    ChannelKind.session => state.copyWith(
+      sessionChannels: put(state.sessionChannels, reduceSessionJson),
+    ),
+    ChannelKind.chat => state.copyWith(
+      chatChannels: put(state.chatChannels, reduceChatJson),
+    ),
+    ChannelKind.terminal => state.copyWith(
+      terminalChannels: put(state.terminalChannels, reduceTerminalJson),
+    ),
+    ChannelKind.changeset => state.copyWith(
+      changesetChannels: put(state.changesetChannels, reduceChangesetJson),
+    ),
+    ChannelKind.canvas => state.copyWith(
+      canvasChannels: put(state.canvasChannels, reduceCanvasJson),
+    ),
+    ChannelKind.root || ChannelKind.other => state,
+  };
+}
 
 /// Applies a [snapshot] of a channel of [kind] (by default, the kind
 /// [snapshot]'s channel already has in [state]).
@@ -120,31 +209,46 @@ HostState applySnapshot(
         ? Set.unmodifiable({...state.missingChannels}..remove(resource))
         : state.missingChannels,
   );
+  Map<String, ChannelMirror<S>> put<S>(
+    Map<String, ChannelMirror<S>> mirrors,
+    S Function(JsonMap json) decode,
+  ) => Map.unmodifiable({
+    ...mirrors,
+    resource: ChannelMirror.snapshot(decode(snapshot.state)),
+  });
   return switch (kind ?? channelKindOf(state, resource)) {
     ChannelKind.root => next.copyWith(root: RootState.fromJson(snapshot.state)),
     ChannelKind.session => next.copyWith(
-      sessionChannels: Map.unmodifiable({
-        ...state.sessionChannels,
-        resource: ChannelMirror.snapshot(SessionState.fromJson(snapshot.state)),
-      }),
+      sessionChannels: put(state.sessionChannels, SessionState.fromJson),
     ),
     ChannelKind.chat => next.copyWith(
-      chatChannels: Map.unmodifiable({
-        ...state.chatChannels,
-        resource: ChannelMirror.snapshot(ChatState.fromJson(snapshot.state)),
-      }),
+      chatChannels: put(state.chatChannels, ChatState.fromJson),
+    ),
+    ChannelKind.terminal => next.copyWith(
+      terminalChannels: put(state.terminalChannels, TerminalState.fromJson),
+    ),
+    ChannelKind.changeset => next.copyWith(
+      changesetChannels: put(state.changesetChannels, ChangesetState.fromJson),
+    ),
+    ChannelKind.canvas => next.copyWith(
+      canvasChannels: put(state.canvasChannels, CanvasState.fromJson),
     ),
     ChannelKind.other => next,
   };
 }
 
 /// Drops the mirror of [channel] after its last observer unsubscribed.
-HostState removeChannel(HostState state, String channel) => state.copyWith(
-  sessionChannels: Map.unmodifiable(
-    {...state.sessionChannels}..remove(channel),
-  ),
-  chatChannels: Map.unmodifiable({...state.chatChannels}..remove(channel)),
-);
+HostState removeChannel(HostState state, String channel) {
+  Map<String, ChannelMirror<S>> drop<S>(Map<String, ChannelMirror<S>> m) =>
+      m.containsKey(channel) ? Map.unmodifiable({...m}..remove(channel)) : m;
+  return state.copyWith(
+    sessionChannels: drop(state.sessionChannels),
+    chatChannels: drop(state.chatChannels),
+    terminalChannels: drop(state.terminalChannels),
+    changesetChannels: drop(state.changesetChannels),
+    canvasChannels: drop(state.canvasChannels),
+  );
+}
 
 /// Applies an action this client dispatched on [channel] before the host
 /// confirms it (AHP-022). Channels without a mirror are unchanged.
@@ -152,29 +256,11 @@ HostState applyDispatchedAction(
   HostState state,
   String channel,
   PendingAction action,
-) => switch (channelKindOf(state, channel)) {
-  ChannelKind.session => state.copyWith(
-    sessionChannels: Map.unmodifiable({
-      ...state.sessionChannels,
-      channel: applyPendingAction(
-        state.sessionChannels[channel]!,
-        action,
-        reduceSessionJson,
-      ),
-    }),
-  ),
-  ChannelKind.chat => state.copyWith(
-    chatChannels: Map.unmodifiable({
-      ...state.chatChannels,
-      channel: applyPendingAction(
-        state.chatChannels[channel]!,
-        action,
-        reduceChatJson,
-      ),
-    }),
-  ),
-  ChannelKind.root || ChannelKind.other => state,
-};
+) => updateMirror(
+  state,
+  channel,
+  <S>(mirror, reduce) => applyPendingAction(mirror, action, reduce),
+);
 
 /// Applies the `initialize` result: version, server info and snapshots.
 HostState applyInitializeResult(HostState state, InitializeResult result) =>
@@ -191,7 +277,7 @@ HostState applyInitializeResult(HostState state, InitializeResult result) =>
 
 /// Applies an `action` notification received by the client [clientId].
 ///
-/// Root-channel actions go through [reduceRoot]. Session and chat actions
+/// Root-channel actions go through [reduceRoot]. Actions on mirrored channels
 /// advance their [ChannelMirror] (reconciling this client's write-ahead
 /// actions). Rejected root actions, unmirrored channels and actions the
 /// negotiated protocol version does not know (see [isActionKnownToVersion])
@@ -217,29 +303,13 @@ HostState applyEnvelope(
       ),
       _ => next,
     },
-    ChannelKind.session => next.copyWith(
-      sessionChannels: Map.unmodifiable({
-        ...state.sessionChannels,
-        channel: applyHostEnvelope(
-          state.sessionChannels[channel]!,
-          envelope,
-          reduceSessionJson,
-          clientId: clientId,
-        ),
-      }),
-    ),
-    ChannelKind.chat => next.copyWith(
-      chatChannels: Map.unmodifiable({
-        ...state.chatChannels,
-        channel: applyHostEnvelope(
-          state.chatChannels[channel]!,
-          envelope,
-          reduceChatJson,
-          clientId: clientId,
-        ),
-      }),
-    ),
     ChannelKind.other => next,
+    _ => updateMirror(
+      next,
+      channel,
+      <S>(mirror, reduce) =>
+          applyHostEnvelope(mirror, envelope, reduce, clientId: clientId),
+    ),
   };
 }
 
@@ -281,7 +351,7 @@ List<String> missingAfterReconnect(HostState state, ReconnectResult result) =>
       ReconnectResultUnknown() => const [],
     };
 
-/// Mirrored session and chat channels that [snapshots] leave out. A host
+/// Mirrored channels that [snapshots] leave out. A host
 /// may omit snapshots only for channels whose state has no fields, so a
 /// session or chat without one could not be resumed (it was disposed, for
 /// example). Used for `reconnect` snapshot results and the `initialize`
@@ -289,11 +359,9 @@ List<String> missingAfterReconnect(HostState state, ReconnectResult result) =>
 List<String> unresumedChannels(HostState state, List<Snapshot> snapshots) {
   final covered = {for (final s in snapshots) s.resource};
   return [
-    for (final channel in [
-      ...state.sessionChannels.keys,
-      ...state.chatChannels.keys,
-    ])
-      if (!covered.contains(channel)) channel,
+    for (final kind in mirroredKinds)
+      for (final channel in mirrorsOf(state, kind).keys)
+        if (!covered.contains(channel)) channel,
   ];
 }
 
@@ -314,10 +382,9 @@ HostState applyMissingChannels(HostState state, List<String> missing) =>
 /// Pending (dispatched, not yet echoed) actions of every mirrored channel,
 /// keyed by channel.
 Map<String, List<PendingAction>> pendingActionsOf(HostState state) => {
-  for (final MapEntry(:key, :value) in state.sessionChannels.entries)
-    if (value.pending.isNotEmpty) key: value.pending,
-  for (final MapEntry(:key, :value) in state.chatChannels.entries)
-    if (value.pending.isNotEmpty) key: value.pending,
+  for (final kind in mirroredKinds)
+    for (final MapEntry(:key, :value) in mirrorsOf(state, kind).entries)
+      if (value.pending.isNotEmpty) key: value.pending,
 };
 
 /// Rolls back the pending action [clientSeq] on [channel] because the host
@@ -332,29 +399,11 @@ Map<String, List<PendingAction>> pendingActionsOf(HostState state) => {
     state,
   )[channel]?.where((p) => p.clientSeq == clientSeq).firstOrNull;
   if (pending == null) return (state: state, failure: null);
-  final next = switch (channelKindOf(state, channel)) {
-    ChannelKind.session => state.copyWith(
-      sessionChannels: Map.unmodifiable({
-        ...state.sessionChannels,
-        channel: dropPendingAction(
-          state.sessionChannels[channel]!,
-          clientSeq,
-          reduceSessionJson,
-        ),
-      }),
-    ),
-    ChannelKind.chat => state.copyWith(
-      chatChannels: Map.unmodifiable({
-        ...state.chatChannels,
-        channel: dropPendingAction(
-          state.chatChannels[channel]!,
-          clientSeq,
-          reduceChatJson,
-        ),
-      }),
-    ),
-    ChannelKind.root || ChannelKind.other => state,
-  };
+  final next = updateMirror(
+    state,
+    channel,
+    <S>(mirror, reduce) => dropPendingAction(mirror, clientSeq, reduce),
+  );
   return (
     state: next,
     failure: ActionFailure(
@@ -387,16 +436,12 @@ Map<String, List<PendingAction>> pendingActionsOf(HostState state) => {
   ];
   if (failures.isEmpty) return (state: state, failures: const []);
   return (
-    state: state.copyWith(
-      sessionChannels: Map.unmodifiable(
-        state.sessionChannels.map(
-          (key, mirror) => MapEntry(key, clearPendingActions(mirror)),
-        ),
-      ),
-      chatChannels: Map.unmodifiable(
-        state.chatChannels.map(
-          (key, mirror) => MapEntry(key, clearPendingActions(mirror)),
-        ),
+    state: pendingActionsOf(state).keys.fold(
+      state,
+      (state, channel) => updateMirror(
+        state,
+        channel,
+        <S>(mirror, _) => clearPendingActions(mirror),
       ),
     ),
     failures: failures,

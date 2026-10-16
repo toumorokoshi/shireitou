@@ -11,6 +11,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:ahp_client/ahp_client.dart';
+import 'package:json_rpc_2/error_code.dart' as error_code;
 import 'package:json_rpc_2/json_rpc_2.dart';
 import 'package:stream_channel/stream_channel.dart';
 import 'package:web_socket_channel/io.dart';
@@ -25,6 +26,16 @@ const seededSession = 'ahp-session:/scripted';
 
 /// The default chat of [seededSession].
 const seededChat = 'ahp-chat:/scripted';
+
+/// A seeded session with a long history, delivered as a window of the last
+/// [turnWindow] turns plus `turnsNextCursor` (AHP-029).
+const longSession = 'ahp-session:/long';
+
+/// The default chat of [longSession].
+const longChat = 'ahp-chat:/long';
+
+/// How many turns [longChat] has.
+const longTurnCount = 60;
 
 /// Client actions the host accepts; anything else is rejected.
 const clientDispatchable = <String>{
@@ -45,6 +56,10 @@ const clientDispatchable = <String>{
   'session/isReadChanged',
   'session/isArchivedChanged',
   'session/titleChanged',
+  'session/mcpServerStartRequested',
+  'session/mcpServerStopRequested',
+  'session/mcpServerBackgroundRequested',
+  'changeset/filesReviewChanged',
 };
 
 /// A client action the host accepted, or (with [channel] `*`) a token
@@ -71,7 +86,21 @@ class FakeAhpHost {
     this.stepDelay = const Duration(milliseconds: 40),
     this.backgroundDuration = const Duration(seconds: 3),
     this.defaultDirectory = '/workspace',
+    this.slowDuration = const Duration(seconds: 4),
   }) {
+    _addSession(
+      longSession,
+      longChat,
+      title: 'Long session',
+      workingDirectories: [defaultDirectory],
+    );
+    final history = longHistory(longTurnCount, DateTime.utc(2026, 10, 1));
+    _archive[longChat] = history.sublist(0, history.length - turnWindow);
+    _chats[longChat] = _chats[longChat]!.copyWith(
+      turns: history.sublist(history.length - turnWindow),
+      turnsNextCursor: _cursorFor(_archive[longChat]!),
+      modifiedAt: history.last.startedAt,
+    );
     _addSession(
       seededSession,
       seededChat,
@@ -92,6 +121,9 @@ class FakeAhpHost {
   /// The `defaultDirectory` sent in `initialize`.
   final String defaultDirectory;
 
+  /// How long the `slow` flow keeps its turn running unless stopped.
+  final Duration slowDuration;
+
   HttpServer? _server;
   final _connections = <_Connection>{};
   final _received = StreamController<ReceivedAction>.broadcast(sync: true);
@@ -105,6 +137,13 @@ class FakeAhpHost {
   final _chats = <String, ChatState>{};
   final _summaries = <String, SessionSummary>{};
   final _sessionOfChat = <String, String>{};
+  final _terminals = <String, TerminalState>{};
+  final _changesets = <String, ChangesetState>{};
+  final _canvases = <String, CanvasState>{};
+  final _contents = <String, String>{};
+
+  /// Older turns of windowed chats, not in their state yet (AHP-029).
+  final _archive = <String, List<Turn>>{};
 
   /// Every accepted client action and `authenticate` call, in order.
   List<ReceivedAction> get received => List.unmodifiable(_log);
@@ -120,6 +159,12 @@ class FakeAhpHost {
 
   /// The host's current state of [session].
   SessionState? session(String session) => _sessions[session];
+
+  /// The host's current state of the terminal [terminal].
+  TerminalState? terminal(String terminal) => _terminals[terminal];
+
+  /// The host's current state of the expanded changeset URI [changeset].
+  ChangesetState? changeset(String changeset) => _changesets[changeset];
 
   /// Listens on [port] (0 for any) at [address] and returns the URL to
   /// connect to, with `tkn` when a [token] is set.
@@ -199,7 +244,33 @@ class FakeAhpHost {
         _createSession(p.value as JsonMap);
         return null;
       })
-      ..registerMethod('fetchTurns', (Parameters _) => <String, Object?>{})
+      ..registerMethod('fetchTurns', (Parameters p) {
+        _fetchTurns(FetchTurnsParams.fromJson(p.value as JsonMap));
+        return <String, Object?>{};
+      })
+      ..registerMethod('resourceRead', (Parameters p) {
+        final params = ResourceReadParams.fromJson(p.value as JsonMap);
+        final data = _contents[params.uri];
+        if (data == null) {
+          throw RpcException(
+            AhpErrorCodes.notFound,
+            'no content ${params.uri}',
+          );
+        }
+        return ResourceReadResult(
+          data: data,
+          encoding: ContentEncoding.utf8,
+          contentType: 'text/plain',
+        ).toJson();
+      })
+      ..registerMethod('invokeChangesetOperation', (Parameters p) {
+        return _invokeOperation(
+          InvokeChangesetOperationParams.fromJson(p.value as JsonMap),
+        );
+      })
+      ..registerMethod('moveChat', (Parameters p) {
+        return _moveChat(MoveChatParams.fromJson(p.value as JsonMap));
+      })
       ..registerMethod('authenticate', (Parameters p) {
         final params = AuthenticateParams.fromJson(p.value as JsonMap);
         _record((
@@ -276,7 +347,11 @@ class FakeAhpHost {
   JsonMap? _snapshot(String channel) {
     final state = channel == rootChannel
         ? _root.toJson()
-        : _sessions[channel]?.toJson() ?? _chats[channel]?.toJson();
+        : _sessions[channel]?.toJson() ??
+              _chats[channel]?.toJson() ??
+              _terminals[channel]?.toJson() ??
+              _changesetFor(channel)?.toJson() ??
+              _canvases[channel]?.toJson();
     return state == null
         ? null
         : {'resource': channel, 'state': state, 'fromSeq': _serverSeq};
@@ -295,6 +370,9 @@ class FakeAhpHost {
       activity: state.activity,
       modifiedAt: state.modifiedAt,
       changes: state.changes,
+      origin: state.origin,
+      movable: state.movable,
+      interactivity: state.interactivity,
     );
   }
 
@@ -324,7 +402,30 @@ class FakeAhpHost {
       activeClients: const [],
       chats: [_chatSummary(chat)],
       defaultChat: chat,
+      changesets: sessionChangesets(session),
+      serverTools: const [
+        ToolDefinition(
+          name: 'bash',
+          title: 'Bash',
+          description: 'Runs a shell',
+        ),
+        ToolDefinition(name: 'edit', title: 'Edit', description: 'Edits files'),
+      ],
+      customizations: const [
+        McpServerCustomization(
+          id: docsCustomizationId,
+          uri: 'file:///workspace/.mcp.json',
+          name: 'Example Docs',
+          state: McpServerReadyState(),
+        ),
+      ],
     );
+    _changesets['ahp-changeset:/${changesetKey(session)}/session'] =
+        const ChangesetState(
+          status: ChangesetStatus.ready,
+          files: [],
+          operations: changesetOperations,
+        );
     _summaries[session] = SessionSummary(
       provider: fakeProvider,
       title: title,
@@ -400,7 +501,35 @@ class FakeAhpHost {
       _sessions[channel] = reduceSessionJson(state, action);
     } else if (_chats[channel] case final state?) {
       _chats[channel] = reduceChatJson(state, action);
+    } else if (_terminals[channel] case final state?) {
+      _terminals[channel] = reduceTerminalJson(state, action);
+    } else if (_changesetFor(channel) case final state?) {
+      _changesets[channel] = reduceChangesetJson(state, action);
+    } else if (_canvases[channel] case final state?) {
+      _canvases[channel] = reduceCanvasJson(state, action);
     }
+  }
+
+  bool _known(String channel) =>
+      _sessions.containsKey(channel) ||
+      _chats.containsKey(channel) ||
+      _terminals.containsKey(channel) ||
+      _changesetFor(channel) != null ||
+      _canvases.containsKey(channel);
+
+  /// The changeset at [uri]; a turn changeset of a known session that has
+  /// no edits yet is created empty on demand.
+  ChangesetState? _changesetFor(String uri) {
+    if (_changesets[uri] case final state?) return state;
+    final match = RegExp(r'^ahp-changeset:/([^/]+)/turn/[^/]+$')
+        .firstMatch(uri);
+    if (match == null) return null;
+    final key = match.group(1)!;
+    if (!_sessions.keys.any((s) => changesetKey(s) == key)) return null;
+    return _changesets[uri] = const ChangesetState(
+      status: ChangesetStatus.ready,
+      files: [],
+    );
   }
 
   /// Keeps the session's chat list and catalogue entry in step with
@@ -465,7 +594,7 @@ class FakeAhpHost {
     final type = action['type'];
     final rejection = !clientDispatchable.contains(type)
         ? '$type is not client-dispatchable'
-        : !_sessions.containsKey(channel) && !_chats.containsKey(channel)
+        : !_known(channel)
         ? 'unknown channel $channel'
         : type == 'chat/turnStarted' && _chats[channel]!.activeTurn != null
         ? 'a turn is already running'
@@ -558,6 +687,13 @@ class FakeAhpHost {
         Scenario.auth => _authFlow(chat, turnId),
         Scenario.background => _backgroundFlow(chat, turnId),
         Scenario.edit => _editFlow(chat, turnId),
+        Scenario.shell => _shellFlow(chat, turnId),
+        Scenario.read => _readFlow(chat, turnId),
+        Scenario.subagent => _subagentFlow(chat, turnId),
+        Scenario.canvas => _canvasFlow(chat, turnId),
+        Scenario.code => _codeFlow(chat, turnId),
+        Scenario.slow => _slowFlow(chat, turnId),
+        Scenario.cd => _cdFlow(chat, turnId),
       };
       if (!finished || !await _step(chat, turnId)) return;
     }
@@ -688,6 +824,8 @@ class FakeAhpHost {
       status: SessionStatus.idle,
       modifiedAt: _now(),
       turns: const [],
+      origin: ChatOriginSideChat(chat: chat, turnId: turnId),
+      movable: true,
     );
     _sessionOfChat[side] = session;
     _emit(
@@ -814,36 +952,74 @@ class FakeAhpHost {
 
   Future<bool> _backgroundFlow(String chat, String turnId) async {
     final id = _nextId('shell');
+    final terminal = 'ahp-terminal:/$id';
+    const command = 'npm test -- --watch';
+    _terminals[terminal] = TerminalState(
+      title: command,
+      content: const [],
+      lifecycle: const TerminalRunningLifecycleState(),
+      claim: TerminalSessionClaim(session: _sessionOfChat[chat]!, chat: chat),
+      isPty: false,
+    );
     _emit(
       chat,
       ChatBackgroundWorkSetAction(
         work: BackgroundShellWork(
           id: id,
-          label: 'npm test -- --watch',
+          label: command,
           startedAt: _now(),
-          command: 'npm test -- --watch',
+          command: command,
+          terminal: terminal,
         ),
       ).toJson(),
     );
+    _emit(
+      terminal,
+      const TerminalDataAction(data: 'Watching for changes…\n').toJson(),
+    );
     _say(chat, turnId, 'The tests keep running in the background.');
+    var runs = 0;
+    late final Timer ticker;
+    ticker = Timer.periodic(stepDelay * 5, (_) {
+      _emit(
+        terminal,
+        TerminalDataAction(data: 'Run ${++runs}: 3 tests passed\n').toJson(),
+      );
+    });
+    _timers.add(ticker);
     late final Timer timer;
     timer = Timer(backgroundDuration, () {
-      _timers.remove(timer);
+      _timers
+        ..remove(timer)
+        ..remove(ticker);
+      ticker.cancel();
+      _emit(terminal, const TerminalExitedAction(exitCode: 0).toJson());
       _emit(chat, ChatBackgroundWorkRemovedAction(id: id).toJson());
     });
     _timers.add(timer);
     return true;
   }
 
-  Future<bool> _editFlow(String chat, String turnId) async {
-    final id = _nextId('edit');
+  /// Emits a completed tool call [toolName] with [result] (no approval).
+  Future<bool> _toolRun(
+    String chat,
+    String turnId, {
+    required String id,
+    required String toolName,
+    required String displayName,
+    required String invocation,
+    required String input,
+    required ToolCallResult result,
+    List<ToolResultContent>? liveContent,
+    Future<bool> Function()? whileRunning,
+  }) async {
     _emit(
       chat,
       ChatToolCallStartAction(
         turnId: turnId,
         toolCallId: id,
-        toolName: 'edit',
-        displayName: 'Edit',
+        toolName: toolName,
+        displayName: displayName,
       ).toJson(),
     );
     _emit(
@@ -851,24 +1027,79 @@ class FakeAhpHost {
       ChatToolCallReadyAction(
         turnId: turnId,
         toolCallId: id,
-        invocationMessage: const PlainString('Edit README.md'),
-        toolInput: const InlineToolInput('{"path":"README.md"}'),
+        invocationMessage: PlainString(invocation),
+        toolInput: InlineToolInput(input),
         confirmed: ToolCallConfirmationReason.notNeeded,
       ).toJson(),
     );
+    if (liveContent != null) {
+      _emit(
+        chat,
+        ChatToolCallContentChangedAction(
+          turnId: turnId,
+          toolCallId: id,
+          content: liveContent,
+        ).toJson(),
+      );
+    }
+    if (whileRunning != null && !await whileRunning()) return false;
     if (!await _step(chat, turnId)) return false;
     _emit(
       chat,
       ChatToolCallCompleteAction(
         turnId: turnId,
         toolCallId: id,
-        result: const ToolCallResult(
-          success: true,
-          pastTenseMessage: PlainString('Edited README.md'),
-        ),
+        result: result,
       ).toJson(),
     );
+    return true;
+  }
+
+  Future<bool> _editFlow(String chat, String turnId) async {
+    final id = _nextId('edit');
     final session = _sessionOfChat[chat]!;
+    final file = readmeUri(defaultDirectory);
+    final before = FileEditSide(
+      uri: file,
+      content: ContentRef(uri: 'ahp-content:/$id/before'),
+    );
+    final after = FileEditSide(
+      uri: file,
+      content: ContentRef(uri: 'ahp-content:/$id/after'),
+    );
+    _contents[before.content.uri] = readmeBefore;
+    _contents[after.content.uri] = readmeAfter;
+    const stats = FileEditDiffStats(added: 3, removed: 1);
+    final ran = await _toolRun(
+      chat,
+      turnId,
+      id: id,
+      toolName: 'edit',
+      displayName: 'Edit',
+      invocation: 'Edit README.md',
+      input: '{"path":"README.md"}',
+      result: ToolCallResult(
+        success: true,
+        pastTenseMessage: const PlainString('Edited README.md'),
+        content: [
+          ToolResultFileEditContent(before: before, after: after, diff: stats),
+        ],
+      ),
+    );
+    if (!ran) return false;
+    // The session changeset (and this turn's) now list the file.
+    final changed = ChangesetFile(
+      id: file,
+      edit: FileEdit(before: before, after: after, diff: stats),
+    );
+    final key = changesetKey(session);
+    for (final uri in [
+      'ahp-changeset:/$key/session',
+      'ahp-changeset:/$key/turn/$turnId',
+    ]) {
+      _changesetFor(uri);
+      _emit(uri, ChangesetFileSetAction(file: changed).toJson());
+    }
     _summaries[session] = _summaries[session]!.copyWith(changes: editChanges);
     _notifyRoot('root/sessionSummaryChanged', {
       'channel': rootChannel,
@@ -877,5 +1108,351 @@ class FakeAhpHost {
     });
     _say(chat, turnId, 'Edited README.md.');
     return true;
+  }
+
+  Future<bool> _shellFlow(String chat, String turnId) async {
+    final id = _nextId('bash');
+    final terminal = 'ahp-terminal:/$id';
+    _terminals[terminal] = TerminalState(
+      title: 'npm test',
+      cwd: 'file://$defaultDirectory',
+      content: const [],
+      lifecycle: const TerminalRunningLifecycleState(),
+      claim: TerminalSessionClaim(
+        session: _sessionOfChat[chat]!,
+        chat: chat,
+        turnId: turnId,
+        toolCallId: id,
+      ),
+      supportsCommandDetection: true,
+      isPty: false,
+    );
+    final started = DateTime.now();
+    final ran = await _toolRun(
+      chat,
+      turnId,
+      id: id,
+      toolName: 'bash',
+      displayName: 'Bash',
+      invocation: 'Run `npm test`',
+      input: '{"command":"npm test"}',
+      liveContent: [
+        ToolResultTerminalContent(
+          resource: terminal,
+          title: 'npm test',
+          isPty: false,
+        ),
+      ],
+      whileRunning: () async {
+        _emit(
+          terminal,
+          TerminalCommandExecutedAction(
+            commandId: 'c1',
+            commandLine: 'npm test',
+            timestamp: started.millisecondsSinceEpoch,
+          ).toJson(),
+        );
+        for (final line in shellOutput) {
+          if (!await _step(chat, turnId)) return false;
+          _emit(terminal, TerminalDataAction(data: '$line\n').toJson());
+        }
+        final duration = DateTime.now().difference(started).inMilliseconds;
+        _emit(
+          terminal,
+          TerminalCommandFinishedAction(
+            commandId: 'c1',
+            exitCode: 0,
+            durationMs: duration,
+          ).toJson(),
+        );
+        _emit(terminal, const TerminalExitedAction(exitCode: 0).toJson());
+        return true;
+      },
+      result: ToolCallResult(
+        success: true,
+        pastTenseMessage: const PlainString('Ran `npm test`'),
+        content: [
+          ToolResultTerminalContent(
+            resource: terminal,
+            title: 'npm test',
+            isPty: false,
+            result: TerminalCommandResult(
+              exitCode: 0,
+              preview: '${shellOutput.join('\n')}\n',
+            ),
+          ),
+        ],
+      ),
+    );
+    if (!ran) return false;
+    _say(chat, turnId, 'All 3 tests passed.');
+    return true;
+  }
+
+  Future<bool> _readFlow(String chat, String turnId) async {
+    for (final path in readFiles) {
+      final ran = await _toolRun(
+        chat,
+        turnId,
+        id: _nextId('read'),
+        toolName: 'read',
+        displayName: 'Read',
+        invocation: 'Read $path',
+        input: '{"path":"$path"}',
+        result: ToolCallResult(
+          success: true,
+          pastTenseMessage: PlainString('Read $path'),
+          content: [ToolResultTextContent(text: '// $path\n')],
+        ),
+      );
+      if (!ran) return false;
+    }
+    _say(chat, turnId, 'I read ${readFiles.length} files.');
+    return true;
+  }
+
+  Future<bool> _subagentFlow(String chat, String turnId) async {
+    final session = _sessionOfChat[chat]!;
+    final id = _nextId('task');
+    final worker = '$chat-explorer-${++_ids}';
+    _chats[worker] = ChatState(
+      resource: worker,
+      title: 'Explorer',
+      status: SessionStatus.idle,
+      modifiedAt: _now(),
+      turns: const [],
+      origin: ChatOriginTool(chat: chat, toolCallId: id),
+      interactivity: ChatInteractivity.readOnly,
+      movable: true,
+    );
+    _sessionOfChat[worker] = session;
+    _emit(
+      session,
+      SessionChatAddedAction(summary: _chatSummary(worker)).toJson(),
+    );
+    final link = ToolResultSubagentContent(
+      resource: worker,
+      title: 'Explorer',
+      agentName: 'explorer',
+      description: 'Explore the repository',
+    );
+    final ran = await _toolRun(
+      chat,
+      turnId,
+      id: id,
+      toolName: 'task',
+      displayName: 'Task',
+      invocation: 'Delegate to the explorer',
+      input: '{"agent":"explorer"}',
+      liveContent: [link],
+      whileRunning: () async {
+        _emit(
+          chat,
+          ChatBackgroundWorkSetAction(
+            work: BackgroundSubagentWork(
+              id: id,
+              label: 'Explorer',
+              startedAt: _now(),
+              chat: worker,
+            ),
+          ).toJson(),
+        );
+        final workerTurn = _nextId('turn');
+        _emit(
+          worker,
+          ChatTurnStartedAction(
+            turnId: workerTurn,
+            startedAt: _now(),
+            message: const Message(
+              text: 'Explore the repository',
+              origin: MessageOrigin(kind: MessageKind.agent),
+            ),
+          ).toJson(),
+        );
+        if (!await _step(chat, turnId)) return false;
+        _say(worker, workerTurn, 'Found 3 modules: api, core and ui.');
+        if (!await _step(chat, turnId)) return false;
+        _endTurn(worker, workerTurn);
+        _emit(chat, ChatBackgroundWorkRemovedAction(id: id).toJson());
+        return true;
+      },
+      result: ToolCallResult(
+        success: true,
+        pastTenseMessage: const PlainString('The explorer finished'),
+        content: [link],
+      ),
+    );
+    if (!ran) return false;
+    _say(chat, turnId, 'The explorer found 3 modules.');
+    return true;
+  }
+
+  Future<bool> _canvasFlow(String chat, String turnId) async {
+    final canvas = 'ahp-canvas:/${_nextId('canvas')}';
+    _canvases[canvas] = CanvasState(
+      instanceId: canvas,
+      extensionId: 'fake.preview',
+      extensionName: 'Fake preview',
+      canvasId: 'web',
+      title: 'App preview',
+      status: 'Running',
+      url: 'http://127.0.0.1:8080/',
+    );
+    _emit(
+      chat,
+      ChatCanvasesChangedAction(
+        canvases: [
+          ...?_chats[chat]!.canvases,
+          CanvasReference(resource: canvas),
+        ],
+      ).toJson(),
+    );
+    _say(chat, turnId, 'I opened a preview canvas.');
+    return true;
+  }
+
+  Future<bool> _codeFlow(String chat, String turnId) async {
+    _say(chat, turnId, codeReply);
+    return true;
+  }
+
+  Future<bool> _slowFlow(String chat, String turnId) async {
+    final part = _nextId('md');
+    _emit(
+      chat,
+      ChatResponsePartAction(
+        turnId: turnId,
+        part: MarkdownResponsePart(id: part, content: ''),
+      ).toJson(),
+    );
+    for (final word in ['Working', ' on', ' it', ' slowly.']) {
+      if (!await _step(chat, turnId)) return false;
+      _emit(
+        chat,
+        ChatDeltaAction(turnId: turnId, partId: part, content: word).toJson(),
+      );
+    }
+    final until = DateTime.now().add(slowDuration);
+    while (DateTime.now().isBefore(until)) {
+      if (!await _step(chat, turnId)) return false;
+    }
+    return true;
+  }
+
+  Future<bool> _cdFlow(String chat, String turnId) async {
+    final directory = 'file://$defaultDirectory/packages/api';
+    _emit(
+      _sessionOfChat[chat]!,
+      SessionWorkingDirectorySetAction(directory: directory).toJson(),
+    );
+    _emit(chat, ChatWorkingDirectorySetAction(directory: directory).toJson());
+    _say(chat, turnId, 'Now also working in packages/api.');
+    return true;
+  }
+
+  // ── Commands ─────────────────────────────────────────────────────────
+
+  /// The `turnsNextCursor` for a chat with [archived] older turns left.
+  String? _cursorFor(List<Turn> archived) =>
+      archived.isEmpty ? null : 'before-${archived.length}';
+
+  /// Loads the next page of [params]' chat's archived turns into its state
+  /// (`chat/turnsLoaded`) before `fetchTurns` answers.
+  void _fetchTurns(FetchTurnsParams params) {
+    final chat = params.channel;
+    final archived = _archive[chat] ?? const <Turn>[];
+    final cursor = params.cursor;
+    if (cursor != null && cursor != _cursorFor(archived)) {
+      throw RpcException(error_code.INVALID_PARAMS, 'unknown cursor');
+    }
+    if (archived.isEmpty || !_chats.containsKey(chat)) return;
+    final split = archived.length > turnWindow
+        ? archived.length - turnWindow
+        : 0;
+    final page = archived.sublist(split);
+    _archive[chat] = archived.sublist(0, split);
+    _emit(
+      chat,
+      ChatTurnsLoadedAction(
+        turns: page,
+        turnsNextCursor: _cursorFor(_archive[chat]!),
+      ).toJson(),
+    );
+  }
+
+  Future<JsonMap> _invokeOperation(
+    InvokeChangesetOperationParams params,
+  ) async {
+    final uri = params.channel;
+    final state = _changesetFor(uri);
+    if (state == null) {
+      throw RpcException(AhpErrorCodes.notFound, 'no changeset $uri');
+    }
+    _record((
+      channel: uri,
+      action: {'type': '#invoke', 'operationId': params.operationId},
+    ));
+    void status(ChangesetOperationStatus status) => _emit(
+      uri,
+      ChangesetOperationStatusChangedAction(
+        operationId: params.operationId,
+        status: status,
+      ).toJson(),
+    );
+    switch ((params.operationId, params.target)) {
+      case ('commit', null):
+        final count = state.files.length;
+        status(ChangesetOperationStatus.running);
+        await Future<void>.delayed(stepDelay);
+        _emit(uri, const ChangesetClearedAction().toJson());
+        status(ChangesetOperationStatus.idle);
+        return InvokeChangesetOperationResult(
+          message: PlainString(
+            'Committed $count file${count == 1 ? '' : 's'}.',
+          ),
+        ).toJson();
+      case ('revert', ChangesetOperationTargetResource(:final resource)):
+        final file = state.files.where((f) => f.id == resource).firstOrNull;
+        if (file == null) {
+          throw RpcException(error_code.INVALID_PARAMS, 'no file $resource');
+        }
+        _emit(uri, ChangesetFileRemovedAction(fileId: file.id).toJson());
+        return InvokeChangesetOperationResult(
+          message: PlainString('Reverted ${resource.split('/').last}.'),
+        ).toJson();
+      default:
+        throw RpcException(
+          error_code.INVALID_PARAMS,
+          'cannot run ${params.operationId} on that target',
+        );
+    }
+  }
+
+  /// Reorders a movable chat within its session (moving to another
+  /// session is not scripted).
+  JsonMap _moveChat(MoveChatParams params) {
+    final chat = params.channel;
+    final session = _sessionOfChat[chat];
+    final state = session == null ? null : _sessions[session];
+    if (state == null || !(_chats[chat]?.movable ?? false)) {
+      throw RpcException(error_code.INVALID_PARAMS, '$chat is not movable');
+    }
+    final ChatMoveToSessionDestination(:after) = switch (params.destination) {
+      final ChatMoveToSessionDestination d when d.session == session => d,
+      _ => throw RpcException(
+        error_code.INVALID_PARAMS,
+        'only moves within the session are scripted',
+      ),
+    };
+    final order = [
+      for (final c in state.chats)
+        if (c.resource != chat) c.resource,
+    ];
+    if (after != null && !order.contains(after)) {
+      throw RpcException(error_code.INVALID_PARAMS, 'unknown anchor $after');
+    }
+    order.insert(after == null ? 0 : order.indexOf(after) + 1, chat);
+    _emit(session!, SessionChatsReorderedAction(chats: order).toJson());
+    return MoveChatResult(session: session).toJson();
   }
 }

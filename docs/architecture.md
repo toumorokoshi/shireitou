@@ -15,7 +15,8 @@ WebSocket ──► json_rpc_2 Peer ──► AhpClient (I/O edge)
                                      ▼
                                HostState (immutable) ──► states stream
                                  root, sessions (catalogue),
-                                 sessionChannels, chatChannels (ChannelMirror)
+                                 session, chat, terminal, changeset and
+                                 canvas channels (ChannelMirror each)
 ```
 
 - **Wire types:** generated from the protocol's 1.0.0 JSON Schemas into
@@ -62,8 +63,21 @@ WebSocket ──► json_rpc_2 Peer ──► AhpClient (I/O edge)
   working directories, `_meta` and the session-level `inputNeeded` list,
   which also sets the `InputNeeded` status bit. Tool calls are the
   generated `ToolCallState` sealed union, one class per lifecycle status.
-  `changeset_reducer.dart` ports the changeset and canvas reducers; those
-  channels are not subscribed yet.
+- **Terminal, changeset and canvas channels:** `subscribe(uri, kind:)`
+  with `ChannelKind.terminal`, `.changeset` or `.canvas` mirrors them too,
+  advanced by `reduceTerminal` (`terminal_reducer.dart`, a port of
+  `terminalReducer`), `reduceChangeset` and `reduceCanvasJson`
+  (`changeset_reducer.dart`). Every mirrored kind goes through one
+  generic `updateMirror`. `changesets.dart` expands a `Changeset`'s URI
+  template (`{turnId}`, `{originalTurnId}`/`{modifiedTurnId}`) and
+  classifies file edits (created, deleted, renamed, modified).
+  `readResource` (`resourceRead`), `invokeChangesetOperation` and
+  `moveChat` (1.0.0 only; `UnsupportedFeatureError` under 0.9.0) are
+  plain requests.
+- **Windowed history (AHP-029):** a chat snapshot may hold only the
+  newest turns and a `turnsNextCursor`; `loadOlderTurns(chat)` sends
+  `fetchTurns` with it (one at a time per chat), and the host prepends
+  the page with `chat/turnsLoaded` before answering.
 - **Write-ahead dispatch (AHP-022):** `dispatch(channel, action)` sends a
   `dispatchAction` notification with the next `clientSeq` and applies the
   action to the channel's mirror at once. A `ChannelMirror` holds the
@@ -120,9 +134,10 @@ WebSocket ──► json_rpc_2 Peer ──► AhpClient (I/O edge)
 ## packages/ahp_fake_host
 
 A scripted AHP host in Dart for tests, built on `ahp_client`'s generated
-types and reducers. It asks for approvals, input, MCP sign-in and runs
-background work when a message names the flow. See
-[fake-host.md](fake-host.md).
+types and reducers. It asks for approvals, input, MCP sign-in, streams
+terminals, edits files into changesets, spawns subagent chats and runs
+background work when a message names the flow, and serves a windowed
+long session. See [fake-host.md](fake-host.md).
 
 ## packages/ahp_wire_gen
 
@@ -165,16 +180,43 @@ Dart source); `bin/generate.dart` does the file I/O. See
   `chat_commands.dart` are pure: `timelineItems(ChatState)` flattens turns
   into rows, and the command builders return the chat actions to dispatch.
   `session_detail_view.dart` holds the header (status, activity, Stop,
-  archive, mark unread, change counts, background work and MCP server
-  alerts), the "Waiting for you" panel, the reversed timeline that follows
-  new output (AV-066), and the follow-up box. `session_inputs.dart` is
-  pure: `sessionPrompts` picks the session's `inputNeeded` entries the
+  archive, mark unread, session details, change counts, background work,
+  canvases and MCP server alerts), the chat switcher, the "Waiting for
+  you" panel, the reversed timeline that follows new output (AV-066), the
+  queued messages and the follow-up box (which syncs the chat's draft),
+  with the review pane beside it (wide) or as a tab.
+  `timeline_items.dart` memoizes each finished turn's rows and the rows
+  of a whole `turns` list (the reducer keeps both objects while a turn
+  streams), so a delta only rebuilds the active turn's rows;
+  `TimelineRows` indexes them without copying and finds rows by key for
+  the keyed, lazily built list. It also groups consecutive calls of one
+  tool (AV-064) and adds a "load older turns" row while the host holds
+  turns back (AV-068).
+  `tool_previews.dart` renders tool call previews: live terminals,
+  mini-diffs and subagent cards. `diff_lines.dart` (pure, with
+  `diffutil_dart`) and `diff_view.dart` show diffs, unified or side by
+  side, with collapsible unchanged lines; `code_highlight.dart`
+  highlights code with `re_highlight` and renders markdown code blocks
+  with a copy button; `terminal_text.dart` turns terminal output into
+  plain text. `chat_switcher.dart`, `pending_messages.dart` and
+  `session_info.dart` are the chat switcher (AV-069), the queued messages
+  panel (AV-081) and the session details page (working directories,
+  canvases, customizations, server tools, active clients).
+  `session_inputs.dart` is pure: `sessionPrompts` picks the session's `inputNeeded` entries the
   open chat does not already show (requests from other chats, or not yet
   mirrored), and `mcpServerAlerts` the MCP servers that need sign-in or
   failed. `session_status_widgets.dart` renders them; answers go to the
-  request's own chat even when it is not subscribed. `timeline_parts.dart` renders markdown
-  (`flutter_markdown_plus`), collapsed reasoning, tool call cards with
+  request's own chat even when it is not subscribed.
+  `timeline_parts.dart` renders markdown (`flutter_markdown_plus`), collapsed reasoning, tool call cards with
   Approve/Deny (and Sign in / Cancel for `auth-required` calls, with a
-  token dialog), input request forms and errors.
+  token dialog), input request forms, errors and grouped tool calls;
+  markdown code blocks go through `code_highlight.dart`.
+- `lib/src/review/`: the "Files changed" pane (AV-100 to AV-103).
+  `review_logic.dart` is pure (which changesets to offer, the URI for the
+  chosen turn, counts); `changes_pane.dart` lists files with their change
+  kind, counts and "reviewed" boxes and runs host operations.
+- `lib/src/channels.dart`: `ChannelSubscriber`, which keeps a channel
+  subscribed while a widget is mounted, and `resourceTextProvider`, which
+  reads `ContentRef` text with `resourceRead`.
 - `lib/src/screens/new_session_screen.dart`: the composer (agent, model,
   working directory, prompt).

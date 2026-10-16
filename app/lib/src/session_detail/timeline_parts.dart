@@ -9,7 +9,9 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'chat_commands.dart';
+import 'code_highlight.dart';
 import 'timeline_items.dart';
+import 'tool_previews.dart';
 
 /// Pushes a token for a protected resource (`authenticate`).
 typedef Authenticate = Future<void> Function({
@@ -18,13 +20,21 @@ typedef Authenticate = Future<void> Function({
 });
 
 /// Builds the widget for one [item]. [onAction] dispatches a chat action;
-/// [onAuthenticate] signs a tool call in to its MCP server.
+/// [onAuthenticate] signs a tool call in to its MCP server; [onOpenChat]
+/// opens a subagent's chat; [onLoadOlder] pages in older turns.
 Widget buildTimelineItem(
   TimelineItem item,
   ValueChanged<JsonMap> onAction, {
   Authenticate? onAuthenticate,
+  OpenChat? onOpenChat,
+  VoidCallback? onLoadOlder,
 }) => switch (item) {
   UserMessageItem(:final message) => UserMessageBubble(message: message),
+  ToolCallGroupItem(:final turnId, :final calls) => ToolCallGroupCard(
+    turnId: turnId,
+    calls: calls,
+  ),
+  LoadOlderItem() => LoadOlderRow(onLoad: onLoadOlder),
   ResponsePartItem(:final turnId, :final part, :final active) => switch (part) {
     MarkdownResponsePart(:final content) => MarkdownText(content),
     ReasoningResponsePart(:final content) => ReasoningBlock(content: content),
@@ -33,6 +43,7 @@ Widget buildTimelineItem(
       toolCall: toolCall,
       onAction: active ? onAction : null,
       onAuthenticate: active ? onAuthenticate : null,
+      onOpenChat: onOpenChat,
     ),
     InputRequestResponsePart() => InputRequestCard(
       part: part,
@@ -51,14 +62,44 @@ Widget buildTimelineItem(
     ),
   },
   TurnFooterItem(:final turn) => _Note(turnFooterText(turn)),
-  PendingMessageItem(:final kind, :final pending) => PendingMessageRow(
-    kind: kind,
-    pending: pending,
-    onRemove: () => onAction(
-      ChatPendingMessageRemovedAction(kind: kind, id: pending.id).toJson(),
-    ),
-  ),
 };
+
+/// The oldest row while the host holds older turns back (AV-068): it asks
+/// for them as soon as it is built, which happens when the user scrolls
+/// near the top.
+class LoadOlderRow extends StatefulWidget {
+  /// Creates a [LoadOlderRow].
+  const LoadOlderRow({super.key, this.onLoad});
+
+  /// Pages in older turns.
+  final VoidCallback? onLoad;
+
+  @override
+  State<LoadOlderRow> createState() => _LoadOlderRowState();
+}
+
+class _LoadOlderRowState extends State<LoadOlderRow> {
+  @override
+  void initState() {
+    super.initState();
+    // Not during build: loading changes the provider this list watches.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.onLoad?.call();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 8),
+    child: Center(
+      child: TextButton.icon(
+        onPressed: widget.onLoad,
+        icon: const Icon(Icons.history),
+        label: const Text('Loading older turns…'),
+      ),
+    ),
+  );
+}
 
 /// The user's message, right-aligned.
 class UserMessageBubble extends StatelessWidget {
@@ -103,6 +144,7 @@ class MarkdownText extends StatelessWidget {
     child: MarkdownBody(
       data: data,
       selectable: true,
+      builders: {'pre': _codeBlocks},
       onTapLink: (_, href, _) {
         final uri = href == null ? null : Uri.tryParse(href);
         if (uri != null) launchUrl(uri);
@@ -110,6 +152,8 @@ class MarkdownText extends StatelessWidget {
     ),
   );
 }
+
+final _codeBlocks = CodeBlockBuilder();
 
 /// Model reasoning, collapsed by default (AV-062).
 class ReasoningBlock extends StatelessWidget {
@@ -163,6 +207,7 @@ class ToolCallCard extends StatelessWidget {
     required this.toolCall,
     this.onAction,
     this.onAuthenticate,
+    this.onOpenChat,
   });
 
   /// Turn the call belongs to.
@@ -177,9 +222,13 @@ class ToolCallCard extends StatelessWidget {
   /// Pushes an MCP sign-in token; null hides "Sign in".
   final Authenticate? onAuthenticate;
 
+  /// Opens a subagent's chat.
+  final OpenChat? onOpenChat;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final previews = toolCallPreviews(toolCall);
     final input = toolCallInputText(toolCall);
     final output = toolCallOutputText(toolCall);
     final failed = switch (toolCall) {
@@ -223,6 +272,12 @@ class ToolCallCard extends StatelessWidget {
               if (input == null && output == null) const Text('No details.'),
             ],
           ),
+          if (previews.isNotEmpty)
+            ToolCallPreviews(
+              contents: previews,
+              live: !toolCall.isFinished,
+              onOpenChat: onOpenChat,
+            ),
           if (waiting && onAction != null) _approvalBar(context),
           if (toolCall case final ToolCallAuthRequiredState call
               when onAction != null)
@@ -672,42 +727,55 @@ class ErrorBanner extends StatelessWidget {
   }
 }
 
-/// A steering or queued message (AV-081), removable.
-class PendingMessageRow extends StatelessWidget {
-  /// Creates a [PendingMessageRow].
-  const PendingMessageRow({
+/// Consecutive calls of one tool folded into an expandable row (AV-064):
+/// "Read · 3 calls", with each call's card inside.
+class ToolCallGroupCard extends StatelessWidget {
+  /// Creates a [ToolCallGroupCard].
+  const ToolCallGroupCard({
     super.key,
-    required this.kind,
-    required this.pending,
-    required this.onRemove,
+    required this.turnId,
+    required this.calls,
   });
 
-  /// Steering or queued.
-  final PendingMessageKind kind;
+  /// Turn the calls belong to.
+  final String turnId;
 
-  /// The pending message.
-  final PendingMessage pending;
-
-  /// Removes the message.
-  final VoidCallback onRemove;
+  /// The calls.
+  final List<ToolCallState> calls;
 
   @override
-  Widget build(BuildContext context) => Align(
-    alignment: Alignment.centerRight,
-    child: InputChip(
-      avatar: Icon(
-        kind == PendingMessageKind.steering ? Icons.bolt : Icons.schedule,
-        size: 16,
+  Widget build(BuildContext context) {
+    final status = toolCallGroupStatus(calls);
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      clipBehavior: Clip.antiAlias,
+      child: ExpansionTile(
+        dense: true,
+        leading: Icon(toolIcon(calls.first.toolName)),
+        title: Text(toolCallGroupSummary(calls)),
+        subtitle: Text(
+          '${calls.map(toolCallSummary).join(', ')} · $status',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        trailing: status == 'Running'
+            ? const SizedBox.square(
+                dimension: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : null,
+        childrenPadding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+        children: [
+          for (final call in calls)
+            ToolCallCard(
+              key: ValueKey(call.toolCallId),
+              turnId: turnId,
+              toolCall: call,
+            ),
+        ],
       ),
-      label: Text(
-        '${kind == PendingMessageKind.steering ? 'Steering' : 'Queued'}: '
-        '${pending.message.text}',
-        overflow: TextOverflow.ellipsis,
-      ),
-      onDeleted: onRemove,
-      deleteButtonTooltipMessage: 'Remove',
-    ),
-  );
+    );
+  }
 }
 
 class _Note extends StatelessWidget {

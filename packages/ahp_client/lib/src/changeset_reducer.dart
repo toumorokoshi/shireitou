@@ -2,8 +2,8 @@
 /// ported from `changesetReducer` and `canvasReducer` in
 /// `@microsoft/agent-host-protocol@1.0.0`.
 ///
-/// The client does not subscribe to these channels yet; the reducers are
-/// ready for the review pane (AV-100 to AV-103).
+/// `HostState` mirrors subscribed changeset and canvas channels with them
+/// (`ChannelKind.changeset`, `ChannelKind.canvas`).
 library;
 
 import 'wire.dart';

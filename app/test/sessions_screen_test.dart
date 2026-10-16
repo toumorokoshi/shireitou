@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -12,48 +10,8 @@ import 'package:shireitou/src/host_connection.dart';
 import 'package:shireitou/src/hosts/saved_hosts.dart';
 import 'package:shireitou/src/session_detail/session_status_widgets.dart';
 
+import 'fake_connection.dart';
 import 'fixtures.dart';
-
-/// A [HostConnection] with fixed state that records dispatched actions.
-class FakeHostConnection extends HostConnection {
-  FakeHostConnection(this.initial);
-
-  final HostState initial;
-
-  /// (channel, action) pairs, in order.
-  final dispatched = <(String, JsonMap)>[];
-
-  /// Undone actions to report to the UI.
-  final failureController = StreamController<ActionFailure>.broadcast();
-
-  @override
-  Stream<ActionFailure> get failures => failureController.stream;
-
-  @override
-  HostState build() => initial;
-
-  @override
-  Future<String?> openSession(String session) async => 'ahp-chat:/1';
-
-  @override
-  void closeSession(String session, String? chat) {}
-
-  @override
-  void dispatch(String channel, JsonMap action) =>
-      dispatched.add((channel, action));
-
-  /// (resource, token) pairs pushed with `authenticate`.
-  final authenticated = <(String, String)>[];
-
-  @override
-  Future<void> authenticate({
-    required String resource,
-    required String token,
-  }) async => authenticated.add((resource, token));
-
-  /// The `type`s of the dispatched actions.
-  List<Object?> get types => [for (final (_, a) in dispatched) a['type']];
-}
 
 Future<FakeHostConnection> _pump(
   WidgetTester tester,
@@ -163,7 +121,6 @@ void main() {
     expect(find.text('Needs input'), findsOneWidget);
     expect(find.text('Unread'), findsOneWidget);
     expect(find.text('Select a session'), findsOneWidget);
-    expect(find.text('Changes (not implemented)'), findsOneWidget);
   });
 
   testWidgets('archived sessions are hidden until the Archived filter', (

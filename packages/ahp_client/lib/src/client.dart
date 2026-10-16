@@ -114,6 +114,7 @@ class AhpClient {
   final _actions = StreamController<ActionEnvelope>.broadcast();
   final _failures = StreamController<ActionFailure>.broadcast();
   final _pendingTimers = <Timer>{};
+  final _loadingTurns = <String>{};
   Timer? _pingTimer;
   bool _pingInFlight = false;
   HostState _state = const HostState();
@@ -310,6 +311,80 @@ class AhpClient {
     final peer = _peer;
     if (peer == null) throw StateError('not connected');
     await peer.sendRequest('fetchTurns', {'channel': chat, 'cursor': ?cursor});
+  }
+
+  /// Loads the next page of older turns into [chat] when its mirror has a
+  /// `turnsNextCursor` (windowed delivery, AHP-029 and AV-068). Returns
+  /// false when there is nothing to load or a load for [chat] is already
+  /// running. The turns arrive as `chat/turnsLoaded` before this returns.
+  Future<bool> loadOlderTurns(String chat) async {
+    final cursor = _state.chatChannels[chat]?.state.turnsNextCursor;
+    if (cursor == null || !_loadingTurns.add(chat)) return false;
+    try {
+      await fetchTurns(chat, cursor: cursor);
+      return true;
+    } finally {
+      _loadingTurns.remove(chat);
+    }
+  }
+
+  /// Reads the content behind a `ContentRef` [uri] (`resourceRead`), for
+  /// example the two sides of a file edit.
+  Future<ResourceReadResult> readResource(
+    String uri, {
+    ContentEncoding? encoding,
+  }) async {
+    final peer = _peer;
+    if (peer == null) throw StateError('not connected');
+    return ResourceReadResult.fromJson(
+      await peer.sendRequest(
+        'resourceRead',
+        ResourceReadParams(uri: uri, encoding: encoding).toJson(),
+      ) as JsonMap,
+    );
+  }
+
+  /// Runs the host-declared operation [operationId] on the expanded
+  /// [changeset] URI (`invokeChangesetOperation`, AHP-027), on the whole
+  /// changeset or on [target]. Progress arrives as changeset actions.
+  Future<InvokeChangesetOperationResult> invokeChangesetOperation(
+    String changeset,
+    String operationId, {
+    ChangesetOperationTarget? target,
+  }) async {
+    final peer = _peer;
+    if (peer == null) throw StateError('not connected');
+    return InvokeChangesetOperationResult.fromJson(
+      await peer.sendRequest(
+        'invokeChangesetOperation',
+        InvokeChangesetOperationParams(
+          channel: changeset,
+          operationId: operationId,
+          target: target,
+        ).toJson(),
+      ) as JsonMap,
+    );
+  }
+
+  /// Moves [chat] within or between sessions (`moveChat`, 1.0.0 only).
+  /// The new order arrives as `session/chatsReordered`. Throws
+  /// [UnsupportedFeatureError] when the host negotiated 0.9.0.
+  Future<MoveChatResult> moveChat(
+    String chat,
+    ChatMoveDestination destination,
+  ) async {
+    final peer = _peer;
+    if (peer == null) throw StateError('not connected');
+    final version = _state.protocolVersion;
+    if (!supportsFeature(version, ProtocolFeature.moveChat)) {
+      throw UnsupportedFeatureError(ProtocolFeature.moveChat, version!);
+    }
+    return MoveChatResult.fromJson(
+      await peer.sendRequest(
+        'moveChat',
+        MoveChatParams(channel: chat, destination: destination).toJson(),
+      ) as JsonMap,
+    );
   }
 
   /// Creates a session with a client-chosen `ahp-session:/<uuid>` URI

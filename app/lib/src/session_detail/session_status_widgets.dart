@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 
 import 'session_inputs.dart';
 import 'timeline_parts.dart';
+import 'tool_previews.dart';
 
 /// Dispatches [action] on [channel].
 typedef DispatchTo = void Function(String channel, JsonMap action);
@@ -127,23 +128,48 @@ class SessionInputPanel extends StatelessWidget {
 }
 
 /// "2 in background": the chat's background shells and subagents, listed
-/// in a menu.
+/// in a menu. A shell with a terminal opens its live output; a subagent
+/// opens its chat (AV-065, AV-069).
 class BackgroundWorkChip extends StatelessWidget {
   /// Creates a [BackgroundWorkChip] for non-empty [work].
-  const BackgroundWorkChip({super.key, required this.work});
+  const BackgroundWorkChip({super.key, required this.work, this.onOpenChat});
 
   /// The running background work.
   final List<BackgroundWork> work;
 
+  /// Opens a subagent's chat.
+  final OpenChat? onOpenChat;
+
+  VoidCallback? _open(BuildContext context, BackgroundWork w) {
+    final onOpenChat = this.onOpenChat;
+    return switch (w) {
+      BackgroundShellWork(:final terminal?, :final label) => () => openTerminal(
+        context,
+        terminal: terminal,
+        title: label,
+      ),
+      BackgroundSubagentWork(:final chat) when onOpenChat != null =>
+        () => onOpenChat(chat),
+      _ => null,
+    };
+  }
+
   @override
-  Widget build(BuildContext context) => PopupMenuButton<void>(
+  Widget build(BuildContext context) => PopupMenuButton<VoidCallback>(
     tooltip: 'Background work',
-    itemBuilder: (_) => [
+    onSelected: (open) => open(),
+    itemBuilder: (context) => [
       for (final w in work)
-        PopupMenuItem<void>(
-          enabled: false,
-          child: Text(backgroundWorkLabel(w)),
-        ),
+        if (_open(context, w) case final open?)
+          PopupMenuItem<VoidCallback>(
+            value: open,
+            child: Text(backgroundWorkLabel(w)),
+          )
+        else
+          PopupMenuItem<VoidCallback>(
+            enabled: false,
+            child: Text(backgroundWorkLabel(w)),
+          ),
     ],
     child: Chip(
       visualDensity: VisualDensity.compact,

@@ -5,13 +5,18 @@ coding-agent sessions running on
 [Agent Host Protocol](https://microsoft.github.io/agent-host-protocol/) hosts,
 with a UX modeled on the GitHub Agents view and Cursor's Agents Window.
 
-> Status: usable for chat, on the web and as macOS and Linux desktop apps.
-> The app connects to a host (remembering recent hosts), lists its sessions
-> grouped by working directory, opens a session's history, streams replies
-> live, sends follow-ups, stops turns, answers tool approvals, input
-> requests (also from other chats) and MCP sign-in prompts, shows
-> background work and change counts, and starts new sessions. Diffs/review, simultaneous connections
-> to several hosts and notifications are not built yet; see
+> Status: usable for chat and review, on the web and as macOS and Linux
+> desktop apps. The app connects to a host (remembering recent hosts),
+> lists its sessions grouped by working directory, opens a session's
+> history (paging older turns in when the host windows it), streams
+> replies with highlighted code, groups similar tool calls, shows live
+> terminal output and inline diffs, switches between a session's chats
+> (subagents, side chats), sends, queues, edits and reorders follow-ups,
+> syncs drafts, stops turns, answers tool approvals, input requests (also
+> from other chats) and MCP sign-in prompts, reviews changesets (files,
+> diffs, "reviewed" marks, host operations), shows background work,
+> canvases and session details, and starts new sessions. Simultaneous
+> connections to several hosts and notifications are not built yet; see
 > [GAPS.md](GAPS.md).
 
 ## Layout
@@ -20,7 +25,9 @@ with a UX modeled on the GitHub Agents view and Cursor's Agents Window.
   Flutter dependency). Wire types, pure reducers, and the WebSocket JSON-RPC
   connection.
 - [`packages/ahp_fake_host/`](packages/ahp_fake_host/): a scripted AHP
-  host for tests that asks for tool approvals, input and MCP sign-in (see
+  host for tests that asks for tool approvals, input and MCP sign-in,
+  streams terminals, edits files into changesets, spawns subagent chats
+  and serves a windowed long session (see
   [docs/fake-host.md](docs/fake-host.md)).
 - [`packages/ahp_wire_gen/`](packages/ahp_wire_gen/): generates the client's
   wire types from the vendored AHP 1.0.0 JSON Schemas (see
@@ -60,6 +67,7 @@ just fix                 # dart fix, then format
 just test                # unit and widget tests, client flows on the fake host
 just fake-host           # run the scripted fake host (prints its URL)
 just test-fake-host-app linux   # drive the app against the fake host
+just test-fake-host-app flutter-tester   # the same, headless
 just test-integration    # ahp_client against a real pi-agent-host-protocol
 just test-model          # a real model turn through pi (costs tokens)
 just test-desktop linux  # desktop smoke test against pi (see docs/desktop.md)

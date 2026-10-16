@@ -142,3 +142,20 @@ class UnsupportedActionError extends StateError {
   /// The negotiated protocol version.
   final String version;
 }
+
+/// Thrown for a command or feature the negotiated protocol version does
+/// not have, such as `moveChat` under 0.9.0.
+class UnsupportedFeatureError extends StateError {
+  /// Creates an [UnsupportedFeatureError] for [feature] under [version].
+  UnsupportedFeatureError(this.feature, this.version)
+    : super(
+        '${feature.label} needs protocol ${feature.introducedIn}; '
+        'the host negotiated $version',
+      );
+
+  /// The missing feature.
+  final ProtocolFeature feature;
+
+  /// The negotiated protocol version.
+  final String version;
+}

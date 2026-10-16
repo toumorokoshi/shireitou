@@ -352,6 +352,226 @@ void main() {
     expect(failure.kind, ActionFailureKind.rejected);
   });
 
+  test('a shell call streams its output through a terminal channel', () async {
+    await send('shell');
+    await until(
+      (_) => parts().whereType<ToolCallResponsePart>().any(
+        (p) => (p.toolCall.content ?? const []).any(
+          (c) => c is ToolResultTerminalContent,
+        ),
+      ),
+    );
+    final terminal = toolCall().content!
+        .whereType<ToolResultTerminalContent>()
+        .single;
+    await client.subscribe(terminal.resource, kind: ChannelKind.terminal);
+    await turnDone();
+    await until(
+      (s) =>
+          s.terminalChannels[terminal.resource]?.state.lifecycle
+              is TerminalExitedLifecycleState,
+    );
+    final state = client.state.terminalChannels[terminal.resource]!.state;
+    expect(terminalTranscript(state), contains('All tests passed!'));
+    expect((state.content.single as TerminalCommandPart).exitCode, 0);
+    final result = toolCall().content!
+        .whereType<ToolResultTerminalContent>()
+        .single
+        .result!;
+    expect(result.preview, contains('All tests passed!'));
+    expect(replies(), contains('All 3 tests passed.'));
+  });
+
+  test('a background shell has a terminal', () async {
+    await send('background');
+    await turnDone();
+    final work = chatState().backgroundWork!.single as BackgroundShellWork;
+    await client.subscribe(work.terminal!, kind: ChannelKind.terminal);
+    await until(
+      (s) =>
+          terminalTranscript(s.terminalChannels[work.terminal!]!.state)
+              .contains('Run 1'),
+    );
+  });
+
+  test('an edit carries a diff and fills the changesets', () async {
+    await send('edit');
+    await turnDone();
+    final edit = toolCall().content!
+        .whereType<ToolResultFileEditContent>()
+        .single;
+    expect(edit.diff, const FileEditDiffStats(added: 3, removed: 1));
+    final before = await client.readResource(edit.before!.content.uri);
+    final after = await client.readResource(edit.after!.content.uri);
+    expect(before.data, readmeBefore);
+    expect(after.data, readmeAfter);
+
+    final changesets = sessionState().changesets!;
+    final sessionUri = expandChangesetUri(changesets.first)!;
+    final turnUri = expandChangesetUri(
+      changesets.last,
+      turnId: chatState().turns.last.id,
+    )!;
+    await client.subscribe(sessionUri, kind: ChannelKind.changeset);
+    await client.subscribe(turnUri, kind: ChannelKind.changeset);
+    ChangesetState changeset(String uri) =>
+        client.state.changesetChannels[uri]!.state;
+    expect(changeset(sessionUri).files.single.id, endsWith('README.md'));
+    expect(changeset(turnUri).files, hasLength(1));
+
+    // Review is written ahead and echoed.
+    final file = changeset(sessionUri).files.single.id;
+    client.dispatch(
+      sessionUri,
+      ChangesetFilesReviewChangedAction(files: [file], reviewed: true).toJson(),
+    );
+    expect(changeset(sessionUri).files.single.reviewed, isTrue);
+    await until((s) => s.changesetChannels[sessionUri]!.pending.isEmpty);
+    expect(host.changeset(sessionUri)!.files.single.reviewed, isTrue);
+
+    // Operations: revert one file, then commit (nothing left).
+    final reverted = await client.invokeChangesetOperation(
+      turnUri,
+      'revert',
+      target: ChangesetOperationTargetResource(resource: file),
+    );
+    expect(reverted.message?.text, 'Reverted README.md.');
+    await until((s) => s.changesetChannels[turnUri]!.state.files.isEmpty);
+    final committed = await client.invokeChangesetOperation(
+      sessionUri,
+      'commit',
+    );
+    expect(committed.message?.text, 'Committed 1 file.');
+    await until((s) => s.changesetChannels[sessionUri]!.state.files.isEmpty);
+    expect(
+      changeset(sessionUri).operations!.first.status,
+      ChangesetOperationStatus.idle,
+    );
+  });
+
+  test(
+    'a subagent runs in a read-only chat linked from its tool call',
+    () async {
+      await send('subagent');
+      await turnDone();
+      final link = toolCall().content!
+          .whereType<ToolResultSubagentContent>()
+          .single;
+      final summary = sessionState().chats.singleWhere(
+        (c) => c.resource == link.resource,
+      );
+      expect(summary.interactivity, ChatInteractivity.readOnly);
+      expect(summary.origin, isA<ChatOriginTool>());
+      await client.subscribe(link.resource, kind: ChannelKind.chat);
+      final worker = chatState(link.resource);
+      expect(
+        (worker.turns.single.responseParts.single as MarkdownResponsePart)
+            .content,
+        contains('3 modules'),
+      );
+      expect(chatState().backgroundWork, isEmpty);
+      expect(replies(), contains('The explorer found 3 modules.'));
+    },
+  );
+
+  test('movable chats are reordered with moveChat', () async {
+    await send('subagent');
+    await turnDone();
+    final worker = sessionState().chats.last.resource;
+    expect(sessionState().chats.first.resource, chat);
+    final result = await client.moveChat(
+      worker,
+      const ChatMoveToSessionDestination(session: seededSession),
+    );
+    expect(result.session, seededSession);
+    await until((_) => sessionState().chats.first.resource == worker);
+    await expectLater(
+      client.moveChat(
+        chat,
+        ChatMoveToSessionDestination(session: seededSession, after: worker),
+      ),
+      throwsA(isA<Exception>()),
+    );
+  });
+
+  test('a canvas is referenced from the chat and subscribable', () async {
+    await send('canvas');
+    await turnDone();
+    final canvas = chatState().canvases!.single.resource;
+    await client.subscribe(canvas, kind: ChannelKind.canvas);
+    final state = client.state.canvasChannels[canvas]!.state;
+    expect(state.title, 'App preview');
+    expect(state.url, 'http://127.0.0.1:8080/');
+  });
+
+  test('read calls, code replies and working directories', () async {
+    await send('read code cd');
+    await turnDone();
+    final calls = parts().whereType<ToolCallResponsePart>();
+    expect(calls.map((c) => c.toolCall.toolName), ['read', 'read', 'read']);
+    expect(replies(), contains('```dart'));
+    expect(sessionState().workingDirectories, hasLength(2));
+    expect(chatState().workingDirectories, hasLength(1));
+  });
+
+  test(
+    'queued messages can be edited and reordered during a slow turn',
+    () async {
+      await send('slow');
+      await until(
+        (_) =>
+            chatState().activeTurn?.responseParts
+                .whereType<MarkdownResponsePart>()
+                .any((p) => p.content.contains('slowly')) ??
+            false,
+      );
+      for (final (id, text) in [('q1', 'first'), ('q2', 'second')]) {
+        client.dispatch(
+          chat,
+          ChatPendingMessageSetAction(
+            kind: PendingMessageKind.queued,
+            id: id,
+            message: userMessage(text),
+          ).toJson(),
+        );
+      }
+      client.dispatch(
+        chat,
+        ChatPendingMessageSetAction(
+          kind: PendingMessageKind.queued,
+          id: 'q1',
+          message: userMessage('first, edited'),
+        ).toJson(),
+      );
+      client.dispatch(
+        chat,
+        const ChatQueuedMessagesReorderedAction(order: ['q2', 'q1']).toJson(),
+      );
+      await until((s) => s.chatChannels[chat]!.pending.isEmpty);
+      expect(
+        [for (final m in host.chat(chat)!.queuedMessages!) m.message.text],
+        ['second', 'first, edited'],
+      );
+    },
+  );
+
+  test('a windowed chat pages in older turns (AHP-029)', () async {
+    final long = (await client.openSession(longSession))!;
+    expect(chatState(long).turns, hasLength(turnWindow));
+    expect(chatState(long).turnsNextCursor, isNotNull);
+    expect(
+      chatState(long).turns.first.id,
+      'long-${longTurnCount - turnWindow + 1}',
+    );
+    expect(await client.loadOlderTurns(long), isTrue);
+    expect(chatState(long).turns, hasLength(turnWindow * 2));
+    expect(await client.loadOlderTurns(long), isTrue);
+    expect(chatState(long).turns, hasLength(longTurnCount));
+    expect(chatState(long).turns.first.id, 'long-1');
+    expect(chatState(long).turnsNextCursor, isNull);
+    expect(await client.loadOlderTurns(long), isFalse);
+  });
+
   test('scenariosFor picks flows by keyword', () {
     expect(scenariosFor('Please ASK, then use the tool.'), [
       Scenario.tool,

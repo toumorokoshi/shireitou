@@ -1,6 +1,7 @@
 /// Pure view logic for the session timeline (AV-061 to AV-067).
 library;
 
+import 'dart:collection';
 import 'dart:convert';
 
 import 'package:ahp_client/ahp_client.dart';
@@ -8,6 +9,11 @@ import 'package:ahp_client/ahp_client.dart';
 /// One row of the timeline.
 sealed class TimelineItem {
   const TimelineItem();
+
+  /// A key that stays the same while the row exists, also when the turn
+  /// finishes or older turns are paged in (so row state such as an
+  /// expanded card follows the row).
+  String get key;
 }
 
 /// The user's message that started turn [turnId].
@@ -20,12 +26,21 @@ class UserMessageItem extends TimelineItem {
 
   /// The message.
   final Message message;
+
+  @override
+  String get key => '$turnId/message';
 }
 
 /// A response part of turn [turnId].
 class ResponsePartItem extends TimelineItem {
-  /// Creates a [ResponsePartItem].
-  const ResponsePartItem(this.turnId, this.part, {required this.active});
+  /// Creates a [ResponsePartItem]; [index] is the part's position in the
+  /// turn, for parts without an ID.
+  const ResponsePartItem(
+    this.turnId,
+    this.part, {
+    required this.active,
+    this.index = 0,
+  });
 
   /// Turn ID.
   final String turnId;
@@ -35,6 +50,31 @@ class ResponsePartItem extends TimelineItem {
 
   /// Whether the turn is still running (parts may still stream).
   final bool active;
+
+  /// The part's position in its turn.
+  final int index;
+
+  @override
+  String get key => '$turnId/${partKey(part) ?? '#$index'}';
+}
+
+/// Consecutive similar tool calls of turn [turnId], shown as one
+/// expandable row (AV-064).
+class ToolCallGroupItem extends TimelineItem {
+  /// Creates a [ToolCallGroupItem].
+  const ToolCallGroupItem(this.turnId, this.calls, {required this.active});
+
+  /// Turn ID.
+  final String turnId;
+
+  /// The calls, in order (at least two, all with the same tool name).
+  final List<ToolCallState> calls;
+
+  /// Whether the turn is still running.
+  final bool active;
+
+  @override
+  String get key => '$turnId/group/${calls.first.toolCallId}';
 }
 
 /// The footer of a finished turn: how it ended, duration and usage.
@@ -44,10 +84,26 @@ class TurnFooterItem extends TimelineItem {
 
   /// The finished turn.
   final Turn turn;
+
+  @override
+  String get key => '${turn.id}/footer';
+}
+
+/// The oldest row while the host holds older turns back
+/// (`turnsNextCursor`, AV-068): building it pages them in.
+class LoadOlderItem extends TimelineItem {
+  /// Creates a [LoadOlderItem] for [cursor].
+  const LoadOlderItem(this.cursor);
+
+  /// The chat's `turnsNextCursor`.
+  final String cursor;
+
+  @override
+  String get key => 'older/$cursor';
 }
 
 /// A steering or queued message waiting to be delivered (AV-081).
-class PendingMessageItem extends TimelineItem {
+class PendingMessageItem {
   /// Creates a [PendingMessageItem].
   const PendingMessageItem(this.kind, this.pending);
 
@@ -58,6 +114,14 @@ class PendingMessageItem extends TimelineItem {
   final PendingMessage pending;
 }
 
+/// A stable identifier of [part] within its turn, when it has one.
+String? partKey(ResponsePart part) => switch (part) {
+  MarkdownResponsePart(:final id) || ReasoningResponsePart(:final id) => id,
+  ToolCallResponsePart(:final toolCall) => 'tool/${toolCall.toolCallId}',
+  InputRequestResponsePart(:final request) => 'input/${request.id}',
+  _ => null,
+};
+
 /// Whether [part] is worth a row: empty markdown and reasoning parts (which
 /// pi opens before streaming into them) are hidden.
 bool _visible(ResponsePart part) => switch (part) {
@@ -66,26 +130,182 @@ bool _visible(ResponsePart part) => switch (part) {
   _ => true,
 };
 
-/// Flattens [chat] into timeline rows, oldest first: each turn's message,
-/// its visible parts and a footer, then the active turn, then pending
-/// messages.
-List<TimelineItem> timelineItems(ChatState chat) => [
-  for (final turn in chat.turns) ...[
-    UserMessageItem(turn.id, turn.message),
-    for (final part in turn.responseParts)
-      if (_visible(part)) ResponsePartItem(turn.id, part, active: false),
-    TurnFooterItem(turn),
-  ],
-  if (chat.activeTurn case final active?) ...[
-    UserMessageItem(active.id, active.message),
-    for (final part in active.responseParts)
-      if (_visible(part)) ResponsePartItem(active.id, part, active: true),
-  ],
+/// Whether [toolCall] can be folded into a group: it does not wait on the
+/// user and has no inline preview (terminal, diff or subagent) that the
+/// group would hide.
+bool _groupable(ToolCallState toolCall) =>
+    !toolCall.isBlocking &&
+    toolCall is! ToolCallStateUnknown &&
+    !(toolCall.content ?? const <ToolResultContent>[]).any(
+      (c) =>
+          c is ToolResultTerminalContent ||
+          c is ToolResultFileEditContent ||
+          c is ToolResultSubagentContent,
+    );
+
+/// The rows of one turn's [parts]: visible parts, with runs of two or more
+/// consecutive groupable calls of the same tool folded into a
+/// [ToolCallGroupItem] (AV-064).
+List<TimelineItem> partItems(
+  String turnId,
+  List<ResponsePart> parts, {
+  required bool active,
+}) {
+  final items = <TimelineItem>[];
+  final run = <(int, ToolCallState)>[];
+  void flush() {
+    if (run.length >= 2) {
+      items.add(
+        ToolCallGroupItem(turnId, [
+          for (final (_, c) in run) c,
+        ], active: active),
+      );
+    } else {
+      for (final (index, call) in run) {
+        items.add(
+          ResponsePartItem(
+            turnId,
+            ToolCallResponsePart(toolCall: call),
+            active: active,
+            index: index,
+          ),
+        );
+      }
+    }
+    run.clear();
+  }
+
+  for (final (index, part) in parts.indexed) {
+    if (!_visible(part)) continue;
+    if (part is ToolCallResponsePart && _groupable(part.toolCall)) {
+      if (run.isNotEmpty && run.first.$2.toolName != part.toolCall.toolName) {
+        flush();
+      }
+      run.add((index, part.toolCall));
+      continue;
+    }
+    flush();
+    items.add(ResponsePartItem(turnId, part, active: active, index: index));
+  }
+  flush();
+  return items;
+}
+
+final _turnRows = Expando<List<TimelineItem>>('turn rows');
+
+/// The rows of a finished [turn], computed once per turn object (turns are
+/// immutable, so a turn the reducer did not touch keeps its rows).
+List<TimelineItem> turnItems(Turn turn) =>
+    _turnRows[turn] ??= List.unmodifiable([
+      UserMessageItem(turn.id, turn.message),
+      ...partItems(turn.id, turn.responseParts, active: false),
+      TurnFooterItem(turn),
+    ]);
+
+/// The rows of every finished turn, oldest first, and each row's index
+/// by key.
+typedef _Settled = ({List<TimelineItem> rows, Map<String, int> index});
+
+final _settledRows = Expando<_Settled>('settled rows');
+
+/// The rows of [turns], computed once per list: the chat reducer keeps the
+/// same `turns` list while a turn streams, so deltas only rebuild the
+/// active turn's rows.
+_Settled _settled(List<Turn> turns) => _settledRows[turns] ??= () {
+  final rows = List<TimelineItem>.unmodifiable([
+    for (final turn in turns) ...turnItems(turn),
+  ]);
+  return (rows: rows, index: {for (final (i, row) in rows.indexed) row.key: i});
+}();
+
+/// The timeline of a chat: a [LoadOlderItem] while older turns are held
+/// back, the finished turns' rows (shared between states), then the
+/// active turn's rows. Indexable without copying the finished rows.
+class TimelineRows with ListMixin<TimelineItem> {
+  TimelineRows._(this._older, this._settled, this._live);
+
+  final LoadOlderItem? _older;
+  final _Settled _settled;
+  final List<TimelineItem> _live;
+
+  int get _offset => _older == null ? 0 : 1;
+
+  @override
+  int get length => _offset + _settled.rows.length + _live.length;
+
+  @override
+  set length(int _) => throw UnsupportedError('read-only');
+
+  @override
+  TimelineItem operator [](int index) {
+    if (_older case final older? when index == 0) return older;
+    final i = index - _offset;
+    final settled = _settled.rows;
+    return i < settled.length ? settled[i] : _live[i - settled.length];
+  }
+
+  @override
+  void operator []=(int index, TimelineItem value) =>
+      throw UnsupportedError('read-only');
+
+  /// The index of the row with [key], or null when there is none.
+  int? indexOfKey(String key) {
+    if (_older?.key == key) return 0;
+    if (_settled.index[key] case final i?) return _offset + i;
+    final live = _live.indexWhere((item) => item.key == key);
+    return live < 0 ? null : _offset + _settled.rows.length + live;
+  }
+}
+
+/// Flattens [chat] into timeline rows, oldest first: a [LoadOlderItem]
+/// when the host holds older turns back, each finished turn's message,
+/// visible parts (similar tool calls grouped) and footer, then the active
+/// turn. Pending messages are not rows; see [pendingMessages].
+TimelineRows timelineItems(ChatState chat) => TimelineRows._(
+  switch (chat.turnsNextCursor) {
+    final cursor? => LoadOlderItem(cursor),
+    null => null,
+  },
+  _settled(chat.turns),
+  switch (chat.activeTurn) {
+    final active? => [
+      UserMessageItem(active.id, active.message),
+      ...partItems(active.id, active.responseParts, active: true),
+    ],
+    null => const [],
+  },
+);
+
+/// The steering message, then the queued ones in order (AV-081).
+List<PendingMessageItem> pendingMessages(ChatState chat) => [
   if (chat.steeringMessage case final steering?)
     PendingMessageItem(PendingMessageKind.steering, steering),
   for (final queued in chat.queuedMessages ?? const <PendingMessage>[])
     PendingMessageItem(PendingMessageKind.queued, queued),
 ];
+
+/// A one-line summary of a group of [calls] of one tool (AV-064):
+/// "Read · 3 calls".
+String toolCallGroupSummary(List<ToolCallState> calls) =>
+    '${calls.first.displayName} · ${calls.length} calls';
+
+/// The status of a group: running while any call runs, else how many
+/// failed or were cancelled.
+String toolCallGroupStatus(List<ToolCallState> calls) {
+  if (calls.any((c) => !c.isFinished)) return 'Running';
+  final failed = calls
+      .where((c) => c is ToolCallCompletedState && !c.success)
+      .length;
+  final cancelled = calls.whereType<ToolCallCancelledState>().length;
+  return [
+    if (failed > 0) '$failed failed',
+    if (cancelled > 0) '$cancelled cancelled',
+  ].join(', ').ifEmpty('Done');
+}
+
+extension on String {
+  String ifEmpty(String other) => isEmpty ? other : this;
+}
 
 /// A one-line summary of [toolCall] (AV-063): the past-tense message when
 /// finished, else the invocation message, else the display name.
@@ -131,8 +351,9 @@ String? toolCallInputText(ToolCallState toolCall) {
   }
 }
 
-/// The tool's text output: text content and terminal previews, joined.
-/// Null when there is none.
+/// The tool's text output: text content and the error, joined. Terminal
+/// output, file edits and subagents have their own previews
+/// ([toolCallPreviews]). Null when there is none.
 String? toolCallOutputText(ToolCallState toolCall) {
   final error = switch (toolCall) {
     ToolCallCompletedState(:final error) ||
@@ -143,10 +364,10 @@ String? toolCallOutputText(ToolCallState toolCall) {
     for (final content in toolCall.content ?? const <ToolResultContent>[])
       switch (content) {
         ToolResultTextContent(:final text) => text,
-        ToolResultTerminalContent(
-          result: TerminalCommandResult(:final preview?),
-        ) =>
-          preview,
+        // Shown by their own previews.
+        ToolResultTerminalContent() ||
+        ToolResultFileEditContent() ||
+        ToolResultSubagentContent() => '',
         _ => '[${content.type}]',
       },
     ?error?.message,
@@ -177,25 +398,54 @@ String turnFooterText(Turn turn) {
   ].join(' · ');
 }
 
-/// Total input and output tokens over [chat]'s turns (AV-067).
+typedef _Usage = ({int input, int output});
+
+final _turnsUsage = Expando<_Usage>('turns usage');
+
+/// Total input and output tokens over [chat]'s turns (AV-067). The
+/// finished turns' total is computed once per `turns` list.
 ({int input, int output}) sessionUsage(ChatState chat) {
-  final usages = [
-    for (final turn in chat.turns) ?turn.usage,
-    ?chat.activeTurn?.usage,
-  ];
+  final settled = _turnsUsage[chat.turns] ??= chat.turns.fold<_Usage>(
+    (input: 0, output: 0),
+    (sum, t) => (
+      input: sum.input + (t.usage?.inputTokens ?? 0),
+      output: sum.output + (t.usage?.outputTokens ?? 0),
+    ),
+  );
+  final active = chat.activeTurn?.usage;
   return (
-    input: usages.fold(0, (sum, u) => sum + (u.inputTokens ?? 0)),
-    output: usages.fold(0, (sum, u) => sum + (u.outputTokens ?? 0)),
+    input: settled.input + (active?.inputTokens ?? 0),
+    output: settled.output + (active?.outputTokens ?? 0),
   );
 }
 
 /// The model of the last turn: what the host reported, else what the
 /// message asked for.
 String? lastModelOf(ChatState chat) {
-  final turns = [...chat.turns.map((t) => (t.usage, t.message))];
-  if (chat.activeTurn case final a?) turns.add((a.usage, a.message));
-  for (final (usage, message) in turns.reversed) {
-    if (usage?.model ?? message.model?.id case final model?) return model;
+  if (chat.activeTurn case final a?) {
+    if (a.usage?.model ?? a.message.model?.id case final model?) return model;
+  }
+  for (final turn in chat.turns.reversed) {
+    if (turn.usage?.model ?? turn.message.model?.id case final model?) {
+      return model;
+    }
   }
   return null;
 }
+
+/// The inline previews of [toolCall] (AV-065, AV-069): terminals, file
+/// edits (also those awaiting confirmation) and subagent chats.
+List<ToolResultContent> toolCallPreviews(ToolCallState toolCall) => [
+  for (final content in toolCall.content ?? const <ToolResultContent>[])
+    if (content is ToolResultTerminalContent ||
+        content is ToolResultFileEditContent ||
+        content is ToolResultSubagentContent)
+      content,
+  if (toolCall case ToolCallPendingConfirmationState(:final edits?))
+    for (final edit in edits.items)
+      ToolResultFileEditContent(
+        before: edit.before,
+        after: edit.after,
+        diff: edit.diff,
+      ),
+];

@@ -146,3 +146,39 @@ JsonMap cancelAuthAction(String turnId, ToolCallState toolCall) =>
         error: ToolCallError(message: 'The user cancelled the sign-in.'),
       ),
     ).toJson();
+
+/// The action that replaces pending message [pending]'s text with [text]
+/// (AV-081), keeping its other fields (model, attachments).
+JsonMap editPendingAction(
+  PendingMessageKind kind,
+  PendingMessage pending,
+  String text,
+) => ChatPendingMessageSetAction(
+  kind: kind,
+  id: pending.id,
+  message: pending.message.copyWith(text: text),
+).toJson();
+
+/// The action that removes pending message [id] (AV-081).
+JsonMap removePendingAction(PendingMessageKind kind, String id) =>
+    ChatPendingMessageRemovedAction(kind: kind, id: id).toJson();
+
+/// The action that moves the queued message at [from] to position [to]
+/// (both indexes into [queued], [to] counted after the removal), or null
+/// when nothing moves (AV-081).
+JsonMap? reorderQueuedAction(List<PendingMessage> queued, int from, int to) {
+  if (from == to || from < 0 || from >= queued.length) return null;
+  final ids = [for (final m in queued) m.id];
+  final moved = ids.removeAt(from);
+  ids.insert(to.clamp(0, ids.length), moved);
+  return ChatQueuedMessagesReorderedAction(order: ids).toJson();
+}
+
+/// The action that syncs the follow-up box's [text] as the chat's draft,
+/// or clears it when [text] is blank (`chat/draftChanged`). [previous]
+/// keeps the draft's other fields.
+JsonMap draftAction(String text, {Message? previous}) => ChatDraftChangedAction(
+  draft: text.trim().isEmpty
+      ? null
+      : (previous?.copyWith(text: text) ?? userMessage(text)),
+).toJson();

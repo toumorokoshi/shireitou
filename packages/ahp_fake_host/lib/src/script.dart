@@ -23,8 +23,34 @@ enum Scenario {
   /// A background shell that outlives the turn.
   background('background'),
 
-  /// A file edit that changes the session's change counts.
-  edit('edit');
+  /// A file edit with an inline diff (`fileEdit` content) that adds the
+  /// file to the session's changesets and change counts (AV-065, AV-100).
+  edit('edit'),
+
+  /// A shell tool call that streams its output through a terminal channel
+  /// (AV-065, AHP-028).
+  shell('shell'),
+
+  /// Three consecutive `read` tool calls, which clients may group (AV-064).
+  read('read'),
+
+  /// A subagent: a tool call whose result links to a new, read-only worker
+  /// chat that runs its own turn (AV-069).
+  subagent('subagent'),
+
+  /// A canvas reference on the chat (1.0.0 canvas channel).
+  canvas('canvas'),
+
+  /// A markdown reply with a fenced Dart code block (AV-061).
+  code('code'),
+
+  /// A reply streamed with `chat/delta` that keeps the turn running for
+  /// `slowDuration`, so messages can be queued, edited and reordered
+  /// (AV-081).
+  slow('slow'),
+
+  /// Adds a working directory to the session and the chat.
+  cd('cd');
 
   const Scenario(this.keyword);
 
@@ -176,3 +202,106 @@ SessionStatus summaryStatus(
       : chat.bits & activityMask;
   return SessionStatus((session.bits & ~activityMask) | activity);
 }
+
+/// The README before the `edit` flow changes it.
+const readmeBefore = '# Fake project\n\nOld intro.\n\n## Usage\n\nRun it.\n';
+
+/// The README after the `edit` flow: three lines added, one removed.
+const readmeAfter =
+    '# Fake project\n\nA scripted host for tests.\nIt asks for approvals.\n'
+    'It edits this file.\n\n## Usage\n\nRun it.\n';
+
+/// The file the `edit` flow changes, under [directory].
+String readmeUri(String directory) => 'file://$directory/README.md';
+
+/// The output lines of the `shell` flow's `npm test`.
+const shellOutput = [
+  '> fake@1.0.0 test',
+  '> dart test',
+  '00:01 +1: parses the config',
+  '00:01 +2: renders the timeline',
+  '00:02 +3: All tests passed!',
+];
+
+/// The files the `read` flow reads.
+const readFiles = ['lib/main.dart', 'lib/app.dart', 'pubspec.yaml'];
+
+/// The markdown reply of the `code` flow.
+const codeReply = """Here is the entry point:
+
+```dart
+void main() {
+  final greeting = 'Hello';
+  print('\$greeting, world!');
+}
+```
+""";
+
+/// The changesets every session advertises: the whole session (with
+/// per-file review) and one turn (`{turnId}`).
+List<Changeset> sessionChangesets(String session) {
+  final key = changesetKey(session);
+  return [
+    Changeset(
+      label: 'Session changes',
+      uriTemplate: 'ahp-changeset:/$key/session',
+      changeKind: 'session',
+      capabilities: const ChangesetCapabilities(review: {}),
+    ),
+    Changeset(
+      label: 'Turn changes',
+      uriTemplate: 'ahp-changeset:/$key/turn/{turnId}',
+      changeKind: 'turn',
+    ),
+  ];
+}
+
+/// The part of a session URI used in its changeset URIs.
+String changesetKey(String session) =>
+    session.substring(session.lastIndexOf('/') + 1);
+
+/// The operations the session changeset offers.
+const changesetOperations = [
+  ChangesetOperation(
+    id: 'commit',
+    label: 'Commit',
+    description: 'Commit every change',
+    scopes: [ChangesetOperationScope.changeset],
+    confirmation: PlainString('Commit all changes?'),
+    icon: 'check',
+    status: ChangesetOperationStatus.idle,
+  ),
+  ChangesetOperation(
+    id: 'revert',
+    label: 'Revert',
+    description: 'Revert this file',
+    scopes: [ChangesetOperationScope.resource],
+    icon: 'trash',
+    status: ChangesetOperationStatus.idle,
+  ),
+];
+
+/// How many turns a windowed chat state holds, and each `fetchTurns` page
+/// loads (AHP-029).
+const turnWindow = 20;
+
+/// The seeded long session's history: [count] finished turns, oldest
+/// first. Every fifth reply has a code block.
+List<Turn> longHistory(int count, DateTime start) => [
+  for (var i = 1; i <= count; i++)
+    Turn(
+      id: 'long-$i',
+      startedAt: start.add(Duration(minutes: i)).toUtc().toIso8601String(),
+      duration: 1200,
+      state: TurnState.complete,
+      message: userMessage('Question $i'),
+      responseParts: [
+        MarkdownResponsePart(
+          id: 'long-md-$i',
+          content: i % 5 == 0
+              ? 'Answer $i, with code:\n\n```python\nprint($i)\n```'
+              : 'Answer $i.',
+        ),
+      ],
+    ),
+];

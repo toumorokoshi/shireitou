@@ -15,35 +15,61 @@ import '../host_connection.dart';
 import '../session_list/folder_grouping.dart';
 import '../session_list/session_list_view.dart';
 import '../session_list/status_badges.dart';
+import '../channels.dart';
+import '../review/changes_pane.dart';
+import '../review/review_logic.dart';
 import 'chat_commands.dart';
+import 'chat_switcher.dart';
+import 'pending_messages.dart';
+import 'session_info.dart';
 import 'session_inputs.dart';
 import 'session_status_widgets.dart';
 import 'timeline_items.dart';
 import 'timeline_parts.dart';
+import 'tool_previews.dart';
 
 /// Shows [session]: subscribes to it and its default chat while visible and
-/// marks it read when opened (AV-023).
+/// marks it read when opened (AV-023). Other chats of the session open
+/// from the chat switcher (AV-069). The "Files changed" review (AV-100)
+/// is a side pane when [reviewAsPane], else a tab.
 class SessionDetailView extends ConsumerStatefulWidget {
   /// Creates a [SessionDetailView]. Give it a key per session.
-  const SessionDetailView({super.key, required this.session});
+  const SessionDetailView({
+    super.key,
+    required this.session,
+    this.reviewAsPane = false,
+  });
 
   /// The session's URI as the catalogue lists it.
   final String session;
+
+  /// Whether the review sits beside the timeline (wide layouts).
+  final bool reviewAsPane;
 
   @override
   ConsumerState<SessionDetailView> createState() => _SessionDetailViewState();
 }
 
+/// Width of the review pane on wide layouts.
+const reviewPaneWidth = 380.0;
+
 class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
   late final HostConnection _connection;
   StreamSubscription<ActionFailure>? _failures;
-  String? _chat;
+
+  /// The default chat, subscribed by `openSession`.
+  String? _defaultChat;
+
+  /// The chat the timeline shows; another chat is subscribed while open.
+  String? _selectedChat;
   Object? _error;
   bool _opening = true;
 
   /// Set by "Mark unread", which stops marking the session read while it
   /// stays open.
   bool _keepUnread = false;
+
+  String? get _chat => _selectedChat ?? _defaultChat;
 
   @override
   void initState() {
@@ -63,7 +89,7 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
         return;
       }
       setState(() {
-        _chat = chat;
+        _defaultChat = chat;
         _opening = false;
       });
       final summary = ref.read(hostConnectionProvider).sessions[widget.session];
@@ -81,7 +107,7 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
   @override
   void dispose() {
     unawaited(_failures?.cancel());
-    if (!_opening) _connection.closeSession(widget.session, _chat);
+    if (!_opening) _connection.closeSession(widget.session, _defaultChat);
     super.dispose();
   }
 
@@ -114,6 +140,32 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
     SessionIsArchivedChangedAction(isArchived: archived).toJson(),
   );
 
+  void _selectChat(String chat) =>
+      setState(() => _selectedChat = chat == _defaultChat ? null : chat);
+
+  Future<void> _moveChat(SessionState session, String chat, int delta) async {
+    final destination = chatMoveDestination(
+      widget.session,
+      session,
+      chat,
+      delta,
+    );
+    if (destination == null) return;
+    try {
+      await _connection.moveChat(chat, destination);
+    } on Object catch (error) {
+      _showMessage('Could not move the chat: $error');
+    }
+  }
+
+  Future<void> _loadOlder(String chat) async {
+    try {
+      await _connection.loadOlderTurns(chat);
+    } on Object catch (error) {
+      _showMessage('Could not load older turns: $error');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // New turns clear IsRead; while the session is open, it stays read.
@@ -131,6 +183,18 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
     final summary = ref.watch(
       hostConnectionProvider.select((s) => s.sessions[widget.session]),
     );
+    final sessionState = ref.watch(
+      hostConnectionProvider.select(
+        (s) => s.sessionChannels[widget.session]?.state,
+      ),
+    );
+    final chats = switchableChats(sessionState);
+    // A chat the session no longer lists falls back to the default one.
+    if (_selectedChat case final selected?
+        when sessionState != null &&
+            !chats.any((c) => c.resource == selected)) {
+      _selectedChat = null;
+    }
     final chatUri = _chat;
     final chat = chatUri == null
         ? null
@@ -139,14 +203,10 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
               (s) => s.chatChannels[chatUri]?.state,
             ),
           );
-    final sessionState = ref.watch(
-      hostConnectionProvider.select(
-        (s) => s.sessionChannels[widget.session]?.state,
-      ),
-    );
     final protocolVersion = ref.watch(
       hostConnectionProvider.select((s) => s.protocolVersion),
     );
+    bool supports(ProtocolFeature f) => supportsFeature(protocolVersion, f);
     final prompts = sessionPrompts(sessionState, chat);
     // The host could not resume the session after a reconnect (AHP-004).
     final missing = ref.watch(
@@ -156,46 +216,45 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
             (chatUri != null && s.missingChannels.contains(chatUri)),
       ),
     );
-    final body = switch ((chat, _error)) {
+    final summaryOfChat = chats.where((c) => c.resource == chatUri).firstOrNull;
+    final readOnly =
+        (chat?.interactivity ?? summaryOfChat?.interactivity) ==
+        ChatInteractivity.readOnly;
+    final timeline = switch ((chat, _error)) {
       _ when missing => const Center(
         child: Text('This session is no longer available on the host.'),
       ),
       (_, final error?) => Center(child: Text('Could not open: $error')),
-      (null, _) when _opening => const Center(
+      (null, _) when _opening || _selectedChat != null => const Center(
         child: CircularProgressIndicator(),
       ),
       (null, _) => const Center(child: Text('This session has no chat.')),
       (final chat?, _) => _Timeline(
+        key: ValueKey(chatUri),
         chat: chat,
         onAction: (action) => _dispatch(chatUri!, action),
         onAuthenticate: _authenticate,
+        onOpenChat: _selectChat,
+        onLoadOlder: () => _loadOlder(chatUri!),
       ),
     };
-    return Column(
+    final pending = chat == null
+        ? const <PendingMessageItem>[]
+        : pendingMessages(chat);
+    final conversation = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _Header(
-          summary: summary,
-          chat: chat,
-          backgroundWork:
-              supportsFeature(protocolVersion, ProtocolFeature.backgroundWork)
-              ? chat?.backgroundWork ?? const []
-              : const [],
-          mcpAlerts: mcpServerAlerts(sessionState),
-          onAuthenticate: _authenticate,
-          onStop: chat == null
-              ? null
-              : () {
-                  final action = stopAction(chat, DateTime.now());
-                  if (action != null) _dispatch(chatUri!, action);
-                },
-          onArchive: _setArchived,
-          onMarkUnread: () {
-            _keepUnread = true;
-            _setRead(false);
-          },
-        ),
-        const Divider(height: 1),
+        if (chats.length > 1 && !missing) ...[
+          ChatSwitcher(
+            chats: chats,
+            selected: chatUri,
+            onSelect: _selectChat,
+            onMove: supports(ProtocolFeature.moveChat) && sessionState != null
+                ? (chat, delta) => _moveChat(sessionState, chat, delta)
+                : null,
+          ),
+          const Divider(height: 1),
+        ],
         if (prompts.isNotEmpty && !missing) ...[
           SessionInputPanel(
             prompts: prompts,
@@ -206,10 +265,35 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
           ),
           const Divider(height: 1),
         ],
-        Expanded(child: body),
-        if (chat != null)
+        Expanded(
+          child: _selectedChat == null
+              ? timeline
+              : ChannelSubscriber(
+                  key: ValueKey(_selectedChat),
+                  channel: _selectedChat!,
+                  kind: ChannelKind.chat,
+                  builder: (context, failed) => failed && chat == null
+                      ? const Center(child: Text('Could not open this chat.'))
+                      : timeline,
+                ),
+        ),
+        if (pending.isNotEmpty)
+          PendingMessagesPanel(
+            pending: pending,
+            onAction: (action) => _dispatch(chatUri!, action),
+          ),
+        if (chat != null && readOnly)
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: Text('This chat is read-only.'),
+          )
+        else if (chat != null)
           FollowUpInput(
+            key: ValueKey(chatUri),
             working: chat.activeTurn != null,
+            draft: chat.draft,
+            onDraftChanged: (text) =>
+                _dispatch(chatUri!, draftAction(text, previous: chat.draft)),
             onSend: (text, {required steer}) => _dispatch(
               chatUri!,
               sendMessageAction(
@@ -223,6 +307,87 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
           ),
       ],
     );
+    final hasChanges = availableChangesets(
+      sessionState,
+      chat,
+      chatChangesets: supports(ProtocolFeature.chatChangesets),
+    ).isNotEmpty;
+    final review = ChangesPane(session: widget.session, chat: chatUri);
+    final header = _Header(
+      summary: summary,
+      chat: chat,
+      backgroundWork: supports(ProtocolFeature.backgroundWork)
+          ? chat?.backgroundWork ?? const []
+          : const [],
+      canvases: supports(ProtocolFeature.canvases)
+          ? chat?.canvases ?? const []
+          : const [],
+      mcpAlerts: mcpServerAlerts(sessionState),
+      onAuthenticate: _authenticate,
+      onOpenChat: _selectChat,
+      onStop: chat == null || readOnly
+          ? null
+          : () {
+              final action = stopAction(chat, DateTime.now());
+              if (action != null) _dispatch(chatUri!, action);
+            },
+      onArchive: _setArchived,
+      onMarkUnread: () {
+        _keepUnread = true;
+        _setRead(false);
+      },
+      onDetails: () =>
+          showSessionInfo(context, session: widget.session, chat: chatUri),
+    );
+    if (widget.reviewAsPane) {
+      return Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                header,
+                const Divider(height: 1),
+                Expanded(child: conversation),
+              ],
+            ),
+          ),
+          const VerticalDivider(width: 1),
+          SizedBox(width: reviewPaneWidth, child: review),
+        ],
+      );
+    }
+    if (!hasChanges || missing) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          header,
+          const Divider(height: 1),
+          Expanded(child: conversation),
+        ],
+      );
+    }
+    return DefaultTabController(
+      length: 2,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          header,
+          const TabBar(
+            tabs: [
+              Tab(text: 'Conversation'),
+              Tab(text: 'Files changed'),
+            ],
+          ),
+          Expanded(
+            child: TabBarView(
+              physics: const NeverScrollableScrollPhysics(),
+              children: [conversation, review],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -232,21 +397,27 @@ class _Header extends StatelessWidget {
     required this.summary,
     required this.chat,
     required this.backgroundWork,
+    required this.canvases,
     required this.mcpAlerts,
     required this.onAuthenticate,
+    required this.onOpenChat,
     required this.onStop,
     required this.onArchive,
     required this.onMarkUnread,
+    required this.onDetails,
   });
 
   final SessionSummary? summary;
   final ChatState? chat;
   final List<BackgroundWork> backgroundWork;
+  final List<CanvasReference> canvases;
   final List<McpServerAlert> mcpAlerts;
   final Authenticate onAuthenticate;
+  final OpenChat onOpenChat;
   final VoidCallback? onStop;
   final ValueChanged<bool> onArchive;
   final VoidCallback onMarkUnread;
+  final VoidCallback onDetails;
 
   @override
   Widget build(BuildContext context) {
@@ -296,7 +467,11 @@ class _Header extends StatelessWidget {
                       for (final badge in badgesFor(status))
                         StatusBadgeChip(badge: badge),
                     if (backgroundWork.isNotEmpty)
-                      BackgroundWorkChip(work: backgroundWork),
+                      BackgroundWorkChip(
+                        work: backgroundWork,
+                        onOpenChat: onOpenChat,
+                      ),
+                    if (canvases.isNotEmpty) CanvasChips(canvases: canvases),
                     if (mcpAlerts.isNotEmpty)
                       McpServerAlertChips(
                         alerts: mcpAlerts,
@@ -317,7 +492,7 @@ class _Header extends StatelessWidget {
               ],
             ),
           ),
-          if (chat?.activeTurn != null)
+          if (chat?.activeTurn != null && onStop != null)
             FilledButton.tonalIcon(
               onPressed: onStop,
               icon: const Icon(Icons.stop),
@@ -335,6 +510,10 @@ class _Header extends StatelessWidget {
                 value: onMarkUnread,
                 child: const Text('Mark unread'),
               ),
+              PopupMenuItem(
+                value: onDetails,
+                child: const Text('Session details'),
+              ),
             ],
           ),
         ],
@@ -344,17 +523,24 @@ class _Header extends StatelessWidget {
 }
 
 /// The turns, newest at the bottom, following new output unless the user
-/// scrolled up (AV-066).
+/// scrolled up (AV-066). Rows are built lazily and keyed, so finished
+/// turns are not rebuilt while one streams and older turns paged in at
+/// the top (AV-068) do not disturb the rows below.
 class _Timeline extends StatefulWidget {
   const _Timeline({
+    super.key,
     required this.chat,
     required this.onAction,
     required this.onAuthenticate,
+    required this.onOpenChat,
+    required this.onLoadOlder,
   });
 
   final ChatState chat;
   final ValueChanged<JsonMap> onAction;
   final Authenticate onAuthenticate;
+  final OpenChat onOpenChat;
+  final VoidCallback onLoadOlder;
 
   @override
   State<_Timeline> createState() => _TimelineState();
@@ -381,8 +567,8 @@ class _TimelineState extends State<_Timeline> {
 
   @override
   Widget build(BuildContext context) {
-    final items = timelineItems(widget.chat);
-    if (items.isEmpty) {
+    final rows = timelineItems(widget.chat);
+    if (rows.isEmpty) {
       return const Center(child: Text('No messages yet. Say something.'));
     }
     // A reversed list keeps the newest row in view as it grows, and stays
@@ -394,12 +580,25 @@ class _TimelineState extends State<_Timeline> {
             controller: _scroll,
             reverse: true,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            itemCount: items.length,
-            itemBuilder: (context, index) => buildTimelineItem(
-              items[items.length - 1 - index],
-              widget.onAction,
-              onAuthenticate: widget.onAuthenticate,
-            ),
+            itemCount: rows.length,
+            findChildIndexCallback: (key) {
+              if (key is! ValueKey<String>) return null;
+              final index = rows.indexOfKey(key.value);
+              return index == null ? null : rows.length - 1 - index;
+            },
+            itemBuilder: (context, index) {
+              final item = rows[rows.length - 1 - index];
+              return KeyedSubtree(
+                key: ValueKey(item.key),
+                child: buildTimelineItem(
+                  item,
+                  widget.onAction,
+                  onAuthenticate: widget.onAuthenticate,
+                  onOpenChat: widget.onOpenChat,
+                  onLoadOlder: widget.onLoadOlder,
+                ),
+              );
+            },
           ),
         ),
         if (_awayFromLatest)
@@ -426,9 +625,18 @@ typedef SendMessage = void Function(String text, {required bool steer});
 
 /// The follow-up box (AV-080): Enter sends (or queues while working),
 /// Cmd/Ctrl+Enter sends now while working, Shift+Enter adds a newline.
+/// It starts from the chat's [draft] and syncs what the user types back
+/// as the draft, debounced ([onDraftChanged], `chat/draftChanged`).
 class FollowUpInput extends StatefulWidget {
   /// Creates a [FollowUpInput].
-  const FollowUpInput({super.key, required this.working, required this.onSend});
+  const FollowUpInput({
+    super.key,
+    required this.working,
+    required this.onSend,
+    this.draft,
+    this.onDraftChanged,
+    this.draftDelay = const Duration(milliseconds: 800),
+  });
 
   /// Whether a turn is running.
   final bool working;
@@ -436,19 +644,71 @@ class FollowUpInput extends StatefulWidget {
   /// Called with the message text.
   final SendMessage onSend;
 
+  /// The chat's draft, from this or another client.
+  final Message? draft;
+
+  /// Syncs the box's text as the draft; an empty string clears it.
+  final ValueChanged<String>? onDraftChanged;
+
+  /// How long typing must pause before the draft is synced.
+  final Duration draftDelay;
+
   @override
   State<FollowUpInput> createState() => _FollowUpInputState();
 }
 
 class _FollowUpInputState extends State<FollowUpInput> {
-  final _text = TextEditingController();
+  late final _text = TextEditingController(text: widget.draft?.text ?? '');
   late final _focus = FocusNode(onKeyEvent: _onKey);
+  Timer? _draftTimer;
+
+  /// The text last synced with the chat's draft (sent or adopted).
+  late String _synced = widget.draft?.text ?? '';
+
+  @override
+  void initState() {
+    super.initState();
+    _text.addListener(_onChanged);
+  }
+
+  @override
+  void didUpdateWidget(FollowUpInput old) {
+    super.didUpdateWidget(old);
+    final remote = widget.draft?.text ?? '';
+    // Another client changed the draft, and the user has not typed since
+    // the last sync: show theirs.
+    if (remote != (old.draft?.text ?? '') &&
+        remote != _text.text &&
+        _text.text == _synced) {
+      _synced = remote;
+      _text.value = TextEditingValue(
+        text: remote,
+        selection: TextSelection.collapsed(offset: remote.length),
+      );
+    }
+  }
 
   @override
   void dispose() {
+    _flushDraft();
     _text.dispose();
     _focus.dispose();
     super.dispose();
+  }
+
+  void _onChanged() {
+    if (widget.onDraftChanged == null || _text.text == _synced) return;
+    _draftTimer?.cancel();
+    _draftTimer = Timer(widget.draftDelay, _flushDraft);
+  }
+
+  void _flushDraft() {
+    _draftTimer?.cancel();
+    _draftTimer = null;
+    final text = _text.text;
+    if (text == _synced) return;
+    _synced = text;
+    widget.onDraftChanged?.call(text);
   }
 
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
@@ -467,7 +727,12 @@ class _FollowUpInputState extends State<FollowUpInput> {
     final text = _text.text.trim();
     if (text.isEmpty) return;
     widget.onSend(text, steer: steer);
+    _draftTimer?.cancel();
+    final hadDraft = _synced.isNotEmpty || (widget.draft != null);
+    _synced = '';
     _text.clear();
+    // The message is sent, so the draft is cleared.
+    if (hadDraft) widget.onDraftChanged?.call('');
     _focus.requestFocus();
   }
 

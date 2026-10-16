@@ -3,6 +3,7 @@
 library;
 
 export 'src/changeset_reducer.dart';
+export 'src/changesets.dart';
 export 'src/channel_mirror.dart';
 export 'src/chat_reducer.dart';
 export 'src/client.dart';
@@ -14,4 +15,5 @@ export 'src/session_catalogue.dart';
 export 'src/session_reducer.dart';
 export 'src/session_status.dart';
 export 'src/subscriptions.dart';
+export 'src/terminal_reducer.dart';
 export 'src/wire.dart';

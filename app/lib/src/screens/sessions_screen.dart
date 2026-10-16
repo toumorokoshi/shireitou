@@ -17,9 +17,6 @@ import 'new_session_screen.dart';
 /// Width of the session list pane on medium and wide layouts.
 const _listPaneWidth = 380.0;
 
-/// Width of the review pane on wide layouts.
-const _reviewPaneWidth = 360.0;
-
 /// Full-screen session browser for the connected host.
 class SessionsScreen extends ConsumerStatefulWidget {
   /// Creates the sessions screen.
@@ -136,15 +133,9 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                       : SessionDetailView(
                           key: ValueKey(selected),
                           session: selected,
+                          reviewAsPane: tier == LayoutTier.wide,
                         ),
                 ),
-                if (tier == LayoutTier.wide) ...[
-                  const VerticalDivider(width: 1),
-                  const SizedBox(
-                    width: _reviewPaneWidth,
-                    child: Center(child: Text('Changes (not implemented)')),
-                  ),
-                ],
               ],
             ),
           };

@@ -38,7 +38,9 @@ fake-host *args:
     cd packages/ahp_fake_host && dart run ahp_fake_host {{args}}
 
 # Drive the real app against the fake host: approvals, input requests,
-# session-level requests and MCP sign-in. Linux needs a display.
+# session-level requests, MCP sign-in, terminals, diffs and review,
+# subagent chats, queued messages, drafts and paging. Linux needs a
+# display; `flutter-tester` runs it headless (no window plugin).
 test-fake-host-app device="linux":
     cd app && flutter test integration_test/fake_host_flows_test.dart -d {{device}}
 

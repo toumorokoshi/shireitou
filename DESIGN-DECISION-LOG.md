@@ -1,5 +1,98 @@
 # Design Decision Log
 
+## 2026-10-16: Timeline previews, review pane, chat switcher and windowed history
+
+- **More mirrored channel kinds, one code path:** `HostState` now mirrors
+  terminal, changeset and canvas channels (`ChannelKind.terminal`,
+  `.changeset`, `.canvas`) next to sessions and chats, each as a
+  `ChannelMirror`, so write-ahead works for `changeset/filesReviewChanged`
+  like any chat action. The per-kind `switch`es in `host_state.dart`
+  became one generic `updateMirror` (a `MirrorUpdate` is a generic
+  function over the mirror's state type), used by dispatch, envelopes,
+  expiry and reconnect. `reduceTerminal` ports the protocol's
+  `terminalReducer`; the changeset and canvas reducers are now wired.
+  Annotations, resource watch and automation channels stay unmirrored (no
+  UI needs them).
+- **Subscriptions follow the widgets:** a `ChannelSubscriber` widget
+  subscribes while it is mounted and releases on dispose (the client's
+  reference counting makes nested and repeated subscriptions cheap), so a
+  terminal is only streamed while its card (or page) is on screen, a
+  changeset while the review pane shows it, and another chat while the
+  switcher has it open. `ContentRef` text (diff sides) is read with
+  `resourceRead` through an auto-disposing family provider, so it is
+  fetched once while visible.
+- **Windowed delivery is the protocol's, plus cheap rendering:** AHP 1.0.0
+  windowing is host-driven: a snapshot may carry only the newest turns and
+  `turnsNextCursor`; `fetchTurns` makes the host dispatch `chat/turnsLoaded`.
+  The client adds `loadOlderTurns` (one fetch per chat at a time), and the
+  timeline's oldest row is a "Loading older turns…" row that asks for the
+  next page when the list builds it, which happens as the user scrolls
+  near the top. The protocol cannot unload turns, and the host's state is
+  shared, so the client keeps what it loaded (see GAPS.md). Long chats
+  stay cheap without a separate window: the reducer already shares the
+  `turns` list while a turn streams, so the app memoizes each finished
+  turn's rows and the flattened rows of the whole `turns` list
+  (`Expando`s keyed on the immutable objects); a delta rebuilds only the
+  active turn's rows, `TimelineRows` indexes the two parts without
+  copying, the reversed `ListView.builder` builds visible rows only, and
+  rows are keyed with a `findChildIndexCallback` so expanded cards keep
+  their state when rows are added below or paged in above. Session usage
+  is memoized the same way.
+- **Third-party packages:** `re_highlight` (a Dart port of highlight.js
+  11.9, the highlighter `re_editor` uses; synchronous, so tests and
+  streaming need no async setup) highlights fenced code and diff lines;
+  only 24 common grammars are registered to keep the web build small.
+  `diffutil_dart` (Myers' algorithm) computes line diffs; the app replays
+  its edit script to get unified lines, collapses unchanged stretches and
+  pairs lines for side-by-side. `flutter_markdown_plus` renders code
+  blocks through a `pre` builder with a copy button. Terminal output is
+  shown as plain text with a small escape-sequence stripper rather than a
+  terminal emulator package, since the app does not send input.
+- **Tool call previews instead of more cards:** terminal output
+  (`ToolResultTerminalContent`, live while the call runs, else the
+  result's `preview`), file edits (`ToolResultFileEditContent` and pending
+  confirmations' `edits`, as a 12-line mini-diff with a full diff page)
+  and subagents (`ToolResultSubagentContent`, with "Open chat") render
+  under the tool call's card. Consecutive calls of the same tool without
+  such previews fold into one expandable "Read · 3 calls" row (AV-064).
+- **Chats:** the switcher lists the session's chats in catalogue order
+  (hidden workers left out, read-only ones marked and without a follow-up
+  box). Reordering uses `moveChat` within the session, because
+  `session/chatsReordered` is a host-only convergence signal (the
+  compatibility table said "client"; fixed). Moving needs 1.0.0, so the
+  menu is hidden under 0.9.0. Background subagents open their chat and
+  background shells their terminal from the background chip.
+- **Queued messages above the input (AV-081):** pending messages moved out
+  of the timeline into a panel over the follow-up box: edit
+  (`chat/pendingMessageSet` with the same ID), remove, drag or "Move
+  up/down" (`chat/queuedMessagesReordered`).
+- **Drafts:** the follow-up box starts from `ChatState.draft`, syncs its
+  text back after 800 ms without typing (`chat/draftChanged`), clears the
+  draft on send, and adopts another client's draft only while the user
+  has not typed since the last sync, so remote edits never overwrite
+  local typing.
+- **Review placement:** the review pane (`ChangesPane`) is a side pane on
+  wide layouts and a "Files changed" tab on medium and compact ones (only
+  when the host lists changesets). It shows the session's changesets and,
+  on 1.0.0, the chat's; turn templates are expanded with a turn picker.
+  Operations ask for confirmation when the host says so, and report the
+  result message in a snackbar.
+- **Session details page:** working directories (session and chat),
+  canvases, customizations (MCP start/stop, "Continue in background" on
+  1.0.0), server tools, active clients and `_meta` are on one page from
+  the session menu rather than more header chips; canvases also show as
+  header chips that open their URL.
+- **Fake host:** new keywords `shell` (a terminal channel streaming a
+  command), `read` (three reads), `subagent` (a read-only worker chat
+  linked from a `task` call, plus background work), `canvas`, `code`,
+  `slow` (keeps the turn running so messages can be queued), `cd`, and
+  `edit` now carries a diff (`resourceRead` serves both sides) and fills
+  the session and per-turn changesets, whose `commit` and `revert`
+  operations work. A seeded "Long session" holds 60 turns behind a
+  20-turn window. `moveChat` reorders movable chats. The app integration
+  test grew a second test for these flows, and it now also runs headless
+  on the flutter-tester device when no window plugin is available.
+
 ## 2026-10-16: Full reducers, session-level input and a scripted fake host
 
 - **Reducers mirror the protocol for every action:** `reduceSession` and

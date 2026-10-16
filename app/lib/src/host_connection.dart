@@ -74,6 +74,41 @@ class HostConnection extends Notifier<HostState> {
   void closeSession(String session, String? chat) =>
       _client?.closeSession(session, chat);
 
+  /// Subscribes to [channel], mirrored as [kind] (reference counted,
+  /// AHP-020). Pair every call with [unsubscribe].
+  Future<void> subscribe(String channel, ChannelKind kind) async {
+    await _connected.subscribe(channel, kind: kind);
+  }
+
+  /// Releases a [subscribe].
+  void unsubscribe(String channel) => _client?.unsubscribe(channel);
+
+  /// Pages older turns into [chat] when the host windowed it (AV-068,
+  /// AHP-029). False when there is nothing more to load.
+  Future<bool> loadOlderTurns(String chat) => _connected.loadOlderTurns(chat);
+
+  /// Reads a `ContentRef` [uri] (`resourceRead`), for example a side of a
+  /// file edit.
+  Future<ResourceReadResult> readResource(String uri) =>
+      _connected.readResource(uri, encoding: ContentEncoding.utf8);
+
+  /// Runs a host-declared changeset operation (AV-103).
+  Future<InvokeChangesetOperationResult> invokeChangesetOperation(
+    String changeset,
+    String operationId, {
+    ChangesetOperationTarget? target,
+  }) => _connected.invokeChangesetOperation(
+    changeset,
+    operationId,
+    target: target,
+  );
+
+  /// Moves [chat] within its session (`moveChat`, 1.0.0; AV-069).
+  Future<MoveChatResult> moveChat(
+    String chat,
+    ChatMoveDestination destination,
+  ) => _connected.moveChat(chat, destination);
+
   /// Dispatches a client action on [channel] (write-ahead, AHP-022).
   /// Throws [StateError] when not connected or when the negotiated protocol
   /// version does not know the action ([UnsupportedActionError]).
