@@ -368,10 +368,7 @@ void main() {
       await tester.tap(find.byTooltip('Queue'));
       await h.waitFor(find.text(text));
     }
-    await tester.tap(find.byTooltip('Message actions').last);
-    await h.settle();
-    await tester.tap(find.text('Move up'));
-    await h.settle();
+    await h.pick(find.byTooltip('Message actions').last, 'Move up');
     await tester.tap(find.byTooltip('Message actions').last);
     await h.settle();
     await tester.tap(find.text('Edit'));

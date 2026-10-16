@@ -1,5 +1,87 @@
 # Design Decision Log
 
+## 2026-10-16: Windows, iOS and Android in CI, app icon, AppImage and releases
+
+- **Mobile OAuth through the app's URL scheme, with a little native code
+  instead of a plugin.** iOS can suspend the app while the browser is in
+  front, so the loopback redirect used on desktop is unreliable there.
+  The redirect goes to `dev.shireitou.shireitou:/oauth/callback`, a
+  private-use scheme (RFC 8252 §7.1) registered by dynamic registration
+  like the loopback URI. iOS uses `ASWebAuthenticationSession` (one class
+  in `AppDelegate.swift`), Android the system browser and an intent filter
+  on `MainActivity` (now `singleTask`, Flutter deep linking off so the
+  redirect is not pushed as a route). Rejected: `flutter_web_auth_2`,
+  which pulls in `desktop_webview_window` and with it WebKitGTK on Linux,
+  a heavy dependency for code the desktop apps do not use. Rejected:
+  claimed `https` app links, which need a domain and its
+  `assetlinks.json`/`apple-app-site-association`.
+- **One mobile smoke test instead of the desktop flows on phones.** The
+  fake host flows assume the wide layout (1400 x 1000); on a phone the
+  app has the compact one. `mobile_smoke_test.dart` checks what is
+  platform specific (secure storage round trip, the compact layout,
+  approvals and input against the in-process fake host) on an API 34
+  emulator and an iPhone simulator. The Windows job runs the full desktop
+  smoke test against pi and the fake host flows, like Linux and macOS.
+- **Panels take a share of the session view's height.** The emulator's
+  default 320 x 640 screen showed the session view overflowing while an
+  input request was pending: the "Waiting for you" panel was capped at
+  45 % of the whole screen and the composer group below the timeline not
+  at all. Both are now capped from the view's own height (35 % and 45 %,
+  scrolling past it) and the timeline takes the rest. The emulator keeps
+  its small default screen on purpose, as the smallest phone layout.
+- **Windows reports drags when they end.** window_manager emits only
+  `resized`/`moved` on Windows (at the end of a drag), so the placement
+  saver listens to those too; the smoke test found the placement was
+  never saved there.
+- **Local notifications on iOS and Android too.** The notification plugin
+  already needed desugaring on Android to build at all, and posting while
+  the app runs (Android keeps it running a while in the background) is
+  better than nothing until the push relay exists. Android asks for the
+  permission on the first notification (13+), on its own channel, with a
+  vector tower icon kept from resource shrinking.
+- **Secure storage options per platform.** iOS: keychain items readable
+  after the first unlock and never leaving the device
+  (`first_unlock_this_device`), so a background reconnect can read a token
+  and a restore to another phone does not carry it. Android: backups off,
+  because a restore would bring the encrypted values without the Keystore
+  key (the plugin would then wipe them anyway).
+- **Cleartext allowed on mobile.** Most hosts are `ws://` on a LAN,
+  `localhost` or a VPN address, which Android and iOS block by default;
+  the app allows cleartext (`usesCleartextTraffic`, ATS
+  `NSAllowsArbitraryLoads`) and declares local network usage on iOS, as
+  the desktop apps already do.
+- **The icon is an SVG rendered by Chromium.** A control tower (司令塔)
+  sending signals, in the theme's indigo with amber signals.
+  `scripts/render-icon` renders the full-bleed, rounded and foreground
+  variants and the Linux sizes with Playwright's Chromium (already used
+  by the browser tests), then `flutter_launcher_icons` writes every
+  platform's files. Rejected: committing only PNGs (no editable source)
+  and adding librsvg or Inkscape to the toolchain.
+- **AppImage without bundled GTK.** The AppImage wraps the Flutter bundle
+  and relies on the system's GTK 3 and libsecret, like the `.tar.gz`;
+  every desktop distribution has them, and a bundled GTK breaks theming
+  and input methods. appimagetool is pinned to 1.9.1 and run extracted
+  (no FUSE in CI).
+- **Releases from tags, signing only with secrets.** `release.yml` builds
+  every package on `v*` tags (and on pushes to `main` that touch
+  packaging, without publishing), checks the tag against the pubspec
+  version, and publishes with `softprops/action-gh-release` plus
+  `SHA256SUMS`. Each signing step (Developer ID and notarization, Windows
+  Authenticode and MSIX, Android release key, GPG for the checksums) runs
+  only when its secrets are set, so the owner only adds secrets. An
+  unsigned `.msix` cannot be installed, so it is built in CI but left out
+  of releases; the debug-signed APK is released so Android users can
+  install something before a release key exists. iOS is not released on
+  GitHub (App Store/TestFlight only). Linux arm64 is built on GitHub's arm
+  runners from a Flutter checkout, since Flutter has no arm64 Linux SDK
+  archive.
+- **Wayland placement is not a gap.** Wayland clients cannot set or read
+  their window position, so restoring only the size there is the correct
+  behavior; it moved from GAPS.md to docs/desktop.md. The window's app ID,
+  `WM_CLASS` and desktop entry are all `dev.shireitou.shireitou`
+  (`StartupWMClass` added), so docks match the window to its icon, and
+  the minimum size is checked under openbox in CI.
+
 ## 2026-10-16: App-level tests against pi, reconnects end to end, and the web app in a browser
 
 - **pi's own faux model instead of an API key or a fake pi.** pi-ai ships a

@@ -44,7 +44,10 @@ the fake host. Iteration 12 (2026-10-16) drove the app end to end against
 pi with its scripted faux model (no API key) in CI, drove reconnects
 (replay, snapshots, `missing`, rollback, host restart) against the fake
 host and pi, and drove the web build in Chromium with Playwright (see
-[docs/testing.md](docs/testing.md)). Remaining work:
+[docs/testing.md](docs/testing.md)). Iteration 13 (2026-10-16) built and
+smoke-tested Windows, iOS and Android in CI, added the app icon, the
+AppImage and the release workflow (see
+[docs/packaging.md](docs/packaging.md)). Remaining work:
 
 - **Approvals and input against a real host:** tool approvals (AV-083)
   with host options, risk assessments, edited input and result
@@ -146,12 +149,14 @@ host and pi, and drove the web build in Chromium with Playwright (see
   The comparison shows each run's latest reply and change counts, not a
   diff between runs. A run that is removed on the host stays in its
   group as "Not available".
-- **Notifications (AV-121 to AV-123):** desktop only. Linux needs a
-  freedesktop notification daemon (none in CI, where failures are
-  logged); macOS asks for permission on the first notification and was
-  only built in CI, never shown on a real Mac; Windows was not built. The
-  web build has none (the plugin's web support replaces Flutter's
-  service worker), and mobile has none. "Focused" comes from the app
+- **Notifications (AV-121 to AV-123):** desktop, iOS and Android, while
+  the app runs. None was ever shown outside Linux: the app tests turn
+  notifications off, so macOS's and iOS's permission prompts, Windows
+  toasts (as an unpackaged app and from the `.msix`) and Android's
+  channel and Android 13 permission request were only built in CI. Linux
+  needs a freedesktop notification daemon (none in CI, where failures
+  are logged). The web build has none (the plugin's web support replaces
+  Flutter's service worker), and a suspended mobile app gets none. "Focused" comes from the app
   lifecycle (`resumed`), which on Linux depends on the embedder reporting
   window focus. There is no app-icon badge (AV-122). Push for a closed
   app needs the relay in [specs/push-relay.md](specs/push-relay.md),
@@ -198,9 +203,15 @@ host and pi, and drove the web build in Chromium with Playwright (see
     opens after the discovery and registration requests rather than
     directly on the click; Playwright's Chromium does not block popups,
     so that was not checked.
-  - iOS and Android use the same loopback receiver, untested; iOS may
-    suspend the app while the browser is in front, which would need
-    `ASWebAuthenticationSession` or a custom URL scheme instead.
+  - iOS and Android redirect to the app's URL scheme
+    (`ASWebAuthenticationSession`, the browser and an intent filter; see
+    [docs/mobile.md](docs/mobile.md)). Only the Dart side is unit
+    tested; the native code is compiled in CI, but no sign-in was driven
+    through a browser on a simulator or emulator. On Android, a sign-in is
+    lost if the system kills the app while the browser is in front (the
+    redirect then starts the app fresh, with no sign-in waiting for it).
+    An authorization server that only accepts `https` or loopback
+    redirect URIs cannot be used from mobile except with a pasted token.
   - Tokens are refreshed only while the app runs (a minute, or a fifth
     of the lifetime, before expiry); after a restart an expired token is
     refreshed on connect. There is no UI to list or sign out of
@@ -248,7 +259,10 @@ host and pi, and drove the web build in Chromium with Playwright (see
   - macOS: login keychain (`usesDataProtectionKeychain: false`, so no
     `keychain-access-groups` entitlement or provisioning profile); verified
     only by the CI smoke test, never on a developer Mac.
-  - iOS, Android, Windows: not run.
+  - Windows (DPAPI), iOS (keychain, `first_unlock_this_device`) and
+    Android (Keystore, backups off): verified only by the CI smoke tests
+    (desktop smoke test on `windows-latest`, mobile smoke test on an iPhone
+    simulator and an API 34 emulator), never on a real device.
 - **Generated wire types, limits** (see [docs/wire-types.md](docs/wire-types.md)):
   - `Snapshot.state` and `ActionEnvelope.action` stay raw JSON, decoded per
     channel kind by `host_state.dart` and the reducers. Root, session,
@@ -292,27 +306,44 @@ host and pi, and drove the web build in Chromium with Playwright (see
   user settings, and were not tuned on slow or mobile networks. A long
   `chat/turnStarted` round trip on a slow link could be rolled back and
   then reapplied by its late echo.
-- **macOS and Linux desktop apps (priority):** both build, pass the desktop
-  smoke test and are packaged in CI (see [docs/desktop.md](docs/desktop.md)).
-  Remaining:
+- **Desktop apps (macOS, Linux, Windows):** all three build, pass the
+  desktop smoke test and the fake host app flows, and are packaged in CI
+  (see [docs/desktop.md](docs/desktop.md)). Remaining:
   - macOS has never been run on a developer Mac (this machine has no
     Xcode): the window placement restore, `hiddenWindowAtLaunch`, the menu
     bar (including the Session menu's key equivalents, which the app
     relies on instead of Flutter shortcuts there), the window title and
     the keychain were exercised only by CI, and CI cannot press menu keys
     (the integration test sends the commands the menu items send).
-  - On Linux the minimum window size is a GTK geometry hint that the window
-    manager enforces; it was not checked under a real window manager
-    (the smoke test runs under Xvfb with none). On Wayland only the size is
-    restored, since clients cannot place windows.
-  - Packaging: the `.dmg` is unsigned and not notarized (needs a Developer
-    ID certificate and notarization secrets in CI). No AppImage, no apt
-    repository, and the `.deb` is unsigned. The app icon is still the
-    Flutter default (the `.deb` uses the web icon).
-  - Release builds are uploaded as CI artifacts only; there is no release
-    workflow publishing them on tags.
-- **Other platforms:** iOS, Android and Windows builds have not been run
-  either (no Android SDK or Windows machine here).
+  - Windows has only run on CI runners: the window is shown on its first
+    frame and then moved to its saved placement (no hidden-at-launch
+    window as on macOS), and high-DPI and multi-monitor placement were
+    not tried.
+  - Linux: the minimum size is checked under openbox only, not under
+    GNOME's or KDE's window managers or a Wayland compositor.
+- **Packaging and releases** (see [docs/packaging.md](docs/packaging.md)):
+  the release workflow builds every package on each packaging change, but
+  has never published a release (no `v*` tag was pushed), and no signing
+  secrets are set, so every signing step has never run: the `.dmg` is
+  unsigned and not notarized (needs a Developer ID Application
+  certificate and an Apple ID with an app-specific password, which need
+  a paid Apple Developer account), the Windows `.zip` is unsigned and the
+  `.msix` left out of releases (needs a code signing certificate), the
+  APK is debug-signed (needs a release keystore) and `SHA256SUMS` is not
+  GPG-signed. No apt repository, Flathub or Snap package, Homebrew cask,
+  winget manifest, Play Store bundle (`.aab`) or auto-update. The
+  AppImage uses the system's GTK 3 and libsecret and carries no update
+  information (zsync).
+- **iOS and Android** (see [docs/mobile.md](docs/mobile.md)): built in CI
+  and smoke-tested on an iPhone simulator and an API 34 emulator (secure
+  storage, connect, approve, decline in the phone layout) only; never run
+  on a device. The longer desktop app flows (review pane, composer,
+  terminals, reconnects, …) are not driven on mobile. iOS is built
+  without signing and not distributed: an App Store or TestFlight build
+  needs an Apple Developer account, a distribution certificate,
+  provisioning profile and an App Store Connect API key, none of which
+  exist. A suspended app drops its connections (reconnecting when it
+  comes back) and gets no notifications until the push relay exists.
 - **App-level and browser tests, remaining limits** (see
   [docs/testing.md](docs/testing.md)):
   - pi runs with its scripted faux model (`scripts/pi-faux-host.ts`, which
@@ -321,10 +352,11 @@ host and pi, and drove the web build in Chromium with Playwright (see
     host depends on pi-agent-host-protocol's internal module paths
     (`src/host/agent-host.ts` and the like) and on pi-ai's faux provider,
     so a refactor there breaks it.
-  - The pi app flows run on Linux (and headless) only; macOS CI runs the
-    fake host flows and the smoke test, not `just test-pi-app` (the test
-    starts `node` from inside the app, which the macOS sandbox was not
-    checked to allow).
+  - The pi app flows run on Linux (and headless) only; macOS and Windows
+    CI run the fake host flows and the smoke test, not `just test-pi-app`
+    (the test starts `node` from inside the app, which the macOS sandbox
+    was not checked to allow, and the faux host script was not tried on
+    Windows).
   - Reconnect cases not driven: snapshots instead of a replay against pi
     (its replay buffer would need thousands of missed actions), and a
     `missing` channel in the app against pi (covered by the client test;

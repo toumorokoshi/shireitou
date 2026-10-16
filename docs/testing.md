@@ -4,19 +4,22 @@ shireitou is tested in layers, from pure functions to the real app driven
 in a browser against a real host. Every layer below runs in CI
 (`.github/workflows/ci.yml`) except `just test-model`.
 
-| Recipe                             | What it drives                                                              | Host                                 | CI job                 |
-| ---------------------------------- | --------------------------------------------------------------------------- | ------------------------------------ | ---------------------- |
-| `just test`                        | Unit and widget tests; `AhpClient` flows (`packages/ahp_fake_host/test`)    | Fake host, in process                | `lint-and-test`        |
-| `just test-integration`            | `AhpClient` against pi: handshake, tokens, replies, tools, stop, reconnects | pi (no model, then the faux model)   | `integration`          |
-| `just test-fake-host-app <device>` | The app (`app/integration_test/fake_host_flows_test.dart`)                  | Fake host, in process                | `linux-desktop`, macOS |
-| `just test-pi-app <device>`        | The app (`app/integration_test/pi_host_flows_test.dart`)                    | pi with the faux model               | `linux-desktop`        |
-| `just test-desktop <device>`       | Desktop smoke test: window, secure storage, token header                    | pi (no model)                        | `linux-desktop`, macOS |
-| `just test-web`                    | The web build in Chromium with Playwright (`app/web_test`)                  | Fake host and pi with the faux model | `web`                  |
-| `just test-model`                  | One real model turn through pi                                              | pi with your `~/.pi/agent` providers | none (costs tokens)    |
+| Recipe                             | What it drives                                                              | Host                                 | CI job                |
+| ---------------------------------- | --------------------------------------------------------------------------- | ------------------------------------ | --------------------- |
+| `just test`                        | Unit and widget tests; `AhpClient` flows (`packages/ahp_fake_host/test`)    | Fake host, in process                | `lint-and-test`       |
+| `just test-integration`            | `AhpClient` against pi: handshake, tokens, replies, tools, stop, reconnects | pi (no model, then the faux model)   | `integration`         |
+| `just test-fake-host-app <device>` | The app (`app/integration_test/fake_host_flows_test.dart`)                  | Fake host, in process                | Linux, macOS, Windows |
+| `just test-pi-app <device>`        | The app (`app/integration_test/pi_host_flows_test.dart`)                    | pi with the faux model               | `linux-desktop`       |
+| `just test-desktop <device>`       | Desktop smoke test: window, secure storage, token header                    | pi (no model)                        | Linux, macOS, Windows |
+| `just test-mobile <device>`        | Mobile smoke test: secure storage, the phone layout, approvals and input    | Fake host, in process                | `android`, `ios`      |
+| `just test-web`                    | The web build in Chromium with Playwright (`app/web_test`)                  | Fake host and pi with the faux model | `web`                 |
+| `just test-model`                  | One real model turn through pi                                              | pi with your `~/.pi/agent` providers | none (costs tokens)   |
 
-The app tests run on `linux` or `macos` (Linux needs a display, e.g.
-`xvfb-run -a`), or headless with the `flutter-tester` device, which has no
-window plugin but runs everything else.
+The app tests run on `linux`, `macos` or `windows` (Linux needs a
+display, e.g. `xvfb-run -a`), or headless with the `flutter-tester`
+device, which has no window plugin but runs everything else. The mobile
+smoke test runs on an Android emulator or iOS simulator (see
+[mobile.md](mobile.md)).
 
 ## pi with the faux model
 

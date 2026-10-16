@@ -106,6 +106,9 @@ class AppHarness {
       try {
         await setUpDesktopWindow();
         await windowManager.setSize(size);
+        // A window cannot be larger than the screen (Windows), and a
+        // smaller one gets a narrower layout.
+        debugPrint('window size: ${await windowManager.getSize()}');
         return true;
       } on MissingPluginException {
         // The headless flutter-tester device (`flutter test` without -d)

@@ -63,8 +63,12 @@ so one `flutter pub get` at the root resolves every package.
   tests that use it.
 - [docs/testing.md](docs/testing.md): the test layers, pi with its faux
   model, breaking connections, and the browser tests.
-- [docs/desktop.md](docs/desktop.md): macOS and Linux builds, dependencies,
-  window behavior, packaging and the desktop smoke test.
+- [docs/desktop.md](docs/desktop.md): macOS, Linux and Windows builds,
+  dependencies, window behavior and the desktop smoke test.
+- [docs/mobile.md](docs/mobile.md): iOS and Android builds, permissions,
+  secure storage, sign-in and the mobile smoke test.
+- [docs/packaging.md](docs/packaging.md): packages, the app icon, the
+  release workflow and the signing secrets it uses.
 - [specs/agents-view.md](specs/agents-view.md): UI and feature requirements.
 - [specs/agent-host-protocol-client.md](specs/agent-host-protocol-client.md):
   requirements for the Dart AHP client.
@@ -94,11 +98,14 @@ just test-pi-app linux   # drive the app against pi with the faux model
 just test-web            # the web build in Chromium with Playwright
 just test-model          # a real model turn through pi (costs tokens)
 just test-desktop linux  # desktop smoke test against pi (see docs/desktop.md)
+just test-mobile <id>    # mobile smoke test on an emulator/simulator (docs/mobile.md)
+just icons               # re-render the app icons (see docs/packaging.md)
 just codegen             # regenerate the wire types (and freezed code)
 just fetch-schema        # re-download the vendored AHP 1.0.0 JSON Schemas
 just run                 # flutter run -d chrome
 just run macos           # needs a full Xcode install
 just run linux           # needs GTK 3, CMake, Ninja, clang, libsecret
+just run windows         # needs Visual Studio 2022 with C++ desktop tools
 just run chrome 'ws://127.0.0.1:63877?tkn=...'   # prefill the host URL
 ```
 

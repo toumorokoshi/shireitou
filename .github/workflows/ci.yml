@@ -225,6 +225,11 @@ jobs:
       - run: npm ci
         working-directory: pi-agent-host-protocol
       - run: flutter pub get
+      # The runner's screen is 1024 x 768, too small for the 1400 x 1000
+      # window (wide layout) the app flows use.
+      - name: Raise the screen resolution
+        shell: pwsh
+        run: Set-DisplayResolution -Width 1920 -Height 1080 -Force
       - name: Build Windows
         run: cd app && flutter build windows --release
       - name: Desktop smoke test
