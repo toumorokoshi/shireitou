@@ -177,3 +177,32 @@ ChatState authChatFixture() => chatFixture().copyWith(
     ],
   ),
 );
+
+/// A running `open_browser` call delegated to [clientId], as a
+/// `toolClientExecution` entry with id [id].
+SessionToolClientExecutionRequest clientExecution(String id, String clientId) =>
+    SessionToolClientExecutionRequest(
+      id: id,
+      chat: 'ahp-chat:/1',
+      turnId: 'turn-2',
+      clientId: clientId,
+      toolCall: ToolCallRunningState(
+        toolCallId: 'call-$id',
+        toolName: 'open_browser',
+        displayName: 'Open browser',
+        contributor: ToolCallClientContributor(clientId: clientId),
+        invocationMessage: const PlainString('Open the preview'),
+        confirmed: ToolCallConfirmationReason.notNeeded,
+      ),
+    );
+
+/// [sessionWithRequests] plus client tool executions for [clientIds].
+SessionState sessionWithExecutions(List<String> clientIds) {
+  final session = sessionWithRequests();
+  return session.copyWith(
+    inputNeeded: [
+      ...?session.inputNeeded,
+      for (final (i, id) in clientIds.indexed) clientExecution('exec-$i', id),
+    ],
+  );
+}

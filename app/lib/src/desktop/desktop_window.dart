@@ -59,6 +59,17 @@ Future<void> setUpDesktopWindow() async {
   }
 }
 
+/// Sets the native window's title (AV-120). Does nothing off desktop or
+/// before [setUpDesktopWindow]; failures are logged.
+Future<void> setWindowTitle(String title) async {
+  if (!isDesktop) return;
+  try {
+    await windowManager.setTitle(title);
+  } on Object catch (error) {
+    _log.fine('could not set the window title: $error');
+  }
+}
+
 /// The visible area of every display, in logical pixels.
 Future<List<Rect>> _displays() async {
   try {

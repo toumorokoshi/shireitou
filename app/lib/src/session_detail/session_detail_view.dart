@@ -15,6 +15,7 @@ import '../host_connection.dart';
 import '../session_list/folder_grouping.dart';
 import '../session_list/session_list_view.dart';
 import '../session_list/status_badges.dart';
+import '../shortcuts.dart';
 import '../channels.dart';
 import '../review/changes_pane.dart';
 import '../review/review_logic.dart';
@@ -52,6 +53,11 @@ class SessionDetailView extends ConsumerStatefulWidget {
   ConsumerState<SessionDetailView> createState() => _SessionDetailViewState();
 }
 
+/// How long an answer from the "Waiting for you" panel stays hidden
+/// without the host removing its entry (the client's pending-action
+/// timeout, AHP-022).
+const answerConfirmTimeout = Duration(seconds: 30);
+
 /// Width of the review pane on wide layouts.
 const reviewPaneWidth = 380.0;
 
@@ -71,15 +77,27 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
   /// stays open.
   bool _keepUnread = false;
 
+  /// Answers sent from the "Waiting for you" panel that the host has not
+  /// confirmed yet, by entry id; hidden meanwhile. A timer shows each one
+  /// again if the host never removes it.
+  final _answered = <String, AnsweredPrompt>{};
+  final _answerTimers = <String, Timer>{};
+
+  /// Client tool executions this client already turned down, by entry id.
+  final _declined = <String>{};
+
+  /// Asks the follow-up box to take focus (Cmd/Ctrl+L, AV-140).
+  final _composerFocus = ValueNotifier<int>(0);
+  StreamSubscription<AppCommand>? _commands;
+
   String? get _chat => _selectedChat ?? _defaultChat;
 
   @override
   void initState() {
     super.initState();
     _connection = ref.read(hostConnectionProvider(context.host).notifier);
-    _failures = _connection.failures.listen(
-      (failure) => _showMessage(describeActionFailure(failure)),
-    );
+    _failures = _connection.failures.listen(_onFailure);
+    _commands = ref.read(appCommandsProvider).stream.listen(_onCommand);
     unawaited(_open());
   }
 
@@ -108,9 +126,110 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
     }
   }
 
+  /// Reports an undone action of this session (actions on other sessions
+  /// are the session list's), and shows an answer the host refused in the
+  /// "Waiting for you" panel again.
+  void _onFailure(ActionFailure failure) {
+    if (answerUndoneBy(_answered, failure) case final id?) {
+      setState(() => _forgetAnswer(id));
+    }
+    final session = ref
+        .read(hostConnectionProvider(context.host))
+        .sessionChannels[widget.session]
+        ?.state;
+    final ours =
+        failure.channel == widget.session ||
+        failure.channel == _defaultChat ||
+        failure.channel == _selectedChat ||
+        (session?.chats.any((c) => c.resource == failure.channel) ?? false);
+    if (ours) _showMessage(describeActionFailure(failure));
+  }
+
+  void _forgetAnswer(String id) {
+    _answered.remove(id);
+    _answerTimers.remove(id)?.cancel();
+  }
+
+  /// Sends [action], answering [entry] from the "Waiting for you" panel,
+  /// and hides the entry until the host removes it (AV-083, AV-084). The
+  /// chat may not be mirrored, so the client cannot apply the answer
+  /// locally; a rejection, or no removal within the client's
+  /// pending-action timeout, shows the entry again.
+  void _answer(SessionInputRequest entry, JsonMap action) {
+    final int seq;
+    try {
+      seq = _connection.dispatch(entry.chat, action);
+    } on StateError catch (error) {
+      _showMessage('Could not send that: ${error.message}');
+      return;
+    }
+    if (!answerActionTypes.contains(action['type'])) return;
+    setState(() {
+      _forgetAnswer(entry.id);
+      _answered[entry.id] = (chat: entry.chat, clientSeq: seq);
+      _answerTimers[entry.id] = Timer(answerConfirmTimeout, () {
+        if (!mounted || !_answered.containsKey(entry.id)) return;
+        final open = ref
+            .read(hostConnectionProvider(context.host))
+            .sessionChannels[widget.session]
+            ?.state
+            .inputNeeded
+            ?.any((e) => e.id == entry.id);
+        setState(() => _forgetAnswer(entry.id));
+        if (open != true) return;
+        _showMessage(
+          'The host did not confirm your answer. You can answer again.',
+        );
+      });
+    });
+  }
+
+  /// Turns down tool executions the host delegated to this client, which
+  /// provides no tools (see [ownClientExecutions]).
+  void _declineOwnExecutions(SessionState? session) {
+    for (final entry in ownClientExecutions(session, _connection.clientId)) {
+      if (!_declined.add(entry.id)) continue;
+      scheduleMicrotask(
+        () => _dispatch(entry.chat, declineClientExecutionAction(entry)),
+      );
+    }
+  }
+
+  void _onCommand(AppCommand command) {
+    if (!mounted || !(ModalRoute.of(context)?.isCurrent ?? false)) return;
+    switch (command) {
+      case AppCommand.stop:
+        final chatUri = _chat;
+        final chat = chatUri == null
+            ? null
+            : ref
+                  .read(hostConnectionProvider(context.host))
+                  .chatChannels[chatUri]
+                  ?.state;
+        if (chat == null || chat.interactivity == ChatInteractivity.readOnly) {
+          return;
+        }
+        final action = stopAction(chat, DateTime.now());
+        if (action != null) _dispatch(chatUri!, action);
+      case AppCommand.focusComposer:
+        _composerFocus.value++;
+      case AppCommand.newSession ||
+          AppCommand.searchSessions ||
+          AppCommand.nextSession ||
+          AppCommand.previousSession:
+        // The session list handles these.
+        break;
+    }
+  }
+
   @override
   void dispose() {
     unawaited(_failures?.cancel());
+    unawaited(_commands?.cancel());
+    for (final timer in _answerTimers.values) {
+      timer.cancel();
+    }
+    _composerFocus.dispose();
     if (!_opening) _connection.closeSession(widget.session, _defaultChat);
     super.dispose();
   }
@@ -209,7 +328,16 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
       hostConnectionProvider(context.host).select((s) => s.protocolVersion),
     );
     bool supports(ProtocolFeature f) => supportsFeature(protocolVersion, f);
-    final prompts = sessionPrompts(sessionState, chat);
+    // Answers the host has resolved need no tracking.
+    for (final id in resolvedAnswers(_answered, sessionState)) {
+      _forgetAnswer(id);
+    }
+    final prompts = unansweredPrompts(
+      sessionPrompts(sessionState, chat),
+      _answered,
+    );
+    _declineOwnExecutions(sessionState);
+    final elsewhere = otherClientExecutions(sessionState, _connection.clientId);
     // The host could not resume the session after a reconnect (AHP-004).
     final missing = ref.watch(
       hostConnectionProvider(context.host).select(
@@ -276,7 +404,7 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
             prompts: prompts,
             session: sessionState,
             openChat: chatUri,
-            onDispatch: _dispatch,
+            onAnswer: _answer,
             onAuthenticate: _authenticate,
           ),
           const Divider(height: 1),
@@ -306,6 +434,7 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
         else if (chat != null)
           FollowUpInput(
             key: ValueKey(chatUri),
+            focusRequests: _composerFocus,
             working: chat.activeTurn != null,
             draft: chat.draft,
             models: models,
@@ -348,6 +477,8 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
           ? chat?.canvases ?? const []
           : const [],
       mcpAlerts: mcpServerAlerts(sessionState),
+      session: sessionState,
+      clientExecutions: elsewhere,
       onAuthenticate: _authenticate,
       onOpenChat: _selectChat,
       onStop: chat == null || readOnly
@@ -424,6 +555,8 @@ class _Header extends StatelessWidget {
     required this.backgroundWork,
     required this.canvases,
     required this.mcpAlerts,
+    required this.session,
+    required this.clientExecutions,
     required this.onAuthenticate,
     required this.onOpenChat,
     required this.onStop,
@@ -437,6 +570,8 @@ class _Header extends StatelessWidget {
   final List<BackgroundWork> backgroundWork;
   final List<CanvasReference> canvases;
   final List<McpServerAlert> mcpAlerts;
+  final SessionState? session;
+  final List<SessionToolClientExecutionRequest> clientExecutions;
   final Authenticate onAuthenticate;
   final OpenChat onOpenChat;
   final VoidCallback? onStop;
@@ -504,6 +639,11 @@ class _Header extends StatelessWidget {
                         alerts: mcpAlerts,
                         onAuthenticate: onAuthenticate,
                       ),
+                    if (clientExecutions.isNotEmpty)
+                      ClientExecutionChip(
+                        executions: clientExecutions,
+                        session: session,
+                      ),
                     if (activity != null)
                       Semantics(
                         liveRegion: true,
@@ -520,10 +660,13 @@ class _Header extends StatelessWidget {
             ),
           ),
           if (chat?.activeTurn != null && onStop != null)
-            FilledButton.tonalIcon(
-              onPressed: onStop,
-              icon: const Icon(Icons.stop),
-              label: const Text('Stop'),
+            Tooltip(
+              message: 'Stop (${shortcutLabel(AppCommand.stop)})',
+              child: FilledButton.tonalIcon(
+                onPressed: onStop,
+                icon: const Icon(Icons.stop),
+                label: const Text('Stop'),
+              ),
             ),
           PopupMenuButton<VoidCallback>(
             tooltip: 'Session actions',
@@ -676,7 +819,11 @@ class FollowUpInput extends StatefulWidget {
     this.sessionFields = const [],
     this.sessionValues = const {},
     this.onSessionSettingChanged,
+    this.focusRequests,
   });
+
+  /// Takes focus whenever this changes (Cmd/Ctrl+L, AV-140).
+  final Listenable? focusRequests;
 
   /// The agent's models; no pickers when empty and there are no
   /// [sessionFields].
@@ -730,11 +877,18 @@ class _FollowUpInputState extends State<FollowUpInput> {
   void initState() {
     super.initState();
     _text.addListener(_onChanged);
+    widget.focusRequests?.addListener(_takeFocus);
   }
+
+  void _takeFocus() => _focus.requestFocus();
 
   @override
   void didUpdateWidget(FollowUpInput old) {
     super.didUpdateWidget(old);
+    if (old.focusRequests != widget.focusRequests) {
+      old.focusRequests?.removeListener(_takeFocus);
+      widget.focusRequests?.addListener(_takeFocus);
+    }
     if (!_pickedModel && widget.initialModel != old.initialModel) {
       _model = widget.initialModel;
     }
@@ -754,6 +908,7 @@ class _FollowUpInputState extends State<FollowUpInput> {
 
   @override
   void dispose() {
+    widget.focusRequests?.removeListener(_takeFocus);
     _flushDraft();
     _text.dispose();
     _focus.dispose();

@@ -1,6 +1,8 @@
 /// Remembers hosts (AV-010) in platform secure storage (AHP-063).
 library;
 
+import 'dart:convert';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -139,6 +141,7 @@ class HostStore {
   final FlutterSecureStorage storage;
 
   static const _hostsKey = 'hosts';
+  static const _openHostsKey = 'open_hosts';
   static const _legacyUrlKey = 'last_host_url';
   static const _legacyTokenKey = 'last_host_token';
 
@@ -154,6 +157,15 @@ class HostStore {
   /// Saves [hosts]. Throws the storage error.
   Future<void> saveHosts(List<SavedHost> hosts) =>
       storage.write(key: _hostsKey, value: encodeHosts(hosts));
+
+  /// The keys of the hosts that were open, in order. Throws the storage
+  /// error.
+  Future<List<String>> loadOpenHosts() async =>
+      decodeHostKeys(await storage.read(key: _openHostsKey));
+
+  /// Saves the keys of the open hosts. Throws the storage error.
+  Future<void> saveOpenHosts(List<String> keys) =>
+      storage.write(key: _openHostsKey, value: jsonEncode(keys));
 
   Future<List<SavedHost>> _migrateLegacy() async {
     final url = await storage.read(key: _legacyUrlKey);

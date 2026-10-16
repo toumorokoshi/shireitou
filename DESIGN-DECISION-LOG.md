@@ -1,5 +1,86 @@
 # Design Decision Log
 
+## 2026-10-16: Session list actions, keyboard shortcuts, optimistic panel answers and restored hosts
+
+- **Done filter:** "Done" is a non-archived session whose agent is
+  finished: not in progress, not waiting for input and not failed, read
+  or unread (an unread finished session is both Done and Needs
+  attention). The chips are Active, Needs attention (with its count),
+  Done, Archived, All.
+- **Search and sort live in the list, not in the URL or storage:** a
+  GitHub-style query (`parseSessionQuery`): words must all appear in the
+  title, and `agent:`, `status:`, `repo:`, `host:` qualifiers narrow it
+  (`status:input,error` lists alternatives; an unknown `key:value` is a
+  title word). `repo:` matches the folder path, the project URI or name,
+  or the repository `worktreeInfoOf` reports, because AHP has no repo
+  field. Sorting orders sessions in a folder and folders by their first
+  session, so the worktree grouping (AV-025) stays; "needs attention
+  first" ranks input, error, unread, then the rest.
+- **Row actions without subscribing:** the row menu (right-click,
+  long-press, screen reader custom actions), a left swipe and the
+  multi-select bar dispatch `session/isArchivedChanged` and
+  `session/isReadChanged` straight to the session channel, which AHP
+  allows without a subscription. The swipe never removes the row
+  (`confirmDismiss` returns false): the host's catalogue update moves it,
+  so nothing disappears before the host agrees. The screen keeps the
+  `clientSeq` of what it sent (`HostConnection.dispatch` now returns it)
+  and reports rejections of those, unless the session is open, whose view
+  reports failures of its own session and chats.
+- **Attention count (AV-120):** one `attentionCountProvider` over every
+  live host; it is the "Needs attention (n)" chip and the window title
+  "(n) shireitou" (MaterialApp's title on the web; `window_manager` on
+  desktop).
+- **Shortcuts as commands (AV-140):** keys map to `AppCommand`s sent on a
+  broadcast (`appCommandsProvider`); the sessions screen handles new
+  session, search and next/previous, and the visible session view handles
+  stop and focus composer, each only when its route is on top (a pushed
+  composer or dialog swallows them). Cmd on Apple platforms (also in a
+  browser on a Mac), Ctrl elsewhere. On macOS the native menu bar owns the
+  keys: a new Session menu lists the commands with their key equivalents,
+  and the Flutter `Shortcuts` are left out there so a press cannot run a
+  command twice; elsewhere `AppShortcuts` sits above the navigator, so the
+  keys work wherever focus is, including text fields (Alt+↑/↓ win over a
+  field's own Alt+arrow navigation). Next/previous follow the visible list
+  order and stop at the ends; on compact layouts they replace the open
+  session page instead of stacking pages. The spec asks for no help
+  overlay, so none was built; tooltips and the search hint name the keys.
+- **Optimistic answers in the "Waiting for you" panel:** an answer
+  (confirm, input completed, or a failed `chat/toolCallComplete`) hides
+  its entry at once, because the client may not mirror the chat and so
+  cannot apply the answer itself. The entry comes back when an
+  `ActionFailure` with the answer's channel and `clientSeq` arrives (a
+  rejection), or when the host has not removed it after 30 s (the
+  client's pending-action timeout, which does not run for unmirrored
+  channels). Hidden ids are dropped once the host removes the entry.
+- **Client tool executions per spec:** `toolClientExecution` entries are
+  not questions (they do not raise `InputNeeded`), so they never appear in
+  the panel. Other clients' executions show as "N tools running on
+  another client" in the header. This app provides no client tools and
+  does not announce any, so a host should never delegate one to it; if
+  one does (the entry's `clientId` is this client's), the app completes
+  the call once with a failed result (`code: unsupported`), the
+  protocol's path for the owning client, instead of leaving the turn
+  waiting forever.
+- **Restored hosts:** the keys of the open hosts are saved next to the
+  remembered hosts (`open_hosts` in secure storage, updated on connect
+  and disconnect, so quitting keeps them and "Disconnect" clears them).
+  On start `OpenHosts.restore()` reconnects those that are still
+  remembered, in their old order. A remembered host whose connect fails
+  now stays open with its error, Retry and Remove in the host switcher,
+  and under Recent hosts on the connect screen (shown while no host is
+  live); a host that never connected is still dropped, so a mistyped URL
+  does not linger.
+- **Fake host:** `rejectTypes` makes the host refuse chosen client action
+  types; `client` and `delegate` flows delegate a tool call to another
+  client (which completes it) or to the sender.
+- **Flaky headless draft step (fixed):** the fourth integration test's
+  draft step typed into `find.byType(TextField).last`. Headless, frames
+  only come from pumps, and the queued message's Edit dialog was often
+  still running its exit transition, so `.last` was the dialog's field,
+  which can no longer take focus (its route is popping); the text never
+  reached the follow-up box and no draft was sent. The test now waits for
+  the dialog to close and types into the `FollowUpInput`'s field.
+
 ## 2026-10-16: Several hosts at once, the full composer, and model and mode pickers
 
 - **One client per host, scoped by an InheritedWidget:**

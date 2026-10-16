@@ -76,8 +76,17 @@ arm64 machine):
 - On macOS the window stays hidden until Dart has restored its placement
   (`hiddenWindowAtLaunch` in `MainFlutterWindow.swift`).
 - macOS has a native menu bar (`PlatformMenuBar`): the app menu (About,
-  Services, Hide, Quit), Host > Disconnect (Cmd+Shift+D), View > Enter Full
-  Screen, and the Window menu. Linux uses the GTK header bar.
+  Services, Hide, Quit), the Session menu with the AV-140 shortcuts (New
+  Session ⌘N, Search Sessions ⌘K, Next/Previous Session ⌥↓/⌥↑, Stop ⌘.,
+  Focus Composer ⌘L), Host > Disconnect All (Cmd+Shift+D), View > Enter
+  Full Screen, and the Window menu. On macOS the menu owns those keys (the
+  Flutter `Shortcuts` for them are left out, so a key press cannot run a
+  command twice); on Linux, Windows and the web the same keys, with Ctrl,
+  are Flutter shortcuts (`lib/src/shortcuts.dart`). Linux uses the GTK
+  header bar.
+- The window title carries the attention count (sessions that need
+  input, failed or are unread), like "(3) shireitou" (AV-120), set with
+  `window_manager`; on the web it is the tab title.
 
 ## Connection token (AHP-002)
 

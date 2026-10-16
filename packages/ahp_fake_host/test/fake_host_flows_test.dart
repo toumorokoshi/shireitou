@@ -254,6 +254,79 @@ void main() {
     expect(host.chat(entry.chat)!.turns.single.state, TurnState.complete);
   });
 
+  test('a rejected answer to another chat leaves the request open', () async {
+    host.rejectTypes.add('chat/inputCompleted');
+    await send('side');
+    await until((_) => sessionState().inputNeeded != null);
+    final entry = sessionState().inputNeeded!.single as SessionChatInputRequest;
+    final failure = client.failures.first;
+    final seq = client.dispatch(
+      entry.chat,
+      ChatInputCompletedAction(
+        requestId: entry.request.id,
+        response: ChatInputResponseKind.decline,
+      ).toJson(),
+    );
+    final undone = await failure.timeout(_timeout);
+    expect(undone.kind, ActionFailureKind.rejected);
+    expect((undone.channel, undone.clientSeq), (entry.chat, seq));
+    expect(sessionState().inputNeeded, hasLength(1));
+    host.rejectTypes.clear();
+    client.dispatch(
+      entry.chat,
+      ChatInputCompletedAction(
+        requestId: entry.request.id,
+        response: ChatInputResponseKind.decline,
+      ).toJson(),
+    );
+    await turnDone();
+    expect(sessionState().inputNeeded, isNull);
+  });
+
+  group('client tool execution', () {
+    test('another client runs the tool; the session is not waiting for '
+        'input', () async {
+      await send('client');
+      await until((_) => sessionState().inputNeeded != null);
+      final entry =
+          sessionState().inputNeeded!.single
+              as SessionToolClientExecutionRequest;
+      expect(entry.clientId, otherClientId);
+      expect(entry.toolCall.toolName, 'open_browser');
+      expect(
+        client.state.sessions[seededSession]!.status.isInputNeeded,
+        isFalse,
+      );
+      await turnDone();
+      expect(sessionState().inputNeeded, isNull);
+      expect(replies(), contains('$otherClientId opened the preview.'));
+    });
+
+    test('a tool delegated to this client waits for its result', () async {
+      await send('delegate');
+      await until((_) => sessionState().inputNeeded != null);
+      final entry =
+          sessionState().inputNeeded!.single
+              as SessionToolClientExecutionRequest;
+      expect(entry.clientId, client.clientId);
+      client.dispatch(
+        entry.chat,
+        ChatToolCallCompleteAction(
+          turnId: entry.turnId,
+          toolCallId: entry.toolCall.toolCallId,
+          result: const ToolCallResult(
+            success: false,
+            pastTenseMessage: PlainString('Not run'),
+            error: ToolCallError(message: 'no tools here'),
+          ),
+        ).toJson(),
+      );
+      await turnDone();
+      expect(sessionState().inputNeeded, isNull);
+      expect(replies(), contains('could not open the preview: no tools here'));
+    });
+  });
+
   group('MCP sign-in (AHP-062)', () {
     Future<ToolCallAuthRequiredState> waiting() async {
       await send('auth');

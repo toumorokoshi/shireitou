@@ -19,8 +19,13 @@ with a UX modeled on the GitHub Agents view and Cursor's Agents Window.
 > diffs, "reviewed" marks, host operations), shows background work,
 > canvases and session details, and starts new sessions (host, agent,
 > model and its options such as the thinking level, a folder browsed on
-> the host, and the agent's settings such as the mode). Notifications are
-> not built yet; see [GAPS.md](GAPS.md).
+> the host, and the agent's settings such as the mode). The inbox has
+> filters, search, sort, archive and mark read from a row's menu, a swipe
+> or multi-select, and the attention count in the window title; keyboard
+> shortcuts start sessions, search, step through sessions, stop turns and
+> focus the composer (in the macOS menu bar too), and the hosts open at
+> the last run reconnect on start. Notifications are not built yet; see
+> [GAPS.md](GAPS.md).
 
 ## Layout
 
@@ -114,6 +119,13 @@ just run chrome 'ws://127.0.0.1:63877?tkn=...'   # prefill the host URL
    folder, write a prompt and press Enter. In a session, Enter sends a
    follow-up (or queues it while the agent works), Cmd/Ctrl+Enter steers the
    running turn, Shift+Enter adds a newline, and **Stop** cancels the turn.
+
+   Shortcuts (Cmd on macOS, Ctrl elsewhere): Cmd/Ctrl+N new session,
+   Cmd/Ctrl+K search sessions (with `agent:`, `status:`, `repo:` and
+   `host:` qualifiers), Alt+↓/↑ next and previous session, Cmd/Ctrl+.
+   stop, Cmd/Ctrl+L focus the follow-up box. Right-click or long-press a
+   session to archive it, mark it read or unread, or select several;
+   swipe it left to archive it.
 
 `just test-integration` launches pi-agent-host-protocol from
 `PI_AHP_HOST_DIR` (default: `../pi-agent-host-protocol`, a sibling of this

@@ -176,8 +176,14 @@ Dart source); `bin/generate.dart` does the file I/O. See
   with Retry. `open_hosts.dart` holds the connected hosts
   (`openHostsProvider`), their status and labels (`hostInfosProvider`,
   pure `hostLabels`) and the merged inbox (`allSessionsProvider` of
-  `HostSession`s). The connect screen prefills the most recent host and
-  lists the rest; "Add host…" in the host switcher pushes it again.
+  `HostSession`s). `OpenHosts` saves the open hosts' keys
+  (`HostStore.saveOpenHosts`) and `restore()` (called by `HomeScreen` on
+  start) reconnects them; a remembered host whose connect fails stays
+  open, failed, with Retry and Remove in the host switcher (and its error
+  under Recent hosts on the connect screen), while a host that never
+  connected is dropped again. The connect screen prefills the most recent
+  host and lists the rest; "Add host…" in the host switcher pushes it
+  again.
 - `lib/src/composer/`: `config_fields.dart` is pure: a model's
   `configSchema` and a session config schema become `ConfigField`s, with
   `configValues`, `modelSelection` and `mutableSessionFields`.
@@ -187,10 +193,20 @@ Dart source); `bin/generate.dart` does the file I/O. See
 - `lib/src/desktop/`: native window setup. `window_bounds.dart` is pure
   (placement encoding, minimum size, whether a saved position is on a
   display); `desktop_window.dart` applies it with `window_manager` and
-  saves the placement with `shared_preferences`; `app_menu.dart` is the
-  macOS `PlatformMenuBar`. See [desktop.md](desktop.md).
+  saves the placement with `shared_preferences`, and sets the window
+  title; `app_menu.dart` is the macOS `PlatformMenuBar` (with the Session
+  menu of shortcuts). See [desktop.md](desktop.md).
+- `lib/src/shortcuts.dart`: the AV-140 commands (`AppCommand`), their keys
+  (`activatorFor`: Cmd on Apple platforms, Ctrl elsewhere) and labels, and
+  `appCommandsProvider`, a broadcast of commands. `AppShortcuts` maps the
+  keys to commands above the navigator (except on macOS, where the menu
+  sends them); the sessions screen handles new session, search and
+  next/previous, and the visible session view handles stop and focus
+  composer, each only while its route is on top.
 - `lib/src/app.dart`: `MaterialApp` with light and dark themes that follow
-  the system. Shows the connect screen until connected.
+  the system, titled with the attention count (`windowTitle`, AV-120).
+  Shows the connect screen until connected, and restores the hosts that
+  were open.
 - `lib/src/screens/`: the connect screen and the sessions screen. The
   sessions screen picks a layout tier with `layoutTierFor(width)`:
   compact (< 700 dp) pushes the session onto a new page, medium shows list
@@ -199,7 +215,16 @@ Dart source); `bin/generate.dart` does the file I/O. See
   `groupHostSessions` (one folder per host and working directory, with
   repository and branch from `project` and `_meta.git`, AV-025),
   `badgesFor` / `needsAttention` (AV-021), `filterSessions` (Active,
-  Needs attention, Archived, All; AV-022), and `formatRelativeTime`.
+  Needs attention, Done, Archived, All; AV-022), `attentionCount` and
+  `windowTitle` (AV-120), `session_query.dart` (`SessionSort` and
+  `compareSessions`, AV-026; `parseSessionQuery` and `matchesQuery` for
+  title words and `agent:`, `status:`, `repo:`, `host:` qualifiers,
+  AV-027), and `formatRelativeTime`. `session_list_view.dart` renders the
+  folders; each row has a menu (right-click, long-press, and screen reader
+  actions) to archive, mark read or unread and select, swipes left to
+  archive or unarchive, and shows checkboxes while selecting (AV-024,
+  AV-029). The sessions screen adds the search field, sort menu, filter
+  chips (with the attention count) and the bulk action bar.
 - `lib/src/session_detail/`: the session view. `timeline_items.dart` and
   `chat_commands.dart` are pure: `timelineItems(ChatState)` flattens turns
   into rows, and the command builders return the chat actions to dispatch.
@@ -230,7 +255,14 @@ Dart source); `bin/generate.dart` does the file I/O. See
   open chat does not already show (requests from other chats, or not yet
   mirrored), and `mcpServerAlerts` the MCP servers that need sign-in or
   failed. `session_status_widgets.dart` renders them; answers go to the
-  request's own chat even when it is not subscribed.
+  request's own chat even when it is not subscribed. The view hides an
+  answered entry until the host removes it (`unansweredPrompts`), and
+  shows it again when the answer is rejected (`answerUndoneBy`) or the
+  host does not remove it within 30 s. `toolClientExecution` entries are
+  never prompts: other clients' ones show as "N tools running on another
+  client", and one delegated to this app (which provides no tools) is
+  turned down with a failed `chat/toolCallComplete`
+  (`declineClientExecutionAction`).
   `timeline_parts.dart` renders markdown (`flutter_markdown_plus`), collapsed reasoning, tool call cards with
   Approve/Deny (and Sign in / Cancel for `auth-required` calls, with a
   token dialog), input request forms, errors and grouped tool calls;

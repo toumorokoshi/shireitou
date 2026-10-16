@@ -45,6 +45,104 @@ List<SessionInputRequest> sessionPrompts(
   ];
 }
 
+/// The action types that answer a "Waiting for you" entry: approve or
+/// deny a tool call, answer or decline input, or give up on a sign-in.
+const answerActionTypes = {
+  'chat/toolCallConfirmed',
+  'chat/inputCompleted',
+  'chat/toolCallComplete',
+};
+
+/// An answer sent from the "Waiting for you" panel that the host has not
+/// confirmed yet (by removing the entry): the chat it went to and its
+/// `clientSeq`, so a rejection can be matched to it.
+typedef AnsweredPrompt = ({String chat, int clientSeq});
+
+/// [prompts] without the entries in [answered], which stay hidden while
+/// the host has not removed them (the client may not mirror the chat the
+/// answer went to, so nothing else would hide them).
+List<SessionInputRequest> unansweredPrompts(
+  List<SessionInputRequest> prompts,
+  Map<String, AnsweredPrompt> answered,
+) => [
+  for (final p in prompts)
+    if (!answered.containsKey(p.id)) p,
+];
+
+/// The ids in [answered] that [session] no longer lists: the host
+/// resolved them, so they need no tracking.
+Set<String> resolvedAnswers(
+  Map<String, AnsweredPrompt> answered,
+  SessionState? session,
+) {
+  final open = {
+    for (final e in session?.inputNeeded ?? const <SessionInputRequest>[]) e.id,
+  };
+  return {
+    for (final id in answered.keys)
+      if (!open.contains(id)) id,
+  };
+}
+
+/// The entry id of the answer in [answered] that [failure] undid, if any.
+String? answerUndoneBy(
+  Map<String, AnsweredPrompt> answered,
+  ActionFailure failure,
+) => answered.entries
+    .where(
+      (e) =>
+          e.value.chat == failure.channel &&
+          e.value.clientSeq == failure.clientSeq,
+    )
+    .firstOrNull
+    ?.key;
+
+/// The session's client tool executions (`toolClientExecution` entries):
+/// running tools that a client, not the host, executes. They are not
+/// questions, so they never show as "Waiting for you".
+List<SessionToolClientExecutionRequest> clientExecutions(
+  SessionState? session,
+) => [...?session?.inputNeeded?.whereType<SessionToolClientExecutionRequest>()];
+
+/// The tool executions delegated to this client ([clientId]). This app
+/// provides no client tools, so a host should never delegate one; if it
+/// does, the app reports failure ([declineClientExecutionAction]) rather
+/// than leave the turn waiting.
+List<SessionToolClientExecutionRequest> ownClientExecutions(
+  SessionState? session,
+  String? clientId,
+) => [
+  for (final e in clientExecutions(session))
+    if (clientId != null && e.clientId == clientId) e,
+];
+
+/// Executions delegated to other clients, shown as "running on another
+/// client".
+List<SessionToolClientExecutionRequest> otherClientExecutions(
+  SessionState? session,
+  String? clientId,
+) => [
+  for (final e in clientExecutions(session))
+    if (e.clientId != clientId) e,
+];
+
+/// The failed `chat/toolCallComplete` that turns down [entry]: the
+/// execution path the protocol prescribes for the owning client, with
+/// an error saying that this client has no tools.
+JsonMap declineClientExecutionAction(SessionToolClientExecutionRequest entry) =>
+    ChatToolCallCompleteAction(
+      turnId: entry.turnId,
+      toolCallId: entry.toolCall.toolCallId,
+      result: const ToolCallResult(
+        success: false,
+        pastTenseMessage: PlainString('Not run: shireitou provides no tools'),
+        error: ToolCallError(
+          message: 'This client (shireitou) does not provide client tools.',
+          code: 'unsupported',
+        ),
+      ),
+    ).toJson();
+
 /// The title of [chat] in [session], for labelling a request from a chat
 /// that is not open.
 String chatTitleOf(SessionState? session, String chat) =>

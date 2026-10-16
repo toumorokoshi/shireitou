@@ -146,11 +146,15 @@ class HostConnection extends Notifier<HostState> {
     ChatMoveDestination destination,
   ) => _connected.moveChat(chat, destination);
 
-  /// Dispatches a client action on [channel] (write-ahead, AHP-022).
+  /// Dispatches a client action on [channel] (write-ahead, AHP-022) and
+  /// returns its `clientSeq`, which an [ActionFailure] for it carries.
   /// Throws [StateError] when not connected or when the negotiated protocol
   /// version does not know the action ([UnsupportedActionError]).
-  void dispatch(String channel, JsonMap action) =>
+  int dispatch(String channel, JsonMap action) =>
       _connected.dispatch(channel, action);
+
+  /// This client's `clientId` on the host, while connected.
+  String? get clientId => _client?.clientId;
 
   /// Pushes a bearer [token] for the protected [resource] (`authenticate`),
   /// for example to resume a tool call waiting on MCP sign-in.

@@ -265,7 +265,7 @@ void main() {
       ),
       const Size(1400, 900),
     );
-    await tester.tap(find.byTooltip('New session'));
+    await tester.tap(find.byTooltip(RegExp(r'^New session \(')));
     await tester.pumpAndSettle();
     expect(find.text('Pi'), findsOneWidget);
     expect(find.text('Host default'), findsOneWidget);

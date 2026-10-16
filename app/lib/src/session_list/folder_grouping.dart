@@ -6,6 +6,7 @@ library;
 import 'package:ahp_client/ahp_client.dart';
 
 import '../hosts/open_hosts.dart';
+import 'session_query.dart';
 import 'status_badges.dart';
 
 /// Label of the group for sessions with no working directory or project.
@@ -116,14 +117,23 @@ int _byModifiedDesc(SessionSummary a, SessionSummary b) =>
 List<FolderGroup> groupSessionsByFolder(
   Iterable<SessionSummary> sessions, {
   String host = '',
-}) => groupHostSessions([for (final s in sessions) HostSession(host, s)]);
+  SessionSort sort = SessionSort.recent,
+}) => groupHostSessions([
+  for (final s in sessions) HostSession(host, s),
+], sort: sort);
 
 /// Groups [sessions] by host and exact working directory (AV-025): the
 /// same path on two hosts is two folders, and worktrees of one repository
-/// stay separate folders. Folders are sorted by their most recently
-/// modified session, and the "No folder" groups sort the same way. A
-/// folder's repository and branch come from its most recent session.
-List<FolderGroup> groupHostSessions(Iterable<HostSession> sessions) {
+/// stay separate folders. Sessions in a folder are ordered by [sort], and
+/// folders by their first session (by default the most recently modified
+/// one); the "No folder" groups sort the same way (AV-026). A folder's
+/// repository and branch come from its most recent session.
+List<FolderGroup> groupHostSessions(
+  Iterable<HostSession> sessions, {
+  SessionSort sort = SessionSort.recent,
+}) {
+  int compare(SessionSummary a, SessionSummary b) =>
+      compareSessions(sort, a, b);
   final byKey = <(String, String?), List<SessionSummary>>{};
   for (final HostSession(:host, :summary) in sessions) {
     (byKey[(host, folderKeyOf(summary))] ??= []).add(summary);
@@ -131,8 +141,9 @@ List<FolderGroup> groupHostSessions(Iterable<HostSession> sessions) {
   final groups = [
     for (final MapEntry(key: (host, key), :value) in byKey.entries)
       () {
-        final sorted = [...value]..sort(_byModifiedDesc);
-        final (:repo, :branch) = worktreeInfoOf(sorted.first);
+        final sorted = [...value]..sort(compare);
+        final latest = [...value]..sort(_byModifiedDesc);
+        final (:repo, :branch) = worktreeInfoOf(latest.first);
         return FolderGroup(
           host: host,
           key: key,
@@ -144,8 +155,7 @@ List<FolderGroup> groupHostSessions(Iterable<HostSession> sessions) {
         );
       }(),
   ];
-  return groups
-    ..sort((a, b) => _byModifiedDesc(a.sessions.first, b.sessions.first));
+  return groups..sort((a, b) => compare(a.sessions.first, b.sessions.first));
 }
 
 /// The folders of [host]'s sessions, most recently used first, for the

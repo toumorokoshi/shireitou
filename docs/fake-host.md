@@ -26,8 +26,9 @@ exercised against a real host.
   (`root/sessionSummaryChanged`).
 - Client actions from `clientDispatchable` are echoed with their
   `origin`; anything else (or an unknown channel, or a second
-  `chat/turnStarted` while a turn runs) is echoed with a
-  `rejectionReason` to the sender only.
+  `chat/turnStarted` while a turn runs, or a type in the mutable
+  `rejectTypes` set, which tests use to check a client's rollback) is
+  echoed with a `rejectionReason` to the sender only.
 - A token, when set, is accepted in the `tkn` query parameter or an
   `Authorization: Bearer` header.
 - `name` sets `serverInfo.name` and `titlePrefix` prefixes the seeded
@@ -93,6 +94,8 @@ echo that lists the keywords.
 | `slow`       | Streams a reply with `chat/delta`, then keeps the turn running for `slowDuration` (4 s by default) unless stopped, so messages can be queued, edited and reordered.                                                                                                          |
 | `cd`         | Adds `packages/api` to the session's and the chat's working directories.                                                                                                                                                                                                     |
 | `settings`   | Replies with the message's model and options (`Model: scripted`, `thinkingLevel: high`) and the session's settings (`mode: plan`, `branch: …`).                                                                                                                              |
+| `client`     | An `open_browser` call delegated to another client (`fake-ide`, a client `ToolCallContributor`), listed as `toolClientExecution` (which does not set `InputNeeded`); that client completes it a few steps later ("fake-ide opened the preview.").                            |
+| `delegate`   | The same call delegated to the client that sent the message; waits for its `chat/toolCallComplete` and replies with the result ("… could not open the preview: <error>").                                                                                                    |
 
 If the user stops the turn while the script waits, the script ends and the
 session-level entry is removed.
@@ -118,8 +121,9 @@ Paste the printed `ws://…?tkn=…` URL into the app's connect screen, open
   `moveChat`, canvases, queued message editing and reordering, paging a
   windowed chat, `resourceList`, `resolveSessionConfig` and completions,
   a session started with settings and a model with options (and a mode
-  changed mid-session), and a creation failure that `createSession`
-  reports at once.
+  changed mid-session), a creation failure that `createSession`
+  reports at once, a rejected answer to another chat, and client tool
+  executions (another client's, and one delegated to the test client).
 - `app/integration_test/fake_host_flows_test.dart` (`just
 test-fake-host-app [linux|macos]`, run by CI on both desktops): the real
   app, with the host in the same process, connects through the connect
@@ -129,7 +133,15 @@ test-fake-host-app [linux|macos]`, run by CI on both desktops): the real
   starts a session from a folder's "+" button with the host picker,
   folder browser, a model option, the mode and a branch suggestion, changes
   the mode from the follow-up bar, and checks that a session in a missing
-  folder fails with the host's error at once. Remembered hosts are kept in
+  folder fails with the host's error at once. A fourth test drives the
+  session list (search, archiving from the row menu, unarchiving with a
+  swipe, the Done filter, multi-select "Mark unread" and the attention
+  count in the title), the shortcuts (search, next session, stop, focus
+  composer; on macOS through the commands the menu sends, which simulated
+  keys do not reach), an answer the host rejects in the "Waiting for you"
+  panel coming back, the `client` and `delegate` flows, and a restart
+  that reconnects the open host without the connect screen. Remembered
+  hosts (and which are open) are kept in
   memory (an overridden `hostStoreProvider`), so it needs no keyring or
   keychain; secure storage is the desktop smoke test's job. Linux needs a
   display (`xvfb-run -a just test-fake-host-app linux`).

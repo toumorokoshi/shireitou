@@ -101,7 +101,17 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
         : ref.watch(hostConnectionProvider(attempt));
     final connecting = host.status == ConnectionStatus.connecting;
     final theme = Theme.of(context);
-    final open = {for (final h in ref.watch(openHostsProvider)) h.key};
+    final hosts = ref.watch(hostInfosProvider);
+    final live = {
+      for (final h in hosts)
+        if (h.live) h.key,
+    };
+    // Open hosts that are not connected: restored after a restart and
+    // still connecting, or failed (AV-011).
+    final pending = {
+      for (final h in hosts)
+        if (!h.live) h.key: h,
+    };
     return Scaffold(
       appBar: widget.addingHost
           ? AppBar(title: const Text('Add a host'))
@@ -181,7 +191,8 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
                       ),
                     ],
                     _SavedHostList(
-                      open: open,
+                      open: live,
+                      pending: pending,
                       enabled: !connecting,
                       onConnect: _connectTo,
                       onEdit: _fill,
@@ -197,10 +208,13 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
   }
 }
 
-/// The remembered hosts, most recent first (AV-010).
+/// The remembered hosts, most recent first (AV-010), with the status of
+/// those that are open but not connected; tapping one connects (or
+/// retries) it.
 class _SavedHostList extends ConsumerWidget {
   const _SavedHostList({
     required this.open,
+    required this.pending,
     required this.enabled,
     required this.onConnect,
     required this.onEdit,
@@ -208,6 +222,9 @@ class _SavedHostList extends ConsumerWidget {
 
   /// Keys of the hosts already connected; they are not offered.
   final Set<String> open;
+
+  /// Open hosts that are connecting or failed, by key.
+  final Map<String, HostInfo> pending;
   final bool enabled;
   final ValueChanged<SavedHost> onConnect;
   final ValueChanged<SavedHost> onEdit;
@@ -232,7 +249,19 @@ class _SavedHostList extends ConsumerWidget {
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.dns_outlined),
             title: Text(host.label),
-            subtitle: host.name.isEmpty ? null : Text(host.key),
+            subtitle: switch ((pending[host.key], host.name.isEmpty)) {
+              (final HostInfo info, _) => Text(
+                [
+                  if (host.name.isNotEmpty) host.key,
+                  hostStatusText(info),
+                ].join(' · '),
+                style: info.status == ConnectionStatus.failed
+                    ? TextStyle(color: Theme.of(context).colorScheme.error)
+                    : null,
+              ),
+              (null, true) => null,
+              (null, false) => Text(host.key),
+            },
             enabled: enabled,
             onTap: () => onConnect(host),
             trailing: Row(

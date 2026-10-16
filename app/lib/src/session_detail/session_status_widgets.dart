@@ -10,13 +10,14 @@ import 'session_inputs.dart';
 import 'timeline_parts.dart';
 import 'tool_previews.dart';
 
-/// Dispatches [action] on [channel].
-typedef DispatchTo = void Function(String channel, JsonMap action);
+/// Sends [action], an answer to [entry], to the entry's chat.
+typedef AnswerPrompt = void Function(SessionInputRequest entry, JsonMap action);
 
 /// The session's open input requests that the timeline does not show
 /// (from other chats, or not mirrored in the open chat yet), each
 /// answerable in place. Answers go to the request's own chat, which need
-/// not be subscribed.
+/// not be subscribed; the view hides an answered entry until the host
+/// removes it, and shows it again if the answer is undone.
 class SessionInputPanel extends StatelessWidget {
   /// Creates a [SessionInputPanel] for [prompts] (see [sessionPrompts]).
   const SessionInputPanel({
@@ -24,7 +25,7 @@ class SessionInputPanel extends StatelessWidget {
     required this.prompts,
     required this.session,
     required this.openChat,
-    required this.onDispatch,
+    required this.onAnswer,
     this.onAuthenticate,
   });
 
@@ -38,7 +39,7 @@ class SessionInputPanel extends StatelessWidget {
   final String? openChat;
 
   /// Dispatches an answer to a request's chat.
-  final DispatchTo onDispatch;
+  final AnswerPrompt onAnswer;
 
   /// Pushes an MCP sign-in token.
   final Authenticate? onAuthenticate;
@@ -80,7 +81,7 @@ class SessionInputPanel extends StatelessWidget {
 
   Widget _entry(BuildContext context, SessionInputRequest entry) {
     final chat = entry.chat;
-    void dispatch(JsonMap action) => onDispatch(chat, action);
+    void dispatch(JsonMap action) => onAnswer(entry, action);
     final Widget body = switch (entry) {
       SessionChatInputRequest(:final request) => InputRequestCard(
         key: ValueKey(entry.id),
@@ -122,6 +123,44 @@ class SessionInputPanel extends StatelessWidget {
             ),
           body,
         ],
+      ),
+    );
+  }
+}
+
+/// "1 tool running on another client": tool calls of this session that
+/// another client executes (`toolClientExecution` entries). They need
+/// nothing from the user, so they are not in the "Waiting for you" panel;
+/// the tooltip names the tools and the chats they run in.
+class ClientExecutionChip extends StatelessWidget {
+  /// Creates a [ClientExecutionChip] for non-empty [executions].
+  const ClientExecutionChip({
+    super.key,
+    required this.executions,
+    required this.session,
+  });
+
+  /// The executions to show.
+  final List<SessionToolClientExecutionRequest> executions;
+
+  /// The session, for chat titles.
+  final SessionState? session;
+
+  @override
+  Widget build(BuildContext context) {
+    final count = executions.length;
+    return Tooltip(
+      message: [
+        for (final e in executions)
+          '${e.toolCall.displayName} in ${chatTitleOf(session, e.chat)} '
+              '(client ${e.clientId})',
+      ].join('\n'),
+      child: Chip(
+        avatar: const Icon(Icons.devices_other, size: 18),
+        label: Text(
+          '$count ${count == 1 ? 'tool' : 'tools'} running on another client',
+        ),
+        visualDensity: VisualDensity.compact,
       ),
     );
   }

@@ -165,6 +165,14 @@ class FakeAhpHost {
   /// Older turns of windowed chats, not in their state yet (AHP-029).
   final _archive = <String, List<Turn>>{};
 
+  /// The client that started each running turn, by turn id.
+  final _turnClients = <String, String>{};
+
+  /// Client action types to reject (with a `rejectionReason`) even though
+  /// they are client-dispatchable, so tests can check how a client rolls
+  /// back an action the host refused. Changeable at any time.
+  final rejectTypes = <String>{};
+
   /// Every accepted client action and `authenticate` call, in order.
   List<ReceivedAction> get received => List.unmodifiable(_log);
 
@@ -709,6 +717,8 @@ class FakeAhpHost {
         ? 'a turn is already running'
         : type == 'session/configChanged'
         ? _configRejection(channel, action)
+        : rejectTypes.contains(type)
+        ? '$type is refused by this test host'
         : null;
     _emit(
       channel,
@@ -724,6 +734,9 @@ class FakeAhpHost {
     _record((channel: channel, action: action));
     if (type == 'chat/turnStarted') {
       final started = ChatTurnStartedAction.fromJson(action);
+      if (from.clientId case final clientId?) {
+        _turnClients[started.turnId] = clientId;
+      }
       unawaited(_runTurn(channel, started.turnId, started.message.text));
     }
   }
@@ -819,6 +832,12 @@ class FakeAhpHost {
         Scenario.slow => _slowFlow(chat, turnId),
         Scenario.cd => _cdFlow(chat, turnId),
         Scenario.settings => _settingsFlow(chat, turnId),
+        Scenario.client => _clientToolFlow(chat, turnId, otherClientId),
+        Scenario.delegate => _clientToolFlow(
+          chat,
+          turnId,
+          _turnClients[turnId] ?? otherClientId,
+        ),
       };
       if (!finished || !await _step(chat, turnId)) return;
     }
@@ -990,6 +1009,87 @@ class FakeAhpHost {
       turnId,
       'The reviewer chat got: '
       '${answerReply(ChatInputCompletedAction.fromJson(answer))}',
+    );
+    return true;
+  }
+
+  /// A tool call ([clientId]'s `open_browser`) that the host delegates to
+  /// a client: it runs, listed as a `toolClientExecution` entry. The
+  /// other client ([otherClientId]) completes it after a few steps; any
+  /// other client is waited for.
+  Future<bool> _clientToolFlow(
+    String chat,
+    String turnId,
+    String clientId,
+  ) async {
+    final id = _nextId('browser');
+    _emit(
+      chat,
+      ChatToolCallStartAction(
+        turnId: turnId,
+        toolCallId: id,
+        toolName: 'open_browser',
+        displayName: 'Open browser',
+        contributor: ToolCallClientContributor(clientId: clientId),
+      ).toJson(),
+    );
+    _emit(
+      chat,
+      ChatToolCallReadyAction(
+        turnId: turnId,
+        toolCallId: id,
+        invocationMessage: const PlainString('Open the preview'),
+        toolInput: const InlineToolInput('{"url":"http://localhost:3000"}'),
+        confirmed: ToolCallConfirmationReason.notNeeded,
+      ).toJson(),
+    );
+    final running = _toolCall<ToolCallRunningState>(chat, id)!;
+    final entryId = 'client-$id';
+    _setInputNeeded(
+      chat,
+      SessionToolClientExecutionRequest(
+        id: entryId,
+        chat: chat,
+        turnId: turnId,
+        clientId: clientId,
+        toolCall: running,
+      ),
+    );
+    _say(chat, turnId, 'Waiting for $clientId to open the preview.');
+    final JsonMap? result;
+    if (clientId == otherClientId) {
+      for (var i = 0; i < 5; i++) {
+        if (!await _step(chat, turnId)) {
+          _removeInputNeeded(chat, entryId);
+          return false;
+        }
+      }
+      result = ChatToolCallCompleteAction(
+        turnId: turnId,
+        toolCallId: id,
+        result: const ToolCallResult(
+          success: true,
+          pastTenseMessage: PlainString('Opened the preview'),
+        ),
+      ).toJson();
+      _emit(chat, result);
+    } else {
+      result = await _waitFor(
+        chat,
+        turnId,
+        (a) => a['type'] == 'chat/toolCallComplete' && a['toolCallId'] == id,
+      );
+    }
+    _removeInputNeeded(chat, entryId);
+    if (result == null || !await _step(chat, turnId)) return false;
+    final outcome = ChatToolCallCompleteAction.fromJson(result).result;
+    _say(
+      chat,
+      turnId,
+      outcome.success
+          ? '$clientId opened the preview.'
+          : '$clientId could not open the preview: '
+                '${outcome.error?.message ?? 'failed'}',
     );
     return true;
   }

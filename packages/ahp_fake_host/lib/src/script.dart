@@ -54,7 +54,15 @@ enum Scenario {
 
   /// Replies with the message's model and options and the session's
   /// settings (AV-041).
-  settings('settings');
+  settings('settings'),
+
+  /// A tool call executed by another client ([otherClientId]), listed as
+  /// a `toolClientExecution` entry until that client completes it.
+  client('client'),
+
+  /// A tool call delegated to the client that sent the message; waits
+  /// for its `chat/toolCallComplete`.
+  delegate('delegate');
 
   const Scenario(this.keyword);
 
@@ -72,6 +80,9 @@ List<Scenario> scenariosFor(String text) {
       if (words.contains(s.keyword)) s,
   ];
 }
+
+/// The `clientId` of the other client the `client` flow delegates to.
+const otherClientId = 'fake-ide';
 
 /// The reply to a message that names no flow.
 String echoReply(String text) =>

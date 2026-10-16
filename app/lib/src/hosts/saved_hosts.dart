@@ -111,3 +111,19 @@ List<SavedHost> decodeHosts(String? encoded) {
     return const [];
   }
 }
+
+/// Decodes a JSON list of host keys; malformed input or entries are
+/// skipped.
+List<String> decodeHostKeys(String? encoded) {
+  if (encoded == null || encoded.isEmpty) return const [];
+  try {
+    final list = jsonDecode(encoded);
+    if (list is! List) return const [];
+    return [
+      for (final item in list)
+        if (item is String && item.isNotEmpty) item,
+    ];
+  } on FormatException {
+    return const [];
+  }
+}

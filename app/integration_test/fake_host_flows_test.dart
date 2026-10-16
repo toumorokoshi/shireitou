@@ -7,7 +7,10 @@
 /// drafts and paging in a windowed chat; then a second host, the merged
 /// session list and host switcher, and the composer (host picker, folder
 /// browser, model options, session settings, a session that fails to
-/// start) and the follow-up mode picker.
+/// start) and the follow-up mode picker; then the session list (search,
+/// filters, archiving from the list, multi-select), keyboard shortcuts,
+/// a rejected answer in the "Waiting for you" panel, client tool
+/// executions, and the open hosts coming back after a restart.
 ///
 /// ```sh
 /// flutter test integration_test/fake_host_flows_test.dart -d linux
@@ -15,18 +18,22 @@
 library;
 
 import 'package:ahp_fake_host/ahp_fake_host.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:shireitou/src/app.dart';
+import 'package:shireitou/src/desktop/app_menu.dart';
 import 'package:shireitou/src/desktop/desktop_window.dart';
 import 'package:shireitou/src/hosts/open_hosts.dart';
 import 'package:shireitou/src/hosts/host_store.dart';
 import 'package:shireitou/src/hosts/saved_hosts.dart';
 import 'package:shireitou/src/session_detail/code_highlight.dart';
+import 'package:shireitou/src/session_detail/session_detail_view.dart';
 import 'package:shireitou/src/session_detail/session_status_widgets.dart';
+import 'package:shireitou/src/shortcuts.dart';
 import 'package:window_manager/window_manager.dart';
 
 /// Keeps remembered hosts in memory. Secure storage is covered by the
@@ -36,21 +43,32 @@ class _MemoryHostStore extends HostStore {
   _MemoryHostStore() : super(secureStorage);
 
   List<SavedHost> _hosts = const [];
+  List<String> _open = const [];
 
   @override
   Future<List<SavedHost>> loadHosts() async => _hosts;
 
   @override
   Future<void> saveHosts(List<SavedHost> hosts) async => _hosts = hosts;
+
+  @override
+  Future<List<String>> loadOpenHosts() async => _open;
+
+  @override
+  Future<void> saveOpenHosts(List<String> keys) async => _open = keys;
 }
 
 /// The app connected to a fresh fake host, with helpers that let real
 /// I/O run between frames.
 class _Harness {
-  _Harness(this.tester, this.host);
+  _Harness(this.tester, this.host, this.store, this.container);
 
   final WidgetTester tester;
   final FakeAhpHost host;
+  final _MemoryHostStore store;
+
+  /// The app's providers; [restart] replaces them.
+  ProviderContainer container;
 
   static Future<_Harness> start(WidgetTester tester) async {
     final host = FakeAhpHost(
@@ -79,24 +97,17 @@ class _Harness {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
     }
-    final container = ProviderContainer(
-      overrides: [hostStoreProvider.overrideWithValue(_MemoryHostStore())],
-    );
+    final store = _MemoryHostStore();
+    final harness = _Harness(tester, host, store, _container(store));
     addTearDown(() async {
+      final container = harness.container;
       await tester.runAsync(
         () => container.read(openHostsProvider.notifier).disconnectAll(),
       );
       container.dispose();
       await tester.runAsync(host.close);
     });
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: const ShireitouApp(),
-      ),
-    );
-    await tester.pumpAndSettle();
-    final harness = _Harness(tester, host);
+    await harness._pumpApp();
     // Connect through the connect screen.
     await tester.enterText(
       find.widgetWithText(TextField, 'Host URL'),
@@ -105,6 +116,53 @@ class _Harness {
     await tester.tap(find.widgetWithText(FilledButton, 'Connect'));
     await harness.waitFor(find.text('Scripted session'));
     return harness;
+  }
+
+  static ProviderContainer _container(_MemoryHostStore store) =>
+      ProviderContainer(
+        overrides: [hostStoreProvider.overrideWithValue(store)],
+      );
+
+  Future<void> _pumpApp() async {
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const ShireitouApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  /// Quits the app (its connections close without the user disconnecting)
+  /// and starts it again with the same stored hosts.
+  Future<void> restart() async {
+    await tester.pumpWidget(const SizedBox());
+    container.dispose();
+    container = _container(store);
+    await _pumpApp();
+  }
+
+  /// Runs [command] as its shortcut would: through the native menu on
+  /// macOS (which simulated keys do not reach), else with the keys.
+  Future<void> shortcut(AppCommand command) async {
+    if (hasNativeMenuBar) {
+      container.read(appCommandsProvider).send(command);
+    } else {
+      final activator = activatorFor(command);
+      final modifiers = [
+        if (activator.control) LogicalKeyboardKey.controlLeft,
+        if (activator.meta) LogicalKeyboardKey.metaLeft,
+        if (activator.alt) LogicalKeyboardKey.altLeft,
+      ];
+      for (final m in modifiers) {
+        await tester.sendKeyDownEvent(m);
+      }
+      await tester.sendKeyEvent(activator.trigger);
+      for (final m in modifiers.reversed) {
+        await tester.sendKeyUpEvent(m);
+      }
+    }
+    await settle();
   }
 
   /// Fails with what the screen shows and what the host received.
@@ -139,6 +197,10 @@ class _Harness {
     await tester.pump();
   }
 
+  /// Pumps until [finder] finds nothing, letting real I/O run.
+  Future<void> waitForNone(Finder finder) =>
+      waitUntil('no $finder', () => finder.evaluate().isEmpty);
+
   /// Pumps until [test] holds, letting real I/O run.
   Future<void> waitUntil(String what, bool Function() test) async {
     final deadline = DateTime.now().add(const Duration(seconds: 20));
@@ -170,7 +232,16 @@ class _Harness {
     FocusManager.instance.primaryFocus?.unfocus();
     tester.binding.focusedEditable = null;
     await tester.pump();
-    await tester.enterText(find.byType(TextField).last, text);
+    // Not `find.byType(TextField).last`: a dialog that is still closing
+    // (headless, frames only come from pumps) is later in the tree, and
+    // its field can no longer take focus, so the text would be lost.
+    await tester.enterText(
+      find.descendant(
+        of: find.byType(FollowUpInput),
+        matching: find.byType(TextField),
+      ),
+      text,
+    );
     await tester.pump();
   }
 
@@ -361,6 +432,10 @@ void main() {
     );
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await h.waitUntil(
+      'the edit dialog to close',
+      () => find.byType(AlertDialog).evaluate().isEmpty,
+    );
+    await h.waitUntil(
       'the host to reorder and edit the queue',
       () =>
           (host.chat(seededChat)!.queuedMessages ?? const [])
@@ -492,7 +567,7 @@ void main() {
 
     // A session in a folder the host does not have fails at once, with
     // the host's error (not after the 30 s creation timeout).
-    await tester.tap(find.byTooltip('New session'));
+    await tester.tap(find.byTooltip(RegExp(r'^New session \(')));
     await h.waitFor(find.text('Start session'));
     await tester.enterText(
       find.widgetWithText(TextField, 'Working directory'),
@@ -509,4 +584,120 @@ void main() {
       lessThan(const Duration(seconds: 10)),
     );
   });
+
+  testWidgets('the session list, shortcuts, a rejected answer, client '
+      'tools and restoring hosts after a restart', (tester) async {
+    final h = await _Harness.start(tester);
+    final host = h.host;
+    final search = find.byWidgetPredicate(
+      (w) =>
+          w is TextField && (w.decoration?.hintText ?? '').startsWith('Search'),
+    );
+
+    // Search (AV-027) and the search shortcut (AV-140).
+    debugPrint('fake host flows: search');
+    await h.shortcut(AppCommand.searchSessions);
+    expect(tester.widget<TextField>(search).focusNode!.hasFocus, isTrue);
+    await tester.enterText(search, 'long');
+    await h.settle();
+    expect(find.text('Long session'), findsOneWidget);
+    expect(find.text('Scripted session'), findsNothing);
+    await tester.tap(find.byTooltip('Clear search'));
+    await h.settle();
+
+    // Archive from the row menu; the Archived filter shows it, and a
+    // swipe unarchives it (AV-022, AV-024).
+    debugPrint('fake host flows: archive from the list');
+    await tester.tap(find.text('Long session'), buttons: kSecondaryButton);
+    await h.settle();
+    await tester.tap(find.text('Archive'));
+    await h.waitForNone(find.text('Long session'));
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Archived'));
+    await h.waitFor(find.text('Long session'));
+    await tester.drag(find.text('Long session'), const Offset(-600, 0));
+    await h.waitForNone(find.text('Long session'));
+    expect(host.session(longSession)!.status.isArchivedFlag, isFalse);
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Done'));
+    await h.waitFor(find.text('Long session'));
+
+    // Multi-select marks both sessions unread, which the attention count
+    // and the title show (AV-029, AV-120).
+    debugPrint('fake host flows: multi-select');
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Active'));
+    await h.settle();
+    await tester.longPress(find.text('Long session'));
+    await h.settle();
+    await tester.tap(find.text('Select'));
+    await h.settle();
+    await tester.tap(find.text('Scripted session'));
+    await h.settle();
+    expect(find.text('2 selected'), findsOneWidget);
+    await tester.tap(find.text('Mark unread'));
+    await h.waitFor(find.text('Needs attention (2)'));
+    expect(
+      tester.widget<MaterialApp>(find.byType(MaterialApp)).title,
+      '(2) shireitou',
+    );
+
+    // Next session opens the first row, which is marked read again.
+    debugPrint('fake host flows: next session');
+    await h.shortcut(AppCommand.nextSession);
+    await h.waitFor(find.byType(SessionDetailView));
+    await h.waitFor(find.text('Needs attention (1)'));
+    if (find.text('No messages yet. Say something.').evaluate().isEmpty) {
+      await tester.tap(find.text('Scripted session').first);
+      await h.waitFor(find.text('No messages yet. Say something.'));
+    }
+
+    // A rejected answer from the "Waiting for you" panel comes back.
+    debugPrint('fake host flows: rejected answer');
+    host.rejectTypes.add('chat/inputCompleted');
+    await h.send('side');
+    final panel = find.byType(SessionInputPanel);
+    await h.waitFor(panel);
+    await h.tapVisible(
+      find.descendant(of: panel, matching: find.text('Submit')),
+    );
+    await h.waitFor(find.textContaining('refused by this test host'));
+    await h.waitFor(panel);
+    host.rejectTypes.clear();
+    await h.clearSnackBars();
+    await h.tapVisible(
+      find.descendant(of: panel, matching: find.text('Submit')),
+    );
+    await h.waitFor(find.textContaining('merge=yes'));
+    expect(panel, findsNothing);
+
+    // A tool another client runs is shown as such, not as a question; one
+    // delegated to this app is turned down.
+    debugPrint('fake host flows: client tools');
+    await h.send('client');
+    await h.waitFor(find.text('1 tool running on another client'));
+    expect(panel, findsNothing);
+    await h.waitFor(find.text('fake-ide opened the preview.'));
+    await h.waitForNone(find.text('1 tool running on another client'));
+    await h.send('delegate');
+    await h.waitFor(find.textContaining('could not open the preview'));
+
+    // Stop (Cmd/Ctrl+.) and focus the composer (Cmd/Ctrl+L).
+    debugPrint('fake host flows: stop and focus shortcuts');
+    await h.send('slow');
+    await h.waitFor(find.byTooltip('Queue'));
+    await h.shortcut(AppCommand.stop);
+    await h.waitFor(find.byTooltip('Send'));
+    FocusManager.instance.primaryFocus?.unfocus();
+    await h.shortcut(AppCommand.focusComposer);
+    final composer = find.descendant(
+      of: find.byType(FollowUpInput),
+      matching: find.byType(TextField),
+    );
+    expect(tester.widget<TextField>(composer).focusNode!.hasFocus, isTrue);
+
+    // The open host comes back after a restart, without the connect
+    // screen.
+    debugPrint('fake host flows: restart');
+    await h.restart();
+    await h.waitFor(find.text('Scripted session'));
+    expect(find.text('Connect to a host'), findsNothing);
+  }, timeout: const Timeout(Duration(minutes: 3)));
 }

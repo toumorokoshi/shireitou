@@ -135,4 +135,59 @@ void main() {
     expect(alerts.first.message, 'Sign in to https://docs');
     expect(alerts.last.message, 'Failed: crashed');
   });
+
+  group('answers from the "Waiting for you" panel', () {
+    const answered = {'side': (chat: 'ahp-chat:/side', clientSeq: 4)};
+
+    test('stay hidden until the host removes them', () {
+      final prompts = sessionPrompts(sessionWithRequests(), null);
+      expect(unansweredPrompts(prompts, answered).map((p) => p.id), [
+        'confirm-rm',
+      ]);
+      expect(resolvedAnswers(answered, sessionWithRequests()), isEmpty);
+      final resolved = sessionWithRequests().copyWith(
+        inputNeeded: [sessionWithRequests().inputNeeded!.first],
+      );
+      expect(resolvedAnswers(answered, resolved), {'side'});
+    });
+
+    test('a failure of the same action shows the request again', () {
+      ActionFailure failure(String channel, int seq) => ActionFailure(
+        channel: channel,
+        clientSeq: seq,
+        action: const {'type': 'chat/inputCompleted'},
+        kind: ActionFailureKind.rejected,
+      );
+      expect(answerUndoneBy(answered, failure('ahp-chat:/side', 4)), 'side');
+      expect(answerUndoneBy(answered, failure('ahp-chat:/side', 5)), isNull);
+      expect(answerUndoneBy(answered, failure('ahp-chat:/1', 4)), isNull);
+    });
+  });
+
+  group('client tool executions', () {
+    final session = sessionWithExecutions(['me', 'ide']);
+
+    test('are never prompts', () {
+      expect(sessionPrompts(session, null).map((p) => p.id), [
+        'confirm-rm',
+        'side',
+      ]);
+    });
+
+    test("are split into this client's and other clients' ones", () {
+      expect(ownClientExecutions(session, 'me').map((e) => e.id), ['exec-0']);
+      expect(otherClientExecutions(session, 'me').map((e) => e.id), ['exec-1']);
+      expect(ownClientExecutions(session, null), isEmpty);
+    });
+
+    test('this client turns its own down with a failed result', () {
+      final action = ChatToolCallCompleteAction.fromJson(
+        declineClientExecutionAction(clientExecution('x', 'me')),
+      );
+      expect(action.turnId, 'turn-2');
+      expect(action.toolCallId, 'call-x');
+      expect(action.result.success, isFalse);
+      expect(action.result.error?.code, 'unsupported');
+    });
+  });
 }

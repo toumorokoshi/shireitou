@@ -217,7 +217,7 @@ void main() {
     );
     first.startError = error;
     second.startError = error;
-    await tester.tap(find.byTooltip('New session'));
+    await tester.tap(find.byTooltip(RegExp(r'^New session \(')));
     await tester.pumpAndSettle();
     await tester.enterText(find.widgetWithText(TextField, 'Prompt'), 'Go');
     await tester.tap(find.text('Start session'));

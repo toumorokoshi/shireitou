@@ -6,6 +6,9 @@ import 'package:shireitou/src/host_connection.dart';
 import 'package:shireitou/src/hosts/open_hosts.dart';
 import 'package:shireitou/src/hosts/saved_hosts.dart';
 
+/// The `clientId` of every [FakeHostConnection].
+const testClientId = 'test-client';
+
 /// The host the fake connections stand for.
 const testHost = SavedHost(url: 'ws://127.0.0.1:1', name: 'test host');
 
@@ -84,9 +87,16 @@ class FakeHostConnection extends HostConnection {
   @override
   void closeSession(String session, String? chat) {}
 
+  /// Returns the action's `clientSeq` (its 1-based position in
+  /// [dispatched]).
   @override
-  void dispatch(String channel, JsonMap action) =>
-      dispatched.add((channel, action));
+  int dispatch(String channel, JsonMap action) {
+    dispatched.add((channel, action));
+    return dispatched.length;
+  }
+
+  @override
+  String? get clientId => testClientId;
 
   /// (resource, token) pairs pushed with `authenticate`.
   final authenticated = <(String, String)>[];

@@ -25,7 +25,12 @@ changeset and canvas channels mirrored by the client. Iteration 8
 (2026-10-16) connected several hosts at once (merged session list, host
 switcher, keyring problems shown to the user) and completed the composer
 (host picker, folder browser, model options, session settings, immediate
-creation errors) and the in-session model and mode pickers. Remaining work:
+creation errors) and the in-session model and mode pickers. Iteration 9 (2026-10-16) finished the
+session list (Done filter, search, sort, archive and mark read from the
+row menu, swipe and multi-select, the attention count in the title), the
+AV-140 keyboard shortcuts (and the macOS Session menu), optimistic
+answers in the "Waiting for you" panel, client tool executions, and
+restoring the open hosts after a restart. Remaining work:
 
 - **Approvals and input against a real host:** tool approvals (AV-083),
   input requests (AV-084), session-level requests and MCP sign-in are
@@ -36,11 +41,16 @@ creation errors) and the in-session model and mode pickers. Remaining work:
   fake host does not cover host-provided confirmation `options`, risk
   assessments, editable tool input, result confirmation
   (`pending-result-confirmation`) or `chat/inputAnswerChanged` drafts.
-- **"Waiting for you" panel:** a request answered from the panel in a chat
-  the client is not subscribed to stays visible (and can be submitted
-  again) until the host sends `session/inputNeededRemoved`; a rejected
-  answer only shows the usual snackbar. Client tool execution entries
-  (`toolClientExecution`) are ignored because the app provides no tools.
+- **"Waiting for you" panel and client tools:** an answered entry is
+  hidden until the host removes it and comes back when the host rejects
+  the answer or does not remove the entry within 30 s (a fixed timeout,
+  like the client's pending-action timeout). Both, and
+  `toolClientExecution` entries (another client's shown as "running on
+  another client"; one delegated to this app turned down with a failed
+  `chat/toolCallComplete`, since the app provides no tools), are verified
+  against the fake host only. The app does not announce tools in
+  `activeClients`, so a host following the protocol never delegates one
+  to it.
 - **Composer and settings, remaining details (AV-040 to AV-043):**
   - Settings are edited only when they are JSON primitives: `array` and
     `object` properties of a model `configSchema` or session config are
@@ -109,14 +119,29 @@ creation errors) and the in-session model and mode pickers. Remaining work:
   `ProtectedResourceMetadata`/`McpOAuthClient` (AHP-060), no handling of
   `auth/required` or `-32007` (AHP-061), and no `expiresIn` or scopes in
   the dialog.
-- **Session list:** no "Done" filter (AV-022), archive only from the session
-  header (AV-024), no attention count in the title (AV-120), no keyboard
-  shortcuts (AV-140), no search or sort.
-- **Hosts (AV-010 to AV-012):** several hosts are connected at once, but
-  which hosts were open is not remembered: after a restart the user
-  reconnects them from Recent hosts. A host whose first connect fails is
-  not kept open (its error shows on the connect page). Secure storage per
-  platform:
+- **Session list and shortcuts, remaining details:**
+  - Search matches titles and the `agent:`, `status:`, `repo:` and
+    `host:` qualifiers only, not chat content; there is no negation
+    (`-status:done`) and the query is not remembered across restarts.
+    Pinning (AV-028) is not built.
+  - An archive or read change from the list is sent to the session
+    channel without subscribing; the row moves only when the host's
+    catalogue update arrives (the root catalogue is not written ahead). A
+    rejection is reported, but nothing times out for a session that is
+    not open, since the client has no mirror to roll back.
+  - Shortcuts: Alt+↑/↓ also apply while a text field has focus (they win
+    over the field's own Alt+arrow navigation). On the web, browsers keep
+    Ctrl+N for a new window, so the shortcut only works in the desktop
+    apps there; the web shortcuts were not tried in a browser. There is
+    no shortcut help overlay (the spec has none); tooltips and the
+    search hint name the keys, and macOS lists them in the menu.
+- **Hosts (AV-010 to AV-012):** the open hosts' keys are saved with the
+  remembered hosts, so a host is only reopened after a restart when it is
+  remembered (it connected once and secure storage works); with a locked
+  keyring nothing is restored. A host that never connected is dropped
+  when its connect fails (its error shows on the connect page); a
+  remembered one stays open, failed, with Retry and Remove in the host
+  switcher. Secure storage per platform:
   - Web: encrypted local storage; verified.
   - Linux: libsecret; verified by the desktop smoke test with a fresh
     gnome-keyring. A locked keyring (`KeyringLocked`) or no Secret Service
@@ -174,10 +199,10 @@ creation errors) and the in-session model and mode pickers. Remaining work:
   Remaining:
   - macOS has never been run on a developer Mac (this machine has no
     Xcode): the window placement restore, `hiddenWindowAtLaunch`, the menu
-    bar and the keychain were exercised only by CI.
-  - The macOS menu bar has no items for the AV-140 shortcuts (new session,
-    search, next/previous session, stop, focus composer); they wait for
-    AV-140 itself.
+    bar (including the Session menu's key equivalents, which the app
+    relies on instead of Flutter shortcuts there), the window title and
+    the keychain were exercised only by CI, and CI cannot press menu keys
+    (the integration test sends the commands the menu items send).
   - On Linux the minimum window size is a GTK geometry hint that the window
     manager enforces; it was not checked under a real window manager
     (the smoke test runs under Xvfb with none). On Wayland only the size is
@@ -199,12 +224,12 @@ creation errors) and the in-session model and mode pickers. Remaining work:
   the fake host, on Linux and macOS (and headless with
   `just test-fake-host-app flutter-tester`), and a second fake host with
   the host switcher, the composer (host picker, folder browser, model
-  options, session settings, creation failure) and the mode picker. The
-  session list filters, archive and reconnect are not driven end to end,
-  and the web app is still only driven by a Playwright script kept outside
-  the repo. Headless (`flutter-tester`), the draft step of the second test
-  intermittently times out (seen before iteration 8 too); it passes on
-  the Linux and macOS devices in CI.
+  options, session settings, creation failure) and the mode picker, and a
+  fourth test drives the session list (search, filters, archive from the
+  list, multi-select), the shortcuts, a rejected panel answer, client
+  tools and a restart that restores the open host. Reconnecting after a
+  dropped connection is not driven end to end, and the web app is still
+  only driven by a Playwright script kept outside the repo.
 - Everything else in [specs/agents-view.md](specs/agents-view.md) and
   [specs/agent-host-protocol-client.md](specs/agent-host-protocol-client.md)
   not listed as done in their status sections.

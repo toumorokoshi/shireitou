@@ -7,13 +7,16 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../hosts/open_hosts.dart';
+import '../shortcuts.dart';
 
 /// Whether [AppMenuBar] shows a native menu bar: only macOS has one.
 bool get hasNativeMenuBar =>
     !kIsWeb && defaultTargetPlatform == TargetPlatform.macOS;
 
-/// Wraps [child] in a native macOS menu bar (app, Host, View and Window
-/// menus). On other platforms it returns [child] unchanged.
+/// Wraps [child] in a native macOS menu bar (app, Session, Host, View and
+/// Window menus). The Session menu carries the AV-140 shortcuts, which
+/// the native menu handles on macOS; elsewhere [AppShortcuts] handles
+/// them and this returns [child] unchanged.
 class AppMenuBar extends ConsumerWidget {
   /// Creates the menu bar around [child].
   const AppMenuBar({required this.child, super.key});
@@ -28,17 +31,47 @@ class AppMenuBar extends ConsumerWidget {
       openHostsProvider.select((hosts) => hosts.isNotEmpty),
     );
     return PlatformMenuBar(
-      menus: appMenus(connected: connected, ref: ref),
+      menus: appMenus(
+        connected: connected,
+        ref: ref,
+        onCommand: ref.watch(appCommandsProvider).send,
+      ),
       child: child,
     );
   }
 }
 
-/// The menus for the macOS menu bar. "Disconnect All" (⌘⇧D) is enabled
-/// while [connected] to any host.
+/// The menu items for the AV-140 shortcuts, in groups, sending each
+/// command to [onCommand]; disabled unless [connected].
+List<PlatformMenuItem> sessionMenuItems({
+  required bool connected,
+  required ValueChanged<AppCommand> onCommand,
+}) {
+  PlatformMenuItem item(AppCommand command) => PlatformMenuItem(
+    label: command.label,
+    shortcut: activatorFor(command, apple: true),
+    onSelected: connected ? () => onCommand(command) : null,
+  );
+  return [
+    PlatformMenuItemGroup(
+      members: [item(AppCommand.newSession), item(AppCommand.searchSessions)],
+    ),
+    PlatformMenuItemGroup(
+      members: [item(AppCommand.nextSession), item(AppCommand.previousSession)],
+    ),
+    PlatformMenuItemGroup(
+      members: [item(AppCommand.stop), item(AppCommand.focusComposer)],
+    ),
+  ];
+}
+
+/// The menus for the macOS menu bar. "Disconnect All" (⌘⇧D) and the
+/// Session menu ([sessionMenuItems]) are enabled while [connected] to any
+/// host.
 List<PlatformMenuItem> appMenus({
   required bool connected,
   required WidgetRef ref,
+  required ValueChanged<AppCommand> onCommand,
 }) => [
   PlatformMenu(
     label: 'shireitou',
@@ -68,6 +101,10 @@ List<PlatformMenuItem> appMenus({
       ),
       const PlatformProvidedMenuItem(type: PlatformProvidedMenuItemType.quit),
     ],
+  ),
+  PlatformMenu(
+    label: 'Session',
+    menus: sessionMenuItems(connected: connected, onCommand: onCommand),
   ),
   PlatformMenu(
     label: 'Host',
