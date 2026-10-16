@@ -12,17 +12,25 @@ void main() {
     'lifecycle': 'creating',
     'activeClients': <Object?>[],
     'chats': [
-      {'resource': 'ahp-chat:/a', 'title': 'New session', 'status': 1},
+      {
+        'resource': 'ahp-chat:/a',
+        'title': 'New session',
+        'status': 1,
+        'modifiedAt': '2026-01-01T00:00:00Z',
+      },
     ],
   });
 
   test('ready and creationFailed set the lifecycle', () {
-    expect(_reduce(state, {'type': 'session/ready'}).lifecycle, 'ready');
+    expect(
+      _reduce(state, {'type': 'session/ready'}).lifecycle,
+      SessionLifecycle.ready,
+    );
     final failed = _reduce(state, {
       'type': 'session/creationFailed',
       'error': {'errorType': 'x', 'message': 'no model'},
     });
-    expect(failed.lifecycle, 'failed');
+    expect(failed.lifecycle, SessionLifecycle.failed);
     expect(failed.creationError?.message, 'no model');
   });
 
@@ -32,7 +40,7 @@ void main() {
       'chat': 'ahp-chat:/a',
       'changes': {'status': 8, 'activity': 'Thinking'},
     });
-    expect(next.chats.single.status!.isInProgress, isTrue);
+    expect(next.chats.single.status.isInProgress, isTrue);
     expect(next.chats.single.activity, 'Thinking');
     expect(next.chats.single.title, 'New session');
   });
@@ -40,7 +48,12 @@ void main() {
   test('chat added, default chat and removal', () {
     final added = _reduce(state, {
       'type': 'session/chatAdded',
-      'summary': {'resource': 'ahp-chat:/b', 'title': 'side'},
+      'summary': {
+        'resource': 'ahp-chat:/b',
+        'title': 'side',
+        'status': 1,
+        'modifiedAt': '2026-01-01T00:00:00Z',
+      },
     });
     final defaulted = _reduce(added, {
       'type': 'session/defaultChatChanged',

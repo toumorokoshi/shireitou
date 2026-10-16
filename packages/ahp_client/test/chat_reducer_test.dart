@@ -74,8 +74,8 @@ ChatState _chat(Iterable<ResponsePart> parts, {List<Turn> turns = const []}) =>
 ChatState _reduce(ChatState state, JsonMap action) =>
     reduceChat(state, ChatAction.fromJson(action));
 
-ToolCall _toolCall(ChatState state) =>
-    (state.activeTurn!.responseParts.single as ToolCallPart).toolCall;
+ToolCallState _toolCall(ChatState state) =>
+    (state.activeTurn!.responseParts.single as ToolCallResponsePart).toolCall;
 
 void main() {
   group('recorded pi traffic', () {
@@ -91,9 +91,9 @@ void main() {
       expect(turns.map((t) => t.state), everyElement(TurnState.complete));
       expect(chat.state.activeTurn, isNull);
       expect(turns[0].message.text, 'Reply with just the word ok.');
-      expect(turns[0].responseParts.first, isA<ReasoningPart>());
+      expect(turns[0].responseParts.first, isA<ReasoningResponsePart>());
       expect(
-        turns[0].responseParts.whereType<MarkdownPart>().single.content,
+        turns[0].responseParts.whereType<MarkdownResponsePart>().single.content,
         'ok',
       );
       expect(turns[0].usage?.outputTokens, 73);
@@ -102,21 +102,21 @@ void main() {
 
     test('rebuilds the tool call from start to completion', () {
       final call = chat.state.turns[1].responseParts
-          .whereType<ToolCallPart>()
+          .whereType<ToolCallResponsePart>()
           .single
           .toolCall;
-      expect(call.status, ToolCallStatus.completed);
+      expect(call, isA<ToolCallCompletedState>());
+      call as ToolCallCompletedState;
       expect(call.displayName, 'Bash');
-      expect(call.toolInput, '{"command":"ls"}');
-      expect(call.partialInput, isNull);
-      expect(call.confirmed, 'not-needed');
-      expect(stringOrMarkdownText(call.invocationMessage), 'Running `ls`');
-      expect(stringOrMarkdownText(call.pastTenseMessage), 'Ran `ls`');
+      expect(call.toolInput, const InlineToolInput('{"command":"ls"}'));
+      expect(call.confirmed, ToolCallConfirmationReason.notNeeded);
+      expect(call.invocationMessage.text, 'Running `ls`');
+      expect(call.pastTenseMessage.text, 'Ran `ls`');
       expect(call.success, isTrue);
-      expect(call.content!.single['text'], 'a.txt\n');
+      expect((call.content!.single as ToolResultTextContent).text, 'a.txt\n');
       expect(
         chat.state.turns[1].responseParts
-            .whereType<MarkdownPart>()
+            .whereType<MarkdownResponsePart>()
             .last
             .content,
         'done',
@@ -125,7 +125,7 @@ void main() {
 
     test('tracks session title, read flag and idle status', () {
       expect(session.state.title, 'Reply with just the word ok.');
-      expect(session.state.lifecycle, 'ready');
+      expect(session.state.lifecycle, SessionLifecycle.ready);
       expect(session.state.status.isReadFlag, isTrue);
       expect(chat.state.status.isIdle, isTrue);
       expect(chat.state.status.isReadFlag, isTrue);
@@ -143,7 +143,8 @@ void main() {
           if (entry['dir'] == 'client->host' && active != null) {
             seen.add('optimistic:${mirror!.pending.length}');
           }
-          final markdown = active?.responseParts.whereType<MarkdownPart>();
+          final markdown = active?.responseParts
+              .whereType<MarkdownResponsePart>();
           if (markdown != null && markdown.isNotEmpty) {
             seen.add('text:${markdown.last.content}');
           }
@@ -172,12 +173,11 @@ void main() {
   group('tool confirmations (AHP-041)', () {
     final ready = _reduce(
       _chat([
-        const ResponsePart.toolCall(
-          toolCall: ToolCall(
+        const ToolCallResponsePart(
+          toolCall: ToolCallStreamingState(
             toolCallId: 'x',
             toolName: 'bash',
             displayName: 'Bash',
-            status: ToolCallStatus.streaming,
             partialInput: '{"command":"rm',
           ),
         ),
@@ -195,9 +195,8 @@ void main() {
     );
 
     test('toolCallReady without confirmed waits for the user', () {
-      final call = _toolCall(ready);
-      expect(call.status, ToolCallStatus.pendingConfirmation);
-      expect(call.partialInput, isNull);
+      final call = _toolCall(ready) as ToolCallPendingConfirmationState;
+      expect(call.toolInput, const InlineToolInput('{"command":"rm"}'));
       expect(call.options!.single.id, 'once');
       expect(ready.status.isInputNeeded, isTrue);
     });
@@ -212,9 +211,8 @@ void main() {
         'selectedOptionId': 'once',
       });
       final call = _toolCall(approved);
-      expect(call.status, ToolCallStatus.running);
+      expect(call, isA<ToolCallRunningState>());
       expect(call.selectedOption?.label, 'Allow once');
-      expect(call.options, isNull);
       expect(approved.status.isInputNeeded, isFalse);
       expect(approved.status.isInProgress, isTrue);
     });
@@ -227,8 +225,8 @@ void main() {
         'approved': false,
         'reason': 'denied',
       });
-      expect(_toolCall(denied).status, ToolCallStatus.cancelled);
-      expect(_toolCall(denied).reason, 'denied');
+      final call = _toolCall(denied) as ToolCallCancelledState;
+      expect(call.reason, ToolCallCancellationReason.denied);
     });
 
     test('result confirmation completes or rejects the result', () {
@@ -247,8 +245,8 @@ void main() {
         'result': {'success': true, 'pastTenseMessage': 'Ran rm'},
       });
       expect(
-        _toolCall(finished).status,
-        ToolCallStatus.pendingResultConfirmation,
+        _toolCall(finished),
+        isA<ToolCallPendingResultConfirmationState>(),
       );
       expect(finished.status.isInputNeeded, isTrue);
       final approved = _reduce(finished, {
@@ -257,14 +255,17 @@ void main() {
         'toolCallId': 'x',
         'approved': true,
       });
-      expect(_toolCall(approved).status, ToolCallStatus.completed);
+      expect(_toolCall(approved), isA<ToolCallCompletedState>());
       final rejected = _reduce(finished, {
         'type': 'chat/toolCallResultConfirmed',
         'turnId': 't1',
         'toolCallId': 'x',
         'approved': false,
       });
-      expect(_toolCall(rejected).reason, 'result-denied');
+      expect(
+        (_toolCall(rejected) as ToolCallCancelledState).reason,
+        ToolCallCancellationReason.resultDenied,
+      );
     });
 
     test('ending the turn cancels unfinished tool calls as skipped', () {
@@ -274,9 +275,12 @@ void main() {
         'duration': 5,
       });
       final call =
-          (ended.turns.single.responseParts.single as ToolCallPart).toolCall;
-      expect(call.status, ToolCallStatus.cancelled);
-      expect(call.reason, 'skipped');
+          (ended.turns.single.responseParts.single as ToolCallResponsePart)
+              .toolCall;
+      expect(
+        (call as ToolCallCancelledState).reason,
+        ToolCallCancellationReason.skipped,
+      );
       expect(ended.turns.single.state, TurnState.cancelled);
       expect(ended.status.isIdle, isTrue);
       expect(ended.modifiedAt, '2026-01-01T00:00:00.005Z');
@@ -298,7 +302,10 @@ void main() {
       expect(requested.status.isInputNeeded, isTrue);
       expect(requested.status.isReadFlag, isFalse);
       final part = requested.activeTurn!.responseParts.single;
-      expect((part as InputRequestPart).request.questions!.single.id, 'q');
+      expect(
+        (part as InputRequestResponsePart).request.questions!.single.id,
+        'q',
+      );
     });
 
     test('answer changes and completion record the answers', () {
@@ -317,9 +324,10 @@ void main() {
         'requestId': 'r',
         'response': 'accept',
       });
-      final part = done.activeTurn!.responseParts.single as InputRequestPart;
-      expect(part.response, 'accept');
-      expect(part.request.answers, {'q': answer});
+      final part =
+          done.activeTurn!.responseParts.single as InputRequestResponsePart;
+      expect(part.response, ChatInputResponseKind.accept);
+      expect(part.request.answers, {'q': ChatInputAnswer.fromJson(answer)});
       expect(done.status.isInputNeeded, isFalse);
       expect(done.status.isInProgress, isTrue);
     });
@@ -378,7 +386,10 @@ void main() {
         'turnId': 't1',
       });
       expect(resumed.turns, isEmpty);
-      expect(resumed.activeTurn!.responseParts.single, isA<ErrorPart>());
+      expect(
+        resumed.activeTurn!.responseParts.single,
+        isA<ErrorResponsePart>(),
+      );
     });
 
     test('turnsLoaded prepends older turns without duplicates', () {
@@ -399,7 +410,7 @@ void main() {
       final state = _chat(const []);
       expect(_reduce(state, {'type': 'chat/x-future'}), state);
       final part = ResponsePart.fromJson({'kind': 'x-future'});
-      expect(part, isA<UnknownPart>());
+      expect(part, isA<ResponsePartUnknown>());
     });
   });
 }

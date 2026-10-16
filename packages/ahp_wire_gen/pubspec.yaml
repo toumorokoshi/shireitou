@@ -1,0 +1,15 @@
+name: ahp_wire_gen
+description: >-
+  Generates the ahp_client wire types from the Agent Host Protocol JSON
+  Schemas.
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.13.5
+dependencies:
+  collection: ^1.19.1
+dev_dependencies:
+  lints: ^6.1.0
+  test: ^1.31.1

@@ -98,7 +98,7 @@ class HostConnection extends Notifier<HostState> {
     if (chat != null) {
       client.dispatch(
         chat,
-        ChatAction.turnStarted(
+        ChatTurnStartedAction(
           turnId: const Uuid().v4(),
           startedAt: DateTime.now().toUtc().toIso8601String(),
           message: userMessage(prompt, model: model),

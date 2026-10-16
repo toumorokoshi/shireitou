@@ -51,8 +51,8 @@ class PendingMessageItem extends TimelineItem {
   /// Creates a [PendingMessageItem].
   const PendingMessageItem(this.kind, this.pending);
 
-  /// `steering` or `queued`.
-  final String kind;
+  /// Steering or queued.
+  final PendingMessageKind kind;
 
   /// The message.
   final PendingMessage pending;
@@ -61,8 +61,8 @@ class PendingMessageItem extends TimelineItem {
 /// Whether [part] is worth a row: empty markdown and reasoning parts (which
 /// pi opens before streaming into them) are hidden.
 bool _visible(ResponsePart part) => switch (part) {
-  MarkdownPart(:final content) ||
-  ReasoningPart(:final content) => content.trim().isNotEmpty,
+  MarkdownResponsePart(:final content) ||
+  ReasoningResponsePart(:final content) => content.trim().isNotEmpty,
   _ => true,
 };
 
@@ -82,37 +82,46 @@ List<TimelineItem> timelineItems(ChatState chat) => [
       if (_visible(part)) ResponsePartItem(active.id, part, active: true),
   ],
   if (chat.steeringMessage case final steering?)
-    PendingMessageItem('steering', steering),
+    PendingMessageItem(PendingMessageKind.steering, steering),
   for (final queued in chat.queuedMessages ?? const <PendingMessage>[])
-    PendingMessageItem('queued', queued),
+    PendingMessageItem(PendingMessageKind.queued, queued),
 ];
 
 /// A one-line summary of [toolCall] (AV-063): the past-tense message when
 /// finished, else the invocation message, else the display name.
-String toolCallSummary(ToolCall toolCall) =>
-    stringOrMarkdownText(toolCall.pastTenseMessage) ??
-    stringOrMarkdownText(toolCall.invocationMessage) ??
+String toolCallSummary(ToolCallState toolCall) =>
+    switch (toolCall) {
+      ToolCallCompletedState(:final pastTenseMessage) ||
+      ToolCallPendingResultConfirmationState(
+        :final pastTenseMessage,
+      ) => pastTenseMessage.text,
+      _ => null,
+    } ??
+    toolCall.invocationMessage?.text ??
     toolCall.displayName;
 
 /// A label for a tool call's status (AV-063).
-String toolCallStatusLabel(ToolCallStatus status) => switch (status) {
-  ToolCallStatus.streaming => 'Preparing',
-  ToolCallStatus.pendingConfirmation => 'Needs approval',
-  ToolCallStatus.running => 'Running',
-  ToolCallStatus.authRequired => 'Sign-in required',
-  ToolCallStatus.pendingResultConfirmation => 'Review result',
-  ToolCallStatus.completed => 'Done',
-  ToolCallStatus.cancelled => 'Cancelled',
-  ToolCallStatus.unknown => 'Unknown',
+String toolCallStatusLabel(ToolCallState toolCall) => switch (toolCall) {
+  ToolCallStreamingState() => 'Preparing',
+  ToolCallPendingConfirmationState() => 'Needs approval',
+  ToolCallRunningState() => 'Running',
+  ToolCallAuthRequiredState() => 'Sign-in required',
+  ToolCallPendingResultConfirmationState() => 'Review result',
+  ToolCallCompletedState() => 'Done',
+  ToolCallCancelledState() => 'Cancelled',
+  ToolCallStateUnknown() => 'Unknown',
 };
 
 /// The tool's input for display: the streamed or final input, with JSON
 /// pretty-printed. Null when there is none.
-String? toolCallInputText(ToolCall toolCall) {
+String? toolCallInputText(ToolCallState toolCall) {
   final input = switch (toolCall.toolInput) {
-    final String text => text,
-    {'uri': final String uri} => uri,
-    _ => toolCall.partialInput,
+    InlineToolInput(:final value) => value,
+    ContentRef(:final uri) => uri,
+    null => switch (toolCall) {
+      ToolCallStreamingState(:final partialInput) => partialInput,
+      _ => null,
+    },
   };
   if (input == null || input.isEmpty) return null;
   try {
@@ -124,17 +133,23 @@ String? toolCallInputText(ToolCall toolCall) {
 
 /// The tool's text output: text content and terminal previews, joined.
 /// Null when there is none.
-String? toolCallOutputText(ToolCall toolCall) {
+String? toolCallOutputText(ToolCallState toolCall) {
+  final error = switch (toolCall) {
+    ToolCallCompletedState(:final error) ||
+    ToolCallPendingResultConfirmationState(:final error) => error,
+    _ => null,
+  };
   final texts = [
-    for (final content in toolCall.content ?? const <JsonMap>[])
+    for (final content in toolCall.content ?? const <ToolResultContent>[])
       switch (content) {
-        {'type': 'text', 'text': final String text} => text,
-        {'type': 'terminal', 'result': {'preview': final String preview}} =>
+        ToolResultTextContent(:final text) => text,
+        ToolResultTerminalContent(
+          result: TerminalCommandResult(:final preview?),
+        ) =>
           preview,
-        {'type': final String type} => '[$type]',
-        _ => '',
+        _ => '[${content.type}]',
       },
-    if (toolCall.error case {'message': final String message}) message,
+    ?error?.message,
   ].where((text) => text.isNotEmpty);
   return texts.isEmpty ? null : texts.join('\n');
 }
@@ -153,6 +168,7 @@ String turnFooterText(Turn turn) {
       TurnState.complete => 'Done',
       TurnState.cancelled => 'Cancelled',
       TurnState.error => 'Failed',
+      TurnState.$unknown => 'Ended',
     },
     if (turn.duration case final ms?) '${(ms / 1000).toStringAsFixed(1)} s',
     if (usage?.inputTokens case final tokens?) '${_grouped(tokens)} in',

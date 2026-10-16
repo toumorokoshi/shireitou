@@ -9,7 +9,7 @@ void main() {
     final chat = chatFixture().copyWith(
       queuedMessages: [PendingMessage(id: 'q', message: userMessage('next'))],
       activeTurn: chatFixture().activeTurn!.copyWith(
-        responseParts: const [ResponsePart.markdown(id: 'empty', content: '')],
+        responseParts: const [MarkdownResponsePart(id: 'empty', content: '')],
       ),
     );
     final kinds = [
@@ -19,15 +19,15 @@ void main() {
           ResponsePartItem(:final part, :final active) =>
             '${part.runtimeType}${active ? '*' : ''}',
           TurnFooterItem() => 'footer',
-          PendingMessageItem(:final kind) => kind,
+          PendingMessageItem(:final kind) => kind.wireValue,
         },
     ];
     // The empty markdown part pi opens before streaming is hidden.
     expect(kinds, [
       'user',
-      'ReasoningPart',
-      'ToolCallPart',
-      'MarkdownPart',
+      'ReasoningResponsePart',
+      'ToolCallResponsePart',
+      'MarkdownResponsePart',
       'footer',
       'user',
       'queued',
@@ -36,18 +36,17 @@ void main() {
 
   test('tool call summary, input and output', () {
     final call =
-        (chatFixture().turns.single.responseParts[1] as ToolCallPart).toolCall;
+        (chatFixture().turns.single.responseParts[1] as ToolCallResponsePart)
+            .toolCall;
     expect(toolCallSummary(call), 'Ran `ls`');
     expect(toolCallInputText(call), '{\n  "command": "ls"\n}');
     expect(toolCallOutputText(call), 'a.txt\n');
-    expect(toolCallStatusLabel(call.status), 'Done');
-    final streaming = call.copyWith(
-      status: ToolCallStatus.streaming,
-      toolInput: null,
+    expect(toolCallStatusLabel(call), 'Done');
+    final streaming = ToolCallStreamingState(
+      toolCallId: call.toolCallId,
+      toolName: call.toolName,
+      displayName: call.displayName,
       partialInput: '{"comm',
-      pastTenseMessage: null,
-      invocationMessage: null,
-      content: null,
     );
     expect(toolCallSummary(streaming), 'Bash');
     expect(toolCallInputText(streaming), '{"comm');

@@ -11,7 +11,7 @@ void main() {
   final active = chatFixture();
   final idle = chatFixture(active: false);
   final pendingTool =
-      (active.activeTurn!.responseParts.first as ToolCallPart).toolCall;
+      (active.activeTurn!.responseParts.first as ToolCallResponsePart).toolCall;
 
   group('sendMessageAction', () {
     test('starts a turn when idle', () {
@@ -71,7 +71,7 @@ void main() {
       const option = ConfirmationOption(
         id: 'always',
         label: 'Always',
-        kind: 'approve',
+        kind: ConfirmationOptionKind.approve,
       );
       final action = confirmToolCallAction(
         'turn-2',
@@ -85,7 +85,15 @@ void main() {
     test('results waiting for review use toolCallResultConfirmed', () {
       final action = confirmToolCallAction(
         'turn-2',
-        pendingTool.copyWith(status: ToolCallStatus.pendingResultConfirmation),
+        ToolCallPendingResultConfirmationState(
+          toolCallId: pendingTool.toolCallId,
+          toolName: pendingTool.toolName,
+          displayName: pendingTool.displayName,
+          invocationMessage: pendingTool.invocationMessage!,
+          confirmed: ToolCallConfirmationReason.userAction,
+          success: true,
+          pastTenseMessage: const PlainString('Ran it'),
+        ),
         approve: false,
       );
       expect(action['type'], 'chat/toolCallResultConfirmed');
@@ -95,32 +103,33 @@ void main() {
 
   group('input answers', () {
     ChatInputQuestion q(String kind, {bool required = false}) =>
-        ChatInputQuestion(
-          id: kind,
-          kind: kind,
-          message: kind,
-          required: required,
-        );
+        ChatInputQuestion.fromJson({
+          'id': kind,
+          'kind': kind,
+          'message': kind,
+          'required': required,
+          if (kind.endsWith('select')) 'options': <Object?>[],
+        });
 
     test('values become submitted answers by question kind', () {
-      expect(inputAnswer(q('text'), 'x')!['value'], {
+      expect(inputAnswer(q('text'), 'x')!.toJson()['value'], {
         'kind': 'text',
         'value': 'x',
       });
-      expect(inputAnswer(q('integer'), '3')!['value'], {
+      expect(inputAnswer(q('integer'), '3')!.toJson()['value'], {
         'kind': 'number',
         'value': 3,
       });
       expect(inputAnswer(q('number'), 'x'), isNull);
-      expect(inputAnswer(q('boolean'), false)!['value'], {
+      expect(inputAnswer(q('boolean'), false)!.toJson()['value'], {
         'kind': 'boolean',
         'value': false,
       });
-      expect(inputAnswer(q('single-select'), 'a')!['value'], {
+      expect(inputAnswer(q('single-select'), 'a')!.toJson()['value'], {
         'kind': 'selected',
         'value': 'a',
       });
-      expect(inputAnswer(q('multi-select'), {'a', 'b'})!['value'], {
+      expect(inputAnswer(q('multi-select'), {'a', 'b'})!.toJson()['value'], {
         'kind': 'selected-many',
         'value': ['a', 'b'],
       });

@@ -99,12 +99,12 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
 
   void _setRead(bool read) => _dispatch(
     widget.session,
-    SessionAction.isReadChanged(isRead: read).toJson(),
+    SessionIsReadChangedAction(isRead: read).toJson(),
   );
 
   void _setArchived(bool archived) => _dispatch(
     widget.session,
-    SessionAction.isArchivedChanged(isArchived: archived).toJson(),
+    SessionIsArchivedChangedAction(isArchived: archived).toJson(),
   );
 
   @override

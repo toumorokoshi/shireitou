@@ -18,6 +18,15 @@ WebSocket ──► json_rpc_2 Peer ──► AhpClient (I/O edge)
                                  sessionChannels, chatChannels (ChannelMirror)
 ```
 
+- **Wire types:** generated from the protocol's 1.0.0 JSON Schemas into
+  `lib/src/generated/` by `packages/ahp_wire_gen` (see
+  [wire-types.md](wire-types.md)): immutable classes with
+  `fromJson`/`toJson`/`copyWith`, sealed classes for `oneOf` unions (with
+  an `…Unknown` fallback member), and enums. `wire.dart` re-exports them
+  with a few hand-written helpers. Snapshots and action envelopes keep the
+  channel state and action as JSON; the reducers decode them with
+  `RootState`/`SessionState`/`ChatState` and the channel's action union
+  (`RootAction`, `SessionAction`, `ChatAction`).
 - **Transport and framing:** `web_socket_channel` opens the socket and
   `json_rpc_2`'s `Peer` handles JSON-RPC 2.0 in both directions (requests,
   responses, notifications). The connector is injectable, so tests use an
@@ -45,9 +54,10 @@ WebSocket ──► json_rpc_2 Peer ──► AhpClient (I/O edge)
   `ChannelMirror<SessionState>` and `ChannelMirror<ChatState>` entries in
   `HostState`, advanced by `reduceSession` and `reduceChat` (a port of the
   protocol's `chatReducer`: turns, `chat/delta` streaming, reasoning, the
-  tool call lifecycle, input requests, pending messages, errors). The
-  seven `ToolCallState` variants are one flattened `ToolCall` class keyed by
-  `status`.
+  tool call lifecycle, input requests, pending messages, errors). Tool
+  calls are the generated `ToolCallState` sealed union, one class per
+  lifecycle status, and the reducer builds the next state the way the
+  protocol's reducer does.
 - **Write-ahead dispatch (AHP-022):** `dispatch(channel, action)` sends a
   `dispatchAction` notification with the next `clientSeq` and applies the
   action to the channel's mirror at once. A `ChannelMirror` holds the
@@ -97,6 +107,15 @@ WebSocket ──► json_rpc_2 Peer ──► AhpClient (I/O edge)
 - **URIs are opaque:** pi publishes sessions as `pi:/<id>` even when they
   were created as `ahp-session:/<id>`, so the catalogue is keyed by the
   `resource` the host sends.
+
+## packages/ahp_wire_gen
+
+A pure-Dart generator, run by `just codegen`, that reads the vendored JSON
+Schemas (`schema/1.0.0/`) and writes the `ahp_client` wire types. It is
+split into a pure `analyze` step (schemas to a model of classes, unions and
+enums, using the settings in `config.dart`) and a pure `emit` step (model to
+Dart source); `bin/generate.dart` does the file I/O. See
+[wire-types.md](wire-types.md).
 
 ## app
 

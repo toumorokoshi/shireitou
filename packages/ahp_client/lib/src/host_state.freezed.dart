@@ -70,7 +70,7 @@ $Res call({
 });
 
 
-$RootStateCopyWith<$Res>? get root;$ImplementationCopyWith<$Res>? get serverInfo;
+
 
 }
 /// @nodoc
@@ -99,31 +99,7 @@ as Map<String, ChannelMirror<ChatState>>,missingChannels: null == missingChannel
 as Set<String>,
   ));
 }
-/// Create a copy of HostState
-/// with the given fields replaced by the non-null parameter values.
-@override
-@pragma('vm:prefer-inline')
-$RootStateCopyWith<$Res>? get root {
-    if (_self.root == null) {
-    return null;
-  }
 
-  return $RootStateCopyWith<$Res>(_self.root!, (value) {
-    return _then(_self.copyWith(root: value));
-  });
-}/// Create a copy of HostState
-/// with the given fields replaced by the non-null parameter values.
-@override
-@pragma('vm:prefer-inline')
-$ImplementationCopyWith<$Res>? get serverInfo {
-    if (_self.serverInfo == null) {
-    return null;
-  }
-
-  return $ImplementationCopyWith<$Res>(_self.serverInfo!, (value) {
-    return _then(_self.copyWith(serverInfo: value));
-  });
-}
 }
 
 
@@ -359,7 +335,7 @@ $Res call({
 });
 
 
-@override $RootStateCopyWith<$Res>? get root;@override $ImplementationCopyWith<$Res>? get serverInfo;
+
 
 }
 /// @nodoc
@@ -389,31 +365,7 @@ as Set<String>,
   ));
 }
 
-/// Create a copy of HostState
-/// with the given fields replaced by the non-null parameter values.
-@override
-@pragma('vm:prefer-inline')
-$RootStateCopyWith<$Res>? get root {
-    if (_self.root == null) {
-    return null;
-  }
 
-  return $RootStateCopyWith<$Res>(_self.root!, (value) {
-    return _then(_self.copyWith(root: value));
-  });
-}/// Create a copy of HostState
-/// with the given fields replaced by the non-null parameter values.
-@override
-@pragma('vm:prefer-inline')
-$ImplementationCopyWith<$Res>? get serverInfo {
-    if (_self.serverInfo == null) {
-    return null;
-  }
-
-  return $ImplementationCopyWith<$Res>(_self.serverInfo!, (value) {
-    return _then(_self.copyWith(serverInfo: value));
-  });
-}
 }
 
 // dart format on

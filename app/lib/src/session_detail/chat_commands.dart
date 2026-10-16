@@ -18,14 +18,14 @@ JsonMap sendMessageAction(
   ModelSelection? model,
 }) {
   final message = userMessage(text, model: model);
-  final action = chat.activeTurn == null
-      ? ChatAction.turnStarted(
+  final StateAction action = chat.activeTurn == null
+      ? ChatTurnStartedAction(
           turnId: id,
           startedAt: now.toUtc().toIso8601String(),
           message: message,
         )
-      : ChatAction.pendingMessageSet(
-          kind: steer ? 'steering' : 'queued',
+      : ChatPendingMessageSetAction(
+          kind: steer ? PendingMessageKind.steering : PendingMessageKind.queued,
           id: id,
           message: message,
         );
@@ -38,7 +38,7 @@ JsonMap? stopAction(ChatState chat, DateTime now) {
   if (active == null) return null;
   final started = DateTime.tryParse(active.startedAt);
   final duration = started == null ? 0 : now.difference(started).inMilliseconds;
-  return ChatAction.turnCancelled(
+  return ChatTurnCancelledAction(
     turnId: active.id,
     duration: duration < 0 ? 0 : duration,
   ).toJson();
@@ -51,54 +51,60 @@ JsonMap? stopAction(ChatState chat, DateTime now) {
 /// `chat/toolCallConfirmed`, with [option] when the host offered choices.
 JsonMap confirmToolCallAction(
   String turnId,
-  ToolCall toolCall, {
+  ToolCallState toolCall, {
   required bool approve,
   ConfirmationOption? option,
 }) {
-  final action = toolCall.status == ToolCallStatus.pendingResultConfirmation
-      ? ChatAction.toolCallResultConfirmed(
-          turnId: turnId,
-          toolCallId: toolCall.toolCallId,
-          approved: approve,
-        )
-      : ChatAction.toolCallConfirmed(
-          turnId: turnId,
-          toolCallId: toolCall.toolCallId,
-          approved: approve,
-          confirmed: approve ? 'user-action' : null,
-          reason: approve ? null : 'denied',
-          selectedOptionId: option?.id,
-        );
+  final StateAction action = switch (toolCall) {
+    ToolCallPendingResultConfirmationState() =>
+      ChatToolCallResultConfirmedAction(
+        turnId: turnId,
+        toolCallId: toolCall.toolCallId,
+        approved: approve,
+      ),
+    _ when approve => ChatToolCallApprovedAction(
+      turnId: turnId,
+      toolCallId: toolCall.toolCallId,
+      confirmed: ToolCallConfirmationReason.userAction,
+      selectedOptionId: option?.id,
+    ),
+    _ => ChatToolCallDeniedAction(
+      turnId: turnId,
+      toolCallId: toolCall.toolCallId,
+      reason: ToolCallCancellationReason.denied,
+      selectedOptionId: option?.id,
+    ),
+  };
   return action.toJson();
 }
 
-/// A submitted `ChatInputAnswer` for [question] with [value] (AV-084), or
-/// null when [value] is empty.
+/// A submitted answer for [question] with [value] (AV-084), or null when
+/// [value] is empty.
 ///
 /// [value] is a `String` for text, number and single-select questions (the
 /// option ID), a `bool` for boolean ones, and a `Set<String>` of option IDs
 /// for multi-select ones.
-JsonMap? inputAnswer(ChatInputQuestion question, Object? value) {
-  final JsonMap? answerValue = switch ((question.kind, value)) {
-    ('boolean', final bool b) => {'kind': 'boolean', 'value': b},
-    ('number' || 'integer', final String s) => switch (num.tryParse(s)) {
-      final n? => {'kind': 'number', 'value': n},
+ChatInputAnswer? inputAnswer(ChatInputQuestion question, Object? value) {
+  final ChatInputAnswerValue? answerValue = switch ((question, value)) {
+    (ChatInputBooleanQuestion(), final bool b) => ChatInputBooleanAnswerValue(
+      value: b,
+    ),
+    (ChatInputNumberQuestion(), final String s) => switch (num.tryParse(s)) {
+      final n? => ChatInputNumberAnswerValue(value: n),
       null => null,
     },
-    ('single-select', final String s) when s.isNotEmpty => {
-      'kind': 'selected',
-      'value': s,
-    },
-    ('multi-select', final Set<String> ids) when ids.isNotEmpty => {
-      'kind': 'selected-many',
-      'value': ids.toList(),
-    },
-    ('text', final String s) when s.isNotEmpty => {'kind': 'text', 'value': s},
+    (ChatInputSingleSelectQuestion(), final String s) when s.isNotEmpty =>
+      ChatInputSelectedAnswerValue(value: s),
+    (ChatInputMultiSelectQuestion(), final Set<String> ids)
+        when ids.isNotEmpty =>
+      ChatInputSelectedManyAnswerValue(value: ids.toList()),
+    (ChatInputTextQuestion(), final String s) when s.isNotEmpty =>
+      ChatInputTextAnswerValue(value: s),
     _ => null,
   };
   return answerValue == null
       ? null
-      : {'state': 'submitted', 'value': answerValue};
+      : ChatInputAnswered(state: 'submitted', value: answerValue);
 }
 
 /// The action that answers (or declines) input request [request] (AV-084).
@@ -108,13 +114,15 @@ JsonMap inputCompletedAction(
   required bool accept,
   Map<String, Object?> values = const {},
 }) {
-  final answers = <String, JsonMap>{
+  final answers = <String, ChatInputAnswer>{
     for (final question in request.questions ?? const <ChatInputQuestion>[])
       question.id: ?inputAnswer(question, values[question.id]),
   };
-  return ChatAction.inputCompleted(
+  return ChatInputCompletedAction(
     requestId: request.id,
-    response: accept ? 'accept' : 'decline',
+    response: accept
+        ? ChatInputResponseKind.accept
+        : ChatInputResponseKind.decline,
     answers: accept && answers.isNotEmpty ? answers : null,
   ).toJson();
 }

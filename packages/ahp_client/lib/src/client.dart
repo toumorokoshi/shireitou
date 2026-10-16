@@ -15,7 +15,6 @@ import 'channel_mirror.dart';
 import 'protocol.dart';
 import 'protocol_version.dart';
 import 'session_catalogue.dart';
-import 'session_wire.dart';
 import 'subscriptions.dart';
 import 'transport_io.dart'
     if (dart.library.js_interop) 'transport_web.dart'
@@ -424,6 +423,27 @@ class AhpClient {
     unawaited(_reconnectLoop());
   }
 
+  /// Runs `initialize` again on [peer] after a reconnect the host could not
+  /// resume, and drops the channels it has no snapshot for.
+  Future<void> _reinitialize(Peer peer, List<String> subscriptions) async {
+    final result = InitializeResult.fromJson(
+      await peer.sendRequest(
+        'initialize',
+        initializeParams(
+          clientId: clientId,
+          clientInfo: clientInfo.toJson(),
+          initialSubscriptions: subscriptions,
+          locale: locale,
+          protocolVersions: protocolVersions,
+        ),
+      ) as JsonMap,
+    );
+    _clearPendingActions();
+    final missing = unresumedChannels(_state, result.snapshots);
+    _set(applyMissingChannels(applyInitializeResult(_state, result), missing));
+    _dropSubscriptions(missing);
+  }
+
   /// Reconnects with backoff (AHP-004). Falls back to `initialize` when the
   /// host no longer knows this client (`-32008 NotFound`).
   Future<void> _reconnectLoop() async {
@@ -446,35 +466,21 @@ class AhpClient {
               ),
             ) as JsonMap,
           );
-          // A snapshot replaces mirrors without echoing anything, so report
-          // their pending actions first; a replay echoes the accepted ones.
-          if (result is ReconnectSnapshot) _clearPendingActions();
-          final missing = missingAfterReconnect(_state, result);
-          _set(applyReconnectResult(_state, result, clientId: clientId));
-          _dropSubscriptions(missing);
+          if (result is ReconnectResultUnknown) {
+            // A result kind newer than this client: start over.
+            await _reinitialize(peer, subscriptions);
+          } else {
+            // A snapshot replaces mirrors without echoing anything, so
+            // report their pending actions first; a replay echoes the
+            // accepted ones.
+            if (result is ReconnectSnapshotResult) _clearPendingActions();
+            final missing = missingAfterReconnect(_state, result);
+            _set(applyReconnectResult(_state, result, clientId: clientId));
+            _dropSubscriptions(missing);
+          }
         } on RpcException catch (error) {
           if (error.code != AhpErrorCodes.notFound) rethrow;
-          final result = InitializeResult.fromJson(
-            await peer.sendRequest(
-              'initialize',
-              initializeParams(
-                clientId: clientId,
-                clientInfo: clientInfo.toJson(),
-                initialSubscriptions: subscriptions,
-                locale: locale,
-                protocolVersions: protocolVersions,
-              ),
-            ) as JsonMap,
-          );
-          _clearPendingActions();
-          final missing = unresumedChannels(_state, result.snapshots);
-          _set(
-            applyMissingChannels(
-              applyInitializeResult(_state, result),
-              missing,
-            ),
-          );
-          _dropSubscriptions(missing);
+          await _reinitialize(peer, subscriptions);
         }
         // Whatever the host accepted is in the replay or snapshot; actions
         // still pending were lost with the old socket.

@@ -26,6 +26,16 @@ void main() {
       expect(actionsAddedIn100, hasLength(10));
     });
 
+    test('every 1.0.0 addition is an action of the generated types', () {
+      // The ten types are the difference between the StateAction unions of
+      // the 0.9.0 and 1.0.0 JSON Schemas (see the spec).
+      expect(StateAction.discriminatorValues, containsAll(actionsAddedIn100));
+      expect(
+        actionsAddedIn100.where((t) => t.startsWith('chat/')),
+        everyElement(isIn(ChatAction.discriminatorValues)),
+      );
+    });
+
     test('older actions are known to 0.9.0', () {
       for (final type in [
         'chat/turnStarted',

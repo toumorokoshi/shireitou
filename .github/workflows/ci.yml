@@ -23,8 +23,12 @@ jobs:
           cache: true
       - uses: extractions/setup-just@v2
       - run: flutter pub get
-      - name: Generated code is up to date
-        run: just codegen && git diff --exit-code
+      - name: Vendored schemas and generated code are up to date
+        run: |
+          just fetch-schema
+          just codegen
+          git status --porcelain
+          test -z "$(git status --porcelain)"
       - run: just lint
       - run: just test
       - name: Build web

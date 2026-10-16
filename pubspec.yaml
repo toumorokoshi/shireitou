@@ -4,6 +4,7 @@ environment:
   sdk: ^3.13.5
 workspace:
   - packages/ahp_client
+  - packages/ahp_wire_gen
   - app
 dev_dependencies:
   lints: ^6.0.0

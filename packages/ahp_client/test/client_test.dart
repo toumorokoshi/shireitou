@@ -34,7 +34,12 @@ const _sessionState = <String, Object?>{
   'lifecycle': 'ready',
   'activeClients': <Object?>[],
   'chats': [
-    {'resource': 'ahp-chat:/a', 'title': 'first'},
+    {
+      'resource': 'ahp-chat:/a',
+      'title': 'first',
+      'status': 1,
+      'modifiedAt': '2026-01-01T00:00:00Z',
+    },
   ],
 };
 
@@ -139,7 +144,7 @@ class FakeHost {
 
 Future<void> _settle() => Future<void>.delayed(Duration.zero);
 
-JsonMap _turnStarted(String id) => ChatAction.turnStarted(
+JsonMap _turnStarted(String id) => ChatTurnStartedAction(
   turnId: id,
   startedAt: '2026-01-01T00:00:00.000Z',
   message: userMessage('hi'),
@@ -263,7 +268,7 @@ void main() {
   test('dispatch applies optimistically and the echo confirms it', () async {
     await client.connect();
     await client.openSession('pi:/a');
-    final action = ChatAction.turnStarted(
+    final action = ChatTurnStartedAction(
       turnId: 't1',
       startedAt: '2026-01-01T00:00:00.000Z',
       message: userMessage('hi'),
@@ -383,6 +388,15 @@ void main() {
     },
   );
 
+  test('an unknown reconnect result kind falls back to initialize', () async {
+    await client.connect();
+    await client.openSession('pi:/a');
+    host.onReconnect = (_) => {'type': 'somethingNew'};
+    await dropAndReconnect();
+    expect(host.requests.where((r) => r.$1 == 'initialize'), hasLength(2));
+    expect(client.state.status, ConnectionStatus.connected);
+  });
+
   test('a reconnect replay rolls back actions the host never got', () async {
     await client.connect();
     await client.openSession('pi:/a');
@@ -391,7 +405,7 @@ void main() {
     final echoed = client.dispatch('ahp-chat:/a', _turnStarted('t1'));
     final lost = client.dispatch(
       'pi:/a',
-      SessionAction.isArchivedChanged(isArchived: true).toJson(),
+      SessionIsArchivedChangedAction(isArchived: true).toJson(),
     );
     host.onReconnect = (_) => {
       'type': 'replay',

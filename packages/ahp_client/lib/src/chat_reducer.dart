@@ -3,61 +3,57 @@
 /// (`types/channels-chat/reducer.ts`).
 library;
 
-import 'chat_wire.dart';
 import 'session_status.dart';
 import 'wire.dart';
 
 /// The activity bits of [SessionStatus] (`Idle` to `InputNeeded`).
 const _activityMask = (1 << 5) - 1;
 
-/// Statuses of a tool call that block the turn on the user.
-const _blockingToolStatuses = {
-  ToolCallStatus.pendingConfirmation,
-  ToolCallStatus.pendingResultConfirmation,
-  ToolCallStatus.authRequired,
-};
-
 /// Applies [action] to [state], mirroring the protocol's `chatReducer`.
 ///
 /// Actions for another turn than the active one, and actions this client
-/// does not model, leave [state] unchanged.
+/// does not model yet (background work, canvases, changesets, MCP auth,
+/// working directories, drafts), leave [state] unchanged.
 ChatState reduceChat(ChatState state, ChatAction action) => switch (action) {
-  ChatTurnStarted() => _turnStarted(state, action),
-  ChatDelta(:final turnId, :final partId, :final content) => _updatePart(
+  ChatTurnStartedAction() => _turnStarted(state, action),
+  ChatDeltaAction(:final turnId, :final partId, :final content) => _updatePart(
     state,
     turnId,
     partId,
     (part) => switch (part) {
-      MarkdownPart() => part.copyWith(content: part.content + content),
+      MarkdownResponsePart() => part.copyWith(content: part.content + content),
       _ => part,
     },
   ),
-  ChatReasoning(:final turnId, :final partId, :final content) => _updatePart(
-    state,
-    turnId,
-    partId,
-    (part) => switch (part) {
-      ReasoningPart() => part.copyWith(content: part.content + content),
-      _ => part,
-    },
-  ),
-  ChatResponsePart(:final turnId, :final part) =>
-    _isActive(state, turnId) && part is! ErrorPart
+  ChatReasoningAction(:final turnId, :final partId, :final content) =>
+    _updatePart(
+      state,
+      turnId,
+      partId,
+      (part) => switch (part) {
+        ReasoningResponsePart() => part.copyWith(
+          content: part.content + content,
+        ),
+        _ => part,
+      },
+    ),
+  ChatResponsePartAction(:final turnId, :final part) =>
+    _isActive(state, turnId) && part is! ErrorResponsePart
         ? _withParts(state, [...state.activeTurn!.responseParts, part])
         : state,
-  ChatTurnComplete(:final turnId, :final duration) => _endTurn(
+  ChatTurnCompleteAction(:final turnId, :final duration) => _endTurn(
     state,
     turnId,
     TurnState.complete,
     duration,
   ),
-  ChatTurnCancelled(:final turnId, :final duration) => _endTurn(
+  ChatTurnCancelledAction(:final turnId, :final duration) => _endTurn(
     state,
     turnId,
     TurnState.cancelled,
     duration,
   ),
-  ChatError(:final turnId, :final duration, :final part) => _endTurn(
+  ChatErrorAction(:final turnId, :final duration, :final part) => _endTurn(
     state,
     turnId,
     TurnState.error,
@@ -65,40 +61,42 @@ ChatState reduceChat(ChatState state, ChatAction action) => switch (action) {
     terminalStatus: SessionStatus.error,
     errorPart: part,
   ),
-  ChatTurnResume(:final turnId) => _turnResume(state, turnId),
-  ChatActivityChanged(:final activity) => state.copyWith(activity: activity),
-  ChatToolCallStart() =>
+  ChatTurnResumeAction(:final turnId) => _turnResume(state, turnId),
+  ChatActivityChangedAction(:final activity) => state.copyWith(
+    activity: activity,
+  ),
+  ChatToolCallStartAction() =>
     _isActive(state, action.turnId)
         ? _withParts(state, [
             ...state.activeTurn!.responseParts,
-            ResponsePart.toolCall(
-              toolCall: ToolCall(
+            ToolCallResponsePart(
+              toolCall: ToolCallStreamingState(
                 toolCallId: action.toolCallId,
                 toolName: action.toolName,
                 displayName: action.displayName,
                 intention: action.intention,
                 contributor: action.contributor,
                 meta: action.meta,
-                status: ToolCallStatus.streaming,
               ),
             ),
           ])
         : state,
-  ChatToolCallDelta() => _updateToolCall(
+  ChatToolCallDeltaAction() => _updateToolCall(
     state,
     action.turnId,
     action.toolCallId,
-    (tc) => tc.status != ToolCallStatus.streaming
-        ? tc
-        : tc.copyWith(
-            meta: action.meta ?? tc.meta,
-            partialInput: action.content == null
-                ? tc.partialInput
-                : (tc.partialInput ?? '') + action.content!,
-            invocationMessage: action.invocationMessage ?? tc.invocationMessage,
-          ),
+    (tc) => switch (tc) {
+      ToolCallStreamingState() => tc.copyWith(
+        meta: action.meta ?? tc.meta,
+        partialInput: action.content == null
+            ? tc.partialInput
+            : (tc.partialInput ?? '') + action.content!,
+        invocationMessage: action.invocationMessage ?? tc.invocationMessage,
+      ),
+      _ => tc,
+    },
   ),
-  ChatToolCallReady() => _refreshStatus(
+  ChatToolCallReadyAction() => _refreshStatus(
     _updateToolCall(
       state,
       action.turnId,
@@ -106,7 +104,7 @@ ChatState reduceChat(ChatState state, ChatAction action) => switch (action) {
       (tc) => _toolCallReady(tc, action),
     ),
   ),
-  ChatToolCallConfirmed() => _refreshStatus(
+  ChatToolCallConfirmedAction() => _refreshStatus(
     _updateToolCall(
       state,
       action.turnId,
@@ -114,7 +112,7 @@ ChatState reduceChat(ChatState state, ChatAction action) => switch (action) {
       (tc) => _toolCallConfirmed(tc, action),
     ),
   ),
-  ChatToolCallComplete() => _refreshStatus(
+  ChatToolCallCompleteAction() => _refreshStatus(
     _updateToolCall(
       state,
       action.turnId,
@@ -122,41 +120,32 @@ ChatState reduceChat(ChatState state, ChatAction action) => switch (action) {
       (tc) => _toolCallComplete(tc, action),
     ),
   ),
-  ChatToolCallResultConfirmed() => _refreshStatus(
+  ChatToolCallResultConfirmedAction() => _refreshStatus(
     _updateToolCall(
       state,
       action.turnId,
       action.toolCallId,
-      (tc) => tc.status != ToolCallStatus.pendingResultConfirmation
-          ? tc
-          : action.approved
-          ? tc.copyWith(
-              status: ToolCallStatus.completed,
-              meta: action.meta ?? tc.meta,
-            )
-          : _base(tc, action.meta).copyWith(
-              status: ToolCallStatus.cancelled,
-              invocationMessage: tc.invocationMessage,
-              toolInput: tc.toolInput,
-              reason: 'result-denied',
-              selectedOption: tc.selectedOption,
-            ),
+      (tc) => _toolCallResultConfirmed(tc, action),
     ),
   ),
-  ChatToolCallContentChanged() => _updateToolCall(
+  ChatToolCallContentChangedAction() => _updateToolCall(
     state,
     action.turnId,
     action.toolCallId,
-    (tc) => tc.status != ToolCallStatus.running
-        ? tc
-        : tc.copyWith(meta: action.meta ?? tc.meta, content: action.content),
+    (tc) => switch (tc) {
+      ToolCallRunningState() => tc.copyWith(
+        meta: action.meta ?? tc.meta,
+        content: action.content,
+      ),
+      _ => tc,
+    },
   ),
-  ChatUsage(:final turnId, :final usage) =>
+  ChatUsageAction(:final turnId, :final usage) =>
     _isActive(state, turnId)
         ? state.copyWith(activeTurn: state.activeTurn!.copyWith(usage: usage))
         : state,
-  ChatTruncated(:final turnId) => _truncated(state, turnId),
-  ChatTurnsLoaded(:final turns, :final turnsNextCursor) => () {
+  ChatTruncatedAction(:final turnId) => _truncated(state, turnId),
+  ChatTurnsLoadedAction(:final turns, :final turnsNextCursor) => () {
     final existing = {for (final t in state.turns) t.id};
     return state.copyWith(
       turns: [
@@ -167,21 +156,25 @@ ChatState reduceChat(ChatState state, ChatAction action) => switch (action) {
       turnsNextCursor: turnsNextCursor,
     );
   }(),
-  ChatInputRequested(:final request) => _inputRequested(state, request),
-  ChatInputAnswerChanged() => _updateOpenInputRequest(state, action.requestId, (
-    part,
-  ) {
-    final answers = {...?part.request.answers};
-    if (action.answer == null) {
-      answers.remove(action.questionId);
-    } else {
-      answers[action.questionId] = action.answer!;
-    }
-    return part.copyWith(
-      request: part.request.copyWith(answers: answers.isEmpty ? null : answers),
-    );
-  }),
-  ChatInputCompleted() => () {
+  ChatInputRequestedAction(:final request) => _inputRequested(state, request),
+  ChatInputAnswerChangedAction() => _updateOpenInputRequest(
+    state,
+    action.requestId,
+    (part) {
+      final answers = {...?part.request.answers};
+      if (action.answer == null) {
+        answers.remove(action.questionId);
+      } else {
+        answers[action.questionId] = action.answer!;
+      }
+      return part.copyWith(
+        request: part.request.copyWith(
+          answers: answers.isEmpty ? null : answers,
+        ),
+      );
+    },
+  ),
+  ChatInputCompletedAction() => () {
     final next = _updateOpenInputRequest(state, action.requestId, (part) {
       final answers = {...?part.request.answers, ...?action.answers};
       return part.copyWith(
@@ -195,8 +188,8 @@ ChatState reduceChat(ChatState state, ChatAction action) => switch (action) {
         ? state
         : next.copyWith(status: _summaryStatus(next));
   }(),
-  ChatPendingMessageSet(:final kind, :final id, :final message) =>
-    kind == 'steering'
+  ChatPendingMessageSetAction(:final kind, :final id, :final message) =>
+    kind == PendingMessageKind.steering
         ? state.copyWith(
             steeringMessage: PendingMessage(id: id, message: message),
           )
@@ -206,21 +199,32 @@ ChatState reduceChat(ChatState state, ChatAction action) => switch (action) {
               PendingMessage(id: id, message: message),
             ),
           ),
-  ChatPendingMessageRemoved(:final kind, :final id) => _pendingRemoved(
+  ChatPendingMessageRemovedAction(:final kind, :final id) => _pendingRemoved(
     state,
     kind,
     id,
   ),
-  ChatIsReadChanged(:final isRead) => state.copyWith(
+  ChatIsReadChangedAction(:final isRead) => state.copyWith(
     status: state.status.withFlag(SessionStatus.isRead, enabled: isRead),
   ),
-  ChatIsArchivedChanged(:final isArchived) => state.copyWith(
+  ChatIsArchivedChangedAction(:final isArchived) => state.copyWith(
     status: state.status.withFlag(
       SessionStatus.isArchived,
       enabled: isArchived,
     ),
   ),
-  ChatUnknownAction() => state,
+  ChatToolCallAuthRequiredAction() ||
+  ChatToolCallAuthResolvedAction() ||
+  ChatBackgroundWorkSetAction() ||
+  ChatBackgroundWorkRemovedAction() ||
+  ChatMovableChangedAction() ||
+  ChatChangesetsChangedAction() ||
+  ChatCanvasesChangedAction() ||
+  ChatWorkingDirectorySetAction() ||
+  ChatWorkingDirectoryRemovedAction() ||
+  ChatQueuedMessagesReorderedAction() ||
+  ChatDraftChangedAction() ||
+  ChatActionUnknown() => state,
 };
 
 /// [reduceChat] over a raw JSON action, for [ChannelMirror]s.
@@ -235,15 +239,13 @@ ChatState _withParts(ChatState state, List<ResponsePart> parts) => state
 
 bool _hasBlockingToolCall(ChatState state) =>
     state.activeTurn?.responseParts.any(
-      (part) =>
-          part is ToolCallPart &&
-          _blockingToolStatuses.contains(part.toolCall.status),
+      (part) => part is ToolCallResponsePart && part.toolCall.isBlocking,
     ) ??
     false;
 
 bool _hasOpenInputRequest(ChatState state) =>
     state.activeTurn?.responseParts.any(
-      (part) => part is InputRequestPart && part.response == null,
+      (part) => part is InputRequestResponsePart && part.response == null,
     ) ??
     false;
 
@@ -269,7 +271,7 @@ ChatState _unread(ChatState state) => state.copyWith(
   status: _summaryStatus(state).withFlag(SessionStatus.isRead, enabled: false),
 );
 
-ChatState _turnStarted(ChatState state, ChatTurnStarted action) {
+ChatState _turnStarted(ChatState state, ChatTurnStartedAction action) {
   final queuedId = action.queuedMessageId;
   final queued = [
     for (final m in state.queuedMessages ?? const <PendingMessage>[])
@@ -295,34 +297,40 @@ ChatState _turnStarted(ChatState state, ChatTurnStarted action) {
   return _unread(next);
 }
 
+/// A tool call forced into `cancelled` when its turn ends.
+ToolCallState _skipped(ToolCallState tc) => switch (tc) {
+  ToolCallCompletedState() ||
+  ToolCallCancelledState() ||
+  ToolCallStateUnknown() => tc,
+  _ => ToolCallCancelledState(
+    toolCallId: tc.toolCallId,
+    toolName: tc.toolName,
+    displayName: tc.displayName,
+    intention: tc.intention,
+    contributor: tc.contributor,
+    meta: tc.meta,
+    invocationMessage: tc.invocationMessage ?? const PlainString(''),
+    toolInput: tc.toolInput,
+    reason: ToolCallCancellationReason.skipped,
+  ),
+};
+
 ChatState _endTurn(
   ChatState state,
   String turnId,
   TurnState turnState,
   int duration, {
   SessionStatus? terminalStatus,
-  ResponsePart? errorPart,
+  ErrorResponsePart? errorPart,
 }) {
   final active = state.activeTurn;
   if (active == null || active.id != turnId) return state;
-  final parts = [
+  final parts = <ResponsePart>[
     for (final part in active.responseParts)
       switch (part) {
-        ToolCallPart(:final toolCall)
-            when toolCall.status != ToolCallStatus.completed &&
-                toolCall.status != ToolCallStatus.cancelled =>
-          ResponsePart.toolCall(
-            toolCall: _base(toolCall, null).copyWith(
-              status: ToolCallStatus.cancelled,
-              invocationMessage: toolCall.status == ToolCallStatus.streaming
-                  ? (toolCall.invocationMessage ?? '')
-                  : toolCall.invocationMessage,
-              toolInput: toolCall.status == ToolCallStatus.streaming
-                  ? null
-                  : toolCall.toolInput,
-              reason: 'skipped',
-            ),
-          ),
+        ToolCallResponsePart(:final toolCall)
+            when !identical(_skipped(toolCall), toolCall) =>
+          ToolCallResponsePart(toolCall: _skipped(toolCall)),
         _ => part,
       },
     ?errorPart,
@@ -359,7 +367,7 @@ ChatState _turnResume(ChatState state, String turnId) {
   final last = turn.responseParts.lastOrNull;
   if (turn.id != turnId ||
       turn.state != TurnState.error ||
-      last is! ErrorPart ||
+      last is! ErrorResponsePart ||
       last.resumable != true) {
     return state;
   }
@@ -393,8 +401,8 @@ ChatState _updatePart(
 }
 
 String? _partId(ResponsePart part) => switch (part) {
-  MarkdownPart(:final id) || ReasoningPart(:final id) => id,
-  ToolCallPart(:final toolCall) => toolCall.toolCallId,
+  MarkdownResponsePart(:final id) || ReasoningResponsePart(:final id) => id,
+  ToolCallResponsePart(:final toolCall) => toolCall.toolCallId,
   _ => null,
 };
 
@@ -402,19 +410,20 @@ ChatState _updateToolCall(
   ChatState state,
   String turnId,
   String toolCallId,
-  ToolCall Function(ToolCall toolCall) update,
+  ToolCallState Function(ToolCallState toolCall) update,
 ) {
   if (!_isActive(state, turnId)) return state;
   var found = false;
   final parts = [
     for (final part in state.activeTurn!.responseParts)
       switch (part) {
-        ToolCallPart(:final toolCall) when toolCall.toolCallId == toolCallId =>
+        ToolCallResponsePart(:final toolCall)
+            when toolCall.toolCallId == toolCallId =>
           () {
             final updated = update(toolCall);
             if (identical(updated, toolCall)) return part;
             found = true;
-            return ResponsePart.toolCall(toolCall: updated);
+            return ToolCallResponsePart(toolCall: updated);
           }(),
         _ => part,
       },
@@ -422,40 +431,40 @@ ChatState _updateToolCall(
   return found ? _withParts(state, parts) : state;
 }
 
-/// The fields every tool call status keeps (`tcBase` in the protocol).
-ToolCall _base(ToolCall tc, JsonMap? meta) => ToolCall(
-  toolCallId: tc.toolCallId,
-  toolName: tc.toolName,
-  displayName: tc.displayName,
-  intention: tc.intention,
-  contributor: tc.contributor,
-  meta: meta ?? tc.meta,
-  status: tc.status,
-);
-
-ToolCall _toolCallReady(ToolCall tc, ChatToolCallReady action) {
-  if (tc.status != ToolCallStatus.streaming &&
-      tc.status != ToolCallStatus.running &&
-      tc.status != ToolCallStatus.pendingConfirmation) {
+ToolCallState _toolCallReady(ToolCallState tc, ChatToolCallReadyAction action) {
+  if (tc is! ToolCallStreamingState &&
+      tc is! ToolCallRunningState &&
+      tc is! ToolCallPendingConfirmationState) {
     return tc;
   }
-  final base = _base(tc, action.meta).copyWith(
-    contributor: _refineContributor(tc.contributor, action.contributor),
-    intention: action.intention ?? tc.intention,
-    invocationMessage: action.invocationMessage,
-    toolInput:
-        action.toolInput ??
-        (tc.status == ToolCallStatus.streaming ? null : tc.toolInput),
-  );
-  if (action.confirmed != null) {
-    return base.copyWith(
-      status: ToolCallStatus.running,
-      confirmed: action.confirmed,
+  final meta = action.meta ?? tc.meta;
+  final contributor = _refineContributor(tc.contributor, action.contributor);
+  final intention = action.intention ?? tc.intention;
+  final toolInput = action.toolInput ?? tc.toolInput;
+  final confirmed = action.confirmed;
+  if (confirmed != null) {
+    return ToolCallRunningState(
+      toolCallId: tc.toolCallId,
+      toolName: tc.toolName,
+      displayName: tc.displayName,
+      intention: intention,
+      contributor: contributor,
+      meta: meta,
+      invocationMessage: action.invocationMessage,
+      toolInput: toolInput,
+      confirmed: confirmed,
     );
   }
-  final pending = tc.status == ToolCallStatus.pendingConfirmation ? tc : null;
-  return base.copyWith(
-    status: ToolCallStatus.pendingConfirmation,
+  final pending = tc is ToolCallPendingConfirmationState ? tc : null;
+  return ToolCallPendingConfirmationState(
+    toolCallId: tc.toolCallId,
+    toolName: tc.toolName,
+    displayName: tc.displayName,
+    intention: intention,
+    contributor: contributor,
+    meta: meta,
+    invocationMessage: action.invocationMessage,
+    toolInput: toolInput,
     confirmationTitle: action.confirmationTitle ?? pending?.confirmationTitle,
     riskAssessment: action.riskAssessment ?? pending?.riskAssessment,
     edits: action.edits ?? pending?.edits,
@@ -466,76 +475,155 @@ ToolCall _toolCallReady(ToolCall tc, ChatToolCallReady action) {
 
 /// A client-run tool call keeps its contributor; MCP contributors may be
 /// refined (`refineToolCallContributor` in the protocol).
-JsonMap? _refineContributor(JsonMap? current, JsonMap? next) {
+ToolCallContributor? _refineContributor(
+  ToolCallContributor? current,
+  ToolCallContributor? next,
+) {
   if (next == null) return current;
-  if (current?['kind'] == 'client') {
-    return next['kind'] == 'client' && next['clientId'] == current!['clientId']
+  if (current is ToolCallClientContributor) {
+    return next is ToolCallClientContributor &&
+            next.clientId == current.clientId
         ? next
         : current;
   }
-  return next['kind'] == 'client' ? current : next;
+  return next is ToolCallClientContributor ? current : next;
 }
 
-ToolCall _toolCallConfirmed(ToolCall tc, ChatToolCallConfirmed action) {
-  if (tc.status != ToolCallStatus.pendingConfirmation) return tc;
+ToolCallState _toolCallConfirmed(
+  ToolCallState tc,
+  ChatToolCallConfirmedAction action,
+) {
+  if (tc is! ToolCallPendingConfirmationState) return tc;
   final selected = tc.options
       ?.where((o) => o.id == action.selectedOptionId)
       .firstOrNull;
-  final base = _base(
-    tc,
-    action.meta,
-  ).copyWith(invocationMessage: tc.invocationMessage, selectedOption: selected);
-  if (action.approved) {
-    return base.copyWith(
-      status: ToolCallStatus.running,
-      toolInput: action.editedToolInput != null && tc.toolInput is String
-          ? action.editedToolInput
-          : tc.toolInput,
-      confirmed: action.confirmed,
-    );
-  }
-  return base.copyWith(
-    status: ToolCallStatus.cancelled,
-    toolInput: tc.toolInput,
-    reason: action.reason,
-    reasonMessage: action.reasonMessage,
-    userSuggestion: action.userSuggestion,
-  );
+  final meta = action.meta ?? tc.meta;
+  return switch (action) {
+    ChatToolCallApprovedAction(:final editedToolInput, :final confirmed) =>
+      ToolCallRunningState(
+        toolCallId: tc.toolCallId,
+        toolName: tc.toolName,
+        displayName: tc.displayName,
+        intention: tc.intention,
+        contributor: tc.contributor,
+        meta: meta,
+        invocationMessage: tc.invocationMessage,
+        toolInput: editedToolInput != null && tc.toolInput is InlineToolInput
+            ? InlineToolInput(editedToolInput)
+            : tc.toolInput,
+        confirmed: confirmed,
+        selectedOption: selected,
+      ),
+    ChatToolCallDeniedAction() => ToolCallCancelledState(
+      toolCallId: tc.toolCallId,
+      toolName: tc.toolName,
+      displayName: tc.displayName,
+      intention: tc.intention,
+      contributor: tc.contributor,
+      meta: meta,
+      invocationMessage: tc.invocationMessage,
+      toolInput: tc.toolInput,
+      reason: action.reason,
+      reasonMessage: action.reasonMessage,
+      userSuggestion: action.userSuggestion,
+      selectedOption: selected,
+    ),
+  };
 }
 
-ToolCall _toolCallComplete(ToolCall tc, ChatToolCallComplete action) {
-  final status = tc.status;
-  if (status != ToolCallStatus.running &&
-      status != ToolCallStatus.pendingConfirmation &&
-      status != ToolCallStatus.authRequired) {
+ToolCallState _toolCallComplete(
+  ToolCallState tc,
+  ChatToolCallCompleteAction action,
+) {
+  final authRequired = tc is ToolCallAuthRequiredState;
+  if (tc is! ToolCallRunningState &&
+      tc is! ToolCallPendingConfirmationState &&
+      !authRequired) {
     return tc;
   }
   final result = action.result;
-  final success = result['success'] as bool?;
-  if (status == ToolCallStatus.authRequired && (success ?? false)) return tc;
-  final confirmedBefore =
-      status == ToolCallStatus.running || status == ToolCallStatus.authRequired;
-  final error = result['error'];
-  final content = result['content'];
-  final structured = result['structuredContent'];
-  return _base(tc, action.meta).copyWith(
-    status:
-        action.requiresResultConfirmation == true &&
-            status != ToolCallStatus.authRequired
-        ? ToolCallStatus.pendingResultConfirmation
-        : ToolCallStatus.completed,
-    invocationMessage: tc.invocationMessage,
+  if (authRequired && result.success) return tc;
+  final confirmedBefore = tc is! ToolCallPendingConfirmationState;
+  final confirmed = confirmedBefore
+      ? tc.confirmed ?? ToolCallConfirmationReason.notNeeded
+      : ToolCallConfirmationReason.notNeeded;
+  final selectedOption = confirmedBefore ? tc.selectedOption : null;
+  final content = result.content ?? (authRequired ? tc.content : null);
+  final meta = action.meta ?? tc.meta;
+  if (action.requiresResultConfirmation == true && !authRequired) {
+    return ToolCallPendingResultConfirmationState(
+      toolCallId: tc.toolCallId,
+      toolName: tc.toolName,
+      displayName: tc.displayName,
+      intention: tc.intention,
+      contributor: tc.contributor,
+      meta: meta,
+      invocationMessage: tc.invocationMessage!,
+      toolInput: tc.toolInput,
+      confirmed: confirmed,
+      selectedOption: selectedOption,
+      success: result.success,
+      pastTenseMessage: result.pastTenseMessage,
+      content: content,
+      structuredContent: result.structuredContent,
+      error: result.error,
+    );
+  }
+  return ToolCallCompletedState(
+    toolCallId: tc.toolCallId,
+    toolName: tc.toolName,
+    displayName: tc.displayName,
+    intention: tc.intention,
+    contributor: tc.contributor,
+    meta: meta,
+    invocationMessage: tc.invocationMessage!,
     toolInput: tc.toolInput,
-    confirmed: confirmedBefore ? tc.confirmed : 'not-needed',
-    selectedOption: confirmedBefore ? tc.selectedOption : null,
-    content: content is List
-        ? content.cast<JsonMap>()
-        : (status == ToolCallStatus.authRequired ? tc.content : null),
-    success: success,
-    pastTenseMessage: result['pastTenseMessage'],
-    structuredContent: structured is JsonMap ? structured : null,
-    error: error is JsonMap ? error : null,
+    confirmed: confirmed,
+    selectedOption: selectedOption,
+    success: result.success,
+    pastTenseMessage: result.pastTenseMessage,
+    content: content,
+    structuredContent: result.structuredContent,
+    error: result.error,
   );
+}
+
+ToolCallState _toolCallResultConfirmed(
+  ToolCallState tc,
+  ChatToolCallResultConfirmedAction action,
+) {
+  if (tc is! ToolCallPendingResultConfirmationState) return tc;
+  final meta = action.meta ?? tc.meta;
+  return action.approved
+      ? ToolCallCompletedState(
+          toolCallId: tc.toolCallId,
+          toolName: tc.toolName,
+          displayName: tc.displayName,
+          intention: tc.intention,
+          contributor: tc.contributor,
+          meta: meta,
+          invocationMessage: tc.invocationMessage,
+          toolInput: tc.toolInput,
+          confirmed: tc.confirmed,
+          selectedOption: tc.selectedOption,
+          success: tc.success,
+          pastTenseMessage: tc.pastTenseMessage,
+          content: tc.content,
+          structuredContent: tc.structuredContent,
+          error: tc.error,
+        )
+      : ToolCallCancelledState(
+          toolCallId: tc.toolCallId,
+          toolName: tc.toolName,
+          displayName: tc.displayName,
+          intention: tc.intention,
+          contributor: tc.contributor,
+          meta: meta,
+          invocationMessage: tc.invocationMessage,
+          toolInput: tc.toolInput,
+          reason: ToolCallCancellationReason.resultDenied,
+          selectedOption: tc.selectedOption,
+        );
 }
 
 ChatState _truncated(ChatState state, String? turnId) {
@@ -561,10 +649,10 @@ ChatState _inputRequested(ChatState state, ChatInputRequest request) {
   final parts = [...active.responseParts];
   final index = _openInputRequestIndex(parts, request.id);
   if (index < 0) {
-    parts.add(ResponsePart.inputRequest(request: request));
+    parts.add(InputRequestResponsePart(request: request));
   } else {
-    final existing = parts[index] as InputRequestPart;
-    parts[index] = ResponsePart.inputRequest(
+    final existing = parts[index] as InputRequestResponsePart;
+    parts[index] = InputRequestResponsePart(
       request: request.copyWith(
         answers: request.answers ?? existing.request.answers,
       ),
@@ -576,7 +664,7 @@ ChatState _inputRequested(ChatState state, ChatInputRequest request) {
 int _openInputRequestIndex(List<ResponsePart> parts, String requestId) =>
     parts.indexWhere(
       (part) =>
-          part is InputRequestPart &&
+          part is InputRequestResponsePart &&
           part.response == null &&
           part.request.id == requestId,
     );
@@ -584,14 +672,14 @@ int _openInputRequestIndex(List<ResponsePart> parts, String requestId) =>
 ChatState _updateOpenInputRequest(
   ChatState state,
   String requestId,
-  InputRequestPart Function(InputRequestPart part) update,
+  InputRequestResponsePart Function(InputRequestResponsePart part) update,
 ) {
   final active = state.activeTurn;
   if (active == null) return state;
   final index = _openInputRequestIndex(active.responseParts, requestId);
   if (index < 0) return state;
   final parts = [...active.responseParts];
-  parts[index] = update(parts[index] as InputRequestPart);
+  parts[index] = update(parts[index] as InputRequestResponsePart);
   return _withParts(state, parts);
 }
 
@@ -602,8 +690,8 @@ List<PendingMessage> _upsertQueued(
     ? [for (final m in queued) m.id == entry.id ? entry : m]
     : [...queued, entry];
 
-ChatState _pendingRemoved(ChatState state, String kind, String id) {
-  if (kind == 'steering') {
+ChatState _pendingRemoved(ChatState state, PendingMessageKind kind, String id) {
+  if (kind == PendingMessageKind.steering) {
     return state.steeringMessage?.id == id
         ? state.copyWith(steeringMessage: null)
         : state;

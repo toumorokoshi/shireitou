@@ -18,6 +18,9 @@ with a UX modeled on the GitHub Agents view and Cursor's Agents Window.
 - [`packages/ahp_client/`](packages/ahp_client/): pure-Dart AHP client (no
   Flutter dependency). Wire types, pure reducers, and the WebSocket JSON-RPC
   connection.
+- [`packages/ahp_wire_gen/`](packages/ahp_wire_gen/): generates the client's
+  wire types from the vendored AHP 1.0.0 JSON Schemas (see
+  [docs/wire-types.md](docs/wire-types.md)).
 - [`app/`](app/): the Flutter app (macOS, Windows, Linux, iOS, Android, web).
 - [`examples/`](examples/): recorded AHP traffic used by tests.
 
@@ -27,6 +30,8 @@ so one `flutter pub get` at the root resolves both packages.
 ## Documentation
 
 - [docs/architecture.md](docs/architecture.md): how the code is organized.
+- [docs/wire-types.md](docs/wire-types.md): how the AHP wire types are
+  generated from the JSON Schemas, and how to upgrade the protocol version.
 - [docs/desktop.md](docs/desktop.md): macOS and Linux builds, dependencies,
   window behavior, packaging and the desktop smoke test.
 - [specs/agents-view.md](specs/agents-view.md): UI and feature requirements.
@@ -50,7 +55,8 @@ just test                # ahp_client unit tests and app widget tests
 just test-integration    # ahp_client against a real pi-agent-host-protocol
 just test-model          # a real model turn through pi (costs tokens)
 just test-desktop linux  # desktop smoke test against pi (see docs/desktop.md)
-just codegen             # regenerate freezed/json_serializable code
+just codegen             # regenerate the wire types (and freezed code)
+just fetch-schema        # re-download the vendored AHP 1.0.0 JSON Schemas
 just run                 # flutter run -d chrome
 just run macos           # needs a full Xcode install
 just run linux           # needs GTK 3, CMake, Ninja, clang, libsecret

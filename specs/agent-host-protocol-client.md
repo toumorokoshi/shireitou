@@ -45,7 +45,10 @@ That host negotiates with `@microsoft/agent-host-protocol` **1.0.0**, whose
 
 Found by diffing the TypeScript sources (`src/types`) of
 `@microsoft/agent-host-protocol@0.9.0` and `@1.0.0` from npm, and checked
-against the 1.0.0 entry of the protocol's `CHANGELOG.md`. The protocol's
+against the 1.0.0 entry of the protocol's `CHANGELOG.md`. The `StateAction`
+unions of the v0.9.0 and v1.0.0 JSON Schemas differ by exactly the ten
+actions below, and `protocol_version_test.dart` checks that each of them is
+a member of the generated `StateAction`. The protocol's
 `ACTION_INTRODUCED_IN` registry dates some of these actions `0.9.0` or
 `0.10.0` (an unreleased version), but none of them is in the 0.9.0
 release. Notifications (`root/*`, `auth/required`, `otlp/*`) are the same
@@ -167,12 +170,23 @@ Priority: **P0** = MVP, **P1** = next, **P2** = later.
 
 ### Implementation constraints
 
-- Wire types should be **generated** from the JSON Schemas in the protocol
-  repo's `schema/` directory, and pinned to protocol 1.0.0 (see
-  [Target protocol version](#target-protocol-version)). Until that generator
-  exists, they are hand-written freezed/json_serializable classes in
-  `packages/ahp_client/lib/src/wire.dart`, modeled on the 1.0.0 TypeScript
-  types, covering only the fields the client reads.
+- Wire types are **generated** from the JSON Schemas in the protocol
+  repo's `schema/` directory, pinned to protocol 1.0.0 (see
+  [Target protocol version](#target-protocol-version)). The schemas are
+  vendored in `packages/ahp_wire_gen/schema/1.0.0/`; `just codegen` writes
+  the whole schema (every `$def`, including canvases, changesets,
+  terminals, customizations, MCP servers, automations and background work)
+  into `packages/ahp_client/lib/src/generated/`, and CI fails when the
+  vendored schemas or the committed output are stale. Departures from the
+  schemas (fields kept as JSON, schema fixes, renames) are listed in
+  [docs/wire-types.md](../docs/wire-types.md).
+- Unknown values must not break decoding: a union member whose
+  discriminator this version does not know decodes to `<Union>Unknown`
+  (keeping its JSON), and an unknown enum value to `$unknown`. Reducers
+  treat both as no-ops.
+- pi-agent-host-protocol 0.3.0 sends a `modifiedAt` in `SessionSummary.chats`
+  entries (`SessionChatSummary`), which the 1.0.0 schema does not have; the
+  generated types drop it.
 - pi-agent-host-protocol is the integration-test host. It prints a
   `ws://127.0.0.1:<port>?tkn=…` URL and reads only the `tkn` query
   parameter, so native clients send the token both as `tkn` and as an
@@ -191,7 +205,9 @@ Priority: **P0** = MVP, **P1** = next, **P2** = later.
 
 ## Implementation status
 
-As of 2026-10-16, iteration 4 (`packages/ahp_client`):
+As of 2026-10-16, iteration 5 (`packages/ahp_client`). Iteration 5
+replaced the hand-written wire types with ones generated from the 1.0.0
+JSON Schemas; no requirement changed status.
 
 | ID      | Status  | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | ------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

@@ -12,43 +12,44 @@ import 'chat_commands.dart';
 import 'timeline_items.dart';
 
 /// Builds the widget for one [item]. [onAction] dispatches a chat action.
-Widget buildTimelineItem(TimelineItem item, ValueChanged<JsonMap> onAction) =>
-    switch (item) {
-      UserMessageItem(:final message) => UserMessageBubble(message: message),
-      ResponsePartItem(:final turnId, :final part, :final active) =>
-        switch (part) {
-          MarkdownPart(:final content) => MarkdownText(content),
-          ReasoningPart(:final content) => ReasoningBlock(content: content),
-          ToolCallPart(:final toolCall) => ToolCallCard(
-            turnId: turnId,
-            toolCall: toolCall,
-            onAction: active ? onAction : null,
-          ),
-          InputRequestPart() => InputRequestCard(
-            part: part,
-            onAction: active ? onAction : null,
-          ),
-          ErrorPart(:final error, :final resumable) => ErrorBanner(
-            message: error.message,
-            onRetry: resumable == true && !active
-                ? () => onAction(ChatAction.turnResume(turnId: turnId).toJson())
-                : null,
-          ),
-          SystemNotificationPart(:final content) => _Note(
-            stringOrMarkdownText(content) ?? '',
-          ),
-          ContentRefPart(:final uri) => _Note(uri),
-          UnknownPart(:final kind) => _Note('Unsupported response part: $kind'),
-        },
-      TurnFooterItem(:final turn) => _Note(turnFooterText(turn)),
-      PendingMessageItem(:final kind, :final pending) => PendingMessageRow(
-        kind: kind,
-        pending: pending,
-        onRemove: () => onAction(
-          ChatAction.pendingMessageRemoved(kind: kind, id: pending.id).toJson(),
-        ),
-      ),
-    };
+Widget buildTimelineItem(
+  TimelineItem item,
+  ValueChanged<JsonMap> onAction,
+) => switch (item) {
+  UserMessageItem(:final message) => UserMessageBubble(message: message),
+  ResponsePartItem(:final turnId, :final part, :final active) => switch (part) {
+    MarkdownResponsePart(:final content) => MarkdownText(content),
+    ReasoningResponsePart(:final content) => ReasoningBlock(content: content),
+    ToolCallResponsePart(:final toolCall) => ToolCallCard(
+      turnId: turnId,
+      toolCall: toolCall,
+      onAction: active ? onAction : null,
+    ),
+    InputRequestResponsePart() => InputRequestCard(
+      part: part,
+      onAction: active ? onAction : null,
+    ),
+    ErrorResponsePart(:final error, :final resumable) => ErrorBanner(
+      message: error.message,
+      onRetry: resumable == true && !active
+          ? () => onAction(ChatTurnResumeAction(turnId: turnId).toJson())
+          : null,
+    ),
+    SystemNotificationResponsePart(:final content) => _Note(content.text),
+    ResourceResponsePart(:final uri) => _Note(uri),
+    ResponsePartUnknown(:final kind) => _Note(
+      'Unsupported response part: $kind',
+    ),
+  },
+  TurnFooterItem(:final turn) => _Note(turnFooterText(turn)),
+  PendingMessageItem(:final kind, :final pending) => PendingMessageRow(
+    kind: kind,
+    pending: pending,
+    onRemove: () => onAction(
+      ChatPendingMessageRemovedAction(kind: kind, id: pending.id).toJson(),
+    ),
+  ),
+};
 
 /// The user's message, right-aligned.
 class UserMessageBubble extends StatelessWidget {
@@ -158,7 +159,7 @@ class ToolCallCard extends StatelessWidget {
   final String turnId;
 
   /// The tool call.
-  final ToolCall toolCall;
+  final ToolCallState toolCall;
 
   /// Dispatches approve/deny; null for finished turns.
   final ValueChanged<JsonMap>? onAction;
@@ -166,13 +167,14 @@ class ToolCallCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final status = toolCall.status;
     final input = toolCallInputText(toolCall);
     final output = toolCallOutputText(toolCall);
-    final failed = toolCall.success == false;
-    final waiting =
-        status == ToolCallStatus.pendingConfirmation ||
-        status == ToolCallStatus.pendingResultConfirmation;
+    final failed = switch (toolCall) {
+      ToolCallCompletedState(:final success) ||
+      ToolCallPendingResultConfirmationState(:final success) => !success,
+      _ => false,
+    };
+    final waiting = toolCall is ToolCallConfirmationState;
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 4),
       clipBehavior: Clip.antiAlias,
@@ -189,12 +191,12 @@ class ToolCallCard extends StatelessWidget {
             ),
             subtitle: Text(
               '${toolCall.displayName} · '
-              '${failed ? 'Failed' : toolCallStatusLabel(status)}',
+              '${failed ? 'Failed' : toolCallStatusLabel(toolCall)}',
               style: failed ? TextStyle(color: theme.colorScheme.error) : null,
             ),
-            trailing: switch (status) {
-              ToolCallStatus.streaming ||
-              ToolCallStatus.running => const SizedBox.square(
+            trailing: switch (toolCall) {
+              ToolCallStreamingState() ||
+              ToolCallRunningState() => const SizedBox.square(
                 dimension: 16,
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
@@ -216,8 +218,12 @@ class ToolCallCard extends StatelessWidget {
 
   Widget _approvalBar(BuildContext context) {
     final onAction = this.onAction!;
-    final title = stringOrMarkdownText(toolCall.confirmationTitle);
-    final options = toolCall.options ?? const <ConfirmationOption>[];
+    final pending = switch (toolCall) {
+      final ToolCallPendingConfirmationState pending => pending,
+      _ => null,
+    };
+    final title = pending?.confirmationTitle?.text;
+    final options = pending?.options ?? const <ConfirmationOption>[];
     final buttons = options.isEmpty
         ? [
             FilledButton(
@@ -235,7 +241,7 @@ class ToolCallCard extends StatelessWidget {
           ]
         : [
             for (final option in options)
-              option.kind == 'approve'
+              option.kind == ConfirmationOptionKind.approve
                   ? FilledButton(
                       onPressed: () => onAction(
                         confirmToolCallAction(
@@ -265,7 +271,9 @@ class ToolCallCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (title != null) ...[Text(title), const SizedBox(height: 8)],
-          if (toolCall.riskAssessment case {'safety': final num safety}) ...[
+          if (pending?.riskAssessment case ToolCallRiskAssessmentCompleteState(
+            :final safety,
+          )) ...[
             Text('Risk assessment: safety ${safety.toStringAsFixed(2)}'),
             const SizedBox(height: 8),
           ],
@@ -332,7 +340,7 @@ class InputRequestCard extends StatefulWidget {
   const InputRequestCard({super.key, required this.part, this.onAction});
 
   /// The input request part.
-  final InputRequestPart part;
+  final InputRequestResponsePart part;
 
   /// Dispatches the answer; null for finished turns.
   final ValueChanged<JsonMap>? onAction;
@@ -344,11 +352,11 @@ class InputRequestCard extends StatefulWidget {
 class _InputRequestCardState extends State<InputRequestCard> {
   late final Map<String, Object?> _values = {
     for (final q in widget.part.request.questions ?? <ChatInputQuestion>[])
-      q.id: switch ((q.kind, q.defaultValue)) {
-        ('multi-select', _) => <String>{},
-        ('boolean', final bool b) => b,
-        ('boolean', _) => false,
-        (_, final Object v) => '$v',
+      q.id: switch (q) {
+        ChatInputMultiSelectQuestion() => <String>{},
+        ChatInputBooleanQuestion(:final defaultValue) => defaultValue ?? false,
+        ChatInputTextQuestion(:final defaultValue?) => defaultValue,
+        ChatInputNumberQuestion(:final defaultValue?) => '$defaultValue',
         _ => '',
       },
   };
@@ -379,7 +387,7 @@ class _InputRequestCardState extends State<InputRequestCard> {
                 child: Text(url),
               ),
             if (!open)
-              Text('Response: ${widget.part.response ?? 'none'}')
+              Text('Response: ${widget.part.response?.wireValue ?? 'none'}')
             else ...[
               for (final q in request.questions ?? <ChatInputQuestion>[])
                 _question(q),
@@ -422,31 +430,32 @@ class _InputRequestCardState extends State<InputRequestCard> {
     final value = _values[q.id];
     return Padding(
       padding: const EdgeInsets.only(top: 12),
-      child: switch (q.kind) {
-        'boolean' => SwitchListTile(
+      child: switch (q) {
+        ChatInputBooleanQuestion() => SwitchListTile(
           contentPadding: EdgeInsets.zero,
           title: Text(label),
           subtitle: help == null ? null : Text(help),
           value: value == true,
           onChanged: (v) => _set(q.id, v),
         ),
-        'single-select' => DropdownButtonFormField<String>(
-          decoration: InputDecoration(labelText: label, helperText: help),
-          initialValue: (value as String?)?.isEmpty ?? true ? null : value,
-          items: [
-            for (final o in q.options ?? <ChatInputOption>[])
-              DropdownMenuItem(value: o.id, child: Text(o.label)),
-          ],
-          onChanged: (v) => _set(q.id, v ?? ''),
-        ),
-        'multi-select' => Column(
+        ChatInputSingleSelectQuestion(:final options) =>
+          DropdownButtonFormField<String>(
+            decoration: InputDecoration(labelText: label, helperText: help),
+            initialValue: (value as String?)?.isEmpty ?? true ? null : value,
+            items: [
+              for (final o in options)
+                DropdownMenuItem(value: o.id, child: Text(o.label)),
+            ],
+            onChanged: (v) => _set(q.id, v ?? ''),
+          ),
+        ChatInputMultiSelectQuestion(:final options) => Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(label),
             Wrap(
               spacing: 8,
               children: [
-                for (final o in q.options ?? <ChatInputOption>[])
+                for (final o in options)
                   FilterChip(
                     label: Text(o.label),
                     selected: (value! as Set<String>).contains(o.id),
@@ -463,7 +472,7 @@ class _InputRequestCardState extends State<InputRequestCard> {
         _ => TextFormField(
           initialValue: value as String?,
           decoration: InputDecoration(labelText: label, helperText: help),
-          keyboardType: q.kind == 'number' || q.kind == 'integer'
+          keyboardType: q is ChatInputNumberQuestion
               ? TextInputType.number
               : TextInputType.text,
           onChanged: (v) => _set(q.id, v),
@@ -522,8 +531,8 @@ class PendingMessageRow extends StatelessWidget {
     required this.onRemove,
   });
 
-  /// `steering` or `queued`.
-  final String kind;
+  /// Steering or queued.
+  final PendingMessageKind kind;
 
   /// The pending message.
   final PendingMessage pending;
@@ -535,9 +544,12 @@ class PendingMessageRow extends StatelessWidget {
   Widget build(BuildContext context) => Align(
     alignment: Alignment.centerRight,
     child: InputChip(
-      avatar: Icon(kind == 'steering' ? Icons.bolt : Icons.schedule, size: 16),
+      avatar: Icon(
+        kind == PendingMessageKind.steering ? Icons.bolt : Icons.schedule,
+        size: 16,
+      ),
       label: Text(
-        '${kind == 'steering' ? 'Steering' : 'Queued'}: '
+        '${kind == PendingMessageKind.steering ? 'Steering' : 'Queued'}: '
         '${pending.message.text}',
         overflow: TextOverflow.ellipsis,
       ),

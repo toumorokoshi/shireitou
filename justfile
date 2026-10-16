@@ -7,6 +7,7 @@ lint:
     {{prettier}} --check "**/*.md"
     dart format --output=none --set-exit-if-changed .
     cd packages/ahp_client && dart analyze --fatal-infos
+    cd packages/ahp_wire_gen && dart analyze --fatal-infos
     cd app && flutter analyze --fatal-infos
 
 # Format markdown and Dart files.
@@ -17,11 +18,13 @@ format:
 # Apply lint fixes, then format.
 fix:
     cd packages/ahp_client && dart fix --apply
+    cd packages/ahp_wire_gen && dart fix --apply
     cd app && dart fix --apply
     just format
 
 # Run unit and widget tests (integration tests excluded).
 test:
+    cd packages/ahp_wire_gen && dart test
     cd packages/ahp_client && dart test -x integration
     cd app && flutter test
 
@@ -41,9 +44,22 @@ test-model:
 test-desktop device="linux":
     scripts/test-desktop {{device}}
 
-# Regenerate freezed / json_serializable code in ahp_client.
+# Regenerate the AHP wire types from the vendored JSON Schemas (see
+# packages/ahp_wire_gen), then the freezed code in ahp_client. CI fails when
+# the committed output differs.
 codegen:
+    cd packages/ahp_wire_gen && dart run ahp_wire_gen:generate schema/1.0.0 ../ahp_client/lib/src/generated
+    dart format packages/ahp_client/lib/src/generated
     cd packages/ahp_client && dart run build_runner build
+
+# Download the JSON Schemas of an AHP release into packages/ahp_wire_gen.
+# Generation stays pinned to 1.0.0 until the config and codegen recipe move.
+fetch-schema version="1.0.0":
+    mkdir -p packages/ahp_wire_gen/schema/{{version}}
+    for f in actions commands errors notifications state; do \
+      curl -fsSL -o packages/ahp_wire_gen/schema/{{version}}/$f.schema.json \
+        https://raw.githubusercontent.com/microsoft/agent-host-protocol/v{{version}}/schema/$f.schema.json; \
+    done
 
 # Run the app. Pass a device, e.g. `just run macos`, and an optional host
 # URL to prefill: `just run chrome ws://127.0.0.1:63877?tkn=...`.

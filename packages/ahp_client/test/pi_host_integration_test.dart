@@ -114,7 +114,10 @@ void main() {
 
       final chat = await client.openSession(session);
       expect(chat, isNotNull);
-      expect(client.state.sessionChannels[session]!.state.lifecycle, 'ready');
+      expect(
+        client.state.sessionChannels[session]!.state.lifecycle,
+        SessionLifecycle.ready,
+      );
       expect(client.state.chatChannels[chat]!.state.turns, isEmpty);
 
       // A rejected action is echoed with a reason and rolled back.
@@ -123,7 +126,7 @@ void main() {
       );
       client.dispatch(
         chat!,
-        const ChatAction.turnCancelled(turnId: 'none', duration: 0).toJson(),
+        const ChatTurnCancelledAction(turnId: 'none', duration: 0).toJson(),
       );
       expect((await rejected).rejectionReason, 'No active turn');
       expect(client.state.chatChannels[chat]!.pending, isEmpty);
@@ -202,7 +205,7 @@ void main() {
       final streamed = <String>[];
       final subscription = client.states.listen((s) {
         final text = chatState(s).activeTurn?.responseParts
-            .whereType<MarkdownPart>()
+            .whereType<MarkdownResponsePart>()
             .lastOrNull
             ?.content;
         if (text != null && text.isNotEmpty) streamed.add(text);
@@ -214,7 +217,7 @@ void main() {
       );
       client.dispatch(
         chat,
-        ChatAction.turnStarted(
+        ChatTurnStartedAction(
           turnId: 'turn-1',
           startedAt: DateTime.now().toUtc().toIso8601String(),
           message: userMessage('Reply with just the word ok.'),
@@ -227,7 +230,10 @@ void main() {
           .turns
           .single;
       expect(turn.state, TurnState.complete, reason: '${turn.responseParts}');
-      final reply = turn.responseParts.whereType<MarkdownPart>().last.content;
+      final reply = turn.responseParts
+          .whereType<MarkdownResponsePart>()
+          .last
+          .content;
       expect(reply.toLowerCase(), contains('ok'));
       expect(streamed, isNotEmpty);
       expect(client.state.chatChannels[chat]!.pending, isEmpty);

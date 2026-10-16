@@ -11,7 +11,12 @@ const _sessionState = <String, Object?>{
   'lifecycle': 'ready',
   'activeClients': <Object?>[],
   'chats': [
-    {'resource': _chat, 'title': 's'},
+    {
+      'resource': _chat,
+      'title': 's',
+      'status': 1,
+      'modifiedAt': '2026-01-01T00:00:00Z',
+    },
   ],
 };
 
@@ -23,7 +28,7 @@ const _chatState = <String, Object?>{
   'turns': <Object?>[],
 };
 
-JsonMap _turnStarted(String id) => ChatAction.turnStarted(
+JsonMap _turnStarted(String id) => ChatTurnStartedAction(
   turnId: id,
   startedAt: '2026-01-01T00:00:00.000Z',
   message: userMessage('hi'),
@@ -73,7 +78,7 @@ void main() {
     test('are unmirrored and recorded', () {
       final next = applyReconnectResult(
         _subscribed(),
-        const ReconnectResult.replay(actions: [], missing: [_session]),
+        const ReconnectReplayResult(actions: [], missing: [_session]),
         clientId: 'me',
       );
       expect(next.sessionChannels, isEmpty);
@@ -95,7 +100,7 @@ void main() {
     test('a snapshot result drops mirrors it has no snapshot for', () {
       final next = applyReconnectResult(
         _subscribed(),
-        const ReconnectResult.snapshot(
+        const ReconnectSnapshotResult(
           snapshots: [
             Snapshot(resource: _session, state: _sessionState, fromSeq: 9),
           ],
@@ -128,7 +133,7 @@ void main() {
       _session,
       (
         clientSeq: 2,
-        action: SessionAction.isArchivedChanged(isArchived: true).toJson(),
+        action: SessionIsArchivedChangedAction(isArchived: true).toJson(),
       ),
     );
 

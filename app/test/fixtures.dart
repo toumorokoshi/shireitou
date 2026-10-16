@@ -37,23 +37,21 @@ ChatState chatFixture({bool active = true}) => ChatState(
       duration: 1500,
       usage: const UsageInfo(inputTokens: 1200, outputTokens: 30, model: 'm1'),
       responseParts: const [
-        ResponsePart.reasoning(id: 'r', content: 'I should run ls.'),
-        ResponsePart.toolCall(
-          toolCall: ToolCall(
+        ReasoningResponsePart(id: 'r', content: 'I should run ls.'),
+        ToolCallResponsePart(
+          toolCall: ToolCallCompletedState(
             toolCallId: 'ls',
             toolName: 'bash',
             displayName: 'Bash',
-            status: ToolCallStatus.completed,
-            invocationMessage: 'Running `ls`',
-            pastTenseMessage: 'Ran `ls`',
-            toolInput: '{"command":"ls"}',
+            invocationMessage: PlainString('Running `ls`'),
+            pastTenseMessage: PlainString('Ran `ls`'),
+            toolInput: InlineToolInput('{"command":"ls"}'),
+            confirmed: ToolCallConfirmationReason.notNeeded,
             success: true,
-            content: [
-              {'type': 'text', 'text': 'a.txt\n'},
-            ],
+            content: [ToolResultTextContent(text: 'a.txt\n')],
           ),
         ),
-        ResponsePart.markdown(id: 'm', content: 'There is **one** file.'),
+        MarkdownResponsePart(id: 'm', content: 'There is **one** file.'),
       ],
     ),
   ],
@@ -63,24 +61,22 @@ ChatState chatFixture({bool active = true}) => ChatState(
           startedAt: '2026-10-01T00:00:00Z',
           message: userMessage('Delete it'),
           responseParts: const [
-            ResponsePart.toolCall(
-              toolCall: ToolCall(
+            ToolCallResponsePart(
+              toolCall: ToolCallPendingConfirmationState(
                 toolCallId: 'rm',
                 toolName: 'bash',
                 displayName: 'Bash',
-                status: ToolCallStatus.pendingConfirmation,
-                invocationMessage: 'Run `rm a.txt`',
-                toolInput: '{"command":"rm a.txt"}',
+                invocationMessage: PlainString('Run `rm a.txt`'),
+                toolInput: InlineToolInput('{"command":"rm a.txt"}'),
               ),
             ),
-            ResponsePart.inputRequest(
+            InputRequestResponsePart(
               request: ChatInputRequest(
                 id: 'req',
                 message: 'Which branch?',
                 questions: [
-                  ChatInputQuestion(
+                  ChatInputTextQuestion(
                     id: 'branch',
-                    kind: 'text',
                     message: 'Branch name',
                     required: true,
                   ),

@@ -5,13 +5,11 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 
 import 'channel_mirror.dart';
 import 'chat_reducer.dart';
-import 'chat_wire.dart';
 import 'protocol.dart';
 import 'protocol_version.dart';
 import 'root_reducer.dart';
 import 'session_catalogue.dart';
 import 'session_reducer.dart';
-import 'session_wire.dart';
 import 'wire.dart';
 
 part 'host_state.freezed.dart';
@@ -258,14 +256,16 @@ HostState applyReconnectResult(
   ReconnectResult result, {
   required String clientId,
 }) => applyMissingChannels(switch (result) {
-  ReconnectReplay(:final actions) => actions.fold(
+  ReconnectReplayResult(:final actions) => actions.fold(
     state,
     (state, envelope) => applyEnvelope(state, envelope, clientId: clientId),
   ),
-  ReconnectSnapshot(:final snapshots) => snapshots.fold(
+  ReconnectSnapshotResult(:final snapshots) => snapshots.fold(
     state,
     (state, snapshot) => applySnapshot(state, snapshot),
   ),
+  // The client runs `initialize` again instead.
+  ReconnectResultUnknown() => state,
 }, missingAfterReconnect(state, result));
 
 /// The channels a `reconnect` [result] could not resume: the replay's
@@ -273,11 +273,12 @@ HostState applyReconnectResult(
 /// snapshot for.
 List<String> missingAfterReconnect(HostState state, ReconnectResult result) =>
     switch (result) {
-      ReconnectReplay(:final missing) => missing,
-      ReconnectSnapshot(:final snapshots) => unresumedChannels(
+      ReconnectReplayResult(:final missing) => missing,
+      ReconnectSnapshotResult(:final snapshots) => unresumedChannels(
         state,
         snapshots,
       ),
+      ReconnectResultUnknown() => const [],
     };
 
 /// Mirrored session and chat channels that [snapshots] leave out. A host

@@ -11,7 +11,9 @@ answer input requests, and start sessions. Iteration 3 (2026-10-16) added
 the macOS and Linux desktop apps (CI builds, smoke tests and packages),
 the native token header, and remembered hosts. Iteration 4 (2026-10-16)
 finished reconnect (`missing` channels, liveness pings), write-ahead
-rollback on timeout and reconnect, and 0.9.0 degradation. Remaining work:
+rollback on timeout and reconnect, and 0.9.0 degradation. Iteration 5
+(2026-10-16) generated the wire types from the AHP 1.0.0 JSON Schemas.
+Remaining work:
 
 - **Not verified against a host:** tool approvals (AV-083) and input
   requests (AV-084) are covered by reducer and widget tests only, because pi
@@ -32,9 +34,12 @@ rollback on timeout and reconnect, and 0.9.0 degradation. Remaining work:
   (AV-068; pi always sends full history). Very long chats rebuild the whole
   `ChatState` per delta; windowed delivery (AHP-029) is not built.
 - **Chat reducer coverage:** background work, canvases, changesets, MCP
-  auth (`chat/toolCallAuthRequired`), working-directory and draft actions
-  are ignored. Session customizations, MCP servers, changesets and server
-  tools are ignored.
+  auth (`chat/toolCallAuthRequired`/`chat/toolCallAuthResolved`), working
+  directories, queued-message reordering and draft actions are ignored
+  (listed explicitly as no-ops in `reduceChat`). Session customizations,
+  MCP servers, changesets, server tools, active clients, input requests,
+  chat reordering and `_meta` are ignored (`reduceSession` falls through).
+  The generated types for all of them exist.
 - **Session list:** no "Done" filter (AV-022), archive only from the session
   header (AV-024), no attention count in the title (AV-120), no keyboard
   shortcuts (AV-140), no search or sort.
@@ -49,9 +54,32 @@ rollback on timeout and reconnect, and 0.9.0 degradation. Remaining work:
     `keychain-access-groups` entitlement or provisioning profile); verified
     only by the CI smoke test, never on a developer Mac.
   - iOS, Android, Windows: not run.
-- **Wire type generation:** types are hand-written freezed classes modeled on
-  the 1.0.0 TypeScript types. A generator from the JSON Schemas in
-  `schema/` is still to do.
+- **Generated wire types, limits** (see [docs/wire-types.md](docs/wire-types.md)):
+  - `Snapshot.state` and `ActionEnvelope.action` stay raw JSON, decoded per
+    channel kind by `host_state.dart` and the reducers; snapshots of
+    channels the client does not mirror (terminal, changeset, canvas,
+    annotations, resource watch, automation) are not decoded at all yet.
+    `TerminalState`, `ChangesetState`, `CanvasState`, ... and their action
+    unions (`TerminalAction`, `ChangesetAction`, ...) exist but have no
+    reducers.
+  - The partial summaries (`session/chatUpdated` and
+    `root/sessionSummaryChanged` `changes`) are `JsonMap` and merged as
+    JSON, because hosts clear a field with an explicit `null`.
+  - Decoding is lenient only where it must be: unknown union members and
+    enum values have fallbacks, and missing required lists or maps decode
+    as empty, but any other missing required field throws (a `TypeError`
+    from a cast) and fails the whole snapshot or action. Re-encoding drops
+    properties the schema does not have (pi's `SessionChatSummary.modifiedAt`)
+    and an unknown enum value is re-encoded as an empty string.
+  - Lists in generated objects are ordinary (mutable) `List`s; nothing
+    enforces immutability beyond `final` fields.
+  - Inline enums are not de-duplicated by shape (for example
+    `ChangesetOperationTargetResourceSide` and
+    `ChangesetOperationTargetRangeSide`), and a few inline classes still
+    have derived names (`AhpMcpUiHostCapabilitiesSampling`).
+  - Only the 1.0.0 schemas are vendored. The 0.9.0 differences in
+    `protocol_version.dart` were checked against the v0.9.0 schemas once,
+    by hand; a test only checks that each listed action exists in 1.0.0.
 - **1.0.0-only features:** under 0.9.0 the client ignores the ten
   1.0.0-only actions and refuses to dispatch them, and the app shows an
   "AHP 0.9.0" chip (see "0.9.0 compatibility" in

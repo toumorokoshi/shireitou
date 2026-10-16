@@ -1,5 +1,75 @@
 # Design Decision Log
 
+## 2026-10-16: Wire type generation
+
+- **Generated from the JSON Schemas, output committed:** a new pure-Dart
+  workspace package, `packages/ahp_wire_gen`, reads the AHP 1.0.0 schemas
+  (`actions`, `commands`, `errors`, `notifications`, `state`) and writes
+  `packages/ahp_client/lib/src/generated/` (one library, one part per
+  schema file). The output is committed rather than built on the fly, so
+  the package stays a plain Dart dependency, reviews show type changes, and
+  IDEs need no build step. `just codegen` regenerates it (then
+  `dart format` and freezed for `host_state.dart`); CI runs
+  `just fetch-schema` and `just codegen` and fails on any working-tree
+  change, which also catches hand edits and stale vendored schemas.
+- **Vendored schemas:** the five files from tag `v1.0.0` of
+  `microsoft/agent-host-protocol` live in
+  `packages/ahp_wire_gen/schema/1.0.0/` (about 2 MB; each file repeats the
+  shared defs). Generation needs no network; `just fetch-schema` re-downloads
+  them. A def found in several files is generated once, into the part of
+  the first file (state, actions, commands, notifications, errors).
+- **Own emitter, not freezed:** the generator emits plain Dart (immutable
+  `final class`es with `fromJson`/`toJson`/typed `copyWith`/deep equality,
+  `sealed class` unions, enums) instead of freezed sources. The schemas
+  need things freezed unions cannot express: a member in two unions
+  (`ChatTurnStartedAction` is a `ChatAction` and a `StateAction`;
+  `ToolCallPendingConfirmationState` is a `ToolCallState` and a
+  `ToolCallConfirmationState`), nested unions (`chat/toolCallConfirmed` is
+  itself a union on `approved`), discriminators with several values
+  (`number`/`integer` questions), and untagged string-or-object unions.
+  Sealed classes that members `implement` handle all of them, and the
+  build goes from ~17 k lines of freezed output for a subset of the
+  protocol to ~37 k lines for all of it, generated in under a second.
+  freezed stays for `host_state.dart`; `json_serializable` and
+  `json_annotation` are gone.
+- **Whole schema, faithful shapes:** every `$def` is generated (canvases,
+  changesets, terminals, customizations, MCP servers, automations,
+  background work), so extending the reducers needs no new types. The
+  flattened hand-written `ToolCall`, `ChatInputQuestion` and raw-JSON
+  fields are replaced by the protocol's unions (`ToolCallState`,
+  `ChatInputQuestion`, `ToolResultContent`, `ChatInputAnswer`, ...), and
+  the chat reducer now builds the next tool call state per status, like
+  the TypeScript reducer.
+- **Forward compatibility:** each tagged union decodes unknown
+  discriminators to `<Union>Unknown` (keeping the JSON and decoding the
+  fields all members share), each enum has `$unknown`, and missing required
+  lists/maps decode as empty. Unknown action types stay no-ops, as before.
+  An unknown `reconnect` result kind makes the client run `initialize`
+  again.
+- **Shared fields on unions:** fields every member has (same type, or
+  member types of one union) are abstract getters on the sealed class
+  (`ToolCallState.toolCallId`, `.contributor`, `.invocationMessage`), and
+  `ToolCallStateFields` in `wire.dart` adds the few that only some states
+  have (`toolInput`, `content`, `confirmed`, `selectedOption`).
+- **Explicit departures, all in `config.dart`:** `Snapshot.state` and
+  `ActionEnvelope.action` stay JSON (no discriminator for the former;
+  write-ahead and the reducers already work on JSON); the partial
+  `changes` of `session/chatUpdated` and `root/sessionSummaryChanged` stay
+  JSON because pi clears fields with an explicit `null`; `RootAction`,
+  `SessionAction` and the other per-channel action unions are synthesized
+  from `StateAction` by type prefix (the schemas only export `ChatAction`);
+  `Icon`/`TextPosition`/`TextRange`/`TextSelection` get an `Ahp` prefix to
+  avoid clashing with Flutter and `dart:ui`; `number` is `int` except for a
+  short list of fractional fields; `SessionStatus` maps to the existing
+  bitset extension type. Two upstream schema defects (an empty `$ref` in
+  `StateAction`, and `approved` without its `true`/`false` literal types)
+  are patched, and each patch throws once upstream fixes it.
+- **0.9.0:** the v0.9.0 schemas were fetched once to confirm that their
+  `StateAction` differs from 1.0.0 by exactly the ten actions in
+  `protocol_version.dart`. They are not vendored: the client only offers
+  0.9.0 as a fallback and generates 1.0.0 types, so a test checks the list
+  against the generated `StateAction.discriminatorValues` instead.
+
 ## 2026-10-16: Reconnect details, write-ahead rollback, and 0.9.0 degradation
 
 - **0.9.0 vs 1.0.0, from the releases:** the list of 1.0.0 additions comes

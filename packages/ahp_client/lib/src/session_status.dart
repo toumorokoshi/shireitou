@@ -1,5 +1,3 @@
-import 'package:json_annotation/json_annotation.dart';
-
 /// The AHP `SessionStatus` bitset (protocol 1.0.0, AHP-026).
 ///
 /// The activity bits and the orthogonal `IsRead` / `IsArchived` flags are
@@ -48,16 +46,4 @@ extension type const SessionStatus(int bits) {
   /// Returns this status with [flag] set or cleared.
   SessionStatus withFlag(SessionStatus flag, {required bool enabled}) =>
       SessionStatus(enabled ? bits | flag.bits : bits & ~flag.bits);
-}
-
-/// JSON converter so wire types can store [SessionStatus] directly.
-class SessionStatusConverter implements JsonConverter<SessionStatus, int> {
-  /// Creates the converter.
-  const SessionStatusConverter();
-
-  @override
-  SessionStatus fromJson(int json) => SessionStatus(json);
-
-  @override
-  int toJson(SessionStatus object) => object.bits;
 }
