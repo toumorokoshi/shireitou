@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../host_connection.dart';
+import '../host_store.dart';
 
 /// Host URL prefilled from `--dart-define=AHP_URL=...`.
 const _defaultUrl = String.fromEnvironment('AHP_URL');
@@ -23,6 +24,18 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
   final _url = TextEditingController(text: _defaultUrl);
   final _token = TextEditingController();
   final _form = GlobalKey<FormState>();
+
+  @override
+  void initState() {
+    super.initState();
+    if (_defaultUrl.isNotEmpty) return;
+    // Prefill the last host so it does not have to be retyped.
+    ref.read(hostStoreProvider).loadLastHost().then((saved) {
+      if (saved == null || !mounted || _url.text.isNotEmpty) return;
+      _url.text = saved.url;
+      _token.text = saved.token;
+    });
+  }
 
   @override
   void dispose() {

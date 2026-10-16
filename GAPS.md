@@ -5,30 +5,41 @@ Open issues and features not yet implemented.
 ## Implementation
 
 Iteration 1 (2026-10-15) built the workspace, `ahp_client` core, CI, and an
-app shell that connects and lists sessions. Remaining work, roughly in the
-order needed for a usable app (connect, list, open, stream chat, send,
-approve):
+app shell. Iteration 2 (2026-10-15) made the app usable end to end on web:
+open a session, stream replies, send follow-ups, stop turns, approve tools,
+answer input requests, and start sessions. Remaining work:
 
-- **Session channel (AHP-024):** wire types and a pure reducer for
-  `SessionState` and its `session/*` actions; subscribe when a session is
-  opened (the subscription API exists, nothing calls it yet).
-- **Chat channel (AHP-025):** wire types and reducer for turns,
-  `chat/delta` streaming, reasoning, tool calls, usage and errors, plus
-  `fetchTurns`. Then the timeline UI (AV-060 to AV-067). The detail pane is a
-  placeholder.
-- **Write-ahead dispatch (AHP-022):** `dispatchAction` with `clientSeq`,
-  optimistic apply and rollback on `rejectionReason`. Needed for sending
-  messages (AV-080), cancel (AV-082), approvals (AV-083, AHP-041) and
-  input requests (AV-084, AHP-042), and mark read/archive (AHP-043).
-- **Composer (AV-040, AV-041):** new-session UI. `AhpClient.createSession`
-  exists but has no `-32003` retry or `session/creationFailed` handling, and
-  the URI it returns differs from the catalogue key on pi (`pi:/<id>`).
-- **Session list:** filters (AV-022), mark read on open (AV-023), archive
-  (AV-024), attention count in the title (AV-120), and keyboard shortcuts
-  (AV-140). Archived sessions are currently shown with everything else.
-- **Hosts (AV-010):** persist host configs, and store tokens in secure
-  storage (AHP-063). The URL and token are currently typed in each launch
-  (or prefilled with `--dart-define=AHP_URL`).
+- **Not verified against a host:** tool approvals (AV-083) and input
+  requests (AV-084) are covered by reducer and widget tests only, because pi
+  runs tools without confirmation and sends no elicitations. Test them
+  against a host that asks (for example VS Code's agent host or a fake host
+  script).
+- **Session-level input requests:** `SessionState.inputNeeded` is kept as
+  raw JSON and not shown.
+- **Composer (AV-040, AV-041):** no host picker (one host), no directory
+  browser (AV-043), no mode/thinking-level options from the model's
+  `configSchema`, and no "+" button on folder headers. A session whose
+  creation fails (`session/creationFailed`) is never listed by pi, so
+  `createSession` waits for its 30 s timeout instead of showing the error.
+- **Timeline:** no syntax highlighting or code-block copy button (AV-061),
+  no grouping of similar tool calls (AV-064), no terminal output or inline
+  diffs (AV-065), no subagent/chat switcher (AV-069). Queued messages cannot
+  be edited or reordered (AV-081). Older turns are not paged in on scroll
+  (AV-068; pi always sends full history). Very long chats rebuild the whole
+  `ChatState` per delta; windowed delivery (AHP-029) is not built.
+- **Chat reducer coverage:** background work, canvases, changesets, MCP
+  auth (`chat/toolCallAuthRequired`), working-directory and draft actions
+  are ignored. Session customizations, MCP servers, changesets and server
+  tools are ignored.
+- **Write-ahead edge cases:** pending actions are kept across a reconnect
+  snapshot and are never timed out, so an action the host dropped silently
+  stays applied locally.
+- **Session list:** no "Done" filter (AV-022), archive only from the session
+  header (AV-024), no attention count in the title (AV-120), no keyboard
+  shortcuts (AV-140), no search or sort.
+- **Hosts (AV-010):** only the last host is remembered. Secure storage was
+  only exercised on web (where it is encrypted local storage); the macOS
+  build will need the Keychain entitlement.
 - **Wire type generation:** types are hand-written freezed classes modeled on
   the 1.0.0 TypeScript types. A generator from the JSON Schemas in
   `schema/` is still to do.
@@ -40,11 +51,9 @@ approve):
 - **Platforms:** this machine has no Xcode or Android SDK, so only the web
   build and tests were verified. `flutter build macos`/`ios`/`android`, and
   Windows/Linux builds, have not been run. CI builds web only.
-- **Web transport:** the browser WebSocket path has not been tested against a
-  real host (only the Dart VM integration test has). Check whether hosts
-  check the `Origin` header.
-- **App-level integration test:** no test drives the Flutter UI against a
-  real host.
+- **App-level integration test in CI:** the web app was driven against a
+  real pi host with a Playwright script kept outside the repo. A checked-in
+  browser or `integration_test` suite against pi is still to do.
 - Everything else in [specs/agents-view.md](specs/agents-view.md) and
   [specs/agent-host-protocol-client.md](specs/agent-host-protocol-client.md)
   not listed as done in their status sections.
@@ -56,12 +65,10 @@ approve):
   negotiated.
 - **Worktree metadata:** check whether hosts report repo and branch for a
   working directory. If they don't, folder labels fall back to the path only.
-- **Agent/model selection:** confirm whether model and mode are set through
-  `createSession.config` / `SessionConfigState` or through `AgentInfo`. This
-  decides how the composer pickers (AV-041) are populated.
-- **Message send/cancel:** confirm the exact chat actions or commands for
-  sending a user turn, sending now vs. queuing, and cancelling (AV-080 to
-  AV-082).
+- **Agent/model selection:** pi takes the model per message
+  (`Message.model`, ids from `AgentInfo.models`) and has no session config.
+  Check how other hosts expose mode and model through `SessionConfigState`
+  before adding those pickers.
 - **Todos/plans:** check whether AHP response parts carry structured todo or
   plan data (AV-046, AV-070).
 - **PR/branch metadata:** check whether hosts expose a PR URL (AV-105). It may
@@ -70,8 +77,8 @@ approve):
   judging would be client-side. Decide where that state lives.
 - **Mobile push (AV-123):** AHP only delivers events over a live socket, so
   background push needs a relay service. That is out of scope for now.
-- **Web transport:** browsers cannot set WebSocket headers, so the token must
-  go in the query string. Confirm hosts accept that, and check CORS/TLS for
-  hosts on a LAN or tunnel.
+- **Web transport:** pi accepts the token in the query string from a
+  browser, and does not check `Origin`. Check CORS/TLS for hosts on a LAN or
+  tunnel, and other hosts' `Origin` checks.
 - **`ahp_sdk` evaluation:** decide whether to fork, contribute to, or ignore
   the community Dart package.

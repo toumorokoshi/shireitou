@@ -1,5 +1,43 @@
 # Design Decision Log
 
+## 2026-10-15: Session and chat channels, write-ahead dispatch, and the session view
+
+- **Chat reducer:** port the protocol's `chatReducer` to Dart rather than
+  apply host snapshots only, so streaming (`chat/delta`) and optimistic
+  actions work without a round trip. It is tested by replaying recorded pi
+  traffic (`examples/ahp/pi-host-chat-turns.json`).
+- **Flattened tool calls:** the seven `ToolCallState` variants are one
+  freezed `ToolCall` class keyed by `status`, with fields that do not apply
+  left null. The reducer builds each transition from a `_base` copy, like
+  the TypeScript `tcBase`, so stale fields do not leak between statuses.
+- **Write-ahead state:** a generic `ChannelMirror<S>` holds the confirmed
+  state, pending `(clientSeq, action)` pairs, and the visible state
+  (confirmed plus pending). Echoes are matched by `origin.clientId` and
+  `clientSeq`; rejections drop the pending action, which rolls it back. The
+  functions are pure and generic over the reducer.
+- **State placement:** session and chat mirrors live in `HostState`
+  (`sessionChannels`, `chatChannels`), keyed by the URI the client
+  subscribed with, so the app has one state stream. Widgets use Riverpod
+  `select` so streaming only rebuilds the open timeline.
+- **Opening sessions:** subscribe to the session channel, then its
+  `defaultChat` (or first chat). The session list's status comes from the
+  catalogue, because pi keeps the live status on the chat and summary.
+- **Sending messages:** idle sends `chat/turnStarted` with a client-chosen
+  turn ID; while a turn runs, Enter sends a queued `chat/pendingMessageSet`
+  and Cmd/Ctrl+Enter a steering one, as pi implements. The model is chosen
+  per message (`Message.model`), which is how pi takes it.
+- **Markdown:** `flutter_markdown_plus`, the maintained fork of the
+  discontinued `flutter_markdown`, as a drop-in `MarkdownBody`.
+- **Saved host:** the last URL and token go in `flutter_secure_storage`
+  (the URL too, since pi's URL carries `?tkn=`). Only the last host is kept.
+- **Read state:** a session is marked read when opened and again when a new
+  turn clears `IsRead` while it is open, unless the user chose "Mark
+  unread".
+- **Model test tag:** a real-turn test is tagged `model` and run with
+  `just test-model`; `just test-integration` and CI exclude it, so CI needs
+  no model provider. Both start pi with a temp `--session-dir` and settings
+  directory.
+
 ## 2026-10-15: Bootstrapping the workspace, AHP client, and app shell
 
 - **Repo layout:** a [pub workspace](https://dart.dev/tools/pub/workspaces)

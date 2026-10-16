@@ -5,9 +5,11 @@ coding-agent sessions running on
 [Agent Host Protocol](https://microsoft.github.io/agent-host-protocol/) hosts,
 with a UX modeled on the GitHub Agents view and Cursor's Agents Window.
 
-> Status: bootstrapping. The app connects to a host and lists its sessions,
-> grouped by working directory. Session detail, chat, and steering are not
-> built yet; see [GAPS.md](GAPS.md).
+> Status: usable for chat. The app connects to a host, lists its sessions
+> grouped by working directory, opens a session's history, streams replies
+> live, sends follow-ups, stops turns, answers tool approvals and input
+> requests, and starts new sessions. Diffs/review, multiple hosts and
+> notifications are not built yet; see [GAPS.md](GAPS.md).
 
 ## Layout
 
@@ -42,17 +44,44 @@ just lint                # prettier, dart format, dart/flutter analyze
 just fix                 # dart fix, then format
 just test                # ahp_client unit tests and app widget tests
 just test-integration    # ahp_client against a real pi-agent-host-protocol
+just test-model          # a real model turn through pi (costs tokens)
 just codegen             # regenerate freezed/json_serializable code
 just run                 # flutter run -d chrome
 just run macos           # needs a full Xcode install
 just run chrome 'ws://127.0.0.1:63877?tkn=...'   # prefill the host URL
 ```
 
-To try it against a real host, start
-[pi-agent-host-protocol](https://github.com/toumorokoshi/pi-agent-host-protocol)
-(`npm start` in its checkout), then paste the `ws://…?tkn=…` URL it prints
-into the connect screen.
+## Trying it
+
+1. Start a host. From a
+   [pi-agent-host-protocol](https://github.com/toumorokoshi/pi-agent-host-protocol)
+   checkout (needs a model provider configured for pi in `~/.pi/agent`):
+
+   ```sh
+   node src/bin/pi-agent-host-protocol.ts --pi-mode embedded
+   ```
+
+   It prints `pi-agent-host-protocol listening on ws://127.0.0.1:<port>?tkn=…`.
+   To keep test sessions out of your real pi history, add
+   `--session-dir /tmp/pi-sessions`.
+
+2. Run the app in Chrome (`just run`), or build and serve the web app:
+
+   ```sh
+   cd app && flutter build web
+   python3 -m http.server 8080 --directory build/web   # open http://127.0.0.1:8080
+   ```
+
+3. Paste the whole `ws://…?tkn=…` URL into the connect screen. The URL and
+   token are remembered (in secure storage) for the next launch.
+
+4. Pick a session, or press **+** to start one: choose the agent, model and
+   folder, write a prompt and press Enter. In a session, Enter sends a
+   follow-up (or queues it while the agent works), Cmd/Ctrl+Enter steers the
+   running turn, Shift+Enter adds a newline, and **Stop** cancels the turn.
 
 `just test-integration` launches pi-agent-host-protocol from
 `PI_AHP_HOST_DIR` (default: `../pi-agent-host-protocol`, a sibling of this
 repo) in an isolated temp directory, and is skipped when no checkout exists.
+`just test-model` does the same but with your `~/.pi/agent` providers, and
+sends one tiny real turn; CI does not run it.

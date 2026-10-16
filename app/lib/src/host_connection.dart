@@ -5,6 +5,9 @@ import 'dart:async';
 
 import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
+
+import 'host_store.dart';
 
 /// The connected host's state. Widgets watch this; the [AhpClient] owns the
 /// socket and publishes [HostState] changes.
@@ -16,6 +19,7 @@ final hostConnectionProvider = NotifierProvider<HostConnection, HostState>(
 class HostConnection extends Notifier<HostState> {
   AhpClient? _client;
   StreamSubscription<HostState>? _subscription;
+  final _rejections = StreamController<String>.broadcast();
 
   @override
   HostState build() {
@@ -23,7 +27,11 @@ class HostConnection extends Notifier<HostState> {
     return const HostState();
   }
 
-  /// Connects to [url], adding [token] as the `tkn` query parameter.
+  /// Reasons the host gave for rejecting this client's actions (AHP-022).
+  Stream<String> get rejections => _rejections.stream;
+
+  /// Connects to [url], adding [token] as the `tkn` query parameter, and
+  /// remembers both for the next launch once connected.
   Future<void> connect(String url, {String? token}) async {
     await _dispose();
     final client = AhpClient(
@@ -32,7 +40,20 @@ class HostConnection extends Notifier<HostState> {
     );
     _client = client;
     _subscription = client.states.listen((next) => state = next);
+    client.actions
+        .where(
+          (e) =>
+              e.rejectionReason != null &&
+              e.origin?.clientId == client.clientId,
+        )
+        .listen((e) => _rejections.add(e.rejectionReason!));
     await client.connect();
+    if (client.state.status == ConnectionStatus.connected) {
+      await ref.read(hostStoreProvider).saveLastHost((
+        url: url.trim(),
+        token: token?.trim() ?? '',
+      ));
+    }
   }
 
   /// Closes the connection.
@@ -40,6 +61,50 @@ class HostConnection extends Notifier<HostState> {
     await _dispose();
     state = const HostState();
   }
+
+  /// Subscribes to [session] and its default chat; returns the chat URI.
+  Future<String?> openSession(String session) =>
+      _connected.openSession(session);
+
+  /// Releases what [openSession] subscribed to.
+  void closeSession(String session, String? chat) =>
+      _client?.closeSession(session, chat);
+
+  /// Dispatches a client action on [channel] (write-ahead, AHP-022).
+  void dispatch(String channel, JsonMap action) =>
+      _connected.dispatch(channel, action);
+
+  /// Creates a session for [provider] in [workingDirectory] and sends
+  /// [prompt] as its first turn (AV-040). Returns the session's URI as the
+  /// host lists it.
+  Future<String> startSession({
+    required String provider,
+    required String workingDirectory,
+    required String prompt,
+    ModelSelection? model,
+  }) async {
+    final client = _connected;
+    final session = await client.createSession(
+      provider: provider,
+      workingDirectories: [workingDirectory],
+    );
+    final chat = await client.openSession(session);
+    if (chat != null) {
+      client.dispatch(
+        chat,
+        ChatAction.turnStarted(
+          turnId: const Uuid().v4(),
+          startedAt: DateTime.now().toUtc().toIso8601String(),
+          message: userMessage(prompt, model: model),
+        ).toJson(),
+      );
+    }
+    client.closeSession(session, chat);
+    return session;
+  }
+
+  AhpClient get _connected =>
+      _client ?? (throw StateError('not connected to a host'));
 
   Future<void> _dispose() async {
     await _subscription?.cancel();
