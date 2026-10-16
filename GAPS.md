@@ -16,8 +16,11 @@ Open issues and features not yet implemented.
 
 ## Open questions
 
-- **Protocol version:** both 0.7.0 and 0.8.0 appear in the wild. Confirm the
-  current release and which versions VS Code's host accepts.
+- **0.9.0 compatibility:** list exactly which 1.0.0 actions and fields are
+  missing in 0.9.0, and which UI features need to degrade when 0.9.0 is
+  negotiated.
+- **Worktree metadata:** check whether hosts report repo and branch for a
+  working directory. If they don't, folder labels fall back to the path only.
 - **Agent/model selection:** confirm whether model and mode are set through
   `createSession.config` / `SessionConfigState` or through `AgentInfo`. This
   decides how the composer pickers (AV-041) are populated.

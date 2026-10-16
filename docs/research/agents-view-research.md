@@ -23,6 +23,14 @@ Gathered 2026-10-15. Items marked _(unverified)_ come from secondary sources.
   SDK.** The community package `ahp_sdk` 0.1.0
   (<https://pub.dev/packages/ahp_sdk>) targets protocol 0.7.0, has no reconnect
   support, and has no stars, so treat it as a reference only.
+- [pi-agent-host-protocol](https://github.com/toumorokoshi/pi-agent-host-protocol)
+  is an AHP host for the pi coding agent, built on
+  `@microsoft/agent-host-protocol` 1.0.0 (supported versions `1.0.0` and
+  `0.9.0`; VS Code currently negotiates `0.9.0`). shireitou targets its
+  protocol versions.
+- **Worktree grouping compared:** Cursor groups worktree and cloud agents
+  under their parent "org/repo". GitHub and VS Code keep each workspace
+  separate. shireitou follows the GitHub/VS Code approach.
 - Key reference pages:
   - [Lifecycle](https://microsoft.github.io/agent-host-protocol/specification/lifecycle.html):
     `initialize` and `reconnect`.

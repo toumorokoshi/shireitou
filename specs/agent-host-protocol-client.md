@@ -24,6 +24,22 @@ agent sessions, authored by Microsoft (VS Code team, MIT licensed). Key traits:
 - The spec is a working draft; breaking changes are expected. The protocol
   version is negotiated in `initialize`.
 
+## Target protocol version
+
+shireitou supports the same protocol versions as the reference host it is
+developed against, [pi-agent-host-protocol](https://github.com/toumorokoshi/pi-agent-host-protocol).
+That host negotiates with `@microsoft/agent-host-protocol` **1.0.0**, whose
+`SUPPORTED_PROTOCOL_VERSIONS` is `['1.0.0', '0.9.0']`.
+
+- Wire types are generated from the **1.0.0** schemas, the same release as
+  the npm package `@microsoft/agent-host-protocol@1.0.0`.
+- `initialize` offers `protocolVersions: ['1.0.0', '0.9.0']`.
+- When `0.9.0` is negotiated (the version VS Code currently resolves to on
+  that host), the client ignores actions and fields that 1.0.0 added and
+  degrades features that depend on them.
+- Upgrading the target version is a deliberate change: bump it here,
+  regenerate the types, and re-test against pi-agent-host-protocol.
+
 ## Requirements
 
 Priority: **P0** = MVP, **P1** = next, **P2** = later.
@@ -80,7 +96,11 @@ Priority: **P0** = MVP, **P1** = next, **P2** = later.
 ### Implementation constraints
 
 - Wire types are **generated** from the JSON Schemas in the protocol repo's
-  `schema/` directory, and pinned to a specific protocol version.
+  `schema/` directory, and pinned to protocol 1.0.0 (see
+  [Target protocol version](#target-protocol-version)).
+- pi-agent-host-protocol is the integration-test host. It prints a
+  `ws://127.0.0.1:<port>?tkn=…` URL, so the connection token goes in the
+  `tkn` query parameter.
 - The client is a pure-Dart package (no Flutter dependency) so it can be
   tested headlessly and reused by a CLI.
 - I/O (sockets, timers) is kept at the edges; protocol logic is pure functions

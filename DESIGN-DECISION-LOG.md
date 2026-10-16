@@ -1,5 +1,18 @@
 # Design Decision Log
 
+## 2026-10-15: Protocol version and worktree grouping
+
+- **Protocol version:** target the versions supported by
+  [pi-agent-host-protocol](https://github.com/toumorokoshi/pi-agent-host-protocol),
+  which uses `@microsoft/agent-host-protocol` 1.0.0. Generate types from
+  1.0.0 and offer `['1.0.0', '0.9.0']` in `initialize`.
+- **Worktree grouping:** the session list groups sessions into one folder per
+  working directory, so each git worktree is its own folder (GitHub/VS Code
+  style). We rejected Cursor's approach of merging worktree agents under the
+  parent repo because it makes it hard to tell which checkout a session is
+  changing. This is now P0 (AV-025); time and host grouping moved to AV-031
+  (P1).
+
 ## 2026-10-15: Initial requirements for the agents view
 
 - **Product scope:** shireitou is a client-only, cross-platform agents view
