@@ -1,5 +1,80 @@
 # Design Decision Log
 
+## 2026-10-16: Open questions answered: todos, PR links, best-of-N, notifications, web transport, `ahp_sdk`
+
+Researched against AHP 1.0.0 and its main branch
+(microsoft/agent-host-protocol), VS Code's agent host
+(`src/vs/platform/agentHost`), pi-agent-host-protocol and `ahp_sdk` 0.1.0.
+
+- **Todos and plans (AV-070, AV-046): read todo tools, not response
+  parts.** AHP has no todo or plan response part, and none is proposed
+  upstream. Agents keep their list with a tool whose input is the whole
+  list (Claude `TodoWrite`, Copilot CLI `update_todo`, VS Code
+  `manage_todo_list`, Codex `update_plan`), which hosts pass through as a
+  tool call. The client recognizes these tool names and input shapes
+  (pure `todo_list.dart`), renders each call as a checklist card instead
+  of a JSON tool card, never groups them, and pins the newest unfinished
+  list above the follow-up box. Matching on tool names is a heuristic,
+  but it is how VS Code itself renders them; an unknown shape falls back
+  to the normal tool card. Plan mode stays the agent's `mode` setting;
+  plan reviews are input requests, so the input form now lists
+  described single-select options and sends `allowFreeformInput` text as
+  `freeformValues` (or a text answer when nothing is selected), matching
+  how VS Code's host reads plan review answers. VS Code's extra
+  `planReview` field is non-standard and dropped by the generated types;
+  keeping unknown fields was rejected for one host's extension.
+- **PR and branch links (AV-105): `_meta` conventions.** AHP has no
+  field. The client reads `_meta["copilot.githubReferences"]` (only the
+  entry with the `headBranch` relation, and only a GitHub pull request
+  URL) and `_meta.git` (`branchName`, `githubOwner`, `githubRepo`), from
+  the session state, else the catalogue summary, and shows header chips
+  that open them. VS Code's folder-keyed `githubData` is not read: its
+  host already publishes the Copilot convention for the current branch.
+- **Best-of-N (AV-045): run groups live on the device.** AHP has no
+  linked sessions and `_meta` is host-owned, so the link is client state:
+  a `RunGroup` (prompt, members as host + session + label, winner) in
+  `shared_preferences` behind a `PrefsStore` interface, newest 50 kept.
+  The composer starts up to five runs (agent and model per run, same
+  prompt and folder, session settings only for runs of the same agent)
+  in parallel; failures of some runs are reported and the rest are
+  grouped. A comparison page shows each run's status, changes and latest
+  reply, marks a winner and can archive the others. Rejected: encoding
+  the group in session titles or `_meta` (not ours to write), and a
+  server-side group (needs a service).
+- **Notifications (AV-121 done, AV-123 deferred).** Push for a closed app
+  needs a relay; it is designed in `specs/push-relay.md` (a Dart relay
+  next to the hosts that watches catalogues and sends APNs/FCM) and not
+  built, because it needs Apple/Google accounts and signing the project
+  does not have. Instead the desktop apps post local notifications with
+  `flutter_local_notifications` 22.3.1 (Linux D-Bus, macOS
+  UserNotifications, Windows toasts; well maintained, one API). Events
+  come from catalogue status transitions only (pure
+  `attentionEvents`): needs input, finished, failed; new or archived
+  sessions never notify, so connecting does not flood. Nothing is posted
+  for the session on screen while the window has focus. Each event can be
+  turned off from a bell menu (saved with `PrefsStore`); clicking a
+  notification opens the session through `openSessionRequestsProvider`.
+  The web build is left out: the plugin's web support replaces Flutter's
+  service worker. Its transitive packages are pinned to releases at least
+  two weeks old.
+- **Web transport: explain, don't work around.** WebSockets have no CORS;
+  pi and VS Code check only `tkn` (403 otherwise) and ignore `Origin`,
+  listen on 127.0.0.1 and serve no TLS. So the client normalizes
+  `http(s)://` to `ws(s)://`, refuses `ws://` to another machine from an
+  https page up front (mixed content), and turns handshake errors into
+  readable `ConnectionProblem`s (native: 401/403, other statuses, TLS,
+  refused, lookup; web: the causes a browser hides). `wss://` already
+  worked; tunnels and TLS proxies are documented in the client spec.
+- **`ahp_sdk`: ignore (keep as a reference).** 0.1.0 (2026-08-01) still
+  negotiates protocol 0.7.0, has no subscription refcounting or reconnect,
+  one maintainer, no stars and no releases since. Forking would mean
+  replacing its generated types and reducers with ours, and contributing
+  would mean porting our reconnect, write-ahead and 1.0.0 work into a
+  different code generator and API. Our client covers more of 1.0.0 and
+  is tested against pi and the fake host. Revisit if it reaches 1.0.0
+  with reconnect and gains maintainers; the protocol repo's reducer
+  fixtures are the better shared reference.
+
 ## 2026-10-16: Session list actions, keyboard shortcuts, optimistic panel answers and restored hosts
 
 - **Done filter:** "Done" is a non-archived session whose agent is

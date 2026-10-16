@@ -239,7 +239,8 @@ class FakeHostConnection extends HostConnection {
       config: config,
     ));
     if (startError case final error?) throw error;
-    return 'pi:/1';
+    // pi:/1, then pi:/2, ... for parallel runs.
+    return 'pi:/${started.length}';
   }
 
   /// The `type`s of the dispatched actions.

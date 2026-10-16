@@ -15,3 +15,9 @@ WebSocketChannel openWebSocket(Uri uri, Map<String, String> headers) {
   assert(headers.isEmpty, 'browsers cannot send WebSocket headers');
   return WebSocketChannel.connect(uri);
 }
+
+/// Whether sockets are browser `WebSocket`s.
+const isWebTransport = true;
+
+/// The page the app was loaded from, for the mixed content check.
+Uri? pageUri() => Uri.base;

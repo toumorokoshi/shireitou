@@ -64,8 +64,9 @@ exercised against a real host.
   session keeps them as `SessionState.config`; `session/configChanged` is
   accepted for `sessionMutable` settings and rejected otherwise.
 - **Worktree metadata:** sessions in the repository list `project`
-  (`/workspace`, "workspace") and the branch in `_meta.git.branchName`,
-  the shape VS Code's agent host uses.
+  (`/workspace`, "workspace") and the branch and GitHub repository in
+  `_meta.git` (`branchName`, `githubOwner: example`,
+  `githubRepo: workspace`), the shape VS Code's agent host uses.
 - **Creation failure:** `createSession` in a folder the tree does not have
   succeeds, then the host dispatches `session/creationFailed`
   ("No such folder: …") on the session channel a step later and never
@@ -96,6 +97,9 @@ echo that lists the keywords.
 | `settings`   | Replies with the message's model and options (`Model: scripted`, `thinkingLevel: high`) and the session's settings (`mode: plan`, `branch: …`).                                                                                                                              |
 | `client`     | An `open_browser` call delegated to another client (`fake-ide`, a client `ToolCallContributor`), listed as `toolClientExecution` (which does not set `InputNeeded`); that client completes it a few steps later ("fake-ide opened the preview.").                            |
 | `delegate`   | The same call delegated to the client that sent the message; waits for its `chat/toolCallComplete` and replies with the result ("… could not open the preview: <error>").                                                                                                    |
+| `todo`       | Three `TodoWrite` calls (Claude's input shape: `todos[]` with `content`, `activeForm`, `status`) that create a three-step list and work through it, then "All 3 steps are done." (AV-070).                                                                                   |
+| `plan`       | A markdown plan, then a plan review like VS Code's host asks it: a required single-select with described options ("Implement Plan", recommended; "Approve Plan Only") and `allowFreeformInput`; replies with the answer, free-form text after a `+` (AV-046).                |
+| `pr`         | Publishes pull request #42 for the session's branch: `session/metaChanged` and a catalogue update with `_meta["copilot.githubReferences"]` (the `headBranch` entry), and says so (AV-105).                                                                                   |
 
 If the user stops the turn while the script waits, the script ends and the
 session-level entry is removed.

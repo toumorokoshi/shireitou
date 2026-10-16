@@ -21,7 +21,8 @@ Gathered 2026-10-15. Items marked _(unverified)_ come from secondary sources.
   <https://microsoft.github.io/agent-host-protocol/guide/ahp-and-acp>
 - Official SDKs: Rust, TypeScript, Kotlin, Go, Swift, .NET. **No official Dart
   SDK.** The community package `ahp_sdk` 0.1.0
-  (<https://pub.dev/packages/ahp_sdk>) targets protocol 0.7.0, has no reconnect
+  (<https://pub.dev/packages/ahp_sdk>, checked again 2026-10-16: still
+  0.1.0 from 2026-08-01, negotiating 0.7.0) targets protocol 0.7.0, has no reconnect
   support, and has no stars, so treat it as a reference only.
 - [pi-agent-host-protocol](https://github.com/toumorokoshi/pi-agent-host-protocol)
   is an AHP host for the pi coding agent, built on

@@ -11,6 +11,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'chat_commands.dart';
 import 'code_highlight.dart';
 import 'timeline_items.dart';
+import 'todo_list.dart';
+import 'todo_widgets.dart';
 import 'tool_previews.dart';
 
 /// Pushes a token for a protected resource (`authenticate`).
@@ -38,6 +40,9 @@ Widget buildTimelineItem(
   ResponsePartItem(:final turnId, :final part, :final active) => switch (part) {
     MarkdownResponsePart(:final content) => MarkdownText(content),
     ReasoningResponsePart(:final content) => ReasoningBlock(content: content),
+    ToolCallResponsePart(:final toolCall)
+        when todoListOf(toolCall) != null && !toolCall.isBlocking =>
+      TodoCard(list: todoListOf(toolCall)!, running: !toolCall.isFinished),
     ToolCallResponsePart(:final toolCall) => ToolCallCard(
       turnId: turnId,
       toolCall: toolCall,
@@ -567,6 +572,9 @@ class _InputRequestCardState extends State<InputRequestCard> {
       },
   };
 
+  /// Free-form text by question ID, for select questions that allow it.
+  final Map<String, String> _freeform = {};
+
   void _set(String id, Object? value) => setState(() => _values[id] = value);
 
   @override
@@ -602,12 +610,14 @@ class _InputRequestCardState extends State<InputRequestCard> {
                 spacing: 8,
                 children: [
                   FilledButton(
-                    onPressed: inputComplete(request, _values)
+                    onPressed:
+                        inputComplete(request, _values, freeform: _freeform)
                         ? () => onAction(
                             inputCompletedAction(
                               request,
                               accept: true,
                               values: _values,
+                              freeform: _freeform,
                             ),
                           )
                         : null,
@@ -634,56 +644,152 @@ class _InputRequestCardState extends State<InputRequestCard> {
     ].join(' ');
     final help = q.title == null ? null : q.message;
     final value = _values[q.id];
+    final allowsFreeform = switch (q) {
+      ChatInputSingleSelectQuestion(:final allowFreeformInput) ||
+      ChatInputMultiSelectQuestion(
+        :final allowFreeformInput,
+      ) => allowFreeformInput ?? false,
+      _ => false,
+    };
+    final field = switch (q) {
+      ChatInputSingleSelectQuestion(:final options)
+          when options.any((o) => o.description != null) =>
+        _OptionList(
+          label: label,
+          help: help,
+          options: options,
+          selected: value as String?,
+          onSelected: (id) => _set(q.id, id),
+        ),
+      _ => _field(q, label, help, value),
+    };
     return Padding(
       padding: const EdgeInsets.only(top: 12),
-      child: switch (q) {
-        ChatInputBooleanQuestion() => SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: Text(label),
-          subtitle: help == null ? null : Text(help),
-          value: value == true,
-          onChanged: (v) => _set(q.id, v),
-        ),
-        ChatInputSingleSelectQuestion(:final options) =>
-          DropdownButtonFormField<String>(
-            decoration: InputDecoration(labelText: label, helperText: help),
-            initialValue: (value as String?)?.isEmpty ?? true ? null : value,
-            items: [
-              for (final o in options)
-                DropdownMenuItem(value: o.id, child: Text(o.label)),
-            ],
-            onChanged: (v) => _set(q.id, v ?? ''),
-          ),
-        ChatInputMultiSelectQuestion(:final options) => Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label),
-            Wrap(
-              spacing: 8,
+      child: !allowsFreeform
+          ? field
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                for (final o in options)
-                  FilterChip(
-                    label: Text(o.label),
-                    selected: (value! as Set<String>).contains(o.id),
-                    onSelected: (on) {
-                      final next = {...(value as Set<String>)};
-                      on ? next.add(o.id) : next.remove(o.id);
-                      _set(q.id, next);
-                    },
+                field,
+                TextFormField(
+                  key: ValueKey('freeform-${q.id}'),
+                  initialValue: _freeform[q.id],
+                  minLines: 1,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                    labelText: 'Or write your own answer',
+                    helperText: 'Sent with the choice, or instead of it',
                   ),
+                  onChanged: (v) => setState(() => _freeform[q.id] = v),
+                ),
               ],
             ),
+    );
+  }
+
+  Widget _field(
+    ChatInputQuestion q,
+    String label,
+    String? help,
+    Object? value,
+  ) => switch (q) {
+    ChatInputBooleanQuestion() => SwitchListTile(
+      contentPadding: EdgeInsets.zero,
+      title: Text(label),
+      subtitle: help == null ? null : Text(help),
+      value: value == true,
+      onChanged: (v) => _set(q.id, v),
+    ),
+    ChatInputSingleSelectQuestion(:final options) =>
+      DropdownButtonFormField<String>(
+        decoration: InputDecoration(labelText: label, helperText: help),
+        initialValue: (value as String?)?.isEmpty ?? true ? null : value,
+        items: [
+          for (final o in options)
+            DropdownMenuItem(value: o.id, child: Text(o.label)),
+        ],
+        onChanged: (v) => _set(q.id, v ?? ''),
+      ),
+    ChatInputMultiSelectQuestion(:final options) => Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label),
+        Wrap(
+          spacing: 8,
+          children: [
+            for (final o in options)
+              FilterChip(
+                label: Text(o.label),
+                selected: (value! as Set<String>).contains(o.id),
+                onSelected: (on) {
+                  final next = {...(value as Set<String>)};
+                  on ? next.add(o.id) : next.remove(o.id);
+                  _set(q.id, next);
+                },
+              ),
           ],
         ),
-        _ => TextFormField(
-          initialValue: value as String?,
-          decoration: InputDecoration(labelText: label, helperText: help),
-          keyboardType: q is ChatInputNumberQuestion
-              ? TextInputType.number
-              : TextInputType.text,
-          onChanged: (v) => _set(q.id, v),
+      ],
+    ),
+    _ => TextFormField(
+      initialValue: value as String?,
+      decoration: InputDecoration(labelText: label, helperText: help),
+      keyboardType: q is ChatInputNumberQuestion
+          ? TextInputType.number
+          : TextInputType.text,
+      onChanged: (v) => _set(q.id, v),
+    ),
+  };
+}
+
+/// A single-select question whose options have descriptions (such as a
+/// plan review's "Implement plan" / "Approve plan only"), as a list of
+/// choices instead of a dropdown (AV-046, AV-084).
+class _OptionList extends StatelessWidget {
+  const _OptionList({
+    required this.label,
+    required this.help,
+    required this.options,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final String label;
+  final String? help;
+  final List<ChatInputOption> options;
+  final String? selected;
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(label),
+        if (help != null) Text(help!, style: theme.textTheme.bodySmall),
+        RadioGroup<String>(
+          groupValue: selected == null || selected!.isEmpty ? null : selected,
+          onChanged: (id) {
+            if (id != null) onSelected(id);
+          },
+          child: Column(
+            children: [
+              for (final o in options)
+                RadioListTile<String>(
+                  contentPadding: EdgeInsets.zero,
+                  value: o.id,
+                  title: Text(
+                    o.recommended ?? false
+                        ? '${o.label} (recommended)'
+                        : o.label,
+                  ),
+                  subtitle: o.description == null ? null : Text(o.description!),
+                ),
+            ],
+          ),
         ),
-      },
+      ],
     );
   }
 }

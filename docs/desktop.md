@@ -88,6 +88,30 @@ arm64 machine):
   input, failed or are unread), like "(3) shireitou" (AV-120), set with
   `window_manager`; on the web it is the tab title.
 
+## Notifications (AV-121)
+
+The desktop apps post a notification when a session needs input,
+finishes its turn or fails, using
+[`flutter_local_notifications`](https://pub.dev/packages/flutter_local_notifications)
+(`lib/src/notifications/`). Each event can be turned off from the bell
+menu in the session list's app bar (saved with `shared_preferences`).
+Nothing is posted for the session on screen while the window has focus,
+or for sessions that appear when a host connects. Clicking a
+notification brings up that session.
+
+- Linux: through the freedesktop notification service over D-Bus (the
+  plugin is pure Dart, so the `.deb` needs no new library). Without a
+  notification daemon (a bare X server, CI) the app logs
+  `notifications are not available` and carries on.
+- macOS: through UserNotifications; macOS asks for permission on the
+  first notification. No entitlement is needed for local notifications.
+- Windows: toast notifications (not built or tried yet).
+- The web build and mobile post none (see GAPS.md).
+
+Notifications come from this process, so they stop when the app quits;
+push for a closed app needs the relay in
+[specs/push-relay.md](../specs/push-relay.md).
+
 ## Connection token (AHP-002)
 
 On native platforms the token is sent in the WebSocket upgrade request as

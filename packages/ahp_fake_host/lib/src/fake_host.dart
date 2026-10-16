@@ -511,9 +511,7 @@ class FakeAhpHost {
             )
           : null,
       meta: inRepo
-          ? {
-              'git': {'branchName': values[branchProperty] ?? 'main'},
-            }
+          ? {'git': gitMeta('${values[branchProperty] ?? 'main'}')}
           : null,
       resource: session,
       createdAt: now,
@@ -838,6 +836,9 @@ class FakeAhpHost {
           turnId,
           _turnClients[turnId] ?? otherClientId,
         ),
+        Scenario.todo => _todoFlow(chat, turnId),
+        Scenario.plan => _planFlow(chat, turnId),
+        Scenario.pr => _pullRequestFlow(chat, turnId),
       };
       if (!finished || !await _step(chat, turnId)) return;
     }
@@ -1411,6 +1412,72 @@ class FakeAhpHost {
     );
     if (!ran) return false;
     _say(chat, turnId, 'All 3 tests passed.');
+    return true;
+  }
+
+  Future<bool> _todoFlow(String chat, String turnId) async {
+    final inputs = todoInputs();
+    for (final input in inputs) {
+      final ran = await _toolRun(
+        chat,
+        turnId,
+        id: _nextId('todo'),
+        toolName: 'TodoWrite',
+        displayName: 'Update todo list',
+        invocation: 'Update todo list',
+        input: input,
+        result: const ToolCallResult(
+          success: true,
+          pastTenseMessage: PlainString('Updated todo list'),
+        ),
+      );
+      if (!ran) return false;
+      if (input != inputs.last) {
+        _say(chat, turnId, 'Working on the next step.');
+        if (!await _step(chat, turnId)) return false;
+      }
+    }
+    _say(chat, turnId, 'All 3 steps are done.');
+    return true;
+  }
+
+  Future<bool> _planFlow(String chat, String turnId) async {
+    _say(chat, turnId, planMarkdown);
+    if (!await _step(chat, turnId)) return false;
+    final request = planReviewRequest(_nextId('input'));
+    _emit(chat, ChatInputRequestedAction(request: request).toJson());
+    final entryId = 'input-${request.id}';
+    _setInputNeeded(
+      chat,
+      SessionChatInputRequest(id: entryId, chat: chat, request: request),
+    );
+    final answer = await _waitFor(
+      chat,
+      turnId,
+      (a) => a['type'] == 'chat/inputCompleted' && a['requestId'] == request.id,
+    );
+    _removeInputNeeded(chat, entryId);
+    if (answer == null) return false;
+    if (!await _step(chat, turnId)) return false;
+    _say(chat, turnId, answerReply(ChatInputCompletedAction.fromJson(answer)));
+    return true;
+  }
+
+  Future<bool> _pullRequestFlow(String chat, String turnId) async {
+    final session = _sessionOfChat[chat]!;
+    final summary = _summaries[session]!;
+    final meta = withPullRequestMeta({
+      ...?summary.meta,
+      if (summary.meta?['git'] == null) 'git': gitMeta('main'),
+    });
+    _emit(session, SessionMetaChangedAction(meta: meta).toJson());
+    _summaries[session] = summary.copyWith(meta: meta);
+    _notifyRoot('root/sessionSummaryChanged', {
+      'channel': rootChannel,
+      'session': session,
+      'changes': {'_meta': meta},
+    });
+    _say(chat, turnId, 'Opened pull request #42: $fakePullRequestUrl');
     return true;
   }
 

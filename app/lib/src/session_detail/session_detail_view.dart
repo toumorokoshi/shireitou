@@ -8,6 +8,7 @@ import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
 
 import '../connection_notices.dart';
@@ -19,6 +20,9 @@ import '../shortcuts.dart';
 import '../channels.dart';
 import '../review/changes_pane.dart';
 import '../review/review_logic.dart';
+import '../runs/compare_screen.dart';
+import '../runs/run_group_store.dart';
+import '../runs/run_groups.dart';
 import 'chat_commands.dart';
 import '../composer/config_fields.dart';
 import 'chat_switcher.dart';
@@ -27,8 +31,11 @@ import 'pending_messages.dart';
 import 'session_info.dart';
 import 'session_inputs.dart';
 import 'session_status_widgets.dart';
+import 'source_links.dart';
 import 'timeline_items.dart';
 import 'timeline_parts.dart';
+import 'todo_list.dart';
+import 'todo_widgets.dart';
 import 'tool_previews.dart';
 
 /// Shows [session]: subscribes to it and its default chat while visible and
@@ -421,6 +428,11 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
                       : timeline,
                 ),
         ),
+        if (chat != null && !missing)
+          if (latestTodoList(chat) case final todos? when !todos.done) ...[
+            const Divider(height: 1),
+            TodoPanel(list: todos),
+          ],
         if (pending.isNotEmpty)
           PendingMessagesPanel(
             pending: pending,
@@ -467,7 +479,24 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
       chatChangesets: supports(ProtocolFeature.chatChangesets),
     ).isNotEmpty;
     final review = ChangesPane(session: widget.session, chat: chatUri);
+    final runGroup = groupOf(ref.watch(runGroupsProvider), (
+      host: context.host,
+      session: widget.session,
+    ));
     final header = _Header(
+      runLabel: runGroup == null
+          ? null
+          : labelsOfRuns([runGroup])[(
+              host: context.host,
+              session: widget.session,
+            )],
+      onCompareRuns: runGroup == null
+          ? null
+          : () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => CompareRunsScreen(groupId: runGroup.id),
+              ),
+            ),
       summary: summary,
       chat: chat,
       backgroundWork: supports(ProtocolFeature.backgroundWork)
@@ -477,6 +506,7 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
           ? chat?.canvases ?? const []
           : const [],
       mcpAlerts: mcpServerAlerts(sessionState),
+      links: sourceLinksOf(session: sessionState?.meta, summary: summary?.meta),
       session: sessionState,
       clientExecutions: elsewhere,
       onAuthenticate: _authenticate,
@@ -550,11 +580,14 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
 /// Title, agent, model, folder, status, activity and actions (AV-060).
 class _Header extends StatelessWidget {
   const _Header({
+    required this.runLabel,
+    required this.onCompareRuns,
     required this.summary,
     required this.chat,
     required this.backgroundWork,
     required this.canvases,
     required this.mcpAlerts,
+    required this.links,
     required this.session,
     required this.clientExecutions,
     required this.onAuthenticate,
@@ -565,11 +598,15 @@ class _Header extends StatelessWidget {
     required this.onDetails,
   });
 
+  /// "Run 2 of 3" for a parallel run (AV-045).
+  final String? runLabel;
+  final VoidCallback? onCompareRuns;
   final SessionSummary? summary;
   final ChatState? chat;
   final List<BackgroundWork> backgroundWork;
   final List<CanvasReference> canvases;
   final List<McpServerAlert> mcpAlerts;
+  final SourceLinks links;
   final SessionState? session;
   final List<SessionToolClientExecutionRequest> clientExecutions;
   final Authenticate onAuthenticate;
@@ -633,6 +670,28 @@ class _Header extends StatelessWidget {
                         work: backgroundWork,
                         onOpenChat: onOpenChat,
                       ),
+                    if (runLabel case final label?)
+                      ActionChip(
+                        avatar: const Icon(Icons.call_split, size: 16),
+                        label: Text(label),
+                        tooltip: 'Compare runs',
+                        visualDensity: VisualDensity.compact,
+                        onPressed: onCompareRuns,
+                      ),
+                    if (links.pullRequest case final pr?)
+                      _LinkChip(
+                        icon: Icons.call_merge,
+                        label: pr.label,
+                        tooltip: [?pr.title, pr.url].join('\n'),
+                        url: pr.url,
+                      ),
+                    if (links.branch case BranchLink(:final name, :final url?))
+                      _LinkChip(
+                        icon: Icons.account_tree_outlined,
+                        label: name,
+                        tooltip: url,
+                        url: url,
+                      ),
                     if (canvases.isNotEmpty) CanvasChips(canvases: canvases),
                     if (mcpAlerts.isNotEmpty)
                       McpServerAlertChips(
@@ -684,12 +743,44 @@ class _Header extends StatelessWidget {
                 value: onDetails,
                 child: const Text('Session details'),
               ),
+              if (onCompareRuns case final compare?)
+                PopupMenuItem(
+                  value: compare,
+                  child: const Text('Compare runs'),
+                ),
             ],
           ),
         ],
       ),
     );
   }
+}
+
+/// A chip that opens [url] in the browser (a pull request or branch,
+/// AV-105).
+class _LinkChip extends StatelessWidget {
+  const _LinkChip({
+    required this.icon,
+    required this.label,
+    required this.tooltip,
+    required this.url,
+  });
+
+  final IconData icon;
+  final String label;
+  final String tooltip;
+  final String url;
+
+  @override
+  Widget build(BuildContext context) => ActionChip(
+    avatar: Icon(icon, size: 16),
+    label: Text(label),
+    tooltip: tooltip,
+    visualDensity: VisualDensity.compact,
+    onPressed: () => unawaited(
+      launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
+    ),
+  );
 }
 
 /// The turns, newest at the bottom, following new output unless the user

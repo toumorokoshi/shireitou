@@ -646,6 +646,82 @@ void main() {
     expect(await client.loadOlderTurns(long), isFalse);
   });
 
+  test(
+    'todo: TodoWrite calls carry the whole list each time (AV-070)',
+    () async {
+      await send('todo');
+      await turnDone();
+      final calls = [
+        for (final p in parts())
+          if (p case ToolCallResponsePart(:final toolCall)) toolCall,
+      ];
+      expect(calls, hasLength(3));
+      expect(calls.map((c) => c.toolName).toSet(), {'TodoWrite'});
+      final last = (calls.last.toolInput! as InlineToolInput).value;
+      expect(last, contains('"status":"completed"'));
+      expect(last, isNot(contains('in_progress')));
+      expect(replies(), contains('All 3 steps are done.'));
+    },
+  );
+
+  test(
+    'plan: a plan review takes a choice and free-form feedback (AV-046)',
+    () async {
+      await send('plan');
+      await until(
+        (_) =>
+            chatState().activeTurn?.responseParts.any(
+              (p) => p is InputRequestResponsePart,
+            ) ??
+            false,
+      );
+      expect(replies(), contains('## Plan'));
+      final request = parts()
+          .whereType<InputRequestResponsePart>()
+          .single
+          .request;
+      final question =
+          request.questions!.single as ChatInputSingleSelectQuestion;
+      expect(question.allowFreeformInput, isTrue);
+      expect(question.options.first.description, isNotNull);
+      client.dispatch(
+        chat,
+        ChatInputCompletedAction(
+          requestId: request.id,
+          response: ChatInputResponseKind.accept,
+          answers: {
+            'plan': const ChatInputAnswered(
+              state: 'submitted',
+              value: ChatInputSelectedAnswerValue(
+                value: 'interactive',
+                freeformValues: ['skip the docs'],
+              ),
+            ),
+          },
+        ).toJson(),
+      );
+      await turnDone();
+      expect(replies(), contains('plan=interactive + skip the docs'));
+    },
+  );
+
+  test('pr: the pull request is published in _meta (AV-105)', () async {
+    await send('open a pr');
+    await turnDone();
+    await until(
+      (s) =>
+          s.sessions[seededSession]!.meta?['copilot.githubReferences'] != null,
+    );
+    final references =
+        sessionState().meta!['copilot.githubReferences']! as List<Object?>;
+    expect((references.single! as Map)['url'], fakePullRequestUrl);
+    expect(
+      (client.state.sessions[seededSession]!.meta!['git']!
+          as Map)['githubRepo'],
+      fakeGitHubRepo,
+    );
+  });
+
   test('scenariosFor picks flows by keyword', () {
     expect(scenariosFor('Please ASK, then use the tool.'), [
       Scenario.tool,

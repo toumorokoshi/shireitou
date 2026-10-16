@@ -6,6 +6,8 @@ import 'dart:convert';
 
 import 'package:ahp_client/ahp_client.dart';
 
+import 'todo_list.dart';
+
 /// One row of the timeline.
 sealed class TimelineItem {
   const TimelineItem();
@@ -131,10 +133,11 @@ bool _visible(ResponsePart part) => switch (part) {
 };
 
 /// Whether [toolCall] can be folded into a group: it does not wait on the
-/// user and has no inline preview (terminal, diff or subagent) that the
-/// group would hide.
+/// user, is not a todo list (AV-070) and has no inline preview (terminal,
+/// diff or subagent) that the group would hide.
 bool _groupable(ToolCallState toolCall) =>
     !toolCall.isBlocking &&
+    !isTodoTool(toolCall.toolName) &&
     toolCall is! ToolCallStateUnknown &&
     !(toolCall.content ?? const <ToolResultContent>[]).any(
       (c) =>

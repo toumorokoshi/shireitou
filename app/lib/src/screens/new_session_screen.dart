@@ -7,12 +7,16 @@ import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
 import '../composer/config_fields.dart';
 import '../composer/config_form.dart';
 import '../composer/directory_browser.dart';
 import '../host_connection.dart';
 import '../hosts/open_hosts.dart';
+import '../runs/run_group_store.dart';
+import '../runs/run_groups.dart';
+import '../runs/runs_editor.dart';
 import '../session_list/folder_grouping.dart';
 
 /// Starts a session: host, agent, model and its options, working
@@ -51,6 +55,10 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
   Timer? _resolveTimer;
   bool _starting = false;
   String? _error;
+
+  /// Runs beyond the first, for best-of-N (AV-045): each an agent and a
+  /// model (null: the host's default).
+  List<RunVariant> _extraRuns = const [];
 
   @override
   void initState() {
@@ -114,6 +122,7 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
       _modelOptions = {};
       _settings = {};
       _resolved = null;
+      _extraRuns = const [];
     });
     _directory.text = switch (_defaultDirectory) {
       final uri? => normalizeFolderKey(uri),
@@ -208,30 +217,102 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
             ...resolved.values,
             ..._settings,
           });
+    final connection = ref.read(hostConnectionProvider(host).notifier);
+    // The first run uses the pickers above; the others their own agent
+    // and model, with the session settings only when the agent is the
+    // same (another agent's settings may not apply).
+    final runs = [
+      (
+        agent: agent,
+        model: modelSelection(model, _modelOptions),
+        config: settings,
+      ),
+      for (final extra in _extraRuns)
+        _variant(
+          agents.where((a) => a.provider == extra.provider).firstOrNull ??
+              agent,
+          extra.model,
+          settings: settings,
+          sameAgent: extra.provider == agent.provider,
+        ),
+    ];
     setState(() {
       _starting = true;
       _error = null;
     });
-    try {
-      final session = await ref
-          .read(hostConnectionProvider(host).notifier)
-          .startSession(
-            provider: agent.provider,
-            workingDirectory: directory,
-            prompt: prompt,
-            model: modelSelection(model, _modelOptions),
-            config: settings,
-          );
-      if (mounted) Navigator.of(context).pop((host: host, session: session));
-    } on Object catch (error) {
-      if (mounted) {
-        setState(() {
-          _starting = false;
-          _error = '$error';
-        });
-      }
+    final results = await Future.wait([
+      for (final run in runs)
+        connection
+            .startSession(
+              provider: run.agent.provider,
+              workingDirectory: directory,
+              prompt: prompt,
+              model: run.model,
+              config: run.config,
+            )
+            .then<Object>((session) => session, onError: (Object e) => e),
+    ]);
+    if (!mounted) return;
+    final started = [
+      for (final (i, result) in results.indexed)
+        if (result is String)
+          RunMember(
+            host: host,
+            session: result,
+            label: runLabel(runs[i].agent, runs[i].model),
+          ),
+    ];
+    final failures = [
+      for (final (i, result) in results.indexed)
+        if (result is! String)
+          runs.length == 1 ? '$result' : 'Run ${i + 1}: $result',
+    ];
+    if (started.isEmpty) {
+      setState(() {
+        _starting = false;
+        _error = failures.join('\n');
+      });
+      return;
     }
+    if (started.length > 1) {
+      await ref
+          .read(runGroupsProvider.notifier)
+          .add(
+            RunGroup(
+              id: const Uuid().v4(),
+              prompt: prompt,
+              createdAt: DateTime.now().toUtc().toIso8601String(),
+              members: started,
+            ),
+          );
+    }
+    if (!mounted) return;
+    if (failures.isNotEmpty) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        SnackBar(
+          content: Text(
+            '${started.length} of ${runs.length} runs started. '
+            '${failures.join('; ')}',
+          ),
+        ),
+      );
+    }
+    Navigator.of(context).pop((host: host, session: started.first.session));
   }
+
+  static ({AgentInfo agent, ModelSelection? model, JsonMap? config}) _variant(
+    AgentInfo agent,
+    String? model, {
+    required JsonMap settings,
+    required bool sameAgent,
+  }) => (
+    agent: agent,
+    model: modelSelection(
+      agent.models.where((m) => m.id == model).firstOrNull,
+      const {},
+    ),
+    config: sameAgent ? settings : null,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -412,6 +493,13 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
                   Text(error, style: Theme.of(context).textTheme.bodySmall),
                 ],
                 const SizedBox(height: 16),
+                ParallelRunsEditor(
+                  agents: agents,
+                  defaultAgent: agent,
+                  runs: _extraRuns,
+                  onChanged: (runs) => setState(() => _extraRuns = runs),
+                ),
+                const SizedBox(height: 16),
                 TextField(
                   controller: _prompt,
                   focusNode: _promptFocus,
@@ -439,7 +527,11 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.play_arrow),
-                    label: const Text('Start session'),
+                    label: Text(
+                      _extraRuns.isEmpty
+                          ? 'Start session'
+                          : 'Start ${_extraRuns.length + 1} runs',
+                    ),
                   ),
                 ),
                 if (_error case final error?) ...[

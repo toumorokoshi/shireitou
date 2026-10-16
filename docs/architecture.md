@@ -104,6 +104,13 @@ WebSocket ──► json_rpc_2 Peer ──► AhpClient (I/O edge)
   `applyEnvelope` ignores those actions and `dispatch` throws
   `UnsupportedActionError` for them; the app shows an "AHP 0.9.0" chip.
   See the spec's "0.9.0 compatibility" section.
+- **Connection problems (web transport):** `connection_problems.dart` is
+  pure: `normalizeHostUri` takes `http(s)://` as `ws(s)://`,
+  `transportProblem` refuses `ws://` to another machine from an `https`
+  page (mixed content), and `describeTransportError` explains handshake
+  failures (HTTP 401/403, TLS, refused, and on the web the causes a
+  browser hides). `webSocketConnector` throws a `ConnectionProblem` with
+  that message, which becomes `HostState.error`.
 - **Authentication:** `authenticate(resource, token)` pushes a token
   (AHP-060), which is how a client resumes a tool call waiting on MCP
   sign-in. `expiresIn` is dropped under 0.9.0.
@@ -267,6 +274,36 @@ Dart source); `bin/generate.dart` does the file I/O. See
   Approve/Deny (and Sign in / Cancel for `auth-required` calls, with a
   token dialog), input request forms, errors and grouped tool calls;
   markdown code blocks go through `code_highlight.dart`.
+- `lib/src/session_detail/todo_list.dart` (pure) recognizes todo tools
+  (`TodoWrite`, `update_todo`, `manage_todo_list`, `update_plan`) and
+  parses their input into a `TodoList`; `latestTodoList` finds the
+  newest one (finished turns searched once per `turns` list).
+  `todo_widgets.dart` renders a todo call as a checklist card and the
+  open list as a panel above the follow-up box (AV-070).
+  `source_links.dart` (pure) reads the pull request
+  (`copilot.githubReferences`, `headBranch`) and branch (`git`) from
+  `_meta`, shown as header chips (AV-105). The input form lists
+  described single-select options and sends free-form text
+  (`allowFreeformInput`) with the choice, for plan reviews (AV-046).
+- `lib/src/runs/`: parallel runs (AV-045). `run_groups.dart` is pure
+  (`RunGroup` of `RunMember`s and a winner, `withGroup`, `withWinner`,
+  `groupOf`, `labelsOfRuns`, JSON, `lastReplyOf`); `run_group_store.dart`
+  keeps the groups with `PrefsStore`; `runs_editor.dart` is the
+  composer's "Add a run" section; `compare_screen.dart` shows the runs
+  side by side (subscribing to each run's default chat), picks a winner
+  and archives the others.
+- `lib/src/notifications/`: local notifications (AV-121).
+  `attention_events.dart` is pure (`attentionEvents` from two session
+  lists, `NotificationSettings`, `shouldNotify`, payloads);
+  `notifications.dart` has the `OsNotifier` (on
+  `flutter_local_notifications`, desktop only), the settings store, the
+  `visibleSessionProvider` the sessions screen keeps current,
+  `openSessionRequestsProvider` (sessions to open, from clicks and the
+  run comparison) and `AttentionNotifications`, which the app wraps
+  around everything to watch the merged session list.
+  `notification_menu.dart` is the bell menu.
+- `lib/src/prefs.dart`: `PrefsStore`, small non-secret settings in
+  `shared_preferences` (memory in tests).
 - `lib/src/review/`: the "Files changed" pane (AV-100 to AV-103).
   `review_logic.dart` is pure (which changesets to offer, the URI for the
   chosen turn, counts); `changes_pane.dart` lists files with their change

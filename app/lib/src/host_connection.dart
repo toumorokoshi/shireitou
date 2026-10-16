@@ -77,7 +77,7 @@ class HostConnection extends Notifier<HostState> {
   Future<void> connect(String url, {String? token, String? name}) async {
     await _dispose();
     final client = AhpClient(
-      uri: withConnectionToken(Uri.parse(url.trim()), token?.trim()),
+      uri: withConnectionToken(normalizeHostUri(url), token?.trim()),
       clientInfo: const Implementation(name: 'shireitou', version: '0.1.0'),
     );
     _client = client;

@@ -18,6 +18,11 @@ import '../session_list/session_filter.dart';
 import '../session_list/session_list_view.dart';
 import '../session_list/session_query.dart';
 import '../shortcuts.dart';
+import '../notifications/notification_menu.dart';
+import '../notifications/notifications.dart';
+import '../runs/compare_screen.dart';
+import '../runs/run_group_store.dart';
+import '../runs/run_groups.dart';
 import 'connect_screen.dart';
 import 'host_storage_banner.dart';
 import 'new_session_screen.dart';
@@ -58,6 +63,9 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
 
   StreamSubscription<AppCommand>? _commands;
 
+  /// Sessions to open from notifications and the run comparison.
+  StreamSubscription<SessionRef>? _openRequests;
+
   /// Actions dispatched from the list, by host, whose failures this
   /// screen reports, and the subscriptions to each host's failures.
   final _dispatched = <String, Set<int>>{};
@@ -67,11 +75,46 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
   void initState() {
     super.initState();
     _commands = ref.read(appCommandsProvider).stream.listen(_onCommand);
+    _openRequests = ref
+        .read(openSessionRequestsProvider)
+        .stream
+        .listen(_openRequested);
+  }
+
+  /// Shows [session] (a clicked notification or "Open" in the run
+  /// comparison), clearing a host filter that would hide it.
+  void _openRequested(SessionRef session) {
+    if (!mounted) return;
+    if (_hostFilter != null && _hostFilter != session.host) {
+      setState(() => _hostFilter = null);
+    }
+    _select(session);
+  }
+
+  /// Tells the notifications which session is on screen.
+  void _syncVisible() {
+    final visible =
+        _tier == LayoutTier.compact && !(_detailRoute?.isActive ?? false)
+        ? null
+        : _selected;
+    final notifier = ref.read(visibleSessionProvider.notifier);
+    if (ref.read(visibleSessionProvider) != visible) notifier.show(visible);
+  }
+
+  Future<void> _compare(SessionRef session) async {
+    final group = groupOf(ref.read(runGroupsProvider), session);
+    if (group == null) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => CompareRunsScreen(groupId: group.id),
+      ),
+    );
   }
 
   @override
   void dispose() {
     unawaited(_commands?.cancel());
+    unawaited(_openRequests?.cancel());
     for (final subscription in _failureSubscriptions.values) {
       unawaited(subscription.cancel());
     }
@@ -107,6 +150,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
     unawaited(
       route.popped.then((_) {
         if (_detailRoute == route) _detailRoute = null;
+        if (mounted) _syncVisible();
       }),
     );
     // Next/previous on a compact layout replaces the open session.
@@ -274,6 +318,10 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
     ];
     final selected = _selected;
     final byRef = {for (final s in sessions) s.ref: s.summary};
+    final runLabels = labelsOfRuns(ref.watch(runGroupsProvider));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _syncVisible();
+    });
     return Scaffold(
       appBar: AppBar(
         title: HostSwitcher(
@@ -313,6 +361,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                 ),
               ),
             ),
+          if (localNotificationsSupported) const NotificationsMenu(),
           IconButton(
             tooltip: hostFilter == null || hosts.length == 1
                 ? 'Disconnect'
@@ -371,6 +420,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                   onNewSession: (group) =>
                       _newSession(host: group.host, directory: group.key),
                   selection: selection,
+                  runLabels: runLabels,
                   emptyText: onHost.isEmpty
                       ? 'No sessions on this host yet.'
                       : 'No sessions match.',
@@ -378,6 +428,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                     onArchive: (s, archived) => _setArchived([s], archived),
                     onMarkRead: (s, read) => _setRead([s], read),
                     onSelect: _toggleSelected,
+                    onCompare: _compare,
                   ),
                 ),
               ),

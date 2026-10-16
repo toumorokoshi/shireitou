@@ -83,8 +83,18 @@ JsonMap confirmToolCallAction(
 ///
 /// [value] is a `String` for text, number and single-select questions (the
 /// option ID), a `bool` for boolean ones, and a `Set<String>` of option IDs
-/// for multi-select ones.
-ChatInputAnswer? inputAnswer(ChatInputQuestion question, Object? value) {
+/// for multi-select ones. [freeform] is text typed for a select question
+/// that allows free-form input (`allowFreeformInput`, for example
+/// feedback on a plan, AV-046): it goes with the selection as
+/// `freeformValues`, or alone as a text answer when nothing is selected
+/// (as VS Code's agent host reads plan review answers).
+ChatInputAnswer? inputAnswer(
+  ChatInputQuestion question,
+  Object? value, {
+  String? freeform,
+}) {
+  final text = freeform?.trim() ?? '';
+  final extra = text.isEmpty ? null : [text];
   final ChatInputAnswerValue? answerValue = switch ((question, value)) {
     (ChatInputBooleanQuestion(), final bool b) => ChatInputBooleanAnswerValue(
       value: b,
@@ -94,10 +104,20 @@ ChatInputAnswer? inputAnswer(ChatInputQuestion question, Object? value) {
       null => null,
     },
     (ChatInputSingleSelectQuestion(), final String s) when s.isNotEmpty =>
-      ChatInputSelectedAnswerValue(value: s),
+      ChatInputSelectedAnswerValue(value: s, freeformValues: extra),
     (ChatInputMultiSelectQuestion(), final Set<String> ids)
         when ids.isNotEmpty =>
-      ChatInputSelectedManyAnswerValue(value: ids.toList()),
+      ChatInputSelectedManyAnswerValue(
+        value: ids.toList(),
+        freeformValues: extra,
+      ),
+    (
+      ChatInputSingleSelectQuestion(allowFreeformInput: true) ||
+          ChatInputMultiSelectQuestion(allowFreeformInput: true),
+      _,
+    )
+        when text.isNotEmpty =>
+      ChatInputTextAnswerValue(value: text),
     (ChatInputTextQuestion(), final String s) when s.isNotEmpty =>
       ChatInputTextAnswerValue(value: s),
     _ => null,
@@ -108,15 +128,21 @@ ChatInputAnswer? inputAnswer(ChatInputQuestion question, Object? value) {
 }
 
 /// The action that answers (or declines) input request [request] (AV-084).
-/// [values] maps question IDs to values as [inputAnswer] takes them.
+/// [values] maps question IDs to values as [inputAnswer] takes them, and
+/// [freeform] question IDs to free-form text.
 JsonMap inputCompletedAction(
   ChatInputRequest request, {
   required bool accept,
   Map<String, Object?> values = const {},
+  Map<String, String> freeform = const {},
 }) {
   final answers = <String, ChatInputAnswer>{
     for (final question in request.questions ?? const <ChatInputQuestion>[])
-      question.id: ?inputAnswer(question, values[question.id]),
+      question.id: ?inputAnswer(
+        question,
+        values[question.id],
+        freeform: freeform[question.id],
+      ),
   };
   return ChatInputCompletedAction(
     requestId: request.id,
@@ -127,11 +153,17 @@ JsonMap inputCompletedAction(
   ).toJson();
 }
 
-/// Whether every required question of [request] has an answer in [values].
-bool inputComplete(ChatInputRequest request, Map<String, Object?> values) =>
-    (request.questions ?? const <ChatInputQuestion>[]).every(
-      (q) => !(q.required ?? false) || inputAnswer(q, values[q.id]) != null,
-    );
+/// Whether every required question of [request] has an answer in [values]
+/// (or free-form text in [freeform]).
+bool inputComplete(
+  ChatInputRequest request,
+  Map<String, Object?> values, {
+  Map<String, String> freeform = const {},
+}) => (request.questions ?? const <ChatInputQuestion>[]).every(
+  (q) =>
+      !(q.required ?? false) ||
+      inputAnswer(q, values[q.id], freeform: freeform[q.id]) != null,
+);
 
 /// The action that gives up on [toolCall] in [turnId] while it waits for
 /// MCP sign-in (AHP-062): a failed `chat/toolCallComplete`, the only

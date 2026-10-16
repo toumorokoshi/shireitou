@@ -24,8 +24,12 @@ with a UX modeled on the GitHub Agents view and Cursor's Agents Window.
 > or multi-select, and the attention count in the window title; keyboard
 > shortcuts start sessions, search, step through sessions, stop turns and
 > focus the composer (in the macOS menu bar too), and the hosts open at
-> the last run reconnect on start. Notifications are not built yet; see
-> [GAPS.md](GAPS.md).
+> the last run reconnect on start. Agents' todo lists show as checklists,
+> plan reviews take a choice plus feedback, the session header links to
+> the branch's pull request, one prompt can start several runs to
+> compare and pick from, and the desktop apps notify when a session
+> needs input, finishes or fails. Push notifications for a closed app
+> are not built; see [GAPS.md](GAPS.md).
 
 ## Layout
 
@@ -58,6 +62,8 @@ so one `flutter pub get` at the root resolves every package.
 - [specs/agents-view.md](specs/agents-view.md): UI and feature requirements.
 - [specs/agent-host-protocol-client.md](specs/agent-host-protocol-client.md):
   requirements for the Dart AHP client.
+- [specs/push-relay.md](specs/push-relay.md): design of the push relay
+  for notifications while the app is closed (not built).
 - [docs/research/agents-view-research.md](docs/research/agents-view-research.md):
   research and sources.
 - [GAPS.md](GAPS.md): open questions and work not yet done.

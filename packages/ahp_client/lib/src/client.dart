@@ -12,6 +12,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 
 import 'host_state.dart';
 import 'channel_mirror.dart';
+import 'connection_problems.dart';
 import 'protocol.dart';
 import 'protocol_version.dart';
 import 'session_catalogue.dart';
@@ -37,13 +38,23 @@ const defaultTokenTransport = transport.defaultTokenTransport;
 ChannelConnector webSocketConnector({
   TokenTransport tokenTransport = defaultTokenTransport,
 }) => (uri) async {
+  if (transportProblem(uri, page: transport.pageUri()) case final problem?) {
+    throw ConnectionProblem(problem);
+  }
   final handshake = handshakeFor(uri, tokenTransport);
-  final WebSocketChannel channel = transport.openWebSocket(
-    handshake.uri,
-    handshake.headers,
-  );
-  await channel.ready;
-  return channel.cast<String>();
+  try {
+    final WebSocketChannel channel = transport.openWebSocket(
+      handshake.uri,
+      handshake.headers,
+    );
+    await channel.ready;
+    return channel.cast<String>();
+  } on Object catch (error) {
+    throw ConnectionProblem(
+      describeTransportError(error, uri, web: transport.isWebTransport),
+      error,
+    );
+  }
 };
 
 /// Opens a WebSocket to [uri] with the platform's default token placement

@@ -2,6 +2,7 @@
 library;
 
 import 'package:ahp_client/ahp_client.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -85,13 +86,8 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
     _connect();
   }
 
-  static String? _validateUrl(String? value) {
-    final uri = Uri.tryParse(value?.trim() ?? '');
-    if (uri == null || !(uri.isScheme('ws') || uri.isScheme('wss'))) {
-      return 'Enter a ws:// or wss:// URL';
-    }
-    return null;
-  }
+  static String? _validateUrl(String? value) =>
+      validateHostUrl(value, page: kIsWeb ? Uri.base : null);
 
   @override
   Widget build(BuildContext context) {
@@ -154,6 +150,7 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
                       controller: _url,
                       decoration: const InputDecoration(
                         labelText: 'Host URL',
+                        helperText: 'ws:// or wss:// (http(s):// is converted)',
                         border: OutlineInputBorder(),
                       ),
                       keyboardType: TextInputType.url,
@@ -287,4 +284,21 @@ class _SavedHostList extends ConsumerWidget {
       ],
     );
   }
+}
+
+/// Why [value] is not a usable host URL, or null. `http(s)://` URLs are
+/// taken as `ws(s)://` ([normalizeHostUri]); on the web, [page] (the
+/// app's own URL) rules out `ws://` to another machine from an `https`
+/// page, which the browser would block (mixed content).
+String? validateHostUrl(String? value, {Uri? page}) {
+  final text = value?.trim() ?? '';
+  if (text.isEmpty) return 'Enter a ws:// or wss:// URL';
+  final Uri uri;
+  try {
+    uri = normalizeHostUri(text);
+  } on FormatException {
+    return 'Enter a ws:// or wss:// URL';
+  }
+  if (uri.host.isEmpty) return 'Enter a ws:// or wss:// URL';
+  return transportProblem(uri, page: page);
 }

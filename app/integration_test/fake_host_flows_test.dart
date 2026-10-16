@@ -30,6 +30,8 @@ import 'package:shireitou/src/desktop/desktop_window.dart';
 import 'package:shireitou/src/hosts/open_hosts.dart';
 import 'package:shireitou/src/hosts/host_store.dart';
 import 'package:shireitou/src/hosts/saved_hosts.dart';
+import 'package:shireitou/src/notifications/notifications.dart';
+import 'package:shireitou/src/prefs.dart';
 import 'package:shireitou/src/session_detail/code_highlight.dart';
 import 'package:shireitou/src/session_detail/session_detail_view.dart';
 import 'package:shireitou/src/session_detail/session_status_widgets.dart';
@@ -120,7 +122,12 @@ class _Harness {
 
   static ProviderContainer _container(_MemoryHostStore store) =>
       ProviderContainer(
-        overrides: [hostStoreProvider.overrideWithValue(store)],
+        overrides: [
+          hostStoreProvider.overrideWithValue(store),
+          // No OS notifications (or permission prompts) from the tests.
+          notifierProvider.overrideWithValue(null),
+          prefsStoreProvider.overrideWithValue(MemoryPrefsStore()),
+        ],
       );
 
   Future<void> _pumpApp() async {
@@ -342,6 +349,31 @@ void main() {
       host.received.where((r) => r.action['type'] == '#authenticate'),
       hasLength(1),
     );
+
+    // A todo list kept with TodoWrite (AV-070).
+    debugPrint('fake host flows: todo list');
+    await send('todo');
+    await waitFor(find.text('All 3 steps are done.'));
+    expect(find.text('Todo list · 3 of 3 done'), findsOneWidget);
+
+    // A plan review: a described choice plus free-form feedback (AV-046).
+    debugPrint('fake host flows: plan review');
+    await send('plan');
+    await waitFor(find.text('Implement Plan (recommended)'));
+    await tapVisible(find.text('Approve Plan Only'));
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Or write your own answer'),
+      'short flag',
+    );
+    await tester.pump();
+    await tapVisible(find.widgetWithText(FilledButton, 'Submit'));
+    await waitFor(find.textContaining('plan=exit_only + short flag'));
+
+    // The pull request the host publishes in _meta (AV-105).
+    debugPrint('fake host flows: pull request');
+    await send('open a pr');
+    await waitFor(find.widgetWithText(ActionChip, 'PR #42 · open'));
+    expect(find.widgetWithText(ActionChip, 'main'), findsOneWidget);
   }, timeout: const Timeout(Duration(minutes: 3)));
 
   testWidgets('terminals, diffs, review, subagents, queued messages, drafts '

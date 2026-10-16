@@ -2,6 +2,8 @@
 /// and the states, requests and replies each flow uses.
 library;
 
+import 'dart:convert';
+
 import 'package:ahp_client/ahp_client.dart';
 
 /// A scripted flow, chosen by a keyword in the user's message.
@@ -62,7 +64,20 @@ enum Scenario {
 
   /// A tool call delegated to the client that sent the message; waits
   /// for its `chat/toolCallComplete`.
-  delegate('delegate');
+  delegate('delegate'),
+
+  /// Three `TodoWrite` calls (Claude's todo tool) that create a todo list
+  /// and work through it (AV-070).
+  todo('todo'),
+
+  /// A plan in markdown, then a plan review: a single-select question
+  /// with described options and free-form feedback, as VS Code's agent
+  /// host asks it (AV-046).
+  plan('plan'),
+
+  /// Opens a pull request for the session's branch and publishes it in
+  /// the session's `_meta` (`copilot.githubReferences`, AV-105).
+  pr('pr');
 
   const Scenario(this.keyword);
 
@@ -163,8 +178,14 @@ String describeAnswer(ChatInputAnswer answer) => switch (answer) {
     ChatInputTextAnswerValue(:final value) => value,
     ChatInputNumberAnswerValue(:final value) => '$value',
     ChatInputBooleanAnswerValue(:final value) => value ? 'yes' : 'no',
-    ChatInputSelectedAnswerValue(:final value) => value,
-    ChatInputSelectedManyAnswerValue(:final value) => value.join('+'),
+    ChatInputSelectedAnswerValue(:final value, :final freeformValues) => [
+      value,
+      ...?freeformValues,
+    ].join(' + '),
+    ChatInputSelectedManyAnswerValue(:final value, :final freeformValues) => [
+      ...value,
+      ...?freeformValues,
+    ].join('+'),
     ChatInputAnswerValueUnknown() => '?',
   },
   ChatInputSkipped() => 'skipped',
@@ -320,3 +341,100 @@ List<Turn> longHistory(int count, DateTime start) => [
       ],
     ),
 ];
+
+/// The todo lists the `todo` flow writes, as `TodoWrite` input: three
+/// steps, worked through one at a time.
+List<String> todoInputs() {
+  const steps = [
+    ('Read the failing test', 'Reading the failing test'),
+    ('Fix the parser', 'Fixing the parser'),
+    ('Run the tests', 'Running the tests'),
+  ];
+  String list(int done) => jsonEncode({
+    'todos': [
+      for (final (i, (content, active)) in steps.indexed)
+        {
+          'content': content,
+          'activeForm': active,
+          'status': i < done
+              ? 'completed'
+              : i == done
+              ? 'in_progress'
+              : 'pending',
+        },
+    ],
+  });
+  return [list(0), list(1), list(3)];
+}
+
+/// The plan the `plan` flow proposes.
+const planMarkdown = '''## Plan
+
+1. Add a `--dry-run` flag to the CLI.
+2. Print the changes instead of writing them.
+3. Cover both modes with tests.''';
+
+/// The plan review of the `plan` flow, with ID [id] and question
+/// [questionId]: VS Code's agent host asks it like this (described
+/// options, free-form feedback).
+ChatInputRequest planReviewRequest(String id) => ChatInputRequest(
+  id: id,
+  message: 'Review the plan',
+  questions: const [
+    ChatInputSingleSelectQuestion(
+      id: 'plan',
+      title: 'Review Plan',
+      message: 'How would you like to proceed?',
+      required: true,
+      allowFreeformInput: true,
+      options: [
+        ChatInputOption(
+          id: 'interactive',
+          label: 'Implement Plan',
+          description: 'Implement the plan, asking for approval as needed.',
+          recommended: true,
+        ),
+        ChatInputOption(
+          id: 'exit_only',
+          label: 'Approve Plan Only',
+          description: 'Approve the plan without executing it.',
+        ),
+      ],
+    ),
+  ],
+);
+
+/// The GitHub repository the fake host's repository sessions report.
+const fakeGitHubOwner = 'example';
+
+/// See [fakeGitHubOwner].
+const fakeGitHubRepo = 'workspace';
+
+/// The pull request the `pr` flow opens.
+const fakePullRequestUrl =
+    'https://github.com/$fakeGitHubOwner/$fakeGitHubRepo/pull/42';
+
+/// `_meta.git` of a session on [branch] in the fake repository (VS Code's
+/// shape).
+JsonMap gitMeta(String branch) => {
+  'branchName': branch,
+  'githubOwner': fakeGitHubOwner,
+  'githubRepo': fakeGitHubRepo,
+};
+
+/// [meta] with the `copilot.githubReferences` entry for the pull request
+/// of the session's branch.
+JsonMap withPullRequestMeta(JsonMap? meta) => {
+  ...?meta,
+  'copilot.githubReferences': [
+    {
+      'referenceType': 'pr',
+      'repository': '$fakeGitHubOwner/$fakeGitHubRepo',
+      'number': 42,
+      'title': 'Add a dry-run flag',
+      'state': 'open',
+      'url': fakePullRequestUrl,
+      'relations': ['headBranch'],
+    },
+  ],
+};

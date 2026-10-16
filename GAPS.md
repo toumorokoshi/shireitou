@@ -30,7 +30,12 @@ session list (Done filter, search, sort, archive and mark read from the
 row menu, swipe and multi-select, the attention count in the title), the
 AV-140 keyboard shortcuts (and the macOS Session menu), optimistic
 answers in the "Waiting for you" panel, client tool executions, and
-restoring the open hosts after a restart. Remaining work:
+restoring the open hosts after a restart. Iteration 10 (2026-10-16)
+answered the open questions (see `DESIGN-DECISION-LOG.md`): todo lists
+and plan reviews, pull request and branch links from `_meta`, parallel
+runs with a comparison page, desktop notifications, clearer connection
+errors for LAN and tunnel hosts, and the push relay design. Remaining
+work:
 
 - **Approvals and input against a real host:** tool approvals (AV-083),
   input requests (AV-084), session-level requests and MCP sign-in are
@@ -101,8 +106,51 @@ restoring the open hosts after a restart. Remaining work:
   oldest and the newest turn (there is no picker for the two turns);
   `range`-scoped operations are not offered (no line selection, and no
   diff comments, AV-104); a non-external operation follow-up is shown as
-  plain text; there is no PR/branch link (AV-105). Side-by-side diffs
-  appear from 900 dp in the full diff page only.
+  plain text. Side-by-side diffs appear from 900 dp in the full diff page
+  only.
+- **Todo lists and plans (AV-070, AV-046):** todo tools are recognized
+  by name (`TodoWrite`, `todo_write`, `update_todo`, `manage_todo_list`,
+  `update_plan`); a host that renames them, or an agent with another todo
+  tool, gets ordinary tool cards. Only Claude's shape is produced by the
+  fake host; the VS Code and Codex shapes are tested from their
+  documented inputs, and the Copilot CLI's markdown checklist is an
+  assumption (its tool schema is not public), none from a real host. A todo call waiting for
+  approval keeps the normal card. Plan reviews show the question only:
+  VS Code's non-standard `planReview` (plan text, plan file URI) and
+  `_meta.purpose` on the input request are not in the schema and are
+  dropped by the generated types, and there is no editor for the plan
+  itself (AHP has no command to change it).
+- **PR and branch links (AV-105):** only GitHub URLs and VS Code's
+  `_meta` conventions (`copilot.githubReferences` with `headBranch`,
+  `git.githubOwner`/`githubRepo`); VS Code's folder-keyed `githubData`,
+  GitLab or other forges, and the PR's checks or review state are not
+  shown. Verified against the fake host's `pr` flow only.
+- **Parallel runs (AV-045):** groups are stored on this device only
+  (another client or a reinstall loses them), and all runs of a group
+  use one host and folder. Runs of another agent get that agent's
+  default session settings (the form shows the first agent's); a run's
+  model options (such as the thinking level) are the host's defaults.
+  The comparison shows each run's latest reply and change counts, not a
+  diff between runs. A run that is removed on the host stays in its
+  group as "Not available".
+- **Notifications (AV-121 to AV-123):** desktop only. Linux needs a
+  freedesktop notification daemon (none in CI, where failures are
+  logged); macOS asks for permission on the first notification and was
+  only built in CI, never shown on a real Mac; Windows was not built. The
+  web build has none (the plugin's web support replaces Flutter's
+  service worker), and mobile has none. "Focused" comes from the app
+  lifecycle (`resumed`), which on Linux depends on the embedder reporting
+  window focus. There is no app-icon badge (AV-122). Push for a closed
+  app needs the relay in [specs/push-relay.md](specs/push-relay.md),
+  which is not built (it needs Apple/Google push credentials and a
+  signed app).
+- **Web transport:** a browser reports every failed handshake the same
+  way, so the web app lists likely causes instead of the real one. The
+  mixed content check runs before connecting, but Chrome's local network
+  access prompt (an https page reaching a private address) is not
+  detected. No tunnel (VS Code dev tunnels, Cloudflare, ngrok, Tailscale)
+  was tried end to end; `wss://` is covered by `normalizeHostUri` and
+  the existing transport only.
 - **Session details:** customizations are listed with MCP server
   start/stop and "Continue in background", but plugins cannot be enabled
   or disabled (`session/customizationToggled`), plugin children are not
@@ -233,19 +281,3 @@ restoring the open hosts after a restart. Remaining work:
 - Everything else in [specs/agents-view.md](specs/agents-view.md) and
   [specs/agent-host-protocol-client.md](specs/agent-host-protocol-client.md)
   not listed as done in their status sections.
-
-## Open questions
-
-- **Todos/plans:** check whether AHP response parts carry structured todo or
-  plan data (AV-046, AV-070).
-- **PR/branch metadata:** check whether hosts expose a PR URL (AV-105). It may
-  only be available through `_meta`.
-- **Best-of-N (AV-045):** AHP has no notion of linked sessions, so linking and
-  judging would be client-side. Decide where that state lives.
-- **Mobile push (AV-123):** AHP only delivers events over a live socket, so
-  background push needs a relay service. That is out of scope for now.
-- **Web transport:** pi accepts the token in the query string from a
-  browser, and does not check `Origin`. Check CORS/TLS for hosts on a LAN or
-  tunnel, and other hosts' `Origin` checks.
-- **`ahp_sdk` evaluation:** decide whether to fork, contribute to, or ignore
-  the community Dart package.

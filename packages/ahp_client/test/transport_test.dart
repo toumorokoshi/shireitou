@@ -1,6 +1,7 @@
 @TestOn('vm')
 library;
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:ahp_client/ahp_client.dart';
@@ -45,5 +46,34 @@ void main() {
     final request = requests.single;
     expect(request.headers.value('authorization'), 'Bearer secret');
     expect(request.uri.queryParameters, isEmpty);
+  });
+
+  test('a refused upgrade is explained', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+    server.listen((request) {
+      request.response.statusCode = HttpStatus.forbidden;
+      unawaited(request.response.close());
+    });
+    await expectLater(
+      connectWebSocket(Uri.parse('ws://127.0.0.1:${server.port}?tkn=bad')),
+      throwsA(
+        isA<ConnectionProblem>().having(
+          (p) => p.message,
+          'message',
+          contains('HTTP 403'),
+        ),
+      ),
+    );
+  });
+
+  test('a closed port is explained', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    final port = server.port;
+    await server.close();
+    await expectLater(
+      connectWebSocket(Uri.parse('ws://127.0.0.1:$port')),
+      throwsA(isA<ConnectionProblem>()),
+    );
   });
 }

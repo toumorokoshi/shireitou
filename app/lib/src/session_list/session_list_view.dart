@@ -19,6 +19,7 @@ class SessionRowActions {
     required this.onArchive,
     required this.onMarkRead,
     required this.onSelect,
+    this.onCompare,
   });
 
   /// Archives the session (true) or unarchives it (false).
@@ -30,6 +31,10 @@ class SessionRowActions {
   /// Starts multi-select with the session selected, or toggles it while
   /// selecting.
   final ValueChanged<SessionRef> onSelect;
+
+  /// Opens the comparison of the session's parallel runs (AV-045); only
+  /// offered for sessions with a run label.
+  final ValueChanged<SessionRef>? onCompare;
 }
 
 /// Shows [groups] as collapsible folders of session rows. Rows have a
@@ -48,6 +53,7 @@ class SessionListView extends StatelessWidget {
     this.now,
     this.actions,
     this.selection,
+    this.runLabels = const {},
     this.emptyText = 'No sessions on this host yet.',
   });
 
@@ -76,6 +82,10 @@ class SessionListView extends StatelessWidget {
 
   /// The sessions picked for a bulk action, or null when not selecting.
   final Set<SessionRef>? selection;
+
+  /// Labels of sessions started as parallel runs ("Run 2 of 3",
+  /// AV-045), by session.
+  final Map<SessionRef, String> runLabels;
 
   /// Shown when there are no [groups].
   final String emptyText;
@@ -127,6 +137,8 @@ class SessionListView extends StatelessWidget {
                   )),
                   actions: actions,
                   onOpen: onSelect,
+                  runLabel:
+                      runLabels[(host: group.host, session: session.resource)],
                 ),
             ],
           ),
@@ -146,9 +158,11 @@ class _SessionRow extends StatelessWidget {
     required this.checked,
     required this.actions,
     required this.onOpen,
+    this.runLabel,
   });
 
   final SessionSummary session;
+  final String? runLabel;
   final SessionRef ref;
   final DateTime now;
   final bool selected;
@@ -184,6 +198,11 @@ class _SessionRow extends StatelessWidget {
           value: () => actions.onSelect(ref),
           child: Text(checked == null ? 'Select' : 'Toggle selection'),
         ),
+        if (actions.onCompare case final onCompare? when runLabel != null)
+          PopupMenuItem(
+            value: () => onCompare(ref),
+            child: const Text('Compare runs'),
+          ),
       ],
     );
     action?.call();
@@ -196,6 +215,7 @@ class _SessionRow extends StatelessWidget {
     final tile = SessionTile(
       session: session,
       now: now,
+      runLabel: runLabel,
       selected: selected || (checked ?? false),
       leading: checked == null
           ? null
@@ -310,10 +330,15 @@ class SessionTile extends StatelessWidget {
     required this.onTap,
     this.selected = false,
     this.leading,
+    this.runLabel,
   });
 
   /// The session to show.
   final SessionSummary session;
+
+  /// "Run 2 of 3" when the session is one of several parallel runs
+  /// (AV-045).
+  final String? runLabel;
 
   /// Clock for the relative modified time.
   final DateTime now;
@@ -332,6 +357,7 @@ class SessionTile extends StatelessWidget {
     final modified = DateTime.tryParse(session.modifiedAt);
     final changes = session.changes;
     final details = [
+      ?runLabel,
       session.provider,
       if (modified != null) formatRelativeTime(modified, now),
       if (changes != null)

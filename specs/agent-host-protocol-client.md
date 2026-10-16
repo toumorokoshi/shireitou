@@ -209,6 +209,39 @@ Priority: **P0** = MVP, **P1** = next, **P2** = later.
   sent to `createSession`.
 - `unsubscribe` is sent as a JSON-RPC notification (pi handles it as one).
 
+## Web transport (LAN and tunnels)
+
+Findings of 2026-10-16:
+
+- **No CORS for WebSockets.** Browsers do not run CORS preflights for
+  WebSocket upgrades; they send an `Origin` header and leave the check to
+  the server. pi-agent-host-protocol (`src/transport/websocket.ts`) and
+  VS Code's agent host (`WebSocketProtocolServer`, `ws` with a
+  `verifyClient` that only checks `tkn`) check only the token and ignore
+  `Origin`; both answer a bad token with HTTP 403. Both listen on
+  `127.0.0.1` by default, so a LAN client needs the host to listen on
+  another address (pi `--host`) or a tunnel.
+- **TLS.** Neither host serves TLS. A page loaded over `https` may not
+  open `ws://` to another machine (mixed content; loopback addresses are
+  allowed), so the web app served over https needs `wss://`: a TLS
+  reverse proxy or a tunnel (VS Code dev tunnels, Cloudflare Tunnel,
+  ngrok, Tailscale Serve), which also hands out `https://` URLs.
+- **Errors.** A browser reports every failed WebSocket handshake as the
+  same error (close code 1006) without the HTTP status, so the client
+  cannot tell a bad token from an `Origin` rejection or an untrusted
+  certificate. Native platforms (`dart:io`) see the status.
+- **Client handling (`connection_problems.dart`):** host URLs typed as
+  `http(s)://` become `ws(s)://`, and one without a scheme gets `ws://`
+  (`normalizeHostUri`); `ws://` to a non-loopback host from an `https`
+  page is refused before connecting with a message that suggests `wss://`
+  (`transportProblem`, also used by the connect form); handshake failures
+  become a `ConnectionProblem` with a readable message
+  (`describeTransportError`): on native, HTTP 401/403 names the token,
+  other statuses the URL, TLS failures the certificate, refused
+  connections the listen address; on the web, the likely causes are
+  listed. A host that checks `Origin` should allow the origin the web app
+  is served from; the token stays in `tkn` there (AHP-002).
+
 ## Implementation status
 
 As of 2026-10-16, iteration 7 (`packages/ahp_client`). Iteration 6
@@ -225,7 +258,7 @@ second subscriber wait for the first one's snapshot. The app holds one
 
 | ID      | Status  | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | ------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| AHP-001 | Done    | `web_socket_channel` + `json_rpc_2` `Peer`.                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| AHP-001 | Done    | `web_socket_channel` + `json_rpc_2` `Peer`; `http(s)://` URLs are taken as `ws(s)://`, mixed content is refused up front and handshake failures are explained (see [Web transport](#web-transport-lan-and-tunnels)).                                                                                                                                                                                                                                                          |
 | AHP-002 | Done    | Token in the `tkn` query parameter on web; on native platforms also as `Authorization: Bearer <token>` (the spec names no header; this matches the protocol repo's Swift client). `webSocketConnector` selects query, header or both.                                                                                                                                                                                                                                         |
 | AHP-003 | Done    | Offers `['1.0.0', '0.9.0']` (overridable with `protocolVersions`); `-32005` shows the host's `supportedVersions`. 0.9.0 degrades as in [0.9.0 compatibility](#090-compatibility); tested against pi offering only `0.9.0`.                                                                                                                                                                                                                                                    |
 | AHP-004 | Done    | Tracks `serverSeq`, reconnects with backoff, handles `replay`/`snapshot`, falls back to `initialize` on `-32008`. `missing` channels (and, for a `snapshot` result or the `initialize` fallback, which have no `missing` list, mirrored session and chat channels left without a snapshot) are unsubscribed, unmirrored and listed in `HostState.missingChannels`; the session view says the session is gone. A liveness ping that times out drops the socket and reconnects. |
