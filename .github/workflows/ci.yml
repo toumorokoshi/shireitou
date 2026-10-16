@@ -312,6 +312,10 @@ jobs:
           xcrun simctl boot "$udid"
           xcrun simctl bootstatus "$udid"
           echo "SIMULATOR=$udid" >> "$GITHUB_ENV"
+      - name: Build the smoke test for the simulator
+        run: >
+          cd app && flutter build ios --simulator --debug
+          --target integration_test/mobile_smoke_test.dart
       - name: Mobile smoke test on the simulator
         timeout-minutes: 30
         run: scripts/test-mobile "$SIMULATOR"

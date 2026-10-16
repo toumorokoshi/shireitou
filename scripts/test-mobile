@@ -6,13 +6,30 @@
 # Usage: scripts/test-mobile <device-id>
 #   Android: scripts/test-mobile emulator-5554
 #   iOS:     scripts/test-mobile "$(xcrun simctl list devices booted -j | ...)"
+# Set TEST_MOBILE_TIMEOUT (seconds, default 1200) to stop a hung run early
+# enough to annotate it.
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 device="${1:?usage: test-mobile <device-id>}"
 log="$repo/mobile.log"
 cd "$repo/app"
-if ! flutter test integration_test/mobile_smoke_test.dart -d "$device" 2>&1 | tee "$log"; then
+# Run in the background with a watchdog, so a hung run is still logged and
+# annotated (the log is printed when the run ends).
+flutter test integration_test/mobile_smoke_test.dart -d "$device" >"$log" 2>&1 &
+pid=$!
+limit="${TEST_MOBILE_TIMEOUT:-1200}"
+(
+  sleep "$limit"
+  echo "test-mobile: no result after ${limit}s; stopping" >>"$log"
+  kill "$pid" 2>/dev/null
+) &
+watchdog=$!
+status=0
+wait "$pid" || status=$?
+kill "$watchdog" 2>/dev/null || true
+cat "$log"
+if [[ "$status" -ne 0 ]]; then
   "$repo/scripts/annotate-test-failure" "$log"
   exit 1
 fi
