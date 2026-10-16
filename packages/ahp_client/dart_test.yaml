@@ -1,0 +1,4 @@
+tags:
+  integration:
+    # Launches pi-agent-host-protocol; run with `just test-integration`.
+    timeout: 2m

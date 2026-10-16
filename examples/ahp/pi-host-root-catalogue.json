@@ -1,0 +1,426 @@
+[
+  {
+    "dir": "client->host",
+    "message": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "initialize",
+      "params": {
+        "channel": "ahp-root://",
+        "protocolVersions": [
+          "1.0.0",
+          "0.9.0"
+        ],
+        "clientId": "example-client",
+        "clientInfo": {
+          "name": "shireitou",
+          "version": "0.1.0"
+        },
+        "initialSubscriptions": [
+          "ahp-root://"
+        ],
+        "locale": "en-US"
+      }
+    }
+  },
+  {
+    "dir": "host->client",
+    "message": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "result": {
+        "protocolVersion": "1.0.0",
+        "serverSeq": 3,
+        "serverInfo": {
+          "name": "pi-agent-host-protocol",
+          "version": "0.3.0"
+        },
+        "snapshots": [
+          {
+            "resource": "ahp-root://",
+            "state": {
+              "agents": [
+                {
+                  "provider": "pi",
+                  "displayName": "Pi",
+                  "description": "The pi coding agent",
+                  "models": [
+                    {
+                      "id": "ollama/unsloth/Qwen3.8-27B-GGUF:UD-Q4_K_M",
+                      "provider": "pi",
+                      "name": "unsloth/Qwen3.8-27B-GGUF:UD-Q4_K_M",
+                      "maxContextWindow": 128000,
+                      "maxOutputTokens": 16384,
+                      "supportsVision": false
+                    },
+                    {
+                      "id": "spark-vllm/Qwen/Qwen3-0.6B",
+                      "provider": "pi",
+                      "name": "Qwen/Qwen3-0.6B",
+                      "maxContextWindow": 128000,
+                      "maxOutputTokens": 16384,
+                      "supportsVision": false
+                    },
+                    {
+                      "id": "spark-vllm/nvidia/Qwen3.6-27B-NVFP4",
+                      "provider": "pi",
+                      "name": "nvidia/Qwen3.6-27B-NVFP4",
+                      "maxContextWindow": 128000,
+                      "maxOutputTokens": 16384,
+                      "supportsVision": false
+                    }
+                  ]
+                }
+              ],
+              "activeSessions": 0,
+              "terminals": []
+            },
+            "fromSeq": 3
+          }
+        ],
+        "defaultDirectory": "file:///home/user/src/app",
+        "completionTriggerCharacters": [
+          "/"
+        ]
+      }
+    }
+  },
+  {
+    "dir": "client->host",
+    "message": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "listSessions",
+      "params": {
+        "channel": "ahp-root://",
+        "limit": 3
+      }
+    }
+  },
+  {
+    "dir": "host->client",
+    "message": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "result": {
+        "items": [
+          {
+            "resource": "pi:/00000000-0000-4000-8000-000000000001",
+            "provider": "pi",
+            "title": "New session",
+            "status": 1,
+            "createdAt": "2026-10-16T04:27:24.603Z",
+            "modifiedAt": "2026-10-16T04:27:24.603Z",
+            "workingDirectories": [
+              "file:///tmp"
+            ],
+            "chats": [
+              {
+                "resource": "ahp-chat://default/cGk6LzAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAwMQ",
+                "title": "New session",
+                "status": 1,
+                "modifiedAt": "2026-10-16T04:27:24.603Z"
+              }
+            ]
+          },
+          {
+            "resource": "pi:/01a103b9-71fd-7635-9643-fe041f005c2c",
+            "provider": "pi",
+            "title": "Explain this repository",
+            "status": 33,
+            "createdAt": "2026-10-03T21:44:07.421Z",
+            "modifiedAt": "2026-10-03T21:44:45.402Z",
+            "workingDirectories": [
+              "file:///home/user/src/app-worktrees/fix-login"
+            ],
+            "chats": [
+              {
+                "resource": "ahp-chat://default/cGk6LzAxYTEwM2I5LTcxZmQtNzYzNS05NjQzLWZlMDQxZjAwNWMyYw",
+                "title": "Explain this repository",
+                "status": 33
+              }
+            ]
+          },
+          {
+            "resource": "pi:/f6b296d9-2e35-46b7-a88a-0565509d8a77",
+            "provider": "pi",
+            "title": "Add a three-player mode to the game",
+            "status": 33,
+            "createdAt": "2026-10-03T20:39:42.478Z",
+            "modifiedAt": "2026-10-03T20:52:52.932Z",
+            "workingDirectories": [
+              "file:///home/user/src/game"
+            ],
+            "chats": [
+              {
+                "resource": "ahp-chat://default/cGk6L2Y2YjI5NmQ5LTJlMzUtNDZiNy1hODhhLTA1NjU1MDlkOGE3Nw",
+                "title": "Add a three-player mode to the game",
+                "status": 33
+              }
+            ]
+          }
+        ],
+        "nextCursor": "3"
+      }
+    }
+  },
+  {
+    "dir": "client->host",
+    "message": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "createSession",
+      "params": {
+        "channel": "ahp-session:/00000000-0000-4000-8000-000000000002",
+        "provider": "pi",
+        "workingDirectories": [
+          "file:///tmp"
+        ]
+      }
+    }
+  },
+  {
+    "dir": "host->client",
+    "message": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "result": null
+    }
+  },
+  {
+    "dir": "host->client",
+    "message": {
+      "jsonrpc": "2.0",
+      "method": "root/sessionAdded",
+      "params": {
+        "channel": "ahp-root://",
+        "summary": {
+          "resource": "pi:/00000000-0000-4000-8000-000000000002",
+          "provider": "pi",
+          "title": "New session",
+          "status": 1,
+          "createdAt": "2026-10-16T04:27:51.634Z",
+          "modifiedAt": "2026-10-16T04:27:51.634Z",
+          "workingDirectories": [
+            "file:///tmp"
+          ],
+          "chats": [
+            {
+              "resource": "ahp-chat://default/cGk6LzAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAwMg",
+              "title": "New session",
+              "status": 1,
+              "modifiedAt": "2026-10-16T04:27:51.634Z"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "dir": "client->host",
+    "message": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "subscribe",
+      "params": {
+        "channel": "ahp-session:/00000000-0000-4000-8000-000000000002"
+      }
+    }
+  },
+  {
+    "dir": "host->client",
+    "message": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "result": {
+        "snapshot": {
+          "resource": "ahp-session:/00000000-0000-4000-8000-000000000002",
+          "state": {
+            "provider": "pi",
+            "title": "New session",
+            "status": 1,
+            "workingDirectories": [
+              "file:///tmp"
+            ],
+            "lifecycle": "ready",
+            "activeClients": [],
+            "chats": [
+              {
+                "resource": "ahp-chat://default/cGk6LzAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAwMg",
+                "title": "New session",
+                "status": 1,
+                "modifiedAt": "2026-10-16T04:27:51.634Z"
+              }
+            ],
+            "defaultChat": "ahp-chat://default/cGk6LzAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAwMg"
+          },
+          "fromSeq": 5
+        }
+      }
+    }
+  },
+  {
+    "dir": "client->host",
+    "message": {
+      "jsonrpc": "2.0",
+      "method": "dispatchAction",
+      "params": {
+        "channel": "ahp-session:/00000000-0000-4000-8000-000000000002",
+        "clientSeq": 1,
+        "action": {
+          "type": "session/titleChanged",
+          "title": "Renamed example session"
+        }
+      }
+    }
+  },
+  {
+    "dir": "host->client",
+    "message": {
+      "jsonrpc": "2.0",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/00000000-0000-4000-8000-000000000002",
+        "action": {
+          "type": "session/titleChanged",
+          "title": "Renamed example session"
+        },
+        "serverSeq": 6,
+        "origin": {
+          "clientId": "example-client",
+          "clientSeq": 1
+        }
+      }
+    }
+  },
+  {
+    "dir": "host->client",
+    "message": {
+      "jsonrpc": "2.0",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/00000000-0000-4000-8000-000000000002",
+        "action": {
+          "type": "session/chatUpdated",
+          "chat": "ahp-chat://default/cGk6LzAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAwMg",
+          "changes": {
+            "title": "Renamed example session"
+          }
+        },
+        "serverSeq": 7
+      }
+    }
+  },
+  {
+    "dir": "host->client",
+    "message": {
+      "jsonrpc": "2.0",
+      "method": "root/sessionSummaryChanged",
+      "params": {
+        "channel": "ahp-root://",
+        "session": "pi:/00000000-0000-4000-8000-000000000002",
+        "changes": {
+          "title": "Renamed example session",
+          "chats": [
+            {
+              "resource": "ahp-chat://default/cGk6LzAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAwMg",
+              "title": "Renamed example session",
+              "status": 1
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "dir": "client->host",
+    "message": {
+      "jsonrpc": "2.0",
+      "method": "unsubscribe",
+      "params": {
+        "channel": "ahp-session:/00000000-0000-4000-8000-000000000002"
+      }
+    }
+  },
+  {
+    "dir": "client->host",
+    "message": {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "disposeSession",
+      "params": {
+        "channel": "ahp-session:/00000000-0000-4000-8000-000000000002"
+      }
+    }
+  },
+  {
+    "dir": "host->client",
+    "message": {
+      "jsonrpc": "2.0",
+      "method": "root/sessionRemoved",
+      "params": {
+        "channel": "ahp-root://",
+        "session": "pi:/00000000-0000-4000-8000-000000000002"
+      }
+    }
+  },
+  {
+    "dir": "host->client",
+    "message": {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "result": null
+    }
+  },
+  {
+    "dir": "client->host",
+    "message": {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "ping",
+      "params": {
+        "channel": "ahp-root://"
+      }
+    }
+  },
+  {
+    "dir": "host->client",
+    "message": {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "result": null
+    }
+  },
+  {
+    "dir": "client->host",
+    "message": {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "initialize",
+      "params": {
+        "channel": "ahp-root://",
+        "protocolVersions": [
+          "9.9.9"
+        ],
+        "clientId": "x"
+      }
+    }
+  },
+  {
+    "dir": "host->client",
+    "message": {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "error": {
+        "code": -32005,
+        "message": "Unsupported protocol version",
+        "data": {
+          "supportedVersions": [
+            "1.0.0",
+            "0.9.0"
+          ]
+        }
+      }
+    }
+  }
+]

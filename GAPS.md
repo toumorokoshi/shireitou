@@ -2,17 +2,52 @@
 
 Open issues and features not yet implemented.
 
-## Implementation (nothing built yet)
+## Implementation
 
-- Scaffold the Flutter app (`app/`) and a pure-Dart AHP client package
-  (`packages/ahp_client/`). Neither exists yet.
-- Code generation from the AHP JSON Schemas, pinned to a protocol version.
-- Add Flutter/Dart recipes to the `justfile` (`dart format`, `dart analyze`,
-  `flutter test`) and a CI workflow. The current `justfile` only runs prettier
-  over markdown.
-- Record AHP traffic samples in `examples/` for reducer and conformance tests.
-- Everything in [specs/agents-view.md](specs/agents-view.md) and
-  [specs/agent-host-protocol-client.md](specs/agent-host-protocol-client.md).
+Iteration 1 (2026-10-15) built the workspace, `ahp_client` core, CI, and an
+app shell that connects and lists sessions. Remaining work, roughly in the
+order needed for a usable app (connect, list, open, stream chat, send,
+approve):
+
+- **Session channel (AHP-024):** wire types and a pure reducer for
+  `SessionState` and its `session/*` actions; subscribe when a session is
+  opened (the subscription API exists, nothing calls it yet).
+- **Chat channel (AHP-025):** wire types and reducer for turns,
+  `chat/delta` streaming, reasoning, tool calls, usage and errors, plus
+  `fetchTurns`. Then the timeline UI (AV-060 to AV-067). The detail pane is a
+  placeholder.
+- **Write-ahead dispatch (AHP-022):** `dispatchAction` with `clientSeq`,
+  optimistic apply and rollback on `rejectionReason`. Needed for sending
+  messages (AV-080), cancel (AV-082), approvals (AV-083, AHP-041) and
+  input requests (AV-084, AHP-042), and mark read/archive (AHP-043).
+- **Composer (AV-040, AV-041):** new-session UI. `AhpClient.createSession`
+  exists but has no `-32003` retry or `session/creationFailed` handling, and
+  the URI it returns differs from the catalogue key on pi (`pi:/<id>`).
+- **Session list:** filters (AV-022), mark read on open (AV-023), archive
+  (AV-024), attention count in the title (AV-120), and keyboard shortcuts
+  (AV-140). Archived sessions are currently shown with everything else.
+- **Hosts (AV-010):** persist host configs, and store tokens in secure
+  storage (AHP-063). The URL and token are currently typed in each launch
+  (or prefilled with `--dart-define=AHP_URL`).
+- **Wire type generation:** types are hand-written freezed classes modeled on
+  the 1.0.0 TypeScript types. A generator from the JSON Schemas in
+  `schema/` is still to do.
+- **Reconnect details (AHP-004):** report `missing` channels to observers,
+  and send client-side liveness `ping`s so dead sockets are detected sooner.
+- **Native token header (AHP-002):** only the `tkn` query parameter is
+  supported.
+- **0.9.0 degradation:** nothing yet checks the negotiated version.
+- **Platforms:** this machine has no Xcode or Android SDK, so only the web
+  build and tests were verified. `flutter build macos`/`ios`/`android`, and
+  Windows/Linux builds, have not been run. CI builds web only.
+- **Web transport:** the browser WebSocket path has not been tested against a
+  real host (only the Dart VM integration test has). Check whether hosts
+  check the `Origin` header.
+- **App-level integration test:** no test drives the Flutter UI against a
+  real host.
+- Everything else in [specs/agents-view.md](specs/agents-view.md) and
+  [specs/agent-host-protocol-client.md](specs/agent-host-protocol-client.md)
+  not listed as done in their status sections.
 
 ## Open questions
 
@@ -38,7 +73,5 @@ Open issues and features not yet implemented.
 - **Web transport:** browsers cannot set WebSocket headers, so the token must
   go in the query string. Confirm hosts accept that, and check CORS/TLS for
   hosts on a LAN or tunnel.
-- **State management library:** pick one (Riverpod is proposed) once
-  scaffolding starts.
 - **`ahp_sdk` evaluation:** decide whether to fork, contribute to, or ignore
   the community Dart package.

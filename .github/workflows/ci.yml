@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  FLUTTER_VERSION: 3.47.7
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - uses: extractions/setup-just@v2
+      - run: flutter pub get
+      - name: Generated code is up to date
+        run: just codegen && git diff --exit-code
+      - run: just lint
+      - run: just test
+      - name: Build web
+        run: cd app && flutter build web
+
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: toumorokoshi/pi-agent-host-protocol
+          path: pi-agent-host-protocol
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - uses: extractions/setup-just@v2
+      - run: npm ci
+        working-directory: pi-agent-host-protocol
+      - run: flutter pub get
+      - run: just test-integration
+        env:
+          PI_AHP_HOST_DIR: ${{ github.workspace }}/pi-agent-host-protocol

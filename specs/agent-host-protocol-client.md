@@ -95,9 +95,12 @@ Priority: **P0** = MVP, **P1** = next, **P2** = later.
 
 ### Implementation constraints
 
-- Wire types are **generated** from the JSON Schemas in the protocol repo's
-  `schema/` directory, and pinned to protocol 1.0.0 (see
-  [Target protocol version](#target-protocol-version)).
+- Wire types should be **generated** from the JSON Schemas in the protocol
+  repo's `schema/` directory, and pinned to protocol 1.0.0 (see
+  [Target protocol version](#target-protocol-version)). Until that generator
+  exists, they are hand-written freezed/json_serializable classes in
+  `packages/ahp_client/lib/src/wire.dart`, modeled on the 1.0.0 TypeScript
+  types, covering only the fields the client reads.
 - pi-agent-host-protocol is the integration-test host. It prints a
   `ws://127.0.0.1:<port>?tkn=…` URL, so the connection token goes in the
   `tkn` query parameter.
@@ -107,3 +110,25 @@ Priority: **P0** = MVP, **P1** = next, **P2** = later.
   over immutable data, per the project's code design tenets.
 - Conformance tests replay recorded host traffic (snapshots plus action
   streams) from `examples/`.
+- Session URIs are opaque. pi publishes a session created as
+  `ahp-session:/<id>` under `pi:/<id>` in the catalogue, so the client keys
+  sessions by the host's `resource` and must not assume it equals the URI it
+  sent to `createSession`.
+- `unsubscribe` is sent as a JSON-RPC notification (pi handles it as one).
+
+## Implementation status
+
+As of 2026-10-15 (`packages/ahp_client`):
+
+| ID      | Status  | Notes                                                                                                                                                                   |
+| ------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| AHP-001 | Done    | `web_socket_channel` + `json_rpc_2` `Peer`.                                                                                                                             |
+| AHP-002 | Partial | Token in the `tkn` query parameter. Header-based tokens on native platforms are not implemented.                                                                        |
+| AHP-003 | Done    | Offers `['1.0.0', '0.9.0']`; `-32005` shows the host's `supportedVersions`.                                                                                             |
+| AHP-004 | Basic   | Tracks `serverSeq`, reconnects with backoff, handles `replay`/`snapshot`, falls back to `initialize` on `-32008`. `missing` channels are not yet reported to observers. |
+| AHP-005 | Done    | Answers `ping`; exposes `ConnectionStatus`. No client-side liveness pings yet.                                                                                          |
+| AHP-020 | Done    | Pure reference counting in `subscriptions.dart`.                                                                                                                        |
+| AHP-021 | Partial | Root reducer only. Session and chat reducers are not written.                                                                                                           |
+| AHP-023 | Done    | Root state plus session catalogue (`listSessions` paging and `root/session*` notifications).                                                                            |
+| AHP-026 | Done    | `SessionStatus` extension type with bitwise checks.                                                                                                                     |
+| AHP-040 | Partial | `createSession` with a client-chosen URI; no `-32003` retry or `session/creationFailed` handling yet.                                                                   |

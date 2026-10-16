@@ -1,0 +1,86 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:shireitou/src/session_list/folder_grouping.dart';
+
+import 'fixtures.dart';
+
+void main() {
+  group('normalizeFolderKey', () {
+    test('decodes file URIs and strips the trailing slash', () {
+      expect(normalizeFolderKey('file:///home/u/my%20app/'), '/home/u/my app');
+    });
+
+    test('keeps the filesystem root and non-file URIs', () {
+      expect(normalizeFolderKey('file:///'), '/');
+      expect(
+        normalizeFolderKey('vscode-remote://box/src'),
+        'vscode-remote://box/src',
+      );
+    });
+  });
+
+  group('groupSessionsByFolder', () {
+    test('worktrees of one repo are separate folders', () {
+      final groups = groupSessionsByFolder([
+        session('1', directory: 'file:///src/app'),
+        session('2', directory: 'file:///src/app-worktrees/fix-login'),
+        session('3', directory: 'file:///src/app/'),
+      ]);
+      expect(groups.map((g) => g.key), [
+        '/src/app',
+        '/src/app-worktrees/fix-login',
+      ]);
+      expect(groups.first.sessions.length, 2);
+      expect(groups.last.label, 'fix-login');
+      expect(groups.last.path, '/src/app-worktrees/fix-login');
+    });
+
+    test('falls back to the project, then to "No folder"', () {
+      final groups = groupSessionsByFolder([
+        session('1', project: 'file:///src/proj'),
+        session('2'),
+      ]);
+      expect(groups.map((g) => g.label), ['proj', noFolderLabel]);
+      expect(groups.last.key, isNull);
+      expect(groups.last.path, isEmpty);
+    });
+
+    test('folders and sessions sort by most recent modification', () {
+      final groups = groupSessionsByFolder([
+        session(
+          'old',
+          directory: 'file:///a',
+          modifiedAt: '2026-10-01T00:00:00Z',
+        ),
+        session(
+          'new',
+          directory: 'file:///b',
+          modifiedAt: '2026-10-03T00:00:00Z',
+        ),
+        session(
+          'mid',
+          directory: 'file:///a',
+          modifiedAt: '2026-10-02T00:00:00Z',
+        ),
+      ]);
+      expect(groups.map((g) => g.key), ['/b', '/a']);
+      expect(groups.last.sessions.map((s) => s.resource), [
+        'pi:/mid',
+        'pi:/old',
+      ]);
+    });
+
+    test('counts sessions that need attention', () {
+      final groups = groupSessionsByFolder([
+        session('read', directory: 'file:///a', status: 33),
+        session('unread', directory: 'file:///a', status: 1),
+        session('input', directory: 'file:///a', status: 24 | 32),
+        session('error', directory: 'file:///a', status: 2 | 32),
+      ]);
+      expect(groups.single.attentionCount, 3);
+    });
+
+    test('no sessions means no folders', () {
+      expect(groupSessionsByFolder([]), isEmpty);
+    });
+  });
+}

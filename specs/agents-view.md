@@ -64,6 +64,11 @@ Rules:
 - Grouping is a pure function `(List<SessionSummary>) -> List<FolderGroup>`
   with unit tests covering the worktree cases.
 
+Status (2026-10-15): implemented as `groupSessionsByFolder` in
+`app/lib/src/session_list/folder_grouping.dart` for a single host. The host
+part of the key, repo/branch labels, and the folder "+" button are not built
+yet.
+
 ## Starting a session (composer)
 
 | ID     | Pri | Requirement                                                                                                                                                                       |
