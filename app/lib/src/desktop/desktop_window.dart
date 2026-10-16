@@ -119,6 +119,14 @@ class _PlacementSaver with WindowListener {
   @override
   void onWindowMove() => _schedule();
 
+  // Windows reports a drag only when it ends ("resized", "moved"), and
+  // macOS reports both.
+  @override
+  void onWindowResized() => _schedule();
+
+  @override
+  void onWindowMoved() => _schedule();
+
   @override
   void onWindowMaximize() => _schedule();
 

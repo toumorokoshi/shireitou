@@ -41,6 +41,13 @@ void main() {
     expect(size.height, greaterThanOrEqualTo(minimumWindowSize.height));
 
     await windowManager.setSize(const Size(900, 640));
+    if (defaultTargetPlatform == TargetPlatform.windows) {
+      // Windows reports the user's resizing (WM_SIZING, WM_EXITSIZEMOVE),
+      // not a size the app sets, so send the end of a drag ourselves.
+      for (final listener in windowManager.listeners) {
+        listener.onWindowResized();
+      }
+    }
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(seconds: 2)),
     );
