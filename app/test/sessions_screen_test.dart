@@ -1,4 +1,5 @@
 import 'package:ahp_client/ahp_client.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +7,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shireitou/src/app.dart';
 import 'package:shireitou/src/host_connection.dart';
+import 'package:shireitou/src/hosts/saved_hosts.dart';
 
 import 'fixtures.dart';
 
@@ -85,6 +87,41 @@ void main() {
     await _pump(tester, const HostState(), const Size(800, 900));
     await tester.pumpAndSettle();
     expect(find.text('ws://127.0.0.1:1234?tkn=abc'), findsOneWidget);
+  });
+
+  testWidgets('lists remembered hosts without their tokens', (tester) async {
+    FlutterSecureStorage.setMockInitialValues({
+      'hosts': encodeHosts(const [
+        SavedHost(url: 'ws://127.0.0.1:1?tkn=secret', name: 'laptop'),
+        SavedHost(url: 'ws://10.0.0.2:2?tkn=other'),
+      ]),
+    });
+    await _pump(tester, const HostState(), const Size(800, 1200));
+    await tester.pumpAndSettle();
+    expect(find.text('Recent hosts'), findsOneWidget);
+    expect(find.text('laptop'), findsWidgets);
+    expect(find.text('ws://10.0.0.2:2'), findsOneWidget);
+    expect(find.textContaining('other'), findsNothing);
+    // The most recent host is prefilled.
+    expect(find.text('ws://127.0.0.1:1?tkn=secret'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Edit ws://10.0.0.2:2'));
+    await tester.pump();
+    expect(find.text('ws://10.0.0.2:2?tkn=other'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Forget ws://10.0.0.2:2'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Forget ws://10.0.0.2:2'), findsNothing);
+    final stored = await const FlutterSecureStorage().read(key: 'hosts');
+    expect(decodeHosts(stored).map((h) => h.label), ['laptop']);
+  });
+
+  testWidgets('macOS shows a native menu bar', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    await _pump(tester, const HostState(), const Size(800, 900));
+    expect(find.byType(PlatformMenuBar), findsOneWidget);
+    debugDefaultTargetPlatformOverride = null;
   });
 
   testWidgets('shows a connection error', (tester) async {

@@ -34,8 +34,13 @@ typedef PiHost = ({Process process, Directory temp, Uri url});
 
 /// Starts pi in embedded mode with temp settings, sessions and working
 /// directory. With [isolatedAgentDir], pi also gets an empty agent directory
-/// (no model providers); otherwise it uses the user's `~/.pi/agent`.
-Future<PiHost> startPiHost({required bool isolatedAgentDir}) async {
+/// (no model providers); otherwise it uses the user's `~/.pi/agent`. With
+/// [token], pi requires a connection token and [PiHost.url] carries it as
+/// `?tkn=`.
+Future<PiHost> startPiHost({
+  required bool isolatedAgentDir,
+  bool token = false,
+}) async {
   final temp = await Directory.systemTemp.createTemp('shireitou-pi-');
   final port = await _freePort();
   final process = await Process.start(
@@ -44,7 +49,7 @@ Future<PiHost> startPiHost({required bool isolatedAgentDir}) async {
       'src/bin/pi-agent-host-protocol.ts',
       '--port',
       '$port',
-      '--no-token',
+      if (!token) '--no-token',
       '--no-bridge',
       // Runs pi's bundled SDK, so the `pi` CLI is not needed.
       '--pi-mode',
@@ -124,6 +129,35 @@ void main() {
       expect(client.state.chatChannels[chat]!.pending, isEmpty);
 
       await client.ping();
+    });
+  });
+
+  group('pi with a connection token', skip: skip, () {
+    late PiHost host;
+    setUpAll(
+      () async => host = await startPiHost(isolatedAgentDir: true, token: true),
+    );
+    tearDownAll(() => stopPiHost(host));
+
+    test(
+      'accepts the native handshake (Authorization header and tkn)',
+      () async {
+        expect(connectionTokenOf(host.url), isNotNull);
+        final client = AhpClient(uri: host.url);
+        addTearDown(client.close);
+        await client.connect();
+        expect(client.state.error, isNull);
+        expect(client.state.status, ConnectionStatus.connected);
+      },
+    );
+
+    test('rejects a connection without the token', () async {
+      final client = AhpClient(
+        uri: Uri.parse(host.url.toString().split('?').first),
+      );
+      addTearDown(client.close);
+      await client.connect();
+      expect(client.state.status, ConnectionStatus.failed);
     });
   });
 

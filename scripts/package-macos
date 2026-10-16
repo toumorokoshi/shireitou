@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# package-macos - packages the release app from `flutter build macos` as an
+# unsigned, not notarized .dmg in app/build/dist/.
+#
+# Usage: scripts/package-macos
+# Run `cd app && flutter build macos --release` first. Gatekeeper blocks the
+# unsigned app on other Macs until it is signed with a Developer ID and
+# notarized (see GAPS.md).
+set -euo pipefail
+
+repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+app="$repo/app"
+version="$(sed -n 's/^version: \([0-9.]*\).*/\1/p' "$app/pubspec.yaml")"
+bundle="$app/build/macos/Build/Products/Release/shireitou.app"
+dist="$app/build/dist"
+[[ -d "$bundle" ]] || {
+  echo "no release app at $bundle; run flutter build macos --release" >&2
+  exit 1
+}
+
+rm -rf "$dist"
+mkdir -p "$dist"
+stage="$(mktemp -d)"
+trap 'rm -rf "$stage"' EXIT
+cp -R "$bundle" "$stage/"
+ln -s /Applications "$stage/Applications"
+hdiutil create -volname shireitou -srcfolder "$stage" -ov -format UDZO \
+  "$dist/shireitou-$version-macos.dmg"
+ls -l "$dist"

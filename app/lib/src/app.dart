@@ -5,6 +5,7 @@ import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'desktop/app_menu.dart';
 import 'host_connection.dart';
 import 'screens/connect_screen.dart';
 import 'screens/sessions_screen.dart';
@@ -21,6 +22,7 @@ class ShireitouApp extends StatelessWidget {
     theme: buildTheme(Brightness.light),
     darkTheme: buildTheme(Brightness.dark),
     themeMode: ThemeMode.system,
+    builder: (context, child) => AppMenuBar(child: child!),
     home: const HomeScreen(),
   );
 }

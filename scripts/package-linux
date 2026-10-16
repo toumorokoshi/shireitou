@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# package-linux - packages the release bundle from `flutter build linux` as
+# a .tar.gz and an unsigned .deb in app/build/dist/.
+#
+# Usage: scripts/package-linux
+# Run `cd app && flutter build linux --release` first.
+set -euo pipefail
+umask 022
+
+repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+app="$repo/app"
+version="$(sed -n 's/^version: \([0-9.]*\).*/\1/p' "$app/pubspec.yaml")"
+case "$(uname -m)" in
+  x86_64) arch=amd64; flutter_arch=x64 ;;
+  aarch64 | arm64) arch=arm64; flutter_arch=arm64 ;;
+  *) echo "unsupported architecture $(uname -m)" >&2; exit 1 ;;
+esac
+bundle="$app/build/linux/$flutter_arch/release/bundle"
+dist="$app/build/dist"
+[[ -x "$bundle/shireitou" ]] || {
+  echo "no release bundle at $bundle; run flutter build linux --release" >&2
+  exit 1
+}
+
+rm -rf "$dist"
+mkdir -p "$dist"
+tar -czf "$dist/shireitou-$version-linux-$arch.tar.gz" -C "$bundle" .
+
+root="$(mktemp -d)"
+trap 'rm -rf "$root"' EXIT
+chmod 755 "$root"
+mkdir -p "$root/DEBIAN" "$root/opt/shireitou" "$root/usr/bin" \
+  "$root/usr/share/applications" "$root/usr/share/icons/hicolor/512x512/apps"
+cp -r "$bundle/." "$root/opt/shireitou/"
+ln -s /opt/shireitou/shireitou "$root/usr/bin/shireitou"
+cp "$app/web/icons/Icon-512.png" \
+  "$root/usr/share/icons/hicolor/512x512/apps/dev.shireitou.shireitou.png"
+cat >"$root/usr/share/applications/dev.shireitou.shireitou.desktop" <<DESKTOP
+[Desktop Entry]
+Type=Application
+Name=shireitou
+Comment=Agents view for Agent Host Protocol hosts
+Exec=/opt/shireitou/shireitou
+Icon=dev.shireitou.shireitou
+Categories=Development;
+DESKTOP
+cat >"$root/DEBIAN/control" <<CONTROL
+Package: shireitou
+Version: $version
+Architecture: $arch
+Maintainer: shireitou developers <noreply@github.com>
+Homepage: https://github.com/toumorokoshi/shireitou
+Depends: libgtk-3-0 | libgtk-3-0t64, libsecret-1-0
+Recommends: gnome-keyring
+Section: devel
+Priority: optional
+Description: Agents view for Agent Host Protocol hosts
+ Start, monitor and steer coding-agent sessions on Agent Host Protocol hosts.
+CONTROL
+dpkg-deb --build --root-owner-group "$root" "$dist/shireitou_${version}_$arch.deb"
+ls -l "$dist"

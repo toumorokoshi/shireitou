@@ -60,6 +60,60 @@ Uri withConnectionToken(Uri uri, String? token) {
   );
 }
 
+/// Header that carries the connection token on native platforms (AHP-002).
+///
+/// The AHP spec leaves connection gating to the transport and names no
+/// header; this matches the protocol repo's Swift client, which sends
+/// `Authorization: Bearer <token>`.
+const tokenHeader = 'Authorization';
+
+/// Where the connection token goes in the WebSocket handshake (AHP-002).
+enum TokenTransport {
+  /// Only the `tkn` query parameter. The only choice on web, where browsers
+  /// cannot set headers on the upgrade request.
+  query,
+
+  /// Only the `Authorization: Bearer` header; `tkn` is removed from the URL.
+  header,
+
+  /// Both. The native default: hosts that read the header get it, and hosts
+  /// that only read `tkn` (pi-agent-host-protocol) still connect.
+  queryAndHeader,
+}
+
+/// The URL and headers of a WebSocket handshake.
+typedef Handshake = ({Uri uri, Map<String, String> headers});
+
+/// The connection token in [uri]'s `tkn` query parameter, or null.
+String? connectionTokenOf(Uri uri) {
+  final token = uri.queryParameters[tokenQueryParameter];
+  return token == null || token.isEmpty ? null : token;
+}
+
+/// Splits [uri] (which carries the token as `tkn`, see
+/// [withConnectionToken]) into the handshake for [transport].
+Handshake handshakeFor(Uri uri, TokenTransport transport) {
+  final token = connectionTokenOf(uri);
+  if (token == null || transport == TokenTransport.query) {
+    return (uri: uri, headers: const {});
+  }
+  final headers = {tokenHeader: 'Bearer $token'};
+  if (transport == TokenTransport.queryAndHeader) {
+    return (uri: uri, headers: headers);
+  }
+  final query = {...uri.queryParameters}..remove(tokenQueryParameter);
+  // `Uri.replace` keeps the old query when given none, so rebuild.
+  final stripped = Uri(
+    scheme: uri.scheme,
+    userInfo: uri.userInfo,
+    host: uri.host,
+    port: uri.hasPort ? uri.port : null,
+    path: uri.path,
+    queryParameters: query.isEmpty ? null : query,
+  );
+  return (uri: stripped, headers: headers);
+}
+
 /// Builds `initialize` params (AHP-003).
 Map<String, Object?> initializeParams({
   required String clientId,

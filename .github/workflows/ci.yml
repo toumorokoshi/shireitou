@@ -53,3 +53,79 @@ jobs:
       - run: just test-integration
         env:
           PI_AHP_HOST_DIR: ${{ github.workspace }}/pi-agent-host-protocol
+
+  linux-desktop:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: toumorokoshi/pi-agent-host-protocol
+          path: pi-agent-host-protocol
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - uses: extractions/setup-just@v2
+      - name: Install Linux desktop dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config \
+            libgtk-3-dev libsecret-1-dev xvfb gnome-keyring dbus-x11
+      - run: npm ci
+        working-directory: pi-agent-host-protocol
+      - run: flutter pub get
+      - name: Build Linux
+        run: cd app && flutter build linux --release
+      - name: Desktop smoke test
+        timeout-minutes: 15
+        run: >
+          xvfb-run -a dbus-run-session -- bash -c
+          'echo -n ci | gnome-keyring-daemon --unlock --components=secrets
+          >/dev/null && just test-desktop linux'
+        env:
+          PI_AHP_HOST_DIR: ${{ github.workspace }}/pi-agent-host-protocol
+      - name: Package .tar.gz and .deb
+        run: scripts/package-linux
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shireitou-linux
+          path: app/build/dist/
+
+  macos-desktop:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: toumorokoshi/pi-agent-host-protocol
+          path: pi-agent-host-protocol
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - uses: extractions/setup-just@v2
+      - run: npm ci
+        working-directory: pi-agent-host-protocol
+      - run: flutter pub get
+      - name: Build macOS
+        run: cd app && flutter build macos --release
+      - name: Desktop smoke test
+        timeout-minutes: 15
+        run: just test-desktop macos
+        env:
+          PI_AHP_HOST_DIR: ${{ github.workspace }}/pi-agent-host-protocol
+      - name: Package unsigned .dmg
+        run: scripts/package-macos
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shireitou-macos
+          path: app/build/dist/

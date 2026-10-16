@@ -7,7 +7,8 @@ import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
-import 'host_store.dart';
+import 'hosts/host_store.dart';
+import 'hosts/saved_hosts.dart';
 
 /// The connected host's state. Widgets watch this; the [AhpClient] owns the
 /// socket and publishes [HostState] changes.
@@ -31,8 +32,10 @@ class HostConnection extends Notifier<HostState> {
   Stream<String> get rejections => _rejections.stream;
 
   /// Connects to [url], adding [token] as the `tkn` query parameter, and
-  /// remembers both for the next launch once connected.
-  Future<void> connect(String url, {String? token}) async {
+  /// remembers the host (with its optional [name]) once connected. On
+  /// native platforms the token is also sent as an `Authorization: Bearer`
+  /// header (AHP-002).
+  Future<void> connect(String url, {String? token, String? name}) async {
     await _dispose();
     final client = AhpClient(
       uri: withConnectionToken(Uri.parse(url.trim()), token?.trim()),
@@ -49,10 +52,15 @@ class HostConnection extends Notifier<HostState> {
         .listen((e) => _rejections.add(e.rejectionReason!));
     await client.connect();
     if (client.state.status == ConnectionStatus.connected) {
-      await ref.read(hostStoreProvider).saveLastHost((
-        url: url.trim(),
-        token: token?.trim() ?? '',
-      ));
+      await ref
+          .read(savedHostsProvider.notifier)
+          .remember(
+            SavedHost(
+              url: url.trim(),
+              token: token?.trim() ?? '',
+              name: name?.trim() ?? '',
+            ),
+          );
     }
   }
 

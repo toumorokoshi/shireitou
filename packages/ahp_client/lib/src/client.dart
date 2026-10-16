@@ -15,6 +15,9 @@ import 'protocol.dart';
 import 'session_catalogue.dart';
 import 'session_wire.dart';
 import 'subscriptions.dart';
+import 'transport_io.dart'
+    if (dart.library.js_interop) 'transport_web.dart'
+    as transport;
 import 'wire.dart';
 
 final _log = Logger('ahp_client');
@@ -22,12 +25,29 @@ final _log = Logger('ahp_client');
 /// Opens a text stream to a host. One JSON-RPC message per frame.
 typedef ChannelConnector = Future<StreamChannel<String>> Function(Uri uri);
 
-/// Opens a WebSocket to [uri] and waits for the handshake (AHP-001).
-Future<StreamChannel<String>> connectWebSocket(Uri uri) async {
-  final channel = WebSocketChannel.connect(uri);
+/// The platform's default [TokenTransport]: [TokenTransport.query] on web,
+/// [TokenTransport.queryAndHeader] on native platforms (AHP-002).
+const defaultTokenTransport = transport.defaultTokenTransport;
+
+/// A [ChannelConnector] that opens a WebSocket and places the connection
+/// token per [tokenTransport] (AHP-001, AHP-002). On web, only
+/// [TokenTransport.query] works.
+ChannelConnector webSocketConnector({
+  TokenTransport tokenTransport = defaultTokenTransport,
+}) => (uri) async {
+  final handshake = handshakeFor(uri, tokenTransport);
+  final WebSocketChannel channel = transport.openWebSocket(
+    handshake.uri,
+    handshake.headers,
+  );
   await channel.ready;
   return channel.cast<String>();
-}
+};
+
+/// Opens a WebSocket to [uri] with the platform's default token placement
+/// and waits for the handshake (AHP-001, AHP-002).
+Future<StreamChannel<String>> connectWebSocket(Uri uri) =>
+    webSocketConnector()(uri);
 
 /// Root-channel notifications that update the session catalogue.
 const _catalogueNotifications = [
@@ -50,7 +70,9 @@ class AhpClient {
     this.connector = connectWebSocket,
   }) : clientId = clientId ?? const Uuid().v4();
 
-  /// Host URL, including the `tkn` query parameter when needed.
+  /// Host URL, including the `tkn` query parameter when needed. The
+  /// [connector] decides whether the token also (or instead) goes in a
+  /// header.
   final Uri uri;
 
   /// Stable client ID sent in `initialize` and `reconnect`.

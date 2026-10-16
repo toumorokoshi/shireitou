@@ -23,8 +23,12 @@ WebSocket ──► json_rpc_2 Peer ──► AhpClient (I/O edge)
   responses, notifications). The connector is injectable, so tests use an
   in-memory `StreamChannelController` with a fake host peer.
 - **Handshake:** `initialize` offers `['1.0.0', '0.9.0']` and subscribes to
-  `ahp-root://`. The token goes in the `tkn` query parameter, which works on
-  every platform including web.
+  `ahp-root://`. The token is carried in the URL's `tkn` query parameter;
+  `handshakeFor(uri, TokenTransport)` (pure) decides the upgrade request.
+  On native platforms (`transport_io.dart`, `IOWebSocketChannel`) the token
+  is also sent as `Authorization: Bearer <token>`; on web
+  (`transport_web.dart`, chosen by a conditional import) it stays in `tkn`
+  only, since browsers cannot set upgrade headers (AHP-002).
 - **State:** `HostState` holds the connection status, the root state, the
   session catalogue, and the last `serverSeq`. It is advanced only by pure
   functions in `host_state.dart`, `root_reducer.dart` and
@@ -75,8 +79,17 @@ WebSocket ──► json_rpc_2 Peer ──► AhpClient (I/O edge)
   `dispatch` and `startSession` (create, open, send the first prompt).
   Widgets `select` the fields they need, so chat streaming only rebuilds the
   open timeline.
-- `lib/src/host_store.dart`: remembers the last host URL and token in
-  `flutter_secure_storage`, which the connect screen prefills.
+- `lib/src/hosts/`: `saved_hosts.dart` is the pure host list logic
+  (`rememberHost`, `forgetHost`, `hostKey` = URL without `tkn`, JSON
+  encoding); `host_store.dart` keeps the list in `flutter_secure_storage`
+  (migrating the single host older versions saved) behind the
+  `savedHostsProvider` notifier. The connect screen prefills the most
+  recent host and lists the rest.
+- `lib/src/desktop/`: native window setup. `window_bounds.dart` is pure
+  (placement encoding, minimum size, whether a saved position is on a
+  display); `desktop_window.dart` applies it with `window_manager` and
+  saves the placement with `shared_preferences`; `app_menu.dart` is the
+  macOS `PlatformMenuBar`. See [desktop.md](desktop.md).
 - `lib/src/app.dart`: `MaterialApp` with light and dark themes that follow
   the system. Shows the connect screen until connected.
 - `lib/src/screens/`: the connect screen and the sessions screen. The

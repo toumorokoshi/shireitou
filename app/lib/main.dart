@@ -3,8 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 
 import 'src/app.dart';
+import 'src/desktop/desktop_window.dart';
 
-void main() {
+Future<void> main() async {
   Logger.root.level = Level.INFO;
   Logger.root.onRecord.listen(
     (record) => debugPrint(
@@ -12,5 +13,7 @@ void main() {
       '${record.loggerName}: ${record.message}',
     ),
   );
+  WidgetsFlutterBinding.ensureInitialized();
+  await setUpDesktopWindow();
   runApp(const ProviderScope(child: ShireitouApp()));
 }

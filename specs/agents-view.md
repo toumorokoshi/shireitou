@@ -145,33 +145,36 @@ yet.
 
 ## Implementation status
 
-As of 2026-10-15, iteration 2 (`app/`), verified on web against
-pi-agent-host-protocol:
+As of 2026-10-16, iteration 3 (`app/`), verified on web and on the Linux
+desktop app against pi-agent-host-protocol (macOS is built and
+smoke-tested in CI):
 
-| ID     | Status      | Notes                                                                                                                                           |
-| ------ | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| AV-003 | Done        | Three tiers; the review pane is a placeholder.                                                                                                  |
-| AV-007 | Not started | macOS and Linux builds have not been run; macOS lacks the network-client entitlement. See [GAPS.md](../GAPS.md).                                |
-| AV-010 | Partial     | One host. The last URL and token are saved in secure storage and prefilled.                                                                     |
-| AV-020 | Done        |                                                                                                                                                 |
-| AV-021 | Done        |                                                                                                                                                 |
-| AV-022 | Partial     | Active (default, hides archived), Needs attention, Archived, All. No separate "Done" filter.                                                    |
-| AV-023 | Done        | Marked read on open, and again after new turns while open, unless the user chose "Mark unread".                                                 |
-| AV-024 | Partial     | Archive/unarchive in the session header menu, not the row menu.                                                                                 |
-| AV-025 | Done        | See [Worktree grouping](#worktree-grouping).                                                                                                    |
-| AV-040 | Partial     | Agent, model, working directory (text field, defaults to the host's `defaultDirectory`) and prompt; Enter submits. One host, so no host picker. |
-| AV-041 | Partial     | Model picker from `AgentInfo.models`, sent as the first message's `model`. No mode/reasoning options.                                           |
-| AV-060 | Done        | Title, agent, model, folder, tokens, status, live activity, Stop, archive, mark unread.                                                         |
-| AV-061 | Partial     | Markdown with live streaming; no syntax highlighting or code-block copy button.                                                                 |
-| AV-062 | Done        |                                                                                                                                                 |
-| AV-063 | Done        | Icon per tool name, summary, status, expandable input/output with copy.                                                                         |
-| AV-066 | Done        | Reversed list follows new output; "Jump to latest" when scrolled up.                                                                            |
-| AV-067 | Done        | Inline errors with Retry for resumable ones; tokens per turn and per session.                                                                   |
-| AV-080 | Done        | Enter sends (queues while working), Cmd/Ctrl+Enter steers, Shift+Enter newline.                                                                 |
-| AV-081 | Partial     | Queued and steering messages are shown and removable; no edit or reorder.                                                                       |
-| AV-082 | Done        |                                                                                                                                                 |
-| AV-083 | Done        | Approve/Deny or host options, risk score. Not verified against a host; pi never asks.                                                           |
-| AV-084 | Done        | Text, number, integer, boolean, single- and multi-select. Not verified against a host.                                                          |
+| ID     | Status  | Notes                                                                                                                                                      |
+| ------ | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| AV-003 | Done    | Three tiers; the review pane is a placeholder.                                                                                                             |
+| AV-007 | Done    | Linux and macOS build in CI and pass a desktop smoke test against pi; macOS has the network-client entitlement. See [docs/desktop.md](../docs/desktop.md). |
+| AV-008 | Partial | Minimum size, remembered size/position/maximized state, macOS menu bar (app, Host, View, Window). The AV-140 shortcuts are not in the menu yet.            |
+| AV-009 | Partial | CI builds a `.tar.gz` and `.deb` for Linux and an unsigned `.dmg` for macOS. No signing, notarization or AppImage.                                         |
+| AV-010 | Partial | Up to 20 remembered hosts (name, URL, token) in secure storage; reconnect, edit or forget from the connect screen. One connection at a time.               |
+| AV-020 | Done    |                                                                                                                                                            |
+| AV-021 | Done    |                                                                                                                                                            |
+| AV-022 | Partial | Active (default, hides archived), Needs attention, Archived, All. No separate "Done" filter.                                                               |
+| AV-023 | Done    | Marked read on open, and again after new turns while open, unless the user chose "Mark unread".                                                            |
+| AV-024 | Partial | Archive/unarchive in the session header menu, not the row menu.                                                                                            |
+| AV-025 | Done    | See [Worktree grouping](#worktree-grouping).                                                                                                               |
+| AV-040 | Partial | Agent, model, working directory (text field, defaults to the host's `defaultDirectory`) and prompt; Enter submits. One host, so no host picker.            |
+| AV-041 | Partial | Model picker from `AgentInfo.models`, sent as the first message's `model`. No mode/reasoning options.                                                      |
+| AV-060 | Done    | Title, agent, model, folder, tokens, status, live activity, Stop, archive, mark unread.                                                                    |
+| AV-061 | Partial | Markdown with live streaming; no syntax highlighting or code-block copy button.                                                                            |
+| AV-062 | Done    |                                                                                                                                                            |
+| AV-063 | Done    | Icon per tool name, summary, status, expandable input/output with copy.                                                                                    |
+| AV-066 | Done    | Reversed list follows new output; "Jump to latest" when scrolled up.                                                                                       |
+| AV-067 | Done    | Inline errors with Retry for resumable ones; tokens per turn and per session.                                                                              |
+| AV-080 | Done    | Enter sends (queues while working), Cmd/Ctrl+Enter steers, Shift+Enter newline.                                                                            |
+| AV-081 | Partial | Queued and steering messages are shown and removable; no edit or reorder.                                                                                  |
+| AV-082 | Done    |                                                                                                                                                            |
+| AV-083 | Done    | Approve/Deny or host options, risk score. Not verified against a host; pi never asks.                                                                      |
+| AV-084 | Done    | Text, number, integer, boolean, single- and multi-select. Not verified against a host.                                                                     |
 
 ## Out of scope (initially)
 

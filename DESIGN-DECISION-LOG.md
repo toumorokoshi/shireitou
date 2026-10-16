@@ -1,5 +1,45 @@
 # Design Decision Log
 
+## 2026-10-16: Desktop apps, native token header, and remembered hosts
+
+- **Token header (AHP-002):** the AHP spec leaves connection gating to the
+  transport and names no header. On native platforms the client sends
+  `Authorization: Bearer <token>`, the header the protocol repo's Swift
+  client uses, **and** keeps `tkn` in the URL, because pi-agent-host-protocol
+  (and the Swift sample app) read only `tkn`. Web sends `tkn` only.
+  `TokenTransport` (`query`, `header`, `queryAndHeader`) and the pure
+  `handshakeFor` make the choice explicit; the platform default comes from
+  a conditional import (`transport_io.dart` / `transport_web.dart`), so
+  `ahp_client` stays pure Dart and web-safe.
+- **Window management:** [`window_manager`](https://pub.dev/packages/window_manager)
+  (maintained by LeanFlutter, macOS/Linux/Windows) for minimum size, size,
+  position and maximize, with `screen_retriever` (its dependency) to check
+  a saved position is still on a display. `window_size` from
+  flutter-desktop-embedding is unpublished and unmaintained. Placement is
+  saved in `shared_preferences`, since it is not secret; it is debounced
+  and keeps the last normal bounds while maximized.
+- **macOS menu bar:** Flutter's built-in `PlatformMenuBar`, no package. It
+  is only created on macOS; other platforms keep their native title bars.
+- **macOS keychain:** `MacOsOptions(usesDataProtectionKeychain: false)`
+  instead of the `keychain-access-groups` entitlement. The entitlement
+  needs a provisioning profile, which would tie development builds to one
+  Mac and break unsigned CI builds; shireitou shares no keychain items with
+  other apps, so the login keychain is enough. `network.client` is added to
+  both entitlement files.
+- **Remembered hosts (AV-010):** a list of up to 20 hosts (name, URL,
+  token), most recent first, as one JSON value in secure storage. A host is
+  identified by its URL without `tkn`, so pi's per-run token rotation
+  updates the entry instead of adding one. The single host saved by
+  iteration 2 is migrated. One connection at a time remains.
+- **Desktop CI:** `linux-desktop` (ubuntu-latest) and `macos-desktop`
+  (macos-latest) build release apps, run an `integration_test` smoke test
+  against pi with a token (Linux under `xvfb-run` with a throwaway
+  gnome-keyring), and upload a `.tar.gz` + `.deb` and an unsigned `.dmg`.
+  AppImage, signing and notarization are left for later.
+- **Local Linux toolchain:** this machine has no root, so Flutter, CMake
+  and the GTK/libsecret headers were installed under `~/sdk` (see
+  [docs/desktop.md](docs/desktop.md)) rather than via apt.
+
 ## 2026-10-15: macOS and Linux desktop are priority platforms
 
 - shireitou must run as a desktop app on macOS and Linux, in addition to the

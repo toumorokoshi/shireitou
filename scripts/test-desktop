@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# test-desktop - runs the desktop smoke test (app/integration_test) on a
+# native device (linux or macos) against a pi-agent-host-protocol host that
+# requires a connection token.
+#
+# Usage: scripts/test-desktop [device]   (default: linux)
+# Set PI_AHP_HOST_DIR to the pi-agent-host-protocol checkout (default: a
+# sibling of this repo). Without a checkout, only the window test runs.
+#
+# Linux needs a display (e.g. xvfb-run) and an unlocked secret service, e.g.:
+#   xvfb-run -a dbus-run-session -- bash -c \
+#     'echo -n pw | gnome-keyring-daemon --unlock --components=secrets; scripts/test-desktop'
+set -euo pipefail
+
+repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+device="${1:-linux}"
+host_dir="${PI_AHP_HOST_DIR:-$repo/../pi-agent-host-protocol}"
+url=""
+
+if [[ -f "$host_dir/src/bin/pi-agent-host-protocol.ts" ]]; then
+  temp="$(mktemp -d)"
+  log="$temp/pi.log"
+  (
+    cd "$host_dir"
+    PI_AGENT_HOST_PROTOCOL_DIR="$temp/settings" exec node \
+      src/bin/pi-agent-host-protocol.ts --no-bridge \
+      --pi-mode embedded --cwd "$temp" --session-dir "$temp/sessions" \
+      --agent-dir "$temp/agent"
+  ) >"$log" 2>&1 &
+  pi_pid=$!
+  trap 'kill "$pi_pid" 2>/dev/null || true; rm -rf "$temp"' EXIT
+  for _ in $(seq 1 60); do
+    url="$(grep -o 'ws://[^ ]*' "$log" || true)"
+    [[ -n "$url" ]] && break
+    sleep 0.5
+  done
+  if [[ -z "$url" ]]; then
+    cat "$log" >&2
+    echo "pi-agent-host-protocol did not start" >&2
+    exit 1
+  fi
+else
+  echo "no pi-agent-host-protocol checkout at $host_dir; skipping the host test" >&2
+fi
+
+cd "$repo/app"
+flutter test integration_test -d "$device" --dart-define=AHP_URL="$url"

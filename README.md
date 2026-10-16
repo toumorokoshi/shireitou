@@ -5,11 +5,13 @@ coding-agent sessions running on
 [Agent Host Protocol](https://microsoft.github.io/agent-host-protocol/) hosts,
 with a UX modeled on the GitHub Agents view and Cursor's Agents Window.
 
-> Status: usable for chat. The app connects to a host, lists its sessions
+> Status: usable for chat, on the web and as macOS and Linux desktop apps.
+> The app connects to a host (remembering recent hosts), lists its sessions
 > grouped by working directory, opens a session's history, streams replies
 > live, sends follow-ups, stops turns, answers tool approvals and input
-> requests, and starts new sessions. Diffs/review, multiple hosts and
-> notifications are not built yet; see [GAPS.md](GAPS.md).
+> requests, and starts new sessions. Diffs/review, simultaneous connections
+> to several hosts and notifications are not built yet; see
+> [GAPS.md](GAPS.md).
 
 ## Layout
 
@@ -25,6 +27,8 @@ so one `flutter pub get` at the root resolves both packages.
 ## Documentation
 
 - [docs/architecture.md](docs/architecture.md): how the code is organized.
+- [docs/desktop.md](docs/desktop.md): macOS and Linux builds, dependencies,
+  window behavior, packaging and the desktop smoke test.
 - [specs/agents-view.md](specs/agents-view.md): UI and feature requirements.
 - [specs/agent-host-protocol-client.md](specs/agent-host-protocol-client.md):
   requirements for the Dart AHP client.
@@ -45,9 +49,11 @@ just fix                 # dart fix, then format
 just test                # ahp_client unit tests and app widget tests
 just test-integration    # ahp_client against a real pi-agent-host-protocol
 just test-model          # a real model turn through pi (costs tokens)
+just test-desktop linux  # desktop smoke test against pi (see docs/desktop.md)
 just codegen             # regenerate freezed/json_serializable code
 just run                 # flutter run -d chrome
 just run macos           # needs a full Xcode install
+just run linux           # needs GTK 3, CMake, Ninja, clang, libsecret
 just run chrome 'ws://127.0.0.1:63877?tkn=...'   # prefill the host URL
 ```
 
@@ -65,15 +71,19 @@ just run chrome 'ws://127.0.0.1:63877?tkn=...'   # prefill the host URL
    To keep test sessions out of your real pi history, add
    `--session-dir /tmp/pi-sessions`.
 
-2. Run the app in Chrome (`just run`), or build and serve the web app:
+2. Run the desktop app (`just run linux` or `just run macos`; see
+   [docs/desktop.md](docs/desktop.md)), the app in Chrome (`just run`), or
+   build and serve the web app:
 
    ```sh
    cd app && flutter build web
    python3 -m http.server 8080 --directory build/web   # open http://127.0.0.1:8080
    ```
 
-3. Paste the whole `ws://…?tkn=…` URL into the connect screen. The URL and
-   token are remembered (in secure storage) for the next launch.
+3. Paste the whole `ws://…?tkn=…` URL into the connect screen, optionally
+   with a name. Hosts you connect to are remembered (in secure storage)
+   under **Recent hosts**, most recent first, where you can reconnect, edit
+   or forget them.
 
 4. Pick a session, or press **+** to start one: choose the agent, model and
    folder, write a prompt and press Enter. In a session, Enter sends a

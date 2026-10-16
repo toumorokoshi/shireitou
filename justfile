@@ -35,6 +35,12 @@ test-integration:
 test-model:
     cd packages/ahp_client && dart test -t model
 
+# Run the desktop smoke test (window, secure storage, token header) on a
+# native device against pi. Linux needs a display and an unlocked keyring;
+# see scripts/test-desktop.
+test-desktop device="linux":
+    scripts/test-desktop {{device}}
+
 # Regenerate freezed / json_serializable code in ahp_client.
 codegen:
     cd packages/ahp_client && dart run build_runner build

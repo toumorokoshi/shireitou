@@ -7,7 +7,9 @@ Open issues and features not yet implemented.
 Iteration 1 (2026-10-15) built the workspace, `ahp_client` core, CI, and an
 app shell. Iteration 2 (2026-10-15) made the app usable end to end on web:
 open a session, stream replies, send follow-ups, stop turns, approve tools,
-answer input requests, and start sessions. Remaining work:
+answer input requests, and start sessions. Iteration 3 (2026-10-16) added
+the macOS and Linux desktop apps (CI builds, smoke tests and packages),
+the native token header, and remembered hosts. Remaining work:
 
 - **Not verified against a host:** tool approvals (AV-083) and input
   requests (AV-084) are covered by reducer and widget tests only, because pi
@@ -37,45 +39,49 @@ answer input requests, and start sessions. Remaining work:
 - **Session list:** no "Done" filter (AV-022), archive only from the session
   header (AV-024), no attention count in the title (AV-120), no keyboard
   shortcuts (AV-140), no search or sort.
-- **Hosts (AV-010):** only the last host is remembered. Secure storage was
-  only exercised on web (where it is encrypted local storage); the macOS
-  build will need the Keychain entitlement.
+- **Hosts (AV-010):** up to 20 hosts are remembered, but the app holds one
+  connection at a time, so there is no host switcher in the session list
+  and no host picker in the composer. Secure storage per platform:
+  - Web: encrypted local storage; verified.
+  - Linux: libsecret; verified by the desktop smoke test with a fresh
+    gnome-keyring. A locked keyring or no Secret Service means hosts are
+    not saved; the app only logs a warning and does not tell the user.
+  - macOS: login keychain (`usesDataProtectionKeychain: false`, so no
+    `keychain-access-groups` entitlement or provisioning profile); verified
+    only by the CI smoke test, never on a developer Mac.
+  - iOS, Android, Windows: not run.
 - **Wire type generation:** types are hand-written freezed classes modeled on
   the 1.0.0 TypeScript types. A generator from the JSON Schemas in
   `schema/` is still to do.
 - **Reconnect details (AHP-004):** report `missing` channels to observers,
   and send client-side liveness `ping`s so dead sockets are detected sooner.
-- **Native token header (AHP-002):** only the `tkn` query parameter is
-  supported.
 - **0.9.0 degradation:** nothing yet checks the negotiated version.
-- **macOS and Linux desktop apps (priority):** shireitou must run as a
-  desktop app on macOS and Linux, not only in the browser. Neither desktop
-  build has been run yet.
-  - macOS:
-    - Building needs a full Xcode install (this machine only has the
-      command line tools).
-    - The sandbox entitlements (`app/macos/Runner/DebugProfile.entitlements`
-      and `Release.entitlements`) lack `com.apple.security.network.client`,
-      so WebSocket connections to hosts will fail until it is added.
-    - `flutter_secure_storage` needs the Keychain sharing entitlement.
-  - Linux:
-    - Building needs the GTK 3, CMake, Ninja and clang toolchain.
-    - `flutter_secure_storage` needs `libsecret` at build time and a running
-      secret service (for example gnome-keyring) at runtime.
-  - Both:
-    - Use native window behavior: a sensible minimum window size, remembered
-      window size and position, and a native menu bar on macOS.
-    - On native platforms, send the connection token as a header
-      (AHP-002), not only as the `tkn` query parameter.
-  - CI: add `flutter build linux` on `ubuntu-latest` and `flutter build macos`
-    on `macos-latest`. CI currently builds web only.
-  - Packaging (later): a signed and notarized `.dmg` for macOS, and an
-    AppImage or `.deb` for Linux.
+- **macOS and Linux desktop apps (priority):** both build, pass the desktop
+  smoke test and are packaged in CI (see [docs/desktop.md](docs/desktop.md)).
+  Remaining:
+  - macOS has never been run on a developer Mac (this machine has no
+    Xcode): the window placement restore, `hiddenWindowAtLaunch`, the menu
+    bar and the keychain were exercised only by CI.
+  - The macOS menu bar has no items for the AV-140 shortcuts (new session,
+    search, next/previous session, stop, focus composer); they wait for
+    AV-140 itself.
+  - On Linux the minimum window size is a GTK geometry hint that the window
+    manager enforces; it was not checked under a real window manager
+    (the smoke test runs under Xvfb with none). On Wayland only the size is
+    restored, since clients cannot place windows.
+  - Packaging: the `.dmg` is unsigned and not notarized (needs a Developer
+    ID certificate and notarization secrets in CI). No AppImage, no apt
+    repository, and the `.deb` is unsigned. The app icon is still the
+    Flutter default (the `.deb` uses the web icon).
+  - Release builds are uploaded as CI artifacts only; there is no release
+    workflow publishing them on tags.
 - **Other platforms:** iOS, Android and Windows builds have not been run
   either (no Android SDK or Windows machine here).
-- **App-level integration test in CI:** the web app was driven against a
-  real pi host with a Playwright script kept outside the repo. A checked-in
-  browser or `integration_test` suite against pi is still to do.
+- **App-level integration test in CI:** the desktop smoke test
+  (`app/integration_test/desktop_smoke_test.dart`) covers window setup,
+  connecting with a token and saving the host, on Linux and macOS. It does
+  not drive the UI (sessions, chat). The web app is still only driven by a
+  Playwright script kept outside the repo.
 - Everything else in [specs/agents-view.md](specs/agents-view.md) and
   [specs/agent-host-protocol-client.md](specs/agent-host-protocol-client.md)
   not listed as done in their status sections.

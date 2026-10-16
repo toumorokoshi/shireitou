@@ -15,6 +15,41 @@ void main() {
     });
   });
 
+  group('handshakeFor', () {
+    final uri = Uri.parse('ws://127.0.0.1:1/ahp?tkn=abc');
+
+    test('query keeps the token in the URL only', () {
+      final h = handshakeFor(uri, TokenTransport.query);
+      expect(h.uri, uri);
+      expect(h.headers, isEmpty);
+    });
+
+    test('queryAndHeader adds an Authorization: Bearer header', () {
+      final h = handshakeFor(uri, TokenTransport.queryAndHeader);
+      expect(h.uri, uri);
+      expect(h.headers, {'Authorization': 'Bearer abc'});
+    });
+
+    test('header removes tkn from the URL', () {
+      final h = handshakeFor(
+        Uri.parse('ws://127.0.0.1:1/ahp?tkn=abc&x=1'),
+        TokenTransport.header,
+      );
+      expect(h.uri.toString(), 'ws://127.0.0.1:1/ahp?x=1');
+      expect(h.headers, {'Authorization': 'Bearer abc'});
+      expect(
+        handshakeFor(uri, TokenTransport.header).uri.toString(),
+        'ws://127.0.0.1:1/ahp',
+      );
+    });
+
+    test('no token means no header', () {
+      final plain = Uri.parse('ws://127.0.0.1:1');
+      expect(handshakeFor(plain, TokenTransport.header).headers, isEmpty);
+      expect(connectionTokenOf(Uri.parse('ws://h?tkn=')), isNull);
+    });
+  });
+
   test('initializeParams offers 1.0.0 then 0.9.0 on the root channel', () {
     final params = initializeParams(
       clientId: 'c',
