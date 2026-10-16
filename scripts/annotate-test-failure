@@ -8,7 +8,12 @@ set -euo pipefail
 
 log="${1:?usage: annotate-test-failure <log>}"
 [[ -f "$log" ]] || exit 0
-python3 - "$log" <<'PY'
+# Windows runners (Git Bash) have `python`; `python3` may be a Store stub.
+case "$(uname -s)" in
+  MINGW* | MSYS* | CYGWIN*) python=python ;;
+  *) python=python3 ;;
+esac
+"$python" - "$log" <<'PY'
 import re
 import sys
 
@@ -18,13 +23,17 @@ blocks = re.findall(
     r"Test timed out)[\s\S]{0,3000}?(?:\n═{20,}|\Z)",
     text,
 )
+# Layout errors are reported once and then only counted, so name them.
+overflows = sorted(set(re.findall(r"A RenderFlex overflowed[^\n]*", text)))
+if overflows:
+    blocks.insert(0, "\n".join(overflows[:5]))
 if not blocks:
     blocks = [text[-3000:]]
 # Progress lines the tests print (for example "fake host flows: deny").
 progress = re.findall(r"^.*(?:(?:fake|pi) host|mobile) flows: .*$", text, re.M)
 if progress:
     blocks.insert(0, "Last progress: " + progress[-1].strip())
-for block in blocks[:3]:
+for block in blocks[:5]:
     message = block.replace("%", "%25").replace("\r", "").replace("\n", "%0A")
     print(f"::error title=flutter test failure::{message}")
 PY
