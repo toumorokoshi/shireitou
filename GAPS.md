@@ -48,9 +48,31 @@ answer input requests, and start sessions. Remaining work:
 - **Native token header (AHP-002):** only the `tkn` query parameter is
   supported.
 - **0.9.0 degradation:** nothing yet checks the negotiated version.
-- **Platforms:** this machine has no Xcode or Android SDK, so only the web
-  build and tests were verified. `flutter build macos`/`ios`/`android`, and
-  Windows/Linux builds, have not been run. CI builds web only.
+- **macOS and Linux desktop apps (priority):** shireitou must run as a
+  desktop app on macOS and Linux, not only in the browser. Neither desktop
+  build has been run yet.
+  - macOS:
+    - Building needs a full Xcode install (this machine only has the
+      command line tools).
+    - The sandbox entitlements (`app/macos/Runner/DebugProfile.entitlements`
+      and `Release.entitlements`) lack `com.apple.security.network.client`,
+      so WebSocket connections to hosts will fail until it is added.
+    - `flutter_secure_storage` needs the Keychain sharing entitlement.
+  - Linux:
+    - Building needs the GTK 3, CMake, Ninja and clang toolchain.
+    - `flutter_secure_storage` needs `libsecret` at build time and a running
+      secret service (for example gnome-keyring) at runtime.
+  - Both:
+    - Use native window behavior: a sensible minimum window size, remembered
+      window size and position, and a native menu bar on macOS.
+    - On native platforms, send the connection token as a header
+      (AHP-002), not only as the `tkn` query parameter.
+  - CI: add `flutter build linux` on `ubuntu-latest` and `flutter build macos`
+    on `macos-latest`. CI currently builds web only.
+  - Packaging (later): a signed and notarized `.dmg` for macOS, and an
+    AppImage or `.deb` for Linux.
+- **Other platforms:** iOS, Android and Windows builds have not been run
+  either (no Android SDK or Windows machine here).
 - **App-level integration test in CI:** the web app was driven against a
   real pi host with a Playwright script kept outside the repo. A checked-in
   browser or `integration_test` suite against pi is still to do.

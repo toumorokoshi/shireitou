@@ -11,14 +11,17 @@ the AHP feature that backs it, where one exists.
 
 ## Platforms and layout
 
-| ID     | Pri | Requirement                                                                                                                                                                                                                              |
-| ------ | --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| AV-001 | P0  | Ship from one Flutter codebase to macOS, Windows, Linux, iOS, Android, and web.                                                                                                                                                          |
-| AV-002 | P0  | The UI takes the full screen/window (see [design/ui.md](../design/ui.md)).                                                                                                                                                               |
-| AV-003 | P0  | Responsive layout: **wide** (≥1200dp) = three panes (session list, session timeline, changes/review); **medium** (≥700dp) = list plus detail, with review as a tab; **compact** = stacked navigation (inbox, then session, then review). |
-| AV-004 | P0  | Light and dark themes that follow the system setting.                                                                                                                                                                                    |
-| AV-005 | P1  | Resizable and collapsible panes on desktop, with sizes remembered per device.                                                                                                                                                            |
-| AV-006 | P2  | Tile several session timelines side by side or in a grid (Cursor agent tabs).                                                                                                                                                            |
+| ID     | Pri | Requirement                                                                                                                                                                                                                                               |
+| ------ | --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| AV-001 | P0  | Ship from one Flutter codebase to macOS, Windows, Linux, iOS, Android, and web.                                                                                                                                                                           |
+| AV-002 | P0  | The UI takes the full screen/window (see [design/ui.md](../design/ui.md)).                                                                                                                                                                                |
+| AV-003 | P0  | Responsive layout: **wide** (≥1200dp) = three panes (session list, session timeline, changes/review); **medium** (≥700dp) = list plus detail, with review as a tab; **compact** = stacked navigation (inbox, then session, then review).                  |
+| AV-004 | P0  | Light and dark themes that follow the system setting.                                                                                                                                                                                                     |
+| AV-005 | P1  | Resizable and collapsible panes on desktop, with sizes remembered per device.                                                                                                                                                                             |
+| AV-006 | P2  | Tile several session timelines side by side or in a grid (Cursor agent tabs).                                                                                                                                                                             |
+| AV-007 | P0  | Native desktop apps on **macOS and Linux** are primary targets, alongside web. Each must build, connect to hosts (macOS sandbox network-client entitlement), store tokens in the platform keychain (macOS Keychain, Linux libsecret), and be built in CI. |
+| AV-008 | P1  | Desktop window behavior on macOS and Linux: a minimum window size, remembered window size and position, and a native menu bar on macOS with the AV-140 shortcuts.                                                                                         |
+| AV-009 | P2  | Distributable desktop packages: a signed and notarized `.dmg` for macOS, and an AppImage or `.deb` for Linux.                                                                                                                                             |
 
 ## Hosts
 
@@ -145,29 +148,30 @@ yet.
 As of 2026-10-15, iteration 2 (`app/`), verified on web against
 pi-agent-host-protocol:
 
-| ID     | Status  | Notes                                                                                                                                           |
-| ------ | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| AV-003 | Done    | Three tiers; the review pane is a placeholder.                                                                                                  |
-| AV-010 | Partial | One host. The last URL and token are saved in secure storage and prefilled.                                                                     |
-| AV-020 | Done    |                                                                                                                                                 |
-| AV-021 | Done    |                                                                                                                                                 |
-| AV-022 | Partial | Active (default, hides archived), Needs attention, Archived, All. No separate "Done" filter.                                                    |
-| AV-023 | Done    | Marked read on open, and again after new turns while open, unless the user chose "Mark unread".                                                 |
-| AV-024 | Partial | Archive/unarchive in the session header menu, not the row menu.                                                                                 |
-| AV-025 | Done    | See [Worktree grouping](#worktree-grouping).                                                                                                    |
-| AV-040 | Partial | Agent, model, working directory (text field, defaults to the host's `defaultDirectory`) and prompt; Enter submits. One host, so no host picker. |
-| AV-041 | Partial | Model picker from `AgentInfo.models`, sent as the first message's `model`. No mode/reasoning options.                                           |
-| AV-060 | Done    | Title, agent, model, folder, tokens, status, live activity, Stop, archive, mark unread.                                                         |
-| AV-061 | Partial | Markdown with live streaming; no syntax highlighting or code-block copy button.                                                                 |
-| AV-062 | Done    |                                                                                                                                                 |
-| AV-063 | Done    | Icon per tool name, summary, status, expandable input/output with copy.                                                                         |
-| AV-066 | Done    | Reversed list follows new output; "Jump to latest" when scrolled up.                                                                            |
-| AV-067 | Done    | Inline errors with Retry for resumable ones; tokens per turn and per session.                                                                   |
-| AV-080 | Done    | Enter sends (queues while working), Cmd/Ctrl+Enter steers, Shift+Enter newline.                                                                 |
-| AV-081 | Partial | Queued and steering messages are shown and removable; no edit or reorder.                                                                       |
-| AV-082 | Done    |                                                                                                                                                 |
-| AV-083 | Done    | Approve/Deny or host options, risk score. Not verified against a host; pi never asks.                                                           |
-| AV-084 | Done    | Text, number, integer, boolean, single- and multi-select. Not verified against a host.                                                          |
+| ID     | Status      | Notes                                                                                                                                           |
+| ------ | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| AV-003 | Done        | Three tiers; the review pane is a placeholder.                                                                                                  |
+| AV-007 | Not started | macOS and Linux builds have not been run; macOS lacks the network-client entitlement. See [GAPS.md](../GAPS.md).                                |
+| AV-010 | Partial     | One host. The last URL and token are saved in secure storage and prefilled.                                                                     |
+| AV-020 | Done        |                                                                                                                                                 |
+| AV-021 | Done        |                                                                                                                                                 |
+| AV-022 | Partial     | Active (default, hides archived), Needs attention, Archived, All. No separate "Done" filter.                                                    |
+| AV-023 | Done        | Marked read on open, and again after new turns while open, unless the user chose "Mark unread".                                                 |
+| AV-024 | Partial     | Archive/unarchive in the session header menu, not the row menu.                                                                                 |
+| AV-025 | Done        | See [Worktree grouping](#worktree-grouping).                                                                                                    |
+| AV-040 | Partial     | Agent, model, working directory (text field, defaults to the host's `defaultDirectory`) and prompt; Enter submits. One host, so no host picker. |
+| AV-041 | Partial     | Model picker from `AgentInfo.models`, sent as the first message's `model`. No mode/reasoning options.                                           |
+| AV-060 | Done        | Title, agent, model, folder, tokens, status, live activity, Stop, archive, mark unread.                                                         |
+| AV-061 | Partial     | Markdown with live streaming; no syntax highlighting or code-block copy button.                                                                 |
+| AV-062 | Done        |                                                                                                                                                 |
+| AV-063 | Done        | Icon per tool name, summary, status, expandable input/output with copy.                                                                         |
+| AV-066 | Done        | Reversed list follows new output; "Jump to latest" when scrolled up.                                                                            |
+| AV-067 | Done        | Inline errors with Retry for resumable ones; tokens per turn and per session.                                                                   |
+| AV-080 | Done        | Enter sends (queues while working), Cmd/Ctrl+Enter steers, Shift+Enter newline.                                                                 |
+| AV-081 | Partial     | Queued and steering messages are shown and removable; no edit or reorder.                                                                       |
+| AV-082 | Done        |                                                                                                                                                 |
+| AV-083 | Done        | Approve/Deny or host options, risk score. Not verified against a host; pi never asks.                                                           |
+| AV-084 | Done        | Text, number, integer, boolean, single- and multi-select. Not verified against a host.                                                          |
 
 ## Out of scope (initially)
 

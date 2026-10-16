@@ -1,5 +1,11 @@
 # Design Decision Log
 
+## 2026-10-15: macOS and Linux desktop are priority platforms
+
+- shireitou must run as a desktop app on macOS and Linux, in addition to the
+  web build. The remaining work is tracked in [GAPS.md](GAPS.md) under
+  "macOS and Linux desktop apps".
+
 ## 2026-10-15: Session and chat channels, write-ahead dispatch, and the session view
 
 - **Chat reducer:** port the protocol's `chatReducer` to Dart rather than
