@@ -71,3 +71,19 @@ SessionCatalogue applyRootNotification(
   ),
   _ => catalogue,
 };
+
+/// The catalogue key of the session created as [created], or null if it is
+/// not listed yet.
+///
+/// Hosts may publish a session under another URI than the one sent to
+/// `createSession` (pi lists `ahp-session:/<id>` as `pi:/<id>`), so this
+/// matches the exact URI first, then the same trailing ID.
+String? resolveSessionResource(SessionCatalogue catalogue, String created) {
+  if (catalogue.containsKey(created)) return created;
+  final id = sessionIdOf(created);
+  return catalogue.keys.where((key) => sessionIdOf(key) == id).firstOrNull;
+}
+
+/// The ID part of a session URI: the text after the last `/`.
+String sessionIdOf(String session) =>
+    session.substring(session.lastIndexOf('/') + 1);

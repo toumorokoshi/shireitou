@@ -2,3 +2,7 @@ tags:
   integration:
     # Launches pi-agent-host-protocol; run with `just test-integration`.
     timeout: 2m
+  model:
+    # Runs a real model turn through pi's configured providers (~/.pi/agent);
+    # costs tokens. Run with `just test-model`.
+    timeout: 3m

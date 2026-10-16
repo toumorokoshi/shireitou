@@ -23,7 +23,10 @@ mixin _$HostState {
  String? get protocolVersion;/// Host name and version.
  Implementation? get serverInfo;/// Default working directory URI for new sessions.
  String? get defaultDirectory;/// Last error, for display.
- String? get error;
+ String? get error;/// Subscribed session channels, keyed by the URI they were subscribed
+/// with (AHP-024).
+ Map<String, ChannelMirror<SessionState>> get sessionChannels;/// Subscribed chat channels, keyed by chat URI (AHP-025).
+ Map<String, ChannelMirror<ChatState>> get chatChannels;
 /// Create a copy of HostState
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -35,20 +38,20 @@ $HostStateCopyWith<HostState> get copyWith => _$HostStateCopyWithImpl<HostState>
 @override
 bool operator ==(Object other) {
   final _this = this as HostState;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is HostState&&(identical(other.status, _this.status) || other.status == _this.status)&&(identical(other.root, _this.root) || other.root == _this.root)&&const DeepCollectionEquality().equals(other.sessions, _this.sessions)&&(identical(other.serverSeq, _this.serverSeq) || other.serverSeq == _this.serverSeq)&&(identical(other.protocolVersion, _this.protocolVersion) || other.protocolVersion == _this.protocolVersion)&&(identical(other.serverInfo, _this.serverInfo) || other.serverInfo == _this.serverInfo)&&(identical(other.defaultDirectory, _this.defaultDirectory) || other.defaultDirectory == _this.defaultDirectory)&&(identical(other.error, _this.error) || other.error == _this.error));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is HostState&&(identical(other.status, _this.status) || other.status == _this.status)&&(identical(other.root, _this.root) || other.root == _this.root)&&const DeepCollectionEquality().equals(other.sessions, _this.sessions)&&(identical(other.serverSeq, _this.serverSeq) || other.serverSeq == _this.serverSeq)&&(identical(other.protocolVersion, _this.protocolVersion) || other.protocolVersion == _this.protocolVersion)&&(identical(other.serverInfo, _this.serverInfo) || other.serverInfo == _this.serverInfo)&&(identical(other.defaultDirectory, _this.defaultDirectory) || other.defaultDirectory == _this.defaultDirectory)&&(identical(other.error, _this.error) || other.error == _this.error)&&const DeepCollectionEquality().equals(other.sessionChannels, _this.sessionChannels)&&const DeepCollectionEquality().equals(other.chatChannels, _this.chatChannels));
 }
 
 
 @override
 int get hashCode {
   final _this = this as HostState;
-  return Object.hash(runtimeType,_this.status,_this.root,const DeepCollectionEquality().hash(_this.sessions),_this.serverSeq,_this.protocolVersion,_this.serverInfo,_this.defaultDirectory,_this.error);
+  return Object.hash(runtimeType,_this.status,_this.root,const DeepCollectionEquality().hash(_this.sessions),_this.serverSeq,_this.protocolVersion,_this.serverInfo,_this.defaultDirectory,_this.error,const DeepCollectionEquality().hash(_this.sessionChannels),const DeepCollectionEquality().hash(_this.chatChannels));
 }
 
 @override
 String toString() {
   final _this = this as HostState;
-  return 'HostState(status: ${_this.status}, root: ${_this.root}, sessions: ${_this.sessions}, serverSeq: ${_this.serverSeq}, protocolVersion: ${_this.protocolVersion}, serverInfo: ${_this.serverInfo}, defaultDirectory: ${_this.defaultDirectory}, error: ${_this.error})';
+  return 'HostState(status: ${_this.status}, root: ${_this.root}, sessions: ${_this.sessions}, serverSeq: ${_this.serverSeq}, protocolVersion: ${_this.protocolVersion}, serverInfo: ${_this.serverInfo}, defaultDirectory: ${_this.defaultDirectory}, error: ${_this.error}, sessionChannels: ${_this.sessionChannels}, chatChannels: ${_this.chatChannels})';
 }
 
 
@@ -59,7 +62,7 @@ abstract mixin class $HostStateCopyWith<$Res>  {
   factory $HostStateCopyWith(HostState value, $Res Function(HostState) _then) = _$HostStateCopyWithImpl;
 @useResult
 $Res call({
- ConnectionStatus status, RootState? root, SessionCatalogue sessions, int serverSeq, String? protocolVersion, Implementation? serverInfo, String? defaultDirectory, String? error
+ ConnectionStatus status, RootState? root, SessionCatalogue sessions, int serverSeq, String? protocolVersion, Implementation? serverInfo, String? defaultDirectory, String? error, Map<String, ChannelMirror<SessionState>> sessionChannels, Map<String, ChannelMirror<ChatState>> chatChannels
 });
 
 
@@ -76,7 +79,7 @@ class _$HostStateCopyWithImpl<$Res>
 
 /// Create a copy of HostState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? status = null,Object? root = freezed,Object? sessions = null,Object? serverSeq = null,Object? protocolVersion = freezed,Object? serverInfo = freezed,Object? defaultDirectory = freezed,Object? error = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? status = null,Object? root = freezed,Object? sessions = null,Object? serverSeq = null,Object? protocolVersion = freezed,Object? serverInfo = freezed,Object? defaultDirectory = freezed,Object? error = freezed,Object? sessionChannels = null,Object? chatChannels = null,}) {
   return _then(HostState(
 status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
 as ConnectionStatus,root: freezed == root ? _self.root : root // ignore: cast_nullable_to_non_nullable
@@ -86,7 +89,9 @@ as int,protocolVersion: freezed == protocolVersion ? _self.protocolVersion : pro
 as String?,serverInfo: freezed == serverInfo ? _self.serverInfo : serverInfo // ignore: cast_nullable_to_non_nullable
 as Implementation?,defaultDirectory: freezed == defaultDirectory ? _self.defaultDirectory : defaultDirectory // ignore: cast_nullable_to_non_nullable
 as String?,error: freezed == error ? _self.error : error // ignore: cast_nullable_to_non_nullable
-as String?,
+as String?,sessionChannels: null == sessionChannels ? _self.sessionChannels : sessionChannels // ignore: cast_nullable_to_non_nullable
+as Map<String, ChannelMirror<SessionState>>,chatChannels: null == chatChannels ? _self.chatChannels : chatChannels // ignore: cast_nullable_to_non_nullable
+as Map<String, ChannelMirror<ChatState>>,
   ));
 }
 /// Create a copy of HostState
@@ -195,10 +200,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( ConnectionStatus status,  RootState? root,  SessionCatalogue sessions,  int serverSeq,  String? protocolVersion,  Implementation? serverInfo,  String? defaultDirectory,  String? error)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( ConnectionStatus status,  RootState? root,  SessionCatalogue sessions,  int serverSeq,  String? protocolVersion,  Implementation? serverInfo,  String? defaultDirectory,  String? error,  Map<String, ChannelMirror<SessionState>> sessionChannels,  Map<String, ChannelMirror<ChatState>> chatChannels)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _HostState() when $default != null:
-return $default(_that.status,_that.root,_that.sessions,_that.serverSeq,_that.protocolVersion,_that.serverInfo,_that.defaultDirectory,_that.error);case _:
+return $default(_that.status,_that.root,_that.sessions,_that.serverSeq,_that.protocolVersion,_that.serverInfo,_that.defaultDirectory,_that.error,_that.sessionChannels,_that.chatChannels);case _:
   return orElse();
 
 }
@@ -216,10 +221,10 @@ return $default(_that.status,_that.root,_that.sessions,_that.serverSeq,_that.pro
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( ConnectionStatus status,  RootState? root,  SessionCatalogue sessions,  int serverSeq,  String? protocolVersion,  Implementation? serverInfo,  String? defaultDirectory,  String? error)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( ConnectionStatus status,  RootState? root,  SessionCatalogue sessions,  int serverSeq,  String? protocolVersion,  Implementation? serverInfo,  String? defaultDirectory,  String? error,  Map<String, ChannelMirror<SessionState>> sessionChannels,  Map<String, ChannelMirror<ChatState>> chatChannels)  $default,) {final _that = this;
 switch (_that) {
 case _HostState():
-return $default(_that.status,_that.root,_that.sessions,_that.serverSeq,_that.protocolVersion,_that.serverInfo,_that.defaultDirectory,_that.error);case _:
+return $default(_that.status,_that.root,_that.sessions,_that.serverSeq,_that.protocolVersion,_that.serverInfo,_that.defaultDirectory,_that.error,_that.sessionChannels,_that.chatChannels);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -236,10 +241,10 @@ return $default(_that.status,_that.root,_that.sessions,_that.serverSeq,_that.pro
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( ConnectionStatus status,  RootState? root,  SessionCatalogue sessions,  int serverSeq,  String? protocolVersion,  Implementation? serverInfo,  String? defaultDirectory,  String? error)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( ConnectionStatus status,  RootState? root,  SessionCatalogue sessions,  int serverSeq,  String? protocolVersion,  Implementation? serverInfo,  String? defaultDirectory,  String? error,  Map<String, ChannelMirror<SessionState>> sessionChannels,  Map<String, ChannelMirror<ChatState>> chatChannels)?  $default,) {final _that = this;
 switch (_that) {
 case _HostState() when $default != null:
-return $default(_that.status,_that.root,_that.sessions,_that.serverSeq,_that.protocolVersion,_that.serverInfo,_that.defaultDirectory,_that.error);case _:
+return $default(_that.status,_that.root,_that.sessions,_that.serverSeq,_that.protocolVersion,_that.serverInfo,_that.defaultDirectory,_that.error,_that.sessionChannels,_that.chatChannels);case _:
   return null;
 
 }
@@ -251,7 +256,7 @@ return $default(_that.status,_that.root,_that.sessions,_that.serverSeq,_that.pro
 
 
 class _HostState implements HostState {
-  const _HostState({this.status = ConnectionStatus.disconnected, this.root,  SessionCatalogue sessions = emptyCatalogue, this.serverSeq = 0, this.protocolVersion, this.serverInfo, this.defaultDirectory, this.error}): _sessions = sessions;
+  const _HostState({this.status = ConnectionStatus.disconnected, this.root,  SessionCatalogue sessions = emptyCatalogue, this.serverSeq = 0, this.protocolVersion, this.serverInfo, this.defaultDirectory, this.error,  Map<String, ChannelMirror<SessionState>> sessionChannels = const <String, ChannelMirror<SessionState>>{},  Map<String, ChannelMirror<ChatState>> chatChannels = const <String, ChannelMirror<ChatState>>{}}): _sessions = sessions,_sessionChannels = sessionChannels,_chatChannels = chatChannels;
   
 
 /// Connection status.
@@ -277,6 +282,26 @@ class _HostState implements HostState {
 @override final  String? defaultDirectory;
 /// Last error, for display.
 @override final  String? error;
+/// Subscribed session channels, keyed by the URI they were subscribed
+/// with (AHP-024).
+ final  Map<String, ChannelMirror<SessionState>> _sessionChannels;
+/// Subscribed session channels, keyed by the URI they were subscribed
+/// with (AHP-024).
+@override@JsonKey() Map<String, ChannelMirror<SessionState>> get sessionChannels {
+  if (_sessionChannels is EqualUnmodifiableMapView) return _sessionChannels;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableMapView(_sessionChannels);
+}
+
+/// Subscribed chat channels, keyed by chat URI (AHP-025).
+ final  Map<String, ChannelMirror<ChatState>> _chatChannels;
+/// Subscribed chat channels, keyed by chat URI (AHP-025).
+@override@JsonKey() Map<String, ChannelMirror<ChatState>> get chatChannels {
+  if (_chatChannels is EqualUnmodifiableMapView) return _chatChannels;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableMapView(_chatChannels);
+}
+
 
 /// Create a copy of HostState
 /// with the given fields replaced by the non-null parameter values.
@@ -288,18 +313,18 @@ _$HostStateCopyWith<_HostState> get copyWith => __$HostStateCopyWithImpl<_HostSt
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _HostState&&(identical(other.status, status) || other.status == status)&&(identical(other.root, root) || other.root == root)&&const DeepCollectionEquality().equals(other.sessions, _sessions)&&(identical(other.serverSeq, serverSeq) || other.serverSeq == serverSeq)&&(identical(other.protocolVersion, protocolVersion) || other.protocolVersion == protocolVersion)&&(identical(other.serverInfo, serverInfo) || other.serverInfo == serverInfo)&&(identical(other.defaultDirectory, defaultDirectory) || other.defaultDirectory == defaultDirectory)&&(identical(other.error, error) || other.error == error));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _HostState&&(identical(other.status, status) || other.status == status)&&(identical(other.root, root) || other.root == root)&&const DeepCollectionEquality().equals(other.sessions, _sessions)&&(identical(other.serverSeq, serverSeq) || other.serverSeq == serverSeq)&&(identical(other.protocolVersion, protocolVersion) || other.protocolVersion == protocolVersion)&&(identical(other.serverInfo, serverInfo) || other.serverInfo == serverInfo)&&(identical(other.defaultDirectory, defaultDirectory) || other.defaultDirectory == defaultDirectory)&&(identical(other.error, error) || other.error == error)&&const DeepCollectionEquality().equals(other.sessionChannels, _sessionChannels)&&const DeepCollectionEquality().equals(other.chatChannels, _chatChannels));
 }
 
 
 @override
 int get hashCode {
-    return Object.hash(runtimeType,status,root,const DeepCollectionEquality().hash(_sessions),serverSeq,protocolVersion,serverInfo,defaultDirectory,error);
+    return Object.hash(runtimeType,status,root,const DeepCollectionEquality().hash(_sessions),serverSeq,protocolVersion,serverInfo,defaultDirectory,error,const DeepCollectionEquality().hash(_sessionChannels),const DeepCollectionEquality().hash(_chatChannels));
 }
 
 @override
 String toString() {
-    return 'HostState(status: $status, root: $root, sessions: $sessions, serverSeq: $serverSeq, protocolVersion: $protocolVersion, serverInfo: $serverInfo, defaultDirectory: $defaultDirectory, error: $error)';
+    return 'HostState(status: $status, root: $root, sessions: $sessions, serverSeq: $serverSeq, protocolVersion: $protocolVersion, serverInfo: $serverInfo, defaultDirectory: $defaultDirectory, error: $error, sessionChannels: $sessionChannels, chatChannels: $chatChannels)';
 }
 
 
@@ -310,7 +335,7 @@ abstract mixin class _$HostStateCopyWith<$Res> implements $HostStateCopyWith<$Re
   factory _$HostStateCopyWith(_HostState value, $Res Function(_HostState) _then) = __$HostStateCopyWithImpl;
 @override @useResult
 $Res call({
- ConnectionStatus status, RootState? root, SessionCatalogue sessions, int serverSeq, String? protocolVersion, Implementation? serverInfo, String? defaultDirectory, String? error
+ ConnectionStatus status, RootState? root, SessionCatalogue sessions, int serverSeq, String? protocolVersion, Implementation? serverInfo, String? defaultDirectory, String? error, Map<String, ChannelMirror<SessionState>> sessionChannels, Map<String, ChannelMirror<ChatState>> chatChannels
 });
 
 
@@ -327,7 +352,7 @@ class __$HostStateCopyWithImpl<$Res>
 
 /// Create a copy of HostState
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? status = null,Object? root = freezed,Object? sessions = null,Object? serverSeq = null,Object? protocolVersion = freezed,Object? serverInfo = freezed,Object? defaultDirectory = freezed,Object? error = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? status = null,Object? root = freezed,Object? sessions = null,Object? serverSeq = null,Object? protocolVersion = freezed,Object? serverInfo = freezed,Object? defaultDirectory = freezed,Object? error = freezed,Object? sessionChannels = null,Object? chatChannels = null,}) {
   return _then(_HostState(
 status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
 as ConnectionStatus,root: freezed == root ? _self.root : root // ignore: cast_nullable_to_non_nullable
@@ -337,7 +362,9 @@ as int,protocolVersion: freezed == protocolVersion ? _self.protocolVersion : pro
 as String?,serverInfo: freezed == serverInfo ? _self.serverInfo : serverInfo // ignore: cast_nullable_to_non_nullable
 as Implementation?,defaultDirectory: freezed == defaultDirectory ? _self.defaultDirectory : defaultDirectory // ignore: cast_nullable_to_non_nullable
 as String?,error: freezed == error ? _self.error : error // ignore: cast_nullable_to_non_nullable
-as String?,
+as String?,sessionChannels: null == sessionChannels ? _self._sessionChannels : sessionChannels // ignore: cast_nullable_to_non_nullable
+as Map<String, ChannelMirror<SessionState>>,chatChannels: null == chatChannels ? _self._chatChannels : chatChannels // ignore: cast_nullable_to_non_nullable
+as Map<String, ChannelMirror<ChatState>>,
   ));
 }
 

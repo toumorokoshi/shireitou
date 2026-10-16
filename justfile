@@ -25,10 +25,15 @@ test:
     cd packages/ahp_client && dart test -x integration
     cd app && flutter test
 
-# Run the integration test against pi-agent-host-protocol.
+# Run the integration tests against pi-agent-host-protocol (no model turns).
 # Set PI_AHP_HOST_DIR to the checkout (default: a sibling of this repo).
 test-integration:
-    cd packages/ahp_client && dart test -t integration
+    cd packages/ahp_client && dart test -t integration -x model
+
+# Run a real model turn through pi, using the providers in ~/.pi/agent.
+# Costs tokens; sessions go to a temp directory.
+test-model:
+    cd packages/ahp_client && dart test -t model
 
 # Regenerate freezed / json_serializable code in ahp_client.
 codegen:

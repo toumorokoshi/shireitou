@@ -27,6 +27,30 @@ const _initializeResult = <String, Object?>{
   ],
 };
 
+const _sessionState = <String, Object?>{
+  'provider': 'pi',
+  'title': 'first',
+  'status': 1,
+  'lifecycle': 'ready',
+  'activeClients': <Object?>[],
+  'chats': [
+    {'resource': 'ahp-chat:/a', 'title': 'first'},
+  ],
+};
+
+const _chatState = <String, Object?>{
+  'resource': 'ahp-chat:/a',
+  'title': 'first',
+  'status': 33,
+  'modifiedAt': '2026-01-01T00:00:00Z',
+  'turns': <Object?>[],
+};
+
+const _snapshots = <String, Object?>{
+  'pi:/a': {'resource': 'pi:/a', 'state': _sessionState, 'fromSeq': 5},
+  'ahp-chat:/a': {'resource': 'ahp-chat:/a', 'state': _chatState, 'fromSeq': 5},
+};
+
 /// An in-memory AHP host. Each connection gets a fresh host-side [Peer].
 class FakeHost {
   /// Requests received, as (method, params).
@@ -41,7 +65,17 @@ class FakeHost {
   Future<StreamChannel<String>> connect(Uri uri) async {
     final controller = StreamChannelController<String>(sync: true);
     final peer = Peer(controller.foreign);
-    for (final method in ['initialize', 'reconnect', 'listSessions', 'ping']) {
+    const methods = [
+      'initialize',
+      'reconnect',
+      'listSessions',
+      'ping',
+      'subscribe',
+      'createSession',
+      'dispatchAction',
+      'unsubscribe',
+    ];
+    for (final method in methods) {
       peer.registerMethod(method, (Parameters p) {
         final params = p.value as JsonMap;
         requests.add((method, params));
@@ -72,6 +106,18 @@ class FakeHost {
                       {..._summaryJson, 'resource': 'pi:/b', 'title': 'second'},
                     ],
                   },
+          'subscribe' => {'snapshot': _snapshots[params['channel']]},
+          'createSession' => () {
+            // Publish the session under pi's `pi:/<id>` form, like pi does.
+            final id = (params['channel']! as String).split('/').last;
+            Timer.run(
+              () => peer.sendNotification('root/sessionAdded', {
+                'channel': rootChannel,
+                'summary': {..._summaryJson, 'resource': 'pi:/$id'},
+              }),
+            );
+            return null;
+          }(),
           _ => null,
         };
       });
@@ -168,5 +214,65 @@ void main() {
     expect(params['subscriptions'], [rootChannel]);
     expect(client.state.root!.activeSessions, 4);
     expect(client.state.serverSeq, 9);
+  });
+
+  test('openSession subscribes to the session and its default chat', () async {
+    await client.connect();
+    final chat = await client.openSession('pi:/a');
+    expect(chat, 'ahp-chat:/a');
+    expect(
+      host.requests
+          .where((r) => r.$1 == 'subscribe')
+          .map((r) => r.$2['channel']),
+      ['pi:/a', 'ahp-chat:/a'],
+    );
+    expect(client.state.sessionChannels['pi:/a']!.state.title, 'first');
+    expect(client.state.chatChannels['ahp-chat:/a']!.state.turns, isEmpty);
+
+    client.closeSession('pi:/a', chat);
+    await _settle();
+    expect(client.state.chatChannels, isEmpty);
+    expect(client.state.sessionChannels, isEmpty);
+    expect(host.requests.where((r) => r.$1 == 'unsubscribe'), hasLength(2));
+  });
+
+  test('dispatch applies optimistically and the echo confirms it', () async {
+    await client.connect();
+    await client.openSession('pi:/a');
+    final action = ChatAction.turnStarted(
+      turnId: 't1',
+      startedAt: '2026-01-01T00:00:00.000Z',
+      message: userMessage('hi'),
+    ).toJson();
+    final seq = client.dispatch('ahp-chat:/a', action);
+    final mirror = client.state.chatChannels['ahp-chat:/a']!;
+    expect(mirror.state.activeTurn?.message.text, 'hi');
+    expect(mirror.pending.single.clientSeq, seq);
+
+    await _settle();
+    final (_, params) = host.requests.lastWhere(
+      (r) => r.$1 == 'dispatchAction',
+    );
+    expect(params['clientSeq'], seq);
+    expect((params['action']! as JsonMap)['type'], 'chat/turnStarted');
+
+    host.peers.single.sendNotification('action', {
+      'channel': 'ahp-chat:/a',
+      'action': action,
+      'serverSeq': 6,
+      'origin': {'clientId': 'test-client', 'clientSeq': seq},
+    });
+    await _settle();
+    final confirmed = client.state.chatChannels['ahp-chat:/a']!;
+    expect(confirmed.pending, isEmpty);
+    expect(confirmed.confirmed.activeTurn?.id, 't1');
+  });
+
+  test('createSession returns the URI the host lists', () async {
+    await client.connect();
+    final session = await client.createSession(provider: 'pi');
+    expect(session, startsWith('pi:/'));
+    final (_, params) = host.requests.lastWhere((r) => r.$1 == 'createSession');
+    expect(params['channel'], 'ahp-session:/${session.substring(4)}');
   });
 }

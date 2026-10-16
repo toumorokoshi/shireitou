@@ -87,6 +87,7 @@ void main() {
         state = applyEnvelope(
           state,
           ActionEnvelope.fromJson(message['params']! as JsonMap),
+          clientId: 'example-client',
         );
       } else if (method != null && method.startsWith('root/')) {
         state = state.copyWith(

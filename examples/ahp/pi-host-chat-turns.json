@@ -1,0 +1,3596 @@
+[
+ {
+  "dir": "client->host",
+  "message": {
+   "jsonrpc": "2.0",
+   "id": 1,
+   "method": "initialize",
+   "params": {
+    "channel": "ahp-root://",
+    "protocolVersions": [
+     "1.0.0"
+    ],
+    "clientId": "recorder",
+    "clientInfo": {
+     "name": "recorder"
+    },
+    "initialSubscriptions": [
+     "ahp-root://"
+    ]
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "id": 1,
+   "result": {
+    "protocolVersion": "1.0.0",
+    "serverSeq": 1,
+    "serverInfo": {
+     "name": "pi-agent-host-protocol",
+     "version": "0.3.0"
+    },
+    "snapshots": [
+     {
+      "resource": "ahp-root://",
+      "state": {
+       "agents": [
+        {
+         "provider": "pi",
+         "displayName": "Pi",
+         "description": "The pi coding agent",
+         "models": [
+          {
+           "id": "ollama/example-model",
+           "provider": "pi",
+           "name": "example-model",
+           "maxContextWindow": 128000,
+           "maxOutputTokens": 16384,
+           "supportsVision": false
+          }
+         ]
+        }
+       ],
+       "activeSessions": 0,
+       "terminals": []
+      },
+      "fromSeq": 1
+     }
+    ],
+    "defaultDirectory": "file:///home/user/project",
+    "completionTriggerCharacters": [
+     "/"
+    ]
+   }
+  }
+ },
+ {
+  "dir": "client->host",
+  "message": {
+   "jsonrpc": "2.0",
+   "id": 2,
+   "method": "createSession",
+   "params": {
+    "channel": "ahp-session:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+    "provider": "pi",
+    "workingDirectories": [
+     "file:///home/user/project"
+    ]
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "id": 2,
+   "result": null
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "root/sessionAdded",
+   "params": {
+    "channel": "ahp-root://",
+    "summary": {
+     "resource": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+     "provider": "pi",
+     "title": "New session",
+     "status": 1,
+     "createdAt": "2026-10-16T04:45:52.833Z",
+     "modifiedAt": "2026-10-16T04:45:52.833Z",
+     "workingDirectories": [
+      "file:///home/user/project"
+     ],
+     "chats": [
+      {
+       "resource": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+       "title": "New session",
+       "status": 1,
+       "modifiedAt": "2026-10-16T04:45:52.833Z"
+      }
+     ]
+    }
+   }
+  }
+ },
+ {
+  "dir": "client->host",
+  "message": {
+   "jsonrpc": "2.0",
+   "id": 3,
+   "method": "subscribe",
+   "params": {
+    "channel": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6"
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "id": 3,
+   "result": {
+    "snapshot": {
+     "resource": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+     "state": {
+      "provider": "pi",
+      "title": "New session",
+      "status": 1,
+      "workingDirectories": [
+       "file:///home/user/project"
+      ],
+      "lifecycle": "ready",
+      "activeClients": [],
+      "chats": [
+       {
+        "resource": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+        "title": "New session",
+        "status": 1,
+        "modifiedAt": "2026-10-16T04:45:52.833Z"
+       }
+      ],
+      "defaultChat": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg"
+     },
+     "fromSeq": 2
+    }
+   }
+  }
+ },
+ {
+  "dir": "client->host",
+  "message": {
+   "jsonrpc": "2.0",
+   "id": 4,
+   "method": "subscribe",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg"
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "id": 4,
+   "result": {
+    "snapshot": {
+     "resource": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+     "state": {
+      "resource": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+      "title": "New session",
+      "status": 1,
+      "modifiedAt": "2026-10-16T04:45:52.833Z",
+      "turns": []
+     },
+     "fromSeq": 2
+    }
+   }
+  }
+ },
+ {
+  "dir": "client->host",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "dispatchAction",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "clientSeq": 1,
+    "action": {
+     "type": "chat/turnStarted",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "startedAt": "2026-10-16T04:45:52.875Z",
+     "message": {
+      "text": "Reply with just the word ok.",
+      "origin": {
+       "kind": "user"
+      }
+     }
+    }
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/turnStarted",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "startedAt": "2026-10-16T04:45:52.875Z",
+     "message": {
+      "text": "Reply with just the word ok.",
+      "origin": {
+       "kind": "user"
+      }
+     }
+    },
+    "serverSeq": 4,
+    "origin": {
+     "clientId": "recorder",
+     "clientSeq": 1
+    }
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-root://",
+    "action": {
+     "type": "root/activeSessionsChanged",
+     "activeSessions": 1
+    },
+    "serverSeq": 5
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+    "action": {
+     "type": "session/chatUpdated",
+     "chat": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+     "changes": {
+      "status": 8,
+      "modifiedAt": "2026-10-16T04:45:52.875Z"
+     }
+    },
+    "serverSeq": 6
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "root/sessionSummaryChanged",
+   "params": {
+    "channel": "ahp-root://",
+    "session": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+    "changes": {
+     "status": 8,
+     "modifiedAt": "2026-10-16T04:45:52.875Z"
+    }
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+    "action": {
+     "type": "session/titleChanged",
+     "title": "Reply with just the word ok."
+    },
+    "serverSeq": 7
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+    "action": {
+     "type": "session/chatUpdated",
+     "chat": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+     "changes": {
+      "title": "Reply with just the word ok."
+     }
+    },
+    "serverSeq": 8
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "root/sessionSummaryChanged",
+   "params": {
+    "channel": "ahp-root://",
+    "session": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+    "changes": {
+     "title": "Reply with just the word ok.",
+     "chats": [
+      {
+       "resource": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+       "title": "Reply with just the word ok.",
+       "status": 8
+      }
+     ]
+    }
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/activityChanged",
+     "activity": "Thinking"
+    },
+    "serverSeq": 9
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+    "action": {
+     "type": "session/activityChanged",
+     "activity": "Thinking"
+    },
+    "serverSeq": 10
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+    "action": {
+     "type": "session/chatUpdated",
+     "chat": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+     "changes": {
+      "activity": "Thinking"
+     }
+    },
+    "serverSeq": 11
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "root/sessionSummaryChanged",
+   "params": {
+    "channel": "ahp-root://",
+    "session": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+    "changes": {
+     "activity": "Thinking"
+    }
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/responsePart",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "part": {
+      "kind": "reasoning",
+      "id": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+      "content": ""
+     }
+    },
+    "serverSeq": 12
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": "The"
+    },
+    "serverSeq": 13
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " user"
+    },
+    "serverSeq": 14
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " is"
+    },
+    "serverSeq": 15
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " asking"
+    },
+    "serverSeq": 16
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " me"
+    },
+    "serverSeq": 17
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " to"
+    },
+    "serverSeq": 18
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " reply"
+    },
+    "serverSeq": 19
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " with"
+    },
+    "serverSeq": 20
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " just"
+    },
+    "serverSeq": 21
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " the"
+    },
+    "serverSeq": 22
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " word"
+    },
+    "serverSeq": 23
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " \""
+    },
+    "serverSeq": 24
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": "ok"
+    },
+    "serverSeq": 25
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": "\"."
+    },
+    "serverSeq": 26
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " There"
+    },
+    "serverSeq": 27
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": "'s"
+    },
+    "serverSeq": 28
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " a"
+    },
+    "serverSeq": 29
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " system"
+    },
+    "serverSeq": 30
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " reminder"
+    },
+    "serverSeq": 31
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " about"
+    },
+    "serverSeq": 32
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " Q"
+    },
+    "serverSeq": 33
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": "wen"
+    },
+    "serverSeq": 34
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": "'s"
+    },
+    "serverSeq": 35
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " identity"
+    },
+    "serverSeq": 36
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": ","
+    },
+    "serverSeq": 37
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " but"
+    },
+    "serverSeq": 38
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " it"
+    },
+    "serverSeq": 39
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " says"
+    },
+    "serverSeq": 40
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " to"
+    },
+    "serverSeq": 41
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " use"
+    },
+    "serverSeq": 42
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " that"
+    },
+    "serverSeq": 43
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " only"
+    },
+    "serverSeq": 44
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " when"
+    },
+    "serverSeq": 45
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " the"
+    },
+    "serverSeq": 46
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " user"
+    },
+    "serverSeq": 47
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": "'s"
+    },
+    "serverSeq": 48
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " question"
+    },
+    "serverSeq": 49
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " concerns"
+    },
+    "serverSeq": 50
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " my"
+    },
+    "serverSeq": 51
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " capabilities"
+    },
+    "serverSeq": 52
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " or"
+    },
+    "serverSeq": 53
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " origins"
+    },
+    "serverSeq": 54
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": "."
+    },
+    "serverSeq": 55
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " This"
+    },
+    "serverSeq": 56
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " question"
+    },
+    "serverSeq": 57
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " doesn"
+    },
+    "serverSeq": 58
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": "'t"
+    },
+    "serverSeq": 59
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " concern"
+    },
+    "serverSeq": 60
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " that"
+    },
+    "serverSeq": 61
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": "—it"
+    },
+    "serverSeq": 62
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": "'s"
+    },
+    "serverSeq": 63
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " just"
+    },
+    "serverSeq": 64
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " asking"
+    },
+    "serverSeq": 65
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " to"
+    },
+    "serverSeq": 66
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " reply"
+    },
+    "serverSeq": 67
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " with"
+    },
+    "serverSeq": 68
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " \""
+    },
+    "serverSeq": 69
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": "ok"
+    },
+    "serverSeq": 70
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": "\"."
+    },
+    "serverSeq": 71
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " So"
+    },
+    "serverSeq": 72
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " I"
+    },
+    "serverSeq": 73
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " should"
+    },
+    "serverSeq": 74
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " just"
+    },
+    "serverSeq": 75
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " reply"
+    },
+    "serverSeq": 76
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " with"
+    },
+    "serverSeq": 77
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": " \""
+    },
+    "serverSeq": 78
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": "ok"
+    },
+    "serverSeq": 79
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": "\"."
+    },
+    "serverSeq": 80
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.0",
+     "content": "\n"
+    },
+    "serverSeq": 81
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/responsePart",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "part": {
+      "kind": "markdown",
+      "id": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.1",
+      "content": ""
+     }
+    },
+    "serverSeq": 82
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/activityChanged",
+     "activity": "Responding"
+    },
+    "serverSeq": 83
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+    "action": {
+     "type": "session/activityChanged",
+     "activity": "Responding"
+    },
+    "serverSeq": 84
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+    "action": {
+     "type": "session/chatUpdated",
+     "chat": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+     "changes": {
+      "activity": "Responding"
+     }
+    },
+    "serverSeq": 85
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "root/sessionSummaryChanged",
+   "params": {
+    "channel": "ahp-root://",
+    "session": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+    "changes": {
+     "activity": "Responding"
+    }
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/delta",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "partId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383.0.1",
+     "content": "ok"
+    },
+    "serverSeq": 86
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/activityChanged"
+    },
+    "serverSeq": 87
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+    "action": {
+     "type": "session/activityChanged"
+    },
+    "serverSeq": 88
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+    "action": {
+     "type": "session/chatUpdated",
+     "chat": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+     "changes": {}
+    },
+    "serverSeq": 89
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "root/sessionSummaryChanged",
+   "params": {
+    "channel": "ahp-root://",
+    "session": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+    "changes": {
+     "activity": null
+    }
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/usage",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "usage": {
+      "inputTokens": 5448,
+      "outputTokens": 73,
+      "model": "example-model"
+     }
+    },
+    "serverSeq": 90
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/turnComplete",
+     "turnId": "cd2938ab-bf2c-4d70-a011-49d3a1dc7383",
+     "duration": 12280
+    },
+    "serverSeq": 91
+   }
+  }
+ },
+ {
+  "dir": "client->host",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "dispatchAction",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "clientSeq": 2,
+    "action": {
+     "type": "chat/turnStarted",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "startedAt": "2026-10-16T04:46:05.168Z",
+     "message": {
+      "text": "Use your bash tool to run `ls` in the current directory, then reply with the word done.",
+      "origin": {
+       "kind": "user"
+      }
+     }
+    }
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-root://",
+    "action": {
+     "type": "root/activeSessionsChanged",
+     "activeSessions": 0
+    },
+    "serverSeq": 92
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+    "action": {
+     "type": "session/chatUpdated",
+     "chat": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+     "changes": {
+      "status": 1,
+      "modifiedAt": "2026-10-16T04:46:05.155Z"
+     }
+    },
+    "serverSeq": 93
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "root/sessionSummaryChanged",
+   "params": {
+    "channel": "ahp-root://",
+    "session": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+    "changes": {
+     "status": 1,
+     "modifiedAt": "2026-10-16T04:46:05.155Z"
+    }
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/turnStarted",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "startedAt": "2026-10-16T04:46:05.168Z",
+     "message": {
+      "text": "Use your bash tool to run `ls` in the current directory, then reply with the word done.",
+      "origin": {
+       "kind": "user"
+      }
+     }
+    },
+    "serverSeq": 94,
+    "origin": {
+     "clientId": "recorder",
+     "clientSeq": 2
+    }
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-root://",
+    "action": {
+     "type": "root/activeSessionsChanged",
+     "activeSessions": 1
+    },
+    "serverSeq": 95
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+    "action": {
+     "type": "session/chatUpdated",
+     "chat": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+     "changes": {
+      "status": 8,
+      "modifiedAt": "2026-10-16T04:46:05.168Z"
+     }
+    },
+    "serverSeq": 96
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "root/sessionSummaryChanged",
+   "params": {
+    "channel": "ahp-root://",
+    "session": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+    "changes": {
+     "status": 8,
+     "modifiedAt": "2026-10-16T04:46:05.168Z"
+    }
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/activityChanged",
+     "activity": "Thinking"
+    },
+    "serverSeq": 97
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+    "action": {
+     "type": "session/activityChanged",
+     "activity": "Thinking"
+    },
+    "serverSeq": 98
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+    "action": {
+     "type": "session/chatUpdated",
+     "chat": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+     "changes": {
+      "activity": "Thinking"
+     }
+    },
+    "serverSeq": 99
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "root/sessionSummaryChanged",
+   "params": {
+    "channel": "ahp-root://",
+    "session": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+    "changes": {
+     "activity": "Thinking"
+    }
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/responsePart",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "part": {
+      "kind": "reasoning",
+      "id": "a16eb003-d127-4a86-b721-9fff78a37026.0.0",
+      "content": ""
+     }
+    },
+    "serverSeq": 100
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.0.0",
+     "content": "The"
+    },
+    "serverSeq": 101
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.0.0",
+     "content": " user"
+    },
+    "serverSeq": 102
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.0.0",
+     "content": " wants"
+    },
+    "serverSeq": 103
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.0.0",
+     "content": " me"
+    },
+    "serverSeq": 104
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.0.0",
+     "content": " to"
+    },
+    "serverSeq": 105
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.0.0",
+     "content": " run"
+    },
+    "serverSeq": 106
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.0.0",
+     "content": " `"
+    },
+    "serverSeq": 107
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.0.0",
+     "content": "ls"
+    },
+    "serverSeq": 108
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.0.0",
+     "content": "`"
+    },
+    "serverSeq": 109
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.0.0",
+     "content": " in"
+    },
+    "serverSeq": 110
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.0.0",
+     "content": " the"
+    },
+    "serverSeq": 111
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.0.0",
+     "content": " current"
+    },
+    "serverSeq": 112
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.0.0",
+     "content": " directory"
+    },
+    "serverSeq": 113
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.0.0",
+     "content": " and"
+    },
+    "serverSeq": 114
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.0.0",
+     "content": " then"
+    },
+    "serverSeq": 115
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.0.0",
+     "content": " reply"
+    },
+    "serverSeq": 116
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.0.0",
+     "content": " with"
+    },
+    "serverSeq": 117
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.0.0",
+     "content": " \""
+    },
+    "serverSeq": 118
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.0.0",
+     "content": "done"
+    },
+    "serverSeq": 119
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.0.0",
+     "content": "\"."
+    },
+    "serverSeq": 120
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.0.0",
+     "content": " Let"
+    },
+    "serverSeq": 121
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.0.0",
+     "content": "'s"
+    },
+    "serverSeq": 122
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.0.0",
+     "content": " do"
+    },
+    "serverSeq": 123
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.0.0",
+     "content": " that"
+    },
+    "serverSeq": 124
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.0.0",
+     "content": "."
+    },
+    "serverSeq": 125
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.0.0",
+     "content": "\n"
+    },
+    "serverSeq": 126
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/toolCallStart",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "toolCallId": "d1Q8Vvu2FwoXabj9ejoBxOC22vRT9zVn",
+     "toolName": "bash",
+     "displayName": "Bash"
+    },
+    "serverSeq": 127
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/activityChanged",
+     "activity": "Running command"
+    },
+    "serverSeq": 128
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+    "action": {
+     "type": "session/activityChanged",
+     "activity": "Running command"
+    },
+    "serverSeq": 129
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+    "action": {
+     "type": "session/chatUpdated",
+     "chat": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+     "changes": {
+      "activity": "Running command"
+     }
+    },
+    "serverSeq": 130
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "root/sessionSummaryChanged",
+   "params": {
+    "channel": "ahp-root://",
+    "session": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+    "changes": {
+     "activity": "Running command"
+    }
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/toolCallDelta",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "toolCallId": "d1Q8Vvu2FwoXabj9ejoBxOC22vRT9zVn",
+     "content": "{"
+    },
+    "serverSeq": 131
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/toolCallDelta",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "toolCallId": "d1Q8Vvu2FwoXabj9ejoBxOC22vRT9zVn",
+     "content": "\"command\":\""
+    },
+    "serverSeq": 132
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/toolCallDelta",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "toolCallId": "d1Q8Vvu2FwoXabj9ejoBxOC22vRT9zVn",
+     "content": "ls"
+    },
+    "serverSeq": 133
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/toolCallDelta",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "toolCallId": "d1Q8Vvu2FwoXabj9ejoBxOC22vRT9zVn",
+     "content": "\""
+    },
+    "serverSeq": 134
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/toolCallDelta",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "toolCallId": "d1Q8Vvu2FwoXabj9ejoBxOC22vRT9zVn",
+     "content": "}"
+    },
+    "serverSeq": 135
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/activityChanged",
+     "activity": "Running ls"
+    },
+    "serverSeq": 136
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+    "action": {
+     "type": "session/activityChanged",
+     "activity": "Running ls"
+    },
+    "serverSeq": 137
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+    "action": {
+     "type": "session/chatUpdated",
+     "chat": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+     "changes": {
+      "activity": "Running ls"
+     }
+    },
+    "serverSeq": 138
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "root/sessionSummaryChanged",
+   "params": {
+    "channel": "ahp-root://",
+    "session": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+    "changes": {
+     "activity": "Running ls"
+    }
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/toolCallReady",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "toolCallId": "d1Q8Vvu2FwoXabj9ejoBxOC22vRT9zVn",
+     "invocationMessage": "Running `ls`",
+     "toolInput": "{\"command\":\"ls\"}",
+     "confirmed": "not-needed"
+    },
+    "serverSeq": 139
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/toolCallContentChanged",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "toolCallId": "d1Q8Vvu2FwoXabj9ejoBxOC22vRT9zVn",
+     "content": [
+      {
+       "type": "text",
+       "text": "a.txt\n"
+      }
+     ]
+    },
+    "serverSeq": 140
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/toolCallComplete",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "toolCallId": "d1Q8Vvu2FwoXabj9ejoBxOC22vRT9zVn",
+     "result": {
+      "success": true,
+      "pastTenseMessage": "Ran `ls`",
+      "content": [
+       {
+        "type": "text",
+        "text": "a.txt\n"
+       }
+      ]
+     }
+    },
+    "serverSeq": 141
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/activityChanged",
+     "activity": "Thinking"
+    },
+    "serverSeq": 142
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+    "action": {
+     "type": "session/activityChanged",
+     "activity": "Thinking"
+    },
+    "serverSeq": 143
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+    "action": {
+     "type": "session/chatUpdated",
+     "chat": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+     "changes": {
+      "activity": "Thinking"
+     }
+    },
+    "serverSeq": 144
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "root/sessionSummaryChanged",
+   "params": {
+    "channel": "ahp-root://",
+    "session": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+    "changes": {
+     "activity": "Thinking"
+    }
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/responsePart",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "part": {
+      "kind": "reasoning",
+      "id": "a16eb003-d127-4a86-b721-9fff78a37026.1.0",
+      "content": ""
+     }
+    },
+    "serverSeq": 145
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.1.0",
+     "content": "The"
+    },
+    "serverSeq": 146
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.1.0",
+     "content": " command"
+    },
+    "serverSeq": 147
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.1.0",
+     "content": " was"
+    },
+    "serverSeq": 148
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.1.0",
+     "content": " executed"
+    },
+    "serverSeq": 149
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.1.0",
+     "content": " successfully"
+    },
+    "serverSeq": 150
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.1.0",
+     "content": "."
+    },
+    "serverSeq": 151
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.1.0",
+     "content": " The"
+    },
+    "serverSeq": 152
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.1.0",
+     "content": " directory"
+    },
+    "serverSeq": 153
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.1.0",
+     "content": " contains"
+    },
+    "serverSeq": 154
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.1.0",
+     "content": " a"
+    },
+    "serverSeq": 155
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.1.0",
+     "content": ".txt"
+    },
+    "serverSeq": 156
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.1.0",
+     "content": "."
+    },
+    "serverSeq": 157
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.1.0",
+     "content": " Now"
+    },
+    "serverSeq": 158
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.1.0",
+     "content": ","
+    },
+    "serverSeq": 159
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.1.0",
+     "content": " I"
+    },
+    "serverSeq": 160
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.1.0",
+     "content": " will"
+    },
+    "serverSeq": 161
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.1.0",
+     "content": " reply"
+    },
+    "serverSeq": 162
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.1.0",
+     "content": " with"
+    },
+    "serverSeq": 163
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.1.0",
+     "content": " \""
+    },
+    "serverSeq": 164
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.1.0",
+     "content": "done"
+    },
+    "serverSeq": 165
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.1.0",
+     "content": "\"."
+    },
+    "serverSeq": 166
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/reasoning",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.1.0",
+     "content": "\n"
+    },
+    "serverSeq": 167
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/responsePart",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "part": {
+      "kind": "markdown",
+      "id": "a16eb003-d127-4a86-b721-9fff78a37026.1.1",
+      "content": ""
+     }
+    },
+    "serverSeq": 168
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/activityChanged",
+     "activity": "Responding"
+    },
+    "serverSeq": 169
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+    "action": {
+     "type": "session/activityChanged",
+     "activity": "Responding"
+    },
+    "serverSeq": 170
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+    "action": {
+     "type": "session/chatUpdated",
+     "chat": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+     "changes": {
+      "activity": "Responding"
+     }
+    },
+    "serverSeq": 171
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "root/sessionSummaryChanged",
+   "params": {
+    "channel": "ahp-root://",
+    "session": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+    "changes": {
+     "activity": "Responding"
+    }
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/delta",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "partId": "a16eb003-d127-4a86-b721-9fff78a37026.1.1",
+     "content": "done"
+    },
+    "serverSeq": 172
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/activityChanged"
+    },
+    "serverSeq": 173
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+    "action": {
+     "type": "session/activityChanged"
+    },
+    "serverSeq": 174
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+    "action": {
+     "type": "session/chatUpdated",
+     "chat": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+     "changes": {}
+    },
+    "serverSeq": 175
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "root/sessionSummaryChanged",
+   "params": {
+    "channel": "ahp-root://",
+    "session": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+    "changes": {
+     "activity": null
+    }
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/usage",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "usage": {
+      "inputTokens": 51,
+      "outputTokens": 80,
+      "cacheReadTokens": 11126,
+      "model": "example-model"
+     }
+    },
+    "serverSeq": 176
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/turnComplete",
+     "turnId": "a16eb003-d127-4a86-b721-9fff78a37026",
+     "duration": 6712
+    },
+    "serverSeq": 177
+   }
+  }
+ },
+ {
+  "dir": "client->host",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "dispatchAction",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "clientSeq": 3,
+    "action": {
+     "type": "chat/turnCancelled",
+     "turnId": "nope",
+     "duration": 0
+    }
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-root://",
+    "action": {
+     "type": "root/activeSessionsChanged",
+     "activeSessions": 0
+    },
+    "serverSeq": 178
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+    "action": {
+     "type": "session/chatUpdated",
+     "chat": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+     "changes": {
+      "status": 1,
+      "modifiedAt": "2026-10-16T04:46:11.880Z"
+     }
+    },
+    "serverSeq": 179
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "root/sessionSummaryChanged",
+   "params": {
+    "channel": "ahp-root://",
+    "session": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+    "changes": {
+     "status": 1,
+     "modifiedAt": "2026-10-16T04:46:11.880Z"
+    }
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/turnCancelled",
+     "turnId": "nope",
+     "duration": 0
+    },
+    "serverSeq": 180,
+    "origin": {
+     "clientId": "recorder",
+     "clientSeq": 3
+    },
+    "rejectionReason": "No active turn"
+   }
+  }
+ },
+ {
+  "dir": "client->host",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "dispatchAction",
+   "params": {
+    "channel": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+    "clientSeq": 4,
+    "action": {
+     "type": "session/isReadChanged",
+     "isRead": true
+    }
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+    "action": {
+     "type": "session/isReadChanged",
+     "isRead": true
+    },
+    "serverSeq": 181,
+    "origin": {
+     "clientId": "recorder",
+     "clientSeq": 4
+    }
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+    "action": {
+     "type": "chat/isReadChanged",
+     "isRead": true
+    },
+    "serverSeq": 182
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "action",
+   "params": {
+    "channel": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+    "action": {
+     "type": "session/chatUpdated",
+     "chat": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg",
+     "changes": {
+      "status": 33,
+      "modifiedAt": "2026-10-16T04:46:11.880Z"
+     }
+    },
+    "serverSeq": 183
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "method": "root/sessionSummaryChanged",
+   "params": {
+    "channel": "ahp-root://",
+    "session": "pi:/84ec0d19-9ef2-4b68-81e7-5b17e7af93d6",
+    "changes": {
+     "status": 33,
+     "modifiedAt": "2026-10-16T04:46:11.880Z"
+    }
+   }
+  }
+ },
+ {
+  "dir": "client->host",
+  "message": {
+   "jsonrpc": "2.0",
+   "id": 5,
+   "method": "fetchTurns",
+   "params": {
+    "channel": "ahp-chat://default/cGk6Lzg0ZWMwZDE5LTllZjItNGI2OC04MWU3LTViMTdlN2FmOTNkNg"
+   }
+  }
+ },
+ {
+  "dir": "host->client",
+  "message": {
+   "jsonrpc": "2.0",
+   "id": 5,
+   "result": {}
+  }
+ }
+]

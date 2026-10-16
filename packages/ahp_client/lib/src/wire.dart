@@ -72,7 +72,8 @@ abstract class ChangesSummary with _$ChangesSummary {
       _$ChangesSummaryFromJson(json);
 }
 
-/// `SessionChatSummary`: a chat entry in a session's catalogue entry.
+/// `ChatSummary`: a chat entry in a session's catalogue entry or in
+/// `SessionState.chats`.
 @freezed
 abstract class SessionChatSummary with _$SessionChatSummary {
   /// Creates a [SessionChatSummary].
@@ -88,6 +89,12 @@ abstract class SessionChatSummary with _$SessionChatSummary {
 
     /// Chat status bits; absent means unknown.
     @SessionStatusConverter() SessionStatus? status,
+
+    /// What the chat is doing.
+    String? activity,
+
+    /// Last modification time (ISO 8601).
+    String? modifiedAt,
   }) = _SessionChatSummary;
 
   /// Decodes a [SessionChatSummary] from JSON.

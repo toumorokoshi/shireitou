@@ -13,6 +13,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'host_state.dart';
 import 'protocol.dart';
 import 'session_catalogue.dart';
+import 'session_wire.dart';
 import 'subscriptions.dart';
 import 'wire.dart';
 
@@ -69,6 +70,7 @@ class AhpClient {
   HostState _state = const HostState();
   SubscriptionCounts _subscriptions = const {rootChannel: 1};
   Peer? _peer;
+  int _clientSeq = 0;
   bool _closed = false;
   bool _reconnecting = false;
 
@@ -127,8 +129,12 @@ class AhpClient {
   }
 
   /// Subscribes to [channel], sending `subscribe` only for the first
-  /// observer (AHP-020). Returns the snapshot when one was requested.
-  Future<Snapshot?> subscribe(String channel) async {
+  /// observer (AHP-020). Session and chat snapshots ([kind]) are mirrored in
+  /// [HostState]. Returns the snapshot when one was requested.
+  Future<Snapshot?> subscribe(
+    String channel, {
+    ChannelKind kind = ChannelKind.other,
+  }) async {
     final change = acquireSubscription(_subscriptions, channel);
     _subscriptions = change.counts;
     final peer = _peer;
@@ -139,7 +145,7 @@ class AhpClient {
       final JsonMap json => Snapshot.fromJson(json),
       _ => null,
     };
-    if (snapshot != null) _set(applySnapshot(_state, snapshot));
+    if (snapshot != null) _set(applySnapshot(_state, snapshot, kind));
     return snapshot;
   }
 
@@ -149,26 +155,95 @@ class AhpClient {
     _subscriptions = change.counts;
     if (change.sendToHost) {
       _peer?.sendNotification('unsubscribe', {'channel': channel});
+      _set(removeChannel(_state, channel));
     }
   }
 
-  /// Creates a session with a client-chosen `ahp-session:/<uuid>` URI and
-  /// returns that URI.
+  /// Subscribes to [session] and its default chat, and returns the chat URI
+  /// (null when the session has no chat). Release both with
+  /// [closeSession].
+  Future<String?> openSession(String session) async {
+    await subscribe(session, kind: ChannelKind.session);
+    final state = _state.sessionChannels[session]?.state;
+    final chat = state == null ? null : defaultChatOf(state);
+    if (chat != null) await subscribe(chat, kind: ChannelKind.chat);
+    return chat;
+  }
+
+  /// Releases the subscriptions taken by [openSession].
+  void closeSession(String session, String? chat) {
+    if (chat != null) unsubscribe(chat);
+    unsubscribe(session);
+  }
+
+  /// Dispatches a client [action] on [channel] (AHP-022) and returns its
+  /// `clientSeq`.
+  ///
+  /// The action is applied to the channel's mirror at once; the host's echo
+  /// confirms it, or a `rejectionReason` rolls it back.
+  int dispatch(String channel, JsonMap action) {
+    final peer = _peer;
+    if (peer == null) throw StateError('not connected');
+    final clientSeq = ++_clientSeq;
+    _set(
+      applyDispatchedAction(_state, channel, (
+        clientSeq: clientSeq,
+        action: action,
+      )),
+    );
+    peer.sendNotification('dispatchAction', {
+      'channel': channel,
+      'clientSeq': clientSeq,
+      'action': action,
+    });
+    return clientSeq;
+  }
+
+  /// Asks the host to page older turns into [chat] (`fetchTurns`). The turns
+  /// arrive as a `chat/turnsLoaded` action.
+  Future<void> fetchTurns(String chat, {String? cursor}) async {
+    final peer = _peer;
+    if (peer == null) throw StateError('not connected');
+    await peer.sendRequest('fetchTurns', {'channel': chat, 'cursor': ?cursor});
+  }
+
+  /// Creates a session with a client-chosen `ahp-session:/<uuid>` URI
+  /// (AHP-040), retrying with a new URI on `-32003 SessionAlreadyExists`.
+  ///
+  /// Waits until the session appears in the catalogue and returns its
+  /// catalogue key, which may differ from the URI sent (see
+  /// [resolveSessionResource]).
   Future<String> createSession({
     String? provider,
     List<String>? workingDirectories,
     JsonMap? config,
+    Duration timeout = const Duration(seconds: 30),
   }) async {
     final peer = _peer;
     if (peer == null) throw StateError('not connected');
-    final session = 'ahp-session:/${const Uuid().v4()}';
-    await peer.sendRequest('createSession', {
-      'channel': session,
-      'provider': ?provider,
-      'workingDirectories': ?workingDirectories,
-      'config': ?config,
-    });
-    return session;
+    for (var attempt = 0; ; attempt++) {
+      final session = 'ahp-session:/${const Uuid().v4()}';
+      try {
+        await peer.sendRequest('createSession', {
+          'channel': session,
+          'provider': ?provider,
+          'workingDirectories': ?workingDirectories,
+          'config': ?config,
+        });
+      } on RpcException catch (error) {
+        if (error.code == AhpErrorCodes.sessionAlreadyExists && attempt < 2) {
+          continue;
+        }
+        rethrow;
+      }
+      final listed = resolveSessionResource(_state.sessions, session);
+      if (listed != null) return listed;
+      return states
+          .map((state) => resolveSessionResource(state.sessions, session))
+          .firstWhere((resource) => resource != null)
+          .then((resource) => resource!)
+          .timeout(timeout);
+    }
   }
 
   /// Sends a protocol-level `ping`.
@@ -184,7 +259,7 @@ class AhpClient {
       ..registerMethod('ping', (Parameters _) => null)
       ..registerMethod('action', (Parameters params) {
         final envelope = ActionEnvelope.fromJson(params.value as JsonMap);
-        _set(applyEnvelope(_state, envelope));
+        _set(applyEnvelope(_state, envelope, clientId: clientId));
         _actions.add(envelope);
       })
       ..registerFallback((Parameters params) {
@@ -261,7 +336,7 @@ class AhpClient {
               ),
             ) as JsonMap,
           );
-          _set(applyReconnectResult(_state, result));
+          _set(applyReconnectResult(_state, result, clientId: clientId));
         } on RpcException catch (error) {
           if (error.code != AhpErrorCodes.notFound) rethrow;
           final result = InitializeResult.fromJson(

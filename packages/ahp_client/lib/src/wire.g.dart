@@ -51,6 +51,8 @@ _SessionChatSummary _$SessionChatSummaryFromJson(Map<String, dynamic> json) =>
         json['status'],
         const SessionStatusConverter().fromJson,
       ),
+      activity: json['activity'] as String?,
+      modifiedAt: json['modifiedAt'] as String?,
     );
 
 Map<String, dynamic> _$SessionChatSummaryToJson(_SessionChatSummary instance) =>
@@ -62,6 +64,8 @@ Map<String, dynamic> _$SessionChatSummaryToJson(_SessionChatSummary instance) =>
         instance.status,
         const SessionStatusConverter().toJson,
       ),
+      'activity': ?instance.activity,
+      'modifiedAt': ?instance.modifiedAt,
     };
 
 Value? _$JsonConverterFromJson<Json, Value>(

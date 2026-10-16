@@ -3,9 +3,14 @@ library;
 
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import 'channel_mirror.dart';
+import 'chat_reducer.dart';
+import 'chat_wire.dart';
 import 'protocol.dart';
 import 'root_reducer.dart';
 import 'session_catalogue.dart';
+import 'session_reducer.dart';
+import 'session_wire.dart';
 import 'wire.dart';
 
 part 'host_state.freezed.dart';
@@ -56,21 +61,110 @@ abstract class HostState with _$HostState {
 
     /// Last error, for display.
     String? error,
+
+    /// Subscribed session channels, keyed by the URI they were subscribed
+    /// with (AHP-024).
+    @Default(<String, ChannelMirror<SessionState>>{})
+    Map<String, ChannelMirror<SessionState>> sessionChannels,
+
+    /// Subscribed chat channels, keyed by chat URI (AHP-025).
+    @Default(<String, ChannelMirror<ChatState>>{})
+    Map<String, ChannelMirror<ChatState>> chatChannels,
   }) = _HostState;
 }
 
-/// Applies a channel [snapshot]. Only the root channel is held in
-/// [HostState]; other channels are left to their own observers.
-HostState applySnapshot(HostState state, Snapshot snapshot) {
+/// The kind of state a subscribed channel holds.
+enum ChannelKind {
+  /// `ahp-root://`.
+  root,
+
+  /// A session channel (`SessionState`).
+  session,
+
+  /// A chat channel (`ChatState`).
+  chat,
+
+  /// Any other channel; only `serverSeq` is tracked.
+  other,
+}
+
+/// The kind of [channel] in [state], from the maps it is held in.
+ChannelKind channelKindOf(HostState state, String channel) =>
+    channel == rootChannel
+    ? ChannelKind.root
+    : state.sessionChannels.containsKey(channel)
+    ? ChannelKind.session
+    : state.chatChannels.containsKey(channel)
+    ? ChannelKind.chat
+    : ChannelKind.other;
+
+/// Applies a [snapshot] of a channel of [kind] (by default, the kind
+/// [snapshot]'s channel already has in [state]).
+HostState applySnapshot(
+  HostState state,
+  Snapshot snapshot, [
+  ChannelKind? kind,
+]) {
   final seq = snapshot.fromSeq > state.serverSeq
       ? snapshot.fromSeq
       : state.serverSeq;
-  if (snapshot.resource != rootChannel) return state.copyWith(serverSeq: seq);
-  return state.copyWith(
-    root: RootState.fromJson(snapshot.state),
-    serverSeq: seq,
-  );
+  final next = state.copyWith(serverSeq: seq);
+  final resource = snapshot.resource;
+  return switch (kind ?? channelKindOf(state, resource)) {
+    ChannelKind.root => next.copyWith(root: RootState.fromJson(snapshot.state)),
+    ChannelKind.session => next.copyWith(
+      sessionChannels: Map.unmodifiable({
+        ...state.sessionChannels,
+        resource: ChannelMirror.snapshot(SessionState.fromJson(snapshot.state)),
+      }),
+    ),
+    ChannelKind.chat => next.copyWith(
+      chatChannels: Map.unmodifiable({
+        ...state.chatChannels,
+        resource: ChannelMirror.snapshot(ChatState.fromJson(snapshot.state)),
+      }),
+    ),
+    ChannelKind.other => next,
+  };
 }
+
+/// Drops the mirror of [channel] after its last observer unsubscribed.
+HostState removeChannel(HostState state, String channel) => state.copyWith(
+  sessionChannels: Map.unmodifiable(
+    {...state.sessionChannels}..remove(channel),
+  ),
+  chatChannels: Map.unmodifiable({...state.chatChannels}..remove(channel)),
+);
+
+/// Applies an action this client dispatched on [channel] before the host
+/// confirms it (AHP-022). Channels without a mirror are unchanged.
+HostState applyDispatchedAction(
+  HostState state,
+  String channel,
+  PendingAction action,
+) => switch (channelKindOf(state, channel)) {
+  ChannelKind.session => state.copyWith(
+    sessionChannels: Map.unmodifiable({
+      ...state.sessionChannels,
+      channel: applyPendingAction(
+        state.sessionChannels[channel]!,
+        action,
+        reduceSessionJson,
+      ),
+    }),
+  ),
+  ChannelKind.chat => state.copyWith(
+    chatChannels: Map.unmodifiable({
+      ...state.chatChannels,
+      channel: applyPendingAction(
+        state.chatChannels[channel]!,
+        action,
+        reduceChatJson,
+      ),
+    }),
+  ),
+  ChannelKind.root || ChannelKind.other => state,
+};
 
 /// Applies the `initialize` result: version, server info and snapshots.
 HostState applyInitializeResult(HostState state, InitializeResult result) =>
@@ -82,34 +176,70 @@ HostState applyInitializeResult(HostState state, InitializeResult result) =>
         serverSeq: result.serverSeq,
         error: null,
       ),
-      applySnapshot,
+      (state, snapshot) => applySnapshot(state, snapshot),
     );
 
-/// Applies an `action` notification. Root-channel actions go through
-/// [reduceRoot]; rejected actions and other channels only advance
+/// Applies an `action` notification received by the client [clientId].
+///
+/// Root-channel actions go through [reduceRoot]. Session and chat actions
+/// advance their [ChannelMirror] (reconciling this client's write-ahead
+/// actions). Rejected root actions and unmirrored channels only advance
 /// `serverSeq`.
-HostState applyEnvelope(HostState state, ActionEnvelope envelope) {
+HostState applyEnvelope(
+  HostState state,
+  ActionEnvelope envelope, {
+  required String clientId,
+}) {
   final seq = envelope.serverSeq > state.serverSeq
       ? envelope.serverSeq
       : state.serverSeq;
-  final root = state.root;
-  if (envelope.channel != rootChannel ||
-      envelope.rejectionReason != null ||
-      root == null) {
-    return state.copyWith(serverSeq: seq);
-  }
-  return state.copyWith(
-    root: reduceRoot(root, RootAction.fromJson(envelope.action)),
-    serverSeq: seq,
-  );
+  final next = state.copyWith(serverSeq: seq);
+  final channel = envelope.channel;
+  return switch (channelKindOf(state, channel)) {
+    ChannelKind.root => switch (state.root) {
+      final root? when envelope.rejectionReason == null => next.copyWith(
+        root: reduceRoot(root, RootAction.fromJson(envelope.action)),
+      ),
+      _ => next,
+    },
+    ChannelKind.session => next.copyWith(
+      sessionChannels: Map.unmodifiable({
+        ...state.sessionChannels,
+        channel: applyHostEnvelope(
+          state.sessionChannels[channel]!,
+          envelope,
+          reduceSessionJson,
+          clientId: clientId,
+        ),
+      }),
+    ),
+    ChannelKind.chat => next.copyWith(
+      chatChannels: Map.unmodifiable({
+        ...state.chatChannels,
+        channel: applyHostEnvelope(
+          state.chatChannels[channel]!,
+          envelope,
+          reduceChatJson,
+          clientId: clientId,
+        ),
+      }),
+    ),
+    ChannelKind.other => next,
+  };
 }
 
-/// Applies a `reconnect` result (AHP-004).
-HostState applyReconnectResult(HostState state, ReconnectResult result) =>
-    switch (result) {
-      ReconnectReplay(:final actions) => actions.fold(state, applyEnvelope),
-      ReconnectSnapshot(:final snapshots) => snapshots.fold(
-        state,
-        applySnapshot,
-      ),
-    };
+/// Applies a `reconnect` result (AHP-004) for the client [clientId].
+HostState applyReconnectResult(
+  HostState state,
+  ReconnectResult result, {
+  required String clientId,
+}) => switch (result) {
+  ReconnectReplay(:final actions) => actions.fold(
+    state,
+    (state, envelope) => applyEnvelope(state, envelope, clientId: clientId),
+  ),
+  ReconnectSnapshot(:final snapshots) => snapshots.fold(
+    state,
+    (state, snapshot) => applySnapshot(state, snapshot),
+  ),
+};

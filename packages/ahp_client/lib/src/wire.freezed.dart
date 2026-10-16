@@ -861,7 +861,9 @@ mixin _$SessionChatSummary {
  String get resource;/// Human-readable chat title.
  String get title;/// `full`, `readOnly` or `hidden`; absent means `full`.
  String? get interactivity;/// Chat status bits; absent means unknown.
-@SessionStatusConverter() SessionStatus? get status;
+@SessionStatusConverter() SessionStatus? get status;/// What the chat is doing.
+ String? get activity;/// Last modification time (ISO 8601).
+ String? get modifiedAt;
 /// Create a copy of SessionChatSummary
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -875,20 +877,20 @@ $SessionChatSummaryCopyWith<SessionChatSummary> get copyWith => _$SessionChatSum
 @override
 bool operator ==(Object other) {
   final _this = this as SessionChatSummary;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is SessionChatSummary&&(identical(other.resource, _this.resource) || other.resource == _this.resource)&&(identical(other.title, _this.title) || other.title == _this.title)&&(identical(other.interactivity, _this.interactivity) || other.interactivity == _this.interactivity)&&(identical(other.status, _this.status) || other.status == _this.status));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is SessionChatSummary&&(identical(other.resource, _this.resource) || other.resource == _this.resource)&&(identical(other.title, _this.title) || other.title == _this.title)&&(identical(other.interactivity, _this.interactivity) || other.interactivity == _this.interactivity)&&(identical(other.status, _this.status) || other.status == _this.status)&&(identical(other.activity, _this.activity) || other.activity == _this.activity)&&(identical(other.modifiedAt, _this.modifiedAt) || other.modifiedAt == _this.modifiedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
   final _this = this as SessionChatSummary;
-  return Object.hash(runtimeType,_this.resource,_this.title,_this.interactivity,_this.status);
+  return Object.hash(runtimeType,_this.resource,_this.title,_this.interactivity,_this.status,_this.activity,_this.modifiedAt);
 }
 
 @override
 String toString() {
   final _this = this as SessionChatSummary;
-  return 'SessionChatSummary(resource: ${_this.resource}, title: ${_this.title}, interactivity: ${_this.interactivity}, status: ${_this.status})';
+  return 'SessionChatSummary(resource: ${_this.resource}, title: ${_this.title}, interactivity: ${_this.interactivity}, status: ${_this.status}, activity: ${_this.activity}, modifiedAt: ${_this.modifiedAt})';
 }
 
 
@@ -899,7 +901,7 @@ abstract mixin class $SessionChatSummaryCopyWith<$Res>  {
   factory $SessionChatSummaryCopyWith(SessionChatSummary value, $Res Function(SessionChatSummary) _then) = _$SessionChatSummaryCopyWithImpl;
 @useResult
 $Res call({
- String resource, String title, String? interactivity,@SessionStatusConverter() SessionStatus? status
+ String resource, String title, String? interactivity,@SessionStatusConverter() SessionStatus? status, String? activity, String? modifiedAt
 });
 
 
@@ -916,13 +918,15 @@ class _$SessionChatSummaryCopyWithImpl<$Res>
 
 /// Create a copy of SessionChatSummary
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? resource = null,Object? title = null,Object? interactivity = freezed,Object? status = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? resource = null,Object? title = null,Object? interactivity = freezed,Object? status = freezed,Object? activity = freezed,Object? modifiedAt = freezed,}) {
   return _then(SessionChatSummary(
 resource: null == resource ? _self.resource : resource // ignore: cast_nullable_to_non_nullable
 as String,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
 as String,interactivity: freezed == interactivity ? _self.interactivity : interactivity // ignore: cast_nullable_to_non_nullable
 as String?,status: freezed == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
-as SessionStatus?,
+as SessionStatus?,activity: freezed == activity ? _self.activity : activity // ignore: cast_nullable_to_non_nullable
+as String?,modifiedAt: freezed == modifiedAt ? _self.modifiedAt : modifiedAt // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 
@@ -1007,10 +1011,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String resource,  String title,  String? interactivity, @SessionStatusConverter()  SessionStatus? status)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String resource,  String title,  String? interactivity, @SessionStatusConverter()  SessionStatus? status,  String? activity,  String? modifiedAt)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _SessionChatSummary() when $default != null:
-return $default(_that.resource,_that.title,_that.interactivity,_that.status);case _:
+return $default(_that.resource,_that.title,_that.interactivity,_that.status,_that.activity,_that.modifiedAt);case _:
   return orElse();
 
 }
@@ -1028,10 +1032,10 @@ return $default(_that.resource,_that.title,_that.interactivity,_that.status);cas
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String resource,  String title,  String? interactivity, @SessionStatusConverter()  SessionStatus? status)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String resource,  String title,  String? interactivity, @SessionStatusConverter()  SessionStatus? status,  String? activity,  String? modifiedAt)  $default,) {final _that = this;
 switch (_that) {
 case _SessionChatSummary():
-return $default(_that.resource,_that.title,_that.interactivity,_that.status);case _:
+return $default(_that.resource,_that.title,_that.interactivity,_that.status,_that.activity,_that.modifiedAt);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -1048,10 +1052,10 @@ return $default(_that.resource,_that.title,_that.interactivity,_that.status);cas
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String resource,  String title,  String? interactivity, @SessionStatusConverter()  SessionStatus? status)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String resource,  String title,  String? interactivity, @SessionStatusConverter()  SessionStatus? status,  String? activity,  String? modifiedAt)?  $default,) {final _that = this;
 switch (_that) {
 case _SessionChatSummary() when $default != null:
-return $default(_that.resource,_that.title,_that.interactivity,_that.status);case _:
+return $default(_that.resource,_that.title,_that.interactivity,_that.status,_that.activity,_that.modifiedAt);case _:
   return null;
 
 }
@@ -1063,7 +1067,7 @@ return $default(_that.resource,_that.title,_that.interactivity,_that.status);cas
 @JsonSerializable()
 
 class _SessionChatSummary implements SessionChatSummary {
-  const _SessionChatSummary({required this.resource, required this.title, this.interactivity, @SessionStatusConverter() this.status});
+  const _SessionChatSummary({required this.resource, required this.title, this.interactivity, @SessionStatusConverter() this.status, this.activity, this.modifiedAt});
   factory _SessionChatSummary.fromJson(Map<String, dynamic> json) => _$SessionChatSummaryFromJson(json);
 
 /// Canonical chat URI.
@@ -1074,6 +1078,10 @@ class _SessionChatSummary implements SessionChatSummary {
 @override final  String? interactivity;
 /// Chat status bits; absent means unknown.
 @override@SessionStatusConverter() final  SessionStatus? status;
+/// What the chat is doing.
+@override final  String? activity;
+/// Last modification time (ISO 8601).
+@override final  String? modifiedAt;
 
 /// Create a copy of SessionChatSummary
 /// with the given fields replaced by the non-null parameter values.
@@ -1088,18 +1096,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _SessionChatSummary&&(identical(other.resource, resource) || other.resource == resource)&&(identical(other.title, title) || other.title == title)&&(identical(other.interactivity, interactivity) || other.interactivity == interactivity)&&(identical(other.status, status) || other.status == status));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _SessionChatSummary&&(identical(other.resource, resource) || other.resource == resource)&&(identical(other.title, title) || other.title == title)&&(identical(other.interactivity, interactivity) || other.interactivity == interactivity)&&(identical(other.status, status) || other.status == status)&&(identical(other.activity, activity) || other.activity == activity)&&(identical(other.modifiedAt, modifiedAt) || other.modifiedAt == modifiedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
-    return Object.hash(runtimeType,resource,title,interactivity,status);
+    return Object.hash(runtimeType,resource,title,interactivity,status,activity,modifiedAt);
 }
 
 @override
 String toString() {
-    return 'SessionChatSummary(resource: $resource, title: $title, interactivity: $interactivity, status: $status)';
+    return 'SessionChatSummary(resource: $resource, title: $title, interactivity: $interactivity, status: $status, activity: $activity, modifiedAt: $modifiedAt)';
 }
 
 
@@ -1110,7 +1118,7 @@ abstract mixin class _$SessionChatSummaryCopyWith<$Res> implements $SessionChatS
   factory _$SessionChatSummaryCopyWith(_SessionChatSummary value, $Res Function(_SessionChatSummary) _then) = __$SessionChatSummaryCopyWithImpl;
 @override @useResult
 $Res call({
- String resource, String title, String? interactivity,@SessionStatusConverter() SessionStatus? status
+ String resource, String title, String? interactivity,@SessionStatusConverter() SessionStatus? status, String? activity, String? modifiedAt
 });
 
 
@@ -1127,13 +1135,15 @@ class __$SessionChatSummaryCopyWithImpl<$Res>
 
 /// Create a copy of SessionChatSummary
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? resource = null,Object? title = null,Object? interactivity = freezed,Object? status = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? resource = null,Object? title = null,Object? interactivity = freezed,Object? status = freezed,Object? activity = freezed,Object? modifiedAt = freezed,}) {
   return _then(_SessionChatSummary(
 resource: null == resource ? _self.resource : resource // ignore: cast_nullable_to_non_nullable
 as String,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
 as String,interactivity: freezed == interactivity ? _self.interactivity : interactivity // ignore: cast_nullable_to_non_nullable
 as String?,status: freezed == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
-as SessionStatus?,
+as SessionStatus?,activity: freezed == activity ? _self.activity : activity // ignore: cast_nullable_to_non_nullable
+as String?,modifiedAt: freezed == modifiedAt ? _self.modifiedAt : modifiedAt // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 
