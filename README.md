@@ -61,6 +61,8 @@ so one `flutter pub get` at the root resolves every package.
   generated from the JSON Schemas, and how to upgrade the protocol version.
 - [docs/fake-host.md](docs/fake-host.md): the scripted fake host and the
   tests that use it.
+- [docs/testing.md](docs/testing.md): the test layers, pi with its faux
+  model, breaking connections, and the browser tests.
 - [docs/desktop.md](docs/desktop.md): macOS and Linux builds, dependencies,
   window behavior, packaging and the desktop smoke test.
 - [specs/agents-view.md](specs/agents-view.md): UI and feature requirements.
@@ -86,7 +88,10 @@ just test                # unit and widget tests, client flows on the fake host
 just fake-host           # run the scripted fake host (prints its URL)
 just test-fake-host-app linux   # drive the app against the fake host
 just test-fake-host-app flutter-tester   # the same, headless
-just test-integration    # ahp_client against a real pi-agent-host-protocol
+just test-integration    # ahp_client against pi (no API key: pi's faux model)
+just pi-faux-host        # run pi with its scripted faux model (prints its URL)
+just test-pi-app linux   # drive the app against pi with the faux model
+just test-web            # the web build in Chromium with Playwright
 just test-model          # a real model turn through pi (costs tokens)
 just test-desktop linux  # desktop smoke test against pi (see docs/desktop.md)
 just codegen             # regenerate the wire types (and freezed code)
@@ -139,6 +144,9 @@ just run chrome 'ws://127.0.0.1:63877?tkn=...'   # prefill the host URL
 
 `just test-integration` launches pi-agent-host-protocol from
 `PI_AHP_HOST_DIR` (default: `../pi-agent-host-protocol`, a sibling of this
-repo) in an isolated temp directory, and is skipped when no checkout exists.
+repo, with `npm ci` run in it) in an isolated temp directory, and is skipped
+when no checkout exists. Its client flows, `just test-pi-app` and
+`just test-web` use pi's scripted faux model, so they need no API key; see
+[docs/testing.md](docs/testing.md).
 `just test-model` does the same but with your `~/.pi/agent` providers, and
 sends one tiny real turn; CI does not run it.

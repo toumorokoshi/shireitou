@@ -835,6 +835,9 @@ class _TimelineState extends State<_Timeline> {
     // put once the user scrolls up.
     return Stack(
       children: [
+        // Rows use plain Text (not SelectableText): the area makes them
+        // selectable, and on the web read-only text fields expose no text
+        // to screen readers (or browser tests).
         SelectionArea(
           child: ListView.builder(
             controller: _scroll,

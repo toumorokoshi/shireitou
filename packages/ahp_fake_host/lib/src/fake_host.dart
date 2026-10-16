@@ -170,6 +170,24 @@ class FakeAhpHost {
   int _serverSeq = 0;
   int _ids = 0;
 
+  /// The protocol version each client initialized with, for `reconnect`.
+  final _clientVersions = <String, String>{};
+
+  /// The newest envelopes (at most [replayLimit]), replayed by `reconnect`.
+  final _replay = <ActionEnvelope>[];
+
+  /// While true, new WebSocket connections are refused (`503`), as if the
+  /// host were down. Changeable at any time.
+  bool refuseConnections = false;
+
+  /// While true, `dispatchAction` messages are dropped unread, as if lost
+  /// on the way: nothing is applied or echoed. Changeable at any time.
+  bool loseActions = false;
+
+  /// How many envelopes `reconnect` can replay; a client further behind
+  /// gets snapshots.
+  int replayLimit = 1000;
+
   final _sessions = <String, SessionState>{};
   final _chats = <String, ChatState>{};
   final _summaries = <String, SessionSummary>{};
@@ -218,12 +236,25 @@ class FakeAhpHost {
     final server = await HttpServer.bind(address, port);
     _server = server;
     server.listen(_onRequest);
-    return Uri(
+    return _url = Uri(
       scheme: 'ws',
       host: address,
       port: server.port,
       queryParameters: token == null ? null : {'tkn': token},
     );
+  }
+
+  /// The URL [start] returned, or null before it.
+  Uri? get url => _url;
+  Uri? _url;
+
+  /// Serves a new connection in memory: a [ChannelConnector] for clients
+  /// that should reach the host while [refuseConnections] keeps socket
+  /// clients out.
+  Future<StreamChannel<String>> connectInMemory(Uri _) async {
+    final controller = StreamChannelController<String>();
+    serve(controller.foreign);
+    return controller.local;
   }
 
   /// Stops listening and closes every connection.
@@ -244,6 +275,11 @@ class FakeAhpHost {
         token == null ||
         request.uri.queryParameters['tkn'] == token ||
         bearer == 'Bearer $token';
+    if (refuseConnections) {
+      request.response.statusCode = HttpStatus.serviceUnavailable;
+      await request.response.close();
+      return;
+    }
     if (!authorized || !WebSocketTransformer.isUpgradeRequest(request)) {
       request.response.statusCode = authorized
           ? HttpStatus.badRequest
@@ -264,9 +300,8 @@ class FakeAhpHost {
       ..registerMethod('initialize', (Parameters p) {
         return _initialize(connection, p.value as JsonMap);
       })
-      ..registerMethod('reconnect', (Parameters _) {
-        // Clients fall back to `initialize`.
-        throw RpcException(AhpErrorCodes.notFound, 'unknown client');
+      ..registerMethod('reconnect', (Parameters p) {
+        return _reconnect(connection, p.value as JsonMap);
       })
       ..registerMethod('ping', (Parameters _) => null)
       ..registerMethod(
@@ -362,6 +397,7 @@ class FakeAhpHost {
         return <String, Object?>{};
       })
       ..registerMethod('dispatchAction', (Parameters p) {
+        if (loseActions) return;
         _dispatch(connection, p.value as JsonMap);
       })
       ..registerFallback((Parameters p) {
@@ -389,6 +425,7 @@ class FakeAhpHost {
       );
     }
     connection.clientId = params.clientId;
+    _clientVersions[params.clientId] = version;
     final subscriptions = params.initialSubscriptions ?? const [];
     connection.subscriptions.addAll(subscriptions);
     return InitializeResult(
@@ -402,6 +439,76 @@ class FakeAhpHost {
       ],
       defaultDirectory: defaultDirectory,
     ).toJson();
+  }
+
+  /// Resumes a client this host initialized: a replay of what it missed
+  /// on the channels it names (unknown ones are `missing`), or snapshots
+  /// when the replay buffer no longer reaches back far enough. A client
+  /// this host never saw gets `-32008` and initializes again.
+  JsonMap _reconnect(_Connection connection, JsonMap json) {
+    final params = ReconnectParams.fromJson(json);
+    if (!_clientVersions.containsKey(params.clientId)) {
+      throw RpcException(AhpErrorCodes.notFound, 'unknown client');
+    }
+    connection.clientId = params.clientId;
+    final known = params.subscriptions.where(
+      (c) => c == rootChannel || _known(c),
+    );
+    connection.subscriptions.addAll(known);
+    final oldest = _replay.isEmpty ? _serverSeq + 1 : _replay.first.serverSeq;
+    if (params.lastSeenServerSeq + 1 < oldest) {
+      return ReconnectSnapshotResult(
+        snapshots: [
+          for (final channel in known)
+            if (_snapshot(channel) case final snapshot?)
+              Snapshot.fromJson(snapshot),
+        ],
+      ).toJson();
+    }
+    return ReconnectReplayResult(
+      actions: [
+        for (final e in _replay)
+          if (e.serverSeq > params.lastSeenServerSeq &&
+              (e.rejectionReason == null
+                  ? connection.subscriptions.contains(e.channel)
+                  : e.origin?.clientId == params.clientId))
+            e,
+      ],
+      missing: [
+        for (final c in params.subscriptions)
+          if (!connection.subscriptions.contains(c)) c,
+      ],
+    ).toJson();
+  }
+
+  /// Closes every client connection, as a dropped network would; clients
+  /// reconnect (see [refuseConnections] to keep them out for a while).
+  Future<void> dropConnections() async {
+    final open = _connections.toList();
+    _connections.clear();
+    await Future.wait([for (final c in open) c.peer.close()]);
+  }
+
+  /// Removes [session] and its chats, as if another client or the host
+  /// disposed it (`root/sessionRemoved`); a client that had it open finds
+  /// it `missing` when it reconnects.
+  void removeSession(String session) {
+    final chats = _sessionOfChat.entries
+        .where((e) => e.value == session)
+        .map((e) => e.key)
+        .toList();
+    for (final chat in chats) {
+      _chats.remove(chat);
+      _sessionOfChat.remove(chat);
+    }
+    _sessions.remove(session);
+    _summaries.remove(session);
+    for (final c in _connections) {
+      c.subscriptions
+        ..remove(session)
+        ..removeAll(chats);
+    }
+    _notifyRoot('root/sessionRemoved', {'session': session});
   }
 
   RootState get _root => RootState(
@@ -687,6 +794,8 @@ class FakeAhpHost {
           : ActionOrigin(clientId: from!.clientId!, clientSeq: clientSeq),
       rejectionReason: rejection,
     ).toJson();
+    _replay.add(ActionEnvelope.fromJson(envelope));
+    if (_replay.length > replayLimit) _replay.removeAt(0);
     for (final c in _connections) {
       if (c == from ||
           (rejection == null && c.subscriptions.contains(channel))) {

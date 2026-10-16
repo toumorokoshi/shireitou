@@ -1,5 +1,52 @@
 # Design Decision Log
 
+## 2026-10-16: App-level tests against pi, reconnects end to end, and the web app in a browser
+
+- **pi's own faux model instead of an API key or a fake pi.** pi-ai ships a
+  scripted `faux` provider, and pi-agent-host-protocol's tests run the host
+  with it. `scripts/pi-faux-host.ts` does the same outside that repo: it
+  imports the host's modules by file URL from the checkout CI already has
+  (`npm ci`), embeds pi with the faux model registered, and answers by
+  keyword (`tool`, `slow`, `think`, else an echo). Everything above the
+  model is real pi: sessions on disk, titles, archive, queued messages,
+  drafts, tool execution, `reconnect` and its replay buffer. Rejected: a
+  real provider in CI (secrets, cost, flakiness) and pi's RPC mode with a
+  fake `pi` (would skip pi's own session code). The price is a dependency
+  on the host's internal module paths, noted in GAPS.md.
+- **A TCP relay to break connections.** Real networks fail below
+  WebSocket, so tests put `TcpRelay` (Dart, in `ahp_fake_host`) or `Relay`
+  (Node, for Playwright) between client and host: `drop`, `refusing` and
+  `hold` (lose what the client sends, for the write-ahead rollback). A
+  host restart is a real `node` restart on the same port and state
+  directory, which pi answers with `-32008`. The fake host got the same
+  controls in process (`dropConnections`, `refuseConnections`,
+  `loseActions`, `removeSession`, `connectInMemory`) and a real `reconnect`
+  (replay buffer, snapshots past it, `missing`) instead of always `-32008`.
+- **Playwright, not `flutter drive` with chromedriver.** Playwright drives a
+  real browser from outside the app: real new tabs (so the OAuth redirect
+  page and `BroadcastChannel` run for real), keys delivered by the browser,
+  and Node can start, relay and restart hosts, which a test compiled into
+  the web app cannot (`dart:io` is unavailable there). It installs its own
+  Chromium on Linux x64 and arm64 without system Chrome or a matching
+  chromedriver. The web build is made with
+  `--dart-define=SHIREITOU_SEMANTICS=true`, which keeps Flutter's
+  semantics tree on so widgets are found by role and accessible name
+  instead of canvas coordinates.
+- **Timeline text is plain `Text` inside the `SelectionArea`.** Driving the
+  web app showed that `SelectableText` (and selectable markdown) inside
+  the timeline's `SelectionArea` reach the browser's accessibility tree as
+  empty read-only text fields, so screen readers (and the tests) could not
+  read messages or replies. The area already makes plain `Text`
+  selectable, so the inner selectable widgets were dropped.
+- **Shared app harness.** `app/integration_test/harness.dart` holds the
+  in-memory host store, the test OAuth browser and the frame-pumping
+  helpers for both the fake host and the pi app tests.
+- **CI layout.** `integration` runs the client flows against pi (seconds);
+  `linux-desktop` adds the pi app flows under Xvfb after the fake host
+  flows (one build, about two minutes more); a new `web` job builds the web
+  app and runs Playwright with retries off locally and one retry in CI,
+  uploading traces on failure. macOS keeps its existing steps.
+
 ## 2026-10-16: OAuth sign-in, re-authentication, and the rest of tool call interaction
 
 - **OAuth client written on `http` and `crypto`, not the `oauth2`

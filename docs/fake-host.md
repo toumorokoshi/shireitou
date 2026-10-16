@@ -10,8 +10,8 @@ exercised against a real host.
 
 - `FakeAhpHost` serves JSON-RPC over WebSocket (`dart:io` `HttpServer`,
   `json_rpc_2` `Peer`), or over any `StreamChannel<String>` with `serve`.
-  It answers `initialize` (1.0.0 or 0.9.0), `reconnect` (always `-32008`,
-  so clients fall back to `initialize`), `listSessions`, `subscribe`,
+  It answers `initialize` (1.0.0 or 0.9.0), `reconnect` (see
+  "Reconnects" below), `listSessions`, `subscribe`,
   `unsubscribe`, `createSession`, `fetchTurns`, `authenticate`, `ping`,
   `dispatchAction`, `resourceRead` (the two sides of scripted file edits),
   `invokeChangesetOperation`, `moveChat` (reorders a movable chat
@@ -210,3 +210,40 @@ test-fake-host-app [linux|macos]`, run by CI on both desktops): the real
   memory (an overridden `hostStoreProvider`), so it needs no keyring or
   keychain; secure storage is the desktop smoke test's job. Linux needs a
   display (`xvfb-run -a just test-fake-host-app linux`).
+
+## Reconnects
+
+The host keeps its newest envelopes (`replayLimit`, 1000 by default) and
+the clients it initialized, so `reconnect` behaves like a real host's:
+
+- a client it initialized gets a `replay` of the envelopes after its
+  `lastSeenServerSeq` on the channels it names (its own rejections
+  included), with channels the host no longer has in `missing`;
+- a client further behind than the buffer gets a `snapshot` result
+  (`replayLimit = 0` forces one);
+- a client it never initialized gets `-32008` and runs `initialize`.
+
+Tests break the connection with:
+
+- `dropConnections()`: closes every connection, as a network drop would;
+- `refuseConnections`: while true, WebSocket upgrades are answered `503`,
+  so clients stay in "Reconnecting…";
+- `loseActions`: while true, `dispatchAction` messages are dropped unread,
+  so the client's write-ahead copy is rolled back after the reconnect;
+- `removeSession(uri)`: removes a session and its chats
+  (`root/sessionRemoved`), so a client that had it open finds it
+  `missing`;
+- `connectInMemory`: a `ChannelConnector` for a second client that reaches
+  the host while socket clients are refused (another client's turn,
+  replayed to the first).
+
+`packages/ahp_fake_host/test/reconnect_flows_test.dart` checks the client
+against these, and the last test of
+`app/integration_test/fake_host_flows_test.dart` checks the app (the
+"Reconnecting…" chip, a replayed turn, a rolled-back message with its
+notice, a running turn stopped after the reconnect, and "This session is no
+longer available on the host."). The same cases against pi are in
+[testing.md](testing.md).
+
+`dart run ahp_fake_host` also takes `--slow-seconds N` (how long the `slow`
+flow runs; the browser tests use 30).

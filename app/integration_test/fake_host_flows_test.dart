@@ -21,317 +21,33 @@ import 'package:ahp_client/ahp_client.dart';
 import 'package:ahp_fake_host/ahp_fake_host.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
 import 'package:integration_test/integration_test.dart';
-import 'package:shireitou/src/app.dart';
-import 'package:shireitou/src/auth/oauth_browser.dart';
-import 'package:shireitou/src/desktop/app_menu.dart';
-import 'package:shireitou/src/desktop/desktop_window.dart';
-import 'package:shireitou/src/hosts/open_hosts.dart';
-import 'package:shireitou/src/hosts/host_store.dart';
-import 'package:shireitou/src/hosts/saved_hosts.dart';
-import 'package:shireitou/src/notifications/notifications.dart';
-import 'package:shireitou/src/prefs.dart';
 import 'package:shireitou/src/session_detail/code_highlight.dart';
 import 'package:shireitou/src/session_detail/session_detail_view.dart';
 import 'package:shireitou/src/session_detail/session_status_widgets.dart';
 import 'package:shireitou/src/shortcuts.dart';
-import 'package:window_manager/window_manager.dart';
 
-/// Keeps remembered hosts in memory. Secure storage is covered by the
-/// desktop smoke test; here it would only add keychain prompts (macOS
-/// asks before another build of the app reads the smoke test's item).
-class _MemoryHostStore extends HostStore {
-  _MemoryHostStore() : super(secureStorage);
+import 'harness.dart';
 
-  List<SavedHost> _hosts = const [];
-  List<String> _open = const [];
-
-  @override
-  Future<List<SavedHost>> loadHosts() async => _hosts;
-
-  @override
-  Future<void> saveHosts(List<SavedHost> hosts) async => _hosts = hosts;
-
-  @override
-  Future<List<String>> loadOpenHosts() async => _open;
-
-  @override
-  Future<void> saveOpenHosts(List<String> keys) async => _open = keys;
-
-  final _tokens = <String, Map<String, ResourceToken>>{};
-
-  @override
-  Future<Map<String, ResourceToken>> loadTokens(String hostKey) async =>
-      _tokens[hostKey] ?? const {};
-
-  @override
-  Future<void> saveTokens(
-    String hostKey,
-    Map<String, ResourceToken> tokens,
-  ) async => _tokens[hostKey] = tokens;
-}
-
-/// URLs the test's "browser" opened.
-final _browsed = <Uri>[];
-
-/// The system browser, played by the test: it loads the authorization
-/// URL; the fake authorization server approves at once and redirects to
-/// the app's loopback receiver, which `http` follows.
-final _testBrowser = OAuthBrowser(
-  receiver: LoopbackRedirectReceiver.start,
-  open: (url) async {
-    _browsed.add(url);
-    await http.get(url);
-  },
-);
-
-/// The app connected to a fresh fake host, with helpers that let real
-/// I/O run between frames.
-class _Harness {
-  _Harness(this.tester, this.host, this.store, this.container);
-
-  final WidgetTester tester;
-  final FakeAhpHost host;
-  final _MemoryHostStore store;
-
-  /// The app's providers; [restart] replaces them.
-  ProviderContainer container;
-
-  static Future<_Harness> start(WidgetTester tester) async {
-    final host = FakeAhpHost(
-      token: 'integration',
-      stepDelay: const Duration(milliseconds: 20),
-      slowDuration: const Duration(seconds: 30),
-    );
-    final url = (await tester.runAsync(host.start))!;
-    // The macOS runner starts with the window hidden (main() shows it), and
-    // a hidden window renders no frames, so pumping would wait forever.
-    // Then make room for the list, the panel, a whole input form and the
-    // review pane (wide layout).
-    final windowed = await tester.runAsync(() async {
-      try {
-        await setUpDesktopWindow();
-        await windowManager.setSize(const Size(1400, 1000));
-        return true;
-      } on MissingPluginException {
-        // The headless flutter-tester device (`flutter test` without -d)
-        // has no window plugin.
-        return false;
-      }
-    });
-    if (windowed != true) {
-      tester.view.physicalSize = const Size(1400, 1000);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.reset);
-    }
-    final store = _MemoryHostStore();
-    final harness = _Harness(tester, host, store, _container(store));
-    addTearDown(() async {
-      final container = harness.container;
-      await tester.runAsync(
-        () => container.read(openHostsProvider.notifier).disconnectAll(),
-      );
-      container.dispose();
-      await tester.runAsync(host.close);
-    });
-    await harness._pumpApp();
-    // Connect through the connect screen.
-    await tester.enterText(
-      find.widgetWithText(TextField, 'Host URL'),
-      url.toString(),
-    );
-    await tester.tap(find.widgetWithText(FilledButton, 'Connect'));
-    await harness.waitFor(find.text('Scripted session'));
-    return harness;
-  }
-
-  static ProviderContainer _container(_MemoryHostStore store) =>
-      ProviderContainer(
-        overrides: [
-          hostStoreProvider.overrideWithValue(store),
-          // No OS notifications (or permission prompts) from the tests.
-          notifierProvider.overrideWithValue(null),
-          prefsStoreProvider.overrideWithValue(MemoryPrefsStore()),
-          oauthBrowserProvider.overrideWithValue(_testBrowser),
-        ],
-      );
-
-  Future<void> _pumpApp() async {
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: const ShireitouApp(),
-      ),
-    );
-    await tester.pumpAndSettle();
-  }
-
-  /// Quits the app (its connections close without the user disconnecting)
-  /// and starts it again with the same stored hosts.
-  Future<void> restart() async {
-    await tester.pumpWidget(const SizedBox());
-    container.dispose();
-    container = _container(store);
-    await _pumpApp();
-  }
-
-  /// Runs [command] as its shortcut would: through the native menu on
-  /// macOS (which simulated keys do not reach), else with the keys.
-  Future<void> shortcut(AppCommand command) async {
-    if (hasNativeMenuBar) {
-      container.read(appCommandsProvider).send(command);
-    } else {
-      final activator = activatorFor(command);
-      final modifiers = [
-        if (activator.control) LogicalKeyboardKey.controlLeft,
-        if (activator.meta) LogicalKeyboardKey.metaLeft,
-        if (activator.alt) LogicalKeyboardKey.altLeft,
-      ];
-      for (final m in modifiers) {
-        await tester.sendKeyDownEvent(m);
-      }
-      await tester.sendKeyEvent(activator.trigger);
-      for (final m in modifiers.reversed) {
-        await tester.sendKeyUpEvent(m);
-      }
-    }
-    await settle();
-  }
-
-  /// Fails with what the screen shows and what the host received.
-  Never _timedOut(String what) {
-    final texts = [
-      for (final e in find.byType(Text).evaluate()) (e.widget as Text).data,
-    ];
-    final received = [
+/// The app connected through the connect screen to a fresh fake host.
+Future<(AppHarness, FakeAhpHost)> _start(WidgetTester tester) async {
+  final host = FakeAhpHost(
+    token: 'integration',
+    stepDelay: const Duration(milliseconds: 20),
+    slowDuration: const Duration(seconds: 30),
+  );
+  final url = (await tester.runAsync(host.start))!;
+  addTearDown(() => tester.runAsync(host.close));
+  final h = await AppHarness.launch(
+    tester,
+    describeHost: () => [
       for (final r in host.received) '${r.channel} ${r.action}',
       for (final r in host.rejected) 'REJECTED ${r.channel} ${r.action}',
-    ];
-    fail(
-      'timed out waiting for $what; texts: $texts; host received: $received',
-    );
-  }
-
-  /// Lets real I/O and timers run, then pumps a frame.
-  Future<void> idle([int ms = 50]) async {
-    await tester.runAsync(
-      () => Future<void>.delayed(Duration(milliseconds: ms)),
-    );
-    await tester.pump();
-  }
-
-  /// Pumps until [finder] finds something, letting real I/O run.
-  Future<void> waitFor(Finder finder) async {
-    final deadline = DateTime.now().add(const Duration(seconds: 20));
-    while (finder.evaluate().isEmpty) {
-      if (DateTime.now().isAfter(deadline)) _timedOut('$finder');
-      await idle();
-    }
-    await tester.pump();
-  }
-
-  /// Pumps until [finder] finds nothing, letting real I/O run.
-  Future<void> waitForNone(Finder finder) =>
-      waitUntil('no $finder', () => finder.evaluate().isEmpty);
-
-  /// Pumps until [test] holds, letting real I/O run.
-  Future<void> waitUntil(String what, bool Function() test) async {
-    final deadline = DateTime.now().add(const Duration(seconds: 20));
-    while (!test()) {
-      if (DateTime.now().isAfter(deadline)) _timedOut(what);
-      await idle();
-    }
-  }
-
-  /// A few frames apart, for menus and dialogs to open (spinners mean
-  /// pumpAndSettle may never return).
-  Future<void> settle() async {
-    for (var i = 0; i < 6; i++) {
-      await tester.pump(const Duration(milliseconds: 100));
-    }
-  }
-
-  /// Scrolls [finder] into view (small windows), then taps it.
-  Future<void> tapVisible(Finder finder) async {
-    await tester.ensureVisible(finder);
-    await tester.pump();
-    await tester.tap(finder);
-  }
-
-  /// Taps [finder] after scrolling it into view, then scrolls the
-  /// timeline back to the newest row, so replies that arrive next are
-  /// built on screen (a tall approval bar can push the list up on a
-  /// small window).
-  Future<void> tapAndFollow(Finder finder) async {
-    await tapVisible(finder);
-    await settle();
-    final jump = find.byTooltip('Jump to latest');
-    if (jump.evaluate().isNotEmpty) {
-      await tester.tap(jump.first);
-      await settle();
-    }
-  }
-
-  /// Opens the menu of [opener] (a dropdown) and picks [item]. The tap
-  /// is repeated when no menu opens within a few seconds (slow CI
-  /// runners sometimes drop a tap during a rebuild).
-  Future<void> pick(Finder opener, String item) async {
-    final choice = find.text(item);
-    for (var attempt = 1; choice.evaluate().isEmpty; attempt++) {
-      if (attempt > 3) _timedOut('the menu item "$item"');
-      await tapVisible(opener);
-      final deadline = DateTime.now().add(const Duration(seconds: 5));
-      while (choice.evaluate().isEmpty && DateTime.now().isBefore(deadline)) {
-        await idle(100);
-      }
-    }
-    await settle();
-    await tester.tap(choice.last);
-    await settle();
-  }
-
-  /// Types [text] into the follow-up box.
-  Future<void> type(String text) async {
-    // The box keeps focus after sending, and enterText only attaches the
-    // test keyboard when the focused field changes.
-    FocusManager.instance.primaryFocus?.unfocus();
-    tester.binding.focusedEditable = null;
-    await tester.pump();
-    // Not `find.byType(TextField).last`: a dialog that is still closing
-    // (headless, frames only come from pumps) is later in the tree, and
-    // its field can no longer take focus, so the text would be lost.
-    await tester.enterText(
-      find.descendant(
-        of: find.byType(FollowUpInput),
-        matching: find.byType(TextField),
-      ),
-      text,
-    );
-    await tester.pump();
-  }
-
-  /// Hides snackbars, which cover the follow-up box's buttons.
-  Future<void> clearSnackBars() async {
-    for (final messenger in tester.stateList<ScaffoldMessengerState>(
-      find.byType(ScaffoldMessenger),
-    )) {
-      messenger.clearSnackBars();
-    }
-    await settle();
-  }
-
-  Future<void> send(String text) async {
-    // Wait for the previous turn to end, so this starts a new one.
-    await waitFor(find.byTooltip('Send'));
-    await clearSnackBars();
-    await type(text);
-    await tester.tap(find.byTooltip('Send'));
-    await tester.pump();
-  }
+    ],
+  );
+  await h.connect(url, find.text('Scripted session'));
+  return (h, host);
 }
 
 void main() {
@@ -339,8 +55,7 @@ void main() {
 
   testWidgets('tool approvals, input requests and MCP sign-in against a '
       'host that asks', (tester) async {
-    final h = await _Harness.start(tester);
-    final host = h.host;
+    final (h, host) = await _start(tester);
     final waitFor = h.waitFor;
     final tapVisible = h.tapVisible;
     final send = h.send;
@@ -443,9 +158,8 @@ void main() {
   testWidgets('OAuth sign-in, re-authentication, and host-provided '
       'confirmation options, risk, edited input, result confirmation and '
       'input drafts', (tester) async {
-    final h = await _Harness.start(tester);
-    final host = h.host;
-    _browsed.clear();
+    final (h, host) = await _start(tester);
+    browsed.clear();
     await tester.tap(find.text('Scripted session'));
     await h.waitFor(find.text('No messages yet. Say something.'));
 
@@ -460,7 +174,7 @@ void main() {
     await tester.tap(find.text('Sign in with browser'));
     await h.waitFor(find.text('Signed in. I found 2 pages.'));
     expect(
-      _browsed.single.queryParameters,
+      browsed.single.queryParameters,
       containsPair('resource', docsResource),
     );
     final pushed = host.received
@@ -583,8 +297,7 @@ void main() {
 
   testWidgets('terminals, diffs, review, subagents, queued messages, drafts '
       'and paging against the fake host', (tester) async {
-    final h = await _Harness.start(tester);
-    final host = h.host;
+    final (h, host) = await _start(tester);
     await tester.tap(find.text('Scripted session'));
     await h.waitFor(find.text('No messages yet. Say something.'));
 
@@ -700,7 +413,7 @@ void main() {
     );
     final deadline = DateTime.now().add(const Duration(seconds: 40));
     while (find.text('Question 1').evaluate().isEmpty) {
-      if (DateTime.now().isAfter(deadline)) h._timedOut('Question 1');
+      if (DateTime.now().isAfter(deadline)) h.timedOut('Question 1');
       await tester.drag(timeline.first, const Offset(0, 3000));
       await h.idle(100);
     }
@@ -709,7 +422,7 @@ void main() {
 
   testWidgets('two hosts, the composer, session settings and a session '
       'that fails to start', (tester) async {
-    final h = await _Harness.start(tester);
+    final (h, _) = await _start(tester);
     final second = FakeAhpHost(
       token: 'second',
       name: 'second-host',
@@ -816,8 +529,7 @@ void main() {
 
   testWidgets('the session list, shortcuts, a rejected answer, client '
       'tools and restoring hosts after a restart', (tester) async {
-    final h = await _Harness.start(tester);
-    final host = h.host;
+    final (h, host) = await _start(tester);
     final search = find.byWidgetPredicate(
       (w) =>
           w is TextField && (w.decoration?.hintText ?? '').startsWith('Search'),
@@ -928,5 +640,82 @@ void main() {
     await h.restart();
     await h.waitFor(find.text('Scripted session'));
     expect(find.text('Connect to a host'), findsNothing);
+  }, timeout: const Timeout(Duration(minutes: 3)));
+
+  testWidgets('reconnecting after a dropped connection: a replay, a lost '
+      'action rolled back, a running turn kept and a session the host '
+      'lost', (tester) async {
+    final (h, host) = await _start(tester);
+    await tester.tap(find.text('Scripted session'));
+    await h.waitFor(find.text('No messages yet. Say something.'));
+    final reconnecting = find.text('Reconnecting…');
+
+    /// Drops the connection, runs [whileDown] while the app is kept out,
+    /// then lets it back in and waits until it is connected again.
+    Future<void> outage([Future<void> Function()? whileDown]) async {
+      host.refuseConnections = true;
+      await tester.runAsync(host.dropConnections);
+      await h.waitFor(reconnecting);
+      if (whileDown != null) await tester.runAsync(whileDown);
+      host.refuseConnections = false;
+      await h.waitForNone(reconnecting);
+    }
+
+    // Another client's turn while the app is away arrives in the replay.
+    debugPrint('fake host flows: replay');
+    await outage(() async {
+      final other = AhpClient(
+        uri: host.url!,
+        connector: host.connectInMemory,
+        pingInterval: Duration.zero,
+      );
+      await other.connect();
+      final chat = (await other.openSession(seededSession))!;
+      other.dispatch(
+        chat,
+        ChatTurnStartedAction(
+          turnId: 'other-client',
+          startedAt: DateTime.now().toUtc().toIso8601String(),
+          message: userMessage('greetings from elsewhere'),
+        ).toJson(),
+      );
+      await other.states.firstWhere(
+        (s) => s.chatChannels[chat]!.state.turns.isNotEmpty,
+      );
+      await other.close();
+    });
+    await h.followTimeline();
+    await h.waitFor(find.textContaining('You said: greetings from elsewhere'));
+
+    // A message the host never received is rolled back after the
+    // reconnect, with a notice.
+    debugPrint('fake host flows: lost action');
+    host.loseActions = true;
+    await h.send('this one is lost');
+    await h.waitFor(find.text('this one is lost'));
+    await outage(() async => host.loseActions = false);
+    await h.waitFor(
+      find.textContaining('The connection dropped before the host confirmed'),
+    );
+    await h.waitForNone(find.text('this one is lost'));
+
+    // A running turn survives the outage and can still be stopped.
+    debugPrint('fake host flows: running turn');
+    await h.send('slow');
+    await h.waitFor(find.byTooltip('Queue'));
+    await outage();
+    await h.waitFor(find.byTooltip('Queue'));
+    await h.clearSnackBars();
+    await tester.tap(find.text('Stop'));
+    await h.waitFor(find.byTooltip('Send'));
+
+    // A session removed while the app was away is reported as gone.
+    debugPrint('fake host flows: missing session');
+    await tester.tap(find.text('Long session'));
+    await h.waitFor(find.text('Question $longTurnCount'));
+    await outage(() async => host.removeSession(longSession));
+    await h.waitFor(
+      find.text('This session is no longer available on the host.'),
+    );
   }, timeout: const Timeout(Duration(minutes: 3)));
 }

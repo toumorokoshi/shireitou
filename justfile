@@ -29,7 +29,7 @@ fix:
 test:
     cd packages/ahp_wire_gen && dart test
     cd packages/ahp_client && dart test -x integration
-    cd packages/ahp_fake_host && dart test
+    cd packages/ahp_fake_host && dart test -x integration
     cd app && flutter test
 
 # Run the scripted fake AHP host (asks for approvals, input and sign-in;
@@ -40,15 +40,40 @@ fake-host *args:
 # Drive the real app against the fake host: approvals, input requests,
 # session-level requests, MCP sign-in, terminals, diffs and review,
 # subagent chats, queued messages, drafts and paging; a second host, the
-# composer and session settings. Linux needs a
+# composer and session settings; reconnects. Linux needs a
 # display; `flutter-tester` runs it headless (no window plugin).
 test-fake-host-app device="linux":
     cd app && flutter test integration_test/fake_host_flows_test.dart -d {{device}}
 
-# Run the integration tests against pi-agent-host-protocol (no model turns).
-# Set PI_AHP_HOST_DIR to the checkout (default: a sibling of this repo).
+# Run the integration tests against pi-agent-host-protocol: the handshake
+# without a model, and client flows (replies, tools, stop, reconnects, a
+# host restart) with pi's faux model, so no API key is needed. Set
+# PI_AHP_HOST_DIR to the checkout (default: a sibling of this repo); it
+# needs `npm ci`.
 test-integration:
     cd packages/ahp_client && dart test -t integration -x model
+    cd packages/ahp_fake_host && dart test -t integration
+
+# Run pi-agent-host-protocol with pi's scripted faux model (no API key; see
+# docs/testing.md). Pass `--port N`, `--token T`, `--no-token` or
+# `--state-dir DIR`.
+pi-faux-host *args:
+    node scripts/pi-faux-host.ts {{args}}
+
+# Drive the real app against pi with the faux model: the composer, streamed
+# replies, a tool call, stop, queued messages, drafts, search, archive,
+# filters, and reconnecting after a dropped connection or a host restart.
+# Linux needs a display; `flutter-tester` runs it headless.
+test-pi-app device="linux":
+    cd app && flutter test integration_test/pi_host_flows_test.dart -d {{device}}
+
+# Drive the web build in Chromium with Playwright (app/web_test) against
+# the fake host and pi: shortcuts, OAuth through oauth_callback.html,
+# reconnects and a host restart. Installs Playwright's Chromium on first
+# use; pi's tests are skipped without a checkout.
+test-web:
+    cd app && flutter build web --dart-define=SHIREITOU_SEMANTICS=true
+    cd app/web_test && npm ci && npx playwright install chromium && npx playwright test
 
 # Run a real model turn through pi, using the providers in ~/.pi/agent.
 # Costs tokens; sessions go to a temp directory.

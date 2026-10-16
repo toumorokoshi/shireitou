@@ -99,7 +99,7 @@ class TerminalBox extends StatelessWidget {
     final body = SingleChildScrollView(
       reverse: true,
       padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-      child: SelectableText(output.isEmpty ? ' ' : output, style: style),
+      child: Text(output.isEmpty ? ' ' : output, style: style),
     );
     return Container(
       decoration: BoxDecoration(

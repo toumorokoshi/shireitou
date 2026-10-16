@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 
 import 'src/app.dart';
 import 'src/desktop/desktop_window.dart';
+
+/// Keeps the semantics tree on for browser tests (`app/web_test`), which
+/// find widgets through it; built with `--dart-define=SHIREITOU_SEMANTICS=true`.
+SemanticsHandle? testSemantics;
 
 Future<void> main() async {
   Logger.root.level = Level.INFO;
@@ -14,6 +19,9 @@ Future<void> main() async {
     ),
   );
   WidgetsFlutterBinding.ensureInitialized();
+  if (const bool.fromEnvironment('SHIREITOU_SEMANTICS')) {
+    testSemantics = SemanticsBinding.instance.ensureSemantics();
+  }
   await setUpDesktopWindow();
   runApp(const ProviderScope(child: ShireitouApp()));
 }

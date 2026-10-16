@@ -2,6 +2,7 @@
 ///
 /// ```sh
 /// dart run ahp_fake_host [--port 0] [--token <tkn>] [--no-token]
+///   [--slow-seconds 4]
 /// ```
 ///
 /// Prints `ahp-fake-host listening on ws://127.0.0.1:<port>?tkn=<token>`.
@@ -26,15 +27,23 @@ Future<void> main(List<String> args) async {
               16,
               (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
             ).join();
-  final host = FakeAhpHost(token: token);
+  final slow = int.tryParse(option('--slow-seconds') ?? '');
+  final host = FakeAhpHost(
+    token: token,
+    slowDuration: slow == null
+        ? const Duration(seconds: 4)
+        : Duration(seconds: slow),
+  );
   final url = await host.start(port: int.tryParse(option('--port') ?? '') ?? 0);
   stdout.writeln('ahp-fake-host listening on $url');
   stdout.writeln(
     'Say ${[for (final s in Scenario.values) '"${s.keyword}"'].join(', ')} '
     'in a message to run a scripted flow.',
   );
-  ProcessSignal.sigint.watch().listen((_) async {
-    await host.close();
-    exit(0);
-  });
+  for (final signal in [ProcessSignal.sigint, ProcessSignal.sigterm]) {
+    signal.watch().listen((_) async {
+      await host.close();
+      exit(0);
+    });
+  }
 }

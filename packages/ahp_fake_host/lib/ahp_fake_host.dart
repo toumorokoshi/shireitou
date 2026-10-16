@@ -7,3 +7,5 @@ export 'src/fake_config.dart';
 export 'src/fake_host.dart';
 export 'src/fake_oauth_server.dart';
 export 'src/script.dart';
+export 'src/pi_faux_host.dart';
+export 'src/tcp_relay.dart';

@@ -1,0 +1,106 @@
+# Testing
+
+shireitou is tested in layers, from pure functions to the real app driven
+in a browser against a real host. Every layer below runs in CI
+(`.github/workflows/ci.yml`) except `just test-model`.
+
+| Recipe                             | What it drives                                                              | Host                                 | CI job                 |
+| ---------------------------------- | --------------------------------------------------------------------------- | ------------------------------------ | ---------------------- |
+| `just test`                        | Unit and widget tests; `AhpClient` flows (`packages/ahp_fake_host/test`)    | Fake host, in process                | `lint-and-test`        |
+| `just test-integration`            | `AhpClient` against pi: handshake, tokens, replies, tools, stop, reconnects | pi (no model, then the faux model)   | `integration`          |
+| `just test-fake-host-app <device>` | The app (`app/integration_test/fake_host_flows_test.dart`)                  | Fake host, in process                | `linux-desktop`, macOS |
+| `just test-pi-app <device>`        | The app (`app/integration_test/pi_host_flows_test.dart`)                    | pi with the faux model               | `linux-desktop`        |
+| `just test-desktop <device>`       | Desktop smoke test: window, secure storage, token header                    | pi (no model)                        | `linux-desktop`, macOS |
+| `just test-web`                    | The web build in Chromium with Playwright (`app/web_test`)                  | Fake host and pi with the faux model | `web`                  |
+| `just test-model`                  | One real model turn through pi                                              | pi with your `~/.pi/agent` providers | none (costs tokens)    |
+
+The app tests run on `linux` or `macos` (Linux needs a display, e.g.
+`xvfb-run -a`), or headless with the `flutter-tester` device, which has no
+window plugin but runs everything else.
+
+## pi with the faux model
+
+pi ships a scripted "faux" model provider for its own tests.
+`scripts/pi-faux-host.ts` (`just pi-faux-host`) runs
+pi-agent-host-protocol with it, embedded (pi's SDK in the same `node`
+process), so tests stream real pi turns without an API key or network
+access. It imports the host from a pi-agent-host-protocol checkout
+(`--pi-dir`, else `PI_AHP_HOST_DIR`, else a sibling of this repo) that has
+had `npm ci`. Options: `--port` (0 for a free one), `--token T` (default
+`faux-token`) or `--no-token`, `--state-dir` (sessions, settings and the
+archive; a temp directory removed on exit by default) and
+`--tokens-per-second` (default 500).
+
+The model replies by keyword in the newest user message:
+
+| Message contains | Reply                                                                                                       |
+| ---------------- | ----------------------------------------------------------------------------------------------------------- |
+| `tool`           | "Running a command." and a `bash` call of `echo hello from pi`, then "The bash tool printed: hello from pi" |
+| `slow`           | "Counting slowly: word1 … word3000 done.", about 12 s of streaming (to stop, queue behind or reconnect)     |
+| `think`          | Reasoning, then "Thought about: <message>"                                                                  |
+| anything else    | "pi faux reply: <message>"                                                                                  |
+
+Dart tests start it with `PiFauxHost.start()` (`packages/ahp_fake_host`),
+which finds the script from the current directory, the running executable
+or `SHIREITOU_REPO`, and is skipped (`PiFauxHost.unavailable`) without a
+checkout. `restart()` stops pi and starts it again on the same port and
+state directory, as a host restart: pi forgets its clients (a `reconnect`
+gets `-32008`) but keeps the sessions it saved.
+
+## Breaking the connection
+
+`TcpRelay` (`packages/ahp_fake_host`, and `Relay` in
+`app/web_test/tests/support.ts`) sits between a client and a host:
+
+- `drop()` closes every relayed connection, as a network drop would;
+- `refusing = true` turns new connections away, so the client stays in
+  "Reconnecting…" until the test lets it back in;
+- `hold()` black-holes what the client sends until the next `drop()`, so a
+  dispatched action is lost with the connection and rolled back.
+
+The fake host can do the same without a relay: `dropConnections()`,
+`refuseConnections`, `loseActions`, and `removeSession()` for a channel
+that is gone when the client comes back (see
+[fake-host.md](fake-host.md)).
+
+What is covered:
+
+| Case                                   | Fake host (client, app, web) | pi (client, app, web) |
+| -------------------------------------- | ---------------------------- | --------------------- |
+| Replay of actions missed while away    | yes, yes, —                  | yes, yes, yes         |
+| Snapshots when the replay is too short | yes, —, —                    | —                     |
+| `missing` channels                     | yes, yes, —                  | yes, —, —             |
+| Pending action rolled back             | yes, yes, —                  | yes, yes, yes         |
+| Host restart (`-32008`, `initialize`)  | —                            | yes, yes, yes         |
+| Reconnect after a drop                 | yes, yes, yes                | yes, yes, yes         |
+
+## The web app in a browser
+
+`app/web_test` is a Playwright suite (`@playwright/test`, Chromium). `just
+test-web` builds the web app with `--dart-define=SHIREITOU_SEMANTICS=true`,
+which turns Flutter's semantics tree on at start, so the DOM has an element
+with an accessible name for every button, field and text, and Playwright
+finds them by role and name (`getByRole("button", { name: "Connect" })`).
+The build is served by `python3 -m http.server` on port 8765
+(`SHIREITOU_WEB_PORT`). Each test starts its own hosts: the fake host with
+`dart run ahp_fake_host` and pi with `scripts/pi-faux-host.ts`, behind a
+relay.
+
+- `fake_host.spec.ts`: a session and a reply; Ctrl+K, Alt+↓, Ctrl+L and
+  Ctrl+. as the browser delivers them; MCP sign-in through a real new tab,
+  the fake authorization server and `oauth_callback.html` (the code comes
+  back over `BroadcastChannel`); a reconnect.
+- `pi.spec.ts`: the composer starts a pi session; a drop in the middle of a
+  reply is replayed; a message lost with the connection is rolled back; pi
+  restarts and the session continues. Skipped without a pi checkout.
+
+Keys reach the app only while the Flutter view has the focus. After the
+focused element goes away (the Connect button, when the connect page
+closes) the browser's focus is on the page body, so the tests click into
+the app first, as a user would. Playwright sends keys through the Chrome
+DevTools Protocol, so shortcuts the browser itself reserves (Ctrl+N, Ctrl+T)
+are not exercised as they would be from a real keyboard.
+
+Failed tests keep a Playwright trace in `app/web_test/test-results/`
+(uploaded by CI as `playwright-traces`); open one with `npx playwright
+show-trace <trace.zip>`.

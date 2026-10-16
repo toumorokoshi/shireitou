@@ -40,7 +40,11 @@ dynamic registration, PKCE, the browser and a loopback or web redirect,
 refresh), `auth/required` and `-32007` handling, and the remaining tool
 call interaction (host options, risk, edited input, result
 confirmation, input drafts), with a fake OAuth authorization server in
-the fake host. Remaining work:
+the fake host. Iteration 12 (2026-10-16) drove the app end to end against
+pi with its scripted faux model (no API key) in CI, drove reconnects
+(replay, snapshots, `missing`, rollback, host restart) against the fake
+host and pi, and drove the web build in Chromium with Playwright (see
+[docs/testing.md](docs/testing.md)). Remaining work:
 
 - **Approvals and input against a real host:** tool approvals (AV-083)
   with host options, risk assessments, edited input and result
@@ -80,9 +84,9 @@ the fake host. Remaining work:
     folder browsed to but never used is not remembered.
   - Only the fake host was seen to answer `resolveSessionConfig` with
     settings and `session/creationFailed`; pi answers an empty schema and
-    has no mode. That `createSession` sees pi's `session/creationFailed`
-    relies on pi accepting a subscription to the `ahp-session:/` URI it
-    was created with (true in pi 0.1.0's code; not run against pi).
+    has no mode, and refuses a folder it does not have with `-32602` from
+    `createSession` itself (checked in `pi_faux_flows_test.dart`), so no
+    real host was seen to send `session/creationFailed`.
 - **Timeline, remaining details:**
   - Diff lines are highlighted one line at a time, so constructs that span
     lines (block comments, multi-line strings) can be coloured wrongly.
@@ -165,12 +169,17 @@ the fake host. Remaining work:
   or disabled (`session/customizationToggled`), plugin children are not
   listed, and `_meta` is shown as raw JSON. The app does not announce
   itself in `activeClients` (it provides no tools).
-- **Verified against the fake host only:** terminals, changesets and
-  their operations, canvases, subagent chats, `moveChat`, drafts and
-  windowed history are driven end to end against the scripted fake host
-  (client flows in `just test`, the app in `just test-fake-host-app`);
-  pi was not seen to provide any of them, and no other real host was
-  tried.
+- **Verified against the fake host only:** terminals in tool calls,
+  changesets and their operations, canvases, subagent chats, `moveChat`
+  and windowed history are driven end to end against the scripted fake
+  host only (client flows in `just test`, the app in
+  `just test-fake-host-app`), because pi 0.3.0 cannot provide them: its
+  `bash` tool does not run in an AHP terminal (pi's own `createTerminal`
+  terminals exist, but the app has no UI that creates or lists them), and
+  it has no changesets, canvases, subagent chats, `createChat`/`moveChat`
+  or `fetchTurns` paging. Drafts, queued messages, the folder browser,
+  archive and reconnects are now also driven against pi
+  (`just test-pi-app`). No other real host was tried.
 - **Sign-in (AHP-060, AHP-061), remaining details:**
   - Verified only against the fake host's in-process authorization
     server; no real authorization server (GitHub, Entra ID, Auth0, …) or
@@ -182,11 +191,13 @@ the fake host. Remaining work:
     registered on every browser sign-in (the loopback port, and so the
     redirect URI, changes each time); registrations are not reused.
   - Web: the redirect page (`oauth_callback.html`, `BroadcastChannel`)
-    was built but not tried in a browser. The authorization server must
-    allow CORS for its metadata, registration and token endpoints, and
-    the browser may block the new tab, because it opens after the
-    discovery and registration requests rather than directly on the
-    click.
+    is driven in Chromium by `just test-web` against the fake
+    authorization server (which allows CORS). A real server must allow
+    CORS for its metadata, registration and token endpoints, and a
+    browser with its popup blocker on may block the new tab, because it
+    opens after the discovery and registration requests rather than
+    directly on the click; Playwright's Chromium does not block popups,
+    so that was not checked.
   - iOS and Android use the same loopback receiver, untested; iOS may
     suspend the app while the browser is in front, which would need
     `ASWebAuthenticationSession` or a custom URL scheme instead.
@@ -212,7 +223,14 @@ the fake host. Remaining work:
   - Shortcuts: Alt+↑/↓ also apply while a text field has focus (they win
     over the field's own Alt+arrow navigation). On the web, browsers keep
     Ctrl+N for a new window, so the shortcut only works in the desktop
-    apps there; the web shortcuts were not tried in a browser. There is
+    apps there. Ctrl+K, Alt+↓, Ctrl+L and Ctrl+. are driven in Chromium
+    by `just test-web`, but Playwright sends keys through the DevTools
+    protocol, so whether a real Chrome or Firefox lets the page have
+    Ctrl+K and Ctrl+L before its own address bar was not checked. Keys
+    only reach the app while the Flutter view has the focus: when the
+    focused element goes away (the Connect button as the connect page
+    closes), the focus is on the page body until the user clicks into
+    the app. There is
     no shortcut help overlay (the spec has none); tooltips and the
     search hint name the keys, and macOS lists them in the menu.
 - **Hosts (AV-010 to AV-012):** the open hosts' keys are saved with the
@@ -295,23 +313,27 @@ the fake host. Remaining work:
     workflow publishing them on tags.
 - **Other platforms:** iOS, Android and Windows builds have not been run
   either (no Android SDK or Windows machine here).
-- **App-level integration tests in CI:** the desktop smoke test covers
-  window setup, connecting with a token and saving the host against pi;
-  `app/integration_test/fake_host_flows_test.dart` drives the connect
-  screen, a session, approvals, input requests, the "Waiting for you"
-  panel, MCP sign-in, code blocks, grouped calls, terminals, diffs, the
-  review pane, subagent chats, queued messages, drafts and paging against
-  the fake host, on Linux and macOS (and headless with
-  `just test-fake-host-app flutter-tester`), and a second fake host with
-  the host switcher, the composer (host picker, folder browser, model
-  options, session settings, creation failure) and the mode picker, a
-  test of OAuth sign-in, a refreshed token, host options and risk, edited
-  input, result confirmation, input drafts and `-32007` from the
-  composer, and a test that drives the session list (search, filters, archive from the
-  list, multi-select), the shortcuts, a rejected panel answer, client
-  tools and a restart that restores the open host. Reconnecting after a
-  dropped connection is not driven end to end, and the web app is still
-  only driven by a Playwright script kept outside the repo.
+- **App-level and browser tests, remaining limits** (see
+  [docs/testing.md](docs/testing.md)):
+  - pi runs with its scripted faux model (`scripts/pi-faux-host.ts`, which
+    imports the host from a pi-agent-host-protocol checkout and embeds pi);
+    a real model turn is still only `just test-model`, by hand. The faux
+    host depends on pi-agent-host-protocol's internal module paths
+    (`src/host/agent-host.ts` and the like) and on pi-ai's faux provider,
+    so a refactor there breaks it.
+  - The pi app flows run on Linux (and headless) only; macOS CI runs the
+    fake host flows and the smoke test, not `just test-pi-app` (the test
+    starts `node` from inside the app, which the macOS sandbox was not
+    checked to allow).
+  - Reconnect cases not driven: snapshots instead of a replay against pi
+    (its replay buffer would need thousands of missed actions), and a
+    `missing` channel in the app against pi (covered by the client test;
+    the app's handling is driven against the fake host).
+  - The browser tests run in Chromium only (no Firefox or Safari), cover
+    a subset of the desktop flows (no approvals, input requests, review
+    pane or composer settings), and use the semantics tree
+    (`--dart-define=SHIREITOU_SEMANTICS=true`), which a normal build turns
+    on only when a screen reader asks.
 - Everything else in [specs/agents-view.md](specs/agents-view.md) and
   [specs/agent-host-protocol-client.md](specs/agent-host-protocol-client.md)
   not listed as done in their status sections.

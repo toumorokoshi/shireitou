@@ -124,7 +124,7 @@ class UserMessageBubble extends StatelessWidget {
           color: scheme.primaryContainer,
           borderRadius: BorderRadius.circular(16),
         ),
-        child: SelectableText(
+        child: Text(
           message.text,
           style: TextStyle(color: scheme.onPrimaryContainer),
         ),
@@ -146,7 +146,6 @@ class MarkdownText extends StatelessWidget {
     padding: const EdgeInsets.symmetric(vertical: 4),
     child: MarkdownBody(
       data: data,
-      selectable: true,
       builders: {'pre': _codeBlocks},
       onTapLink: (_, href, _) {
         final uri = href == null ? null : Uri.tryParse(href);
@@ -181,7 +180,7 @@ class ReasoningBlock extends StatelessWidget {
       childrenPadding: const EdgeInsets.only(left: 40, bottom: 8),
       expandedAlignment: Alignment.centerLeft,
       children: [
-        SelectableText(
+        Text(
           content.trim(),
           style: theme.textTheme.bodySmall?.copyWith(color: muted),
         ),
@@ -383,7 +382,7 @@ class _CodeBlock extends StatelessWidget {
               borderRadius: BorderRadius.circular(6),
             ),
             child: SingleChildScrollView(
-              child: SelectableText(
+              child: Text(
                 text,
                 style: theme.textTheme.bodySmall?.copyWith(
                   fontFamily: 'monospace',
@@ -763,7 +762,7 @@ class ErrorBanner extends StatelessWidget {
           Icon(Icons.error_outline, color: scheme.onErrorContainer),
           const SizedBox(width: 8),
           Expanded(
-            child: SelectableText(
+            child: Text(
               message,
               style: TextStyle(color: scheme.onErrorContainer),
             ),

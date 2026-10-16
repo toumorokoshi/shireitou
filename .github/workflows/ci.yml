@@ -54,9 +54,49 @@ jobs:
       - run: npm ci
         working-directory: pi-agent-host-protocol
       - run: flutter pub get
-      - run: just test-integration
+      - name: Client flows against pi (faux model) and the handshake
+        run: |
+          set -o pipefail
+          just test-integration 2>&1 | tee integration.log
         env:
           PI_AHP_HOST_DIR: ${{ github.workspace }}/pi-agent-host-protocol
+      - name: Report integration test failures
+        if: failure()
+        run: scripts/annotate-test-failure integration.log
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: toumorokoshi/pi-agent-host-protocol
+          path: pi-agent-host-protocol
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - uses: extractions/setup-just@v2
+      - run: npm ci
+        working-directory: pi-agent-host-protocol
+      - run: flutter pub get
+      - name: Install Playwright's Chromium
+        run: npm ci && npx playwright install --with-deps chromium
+        working-directory: app/web_test
+      - name: The web app in Chromium (Playwright)
+        timeout-minutes: 15
+        run: just test-web
+        env:
+          PI_AHP_HOST_DIR: ${{ github.workspace }}/pi-agent-host-protocol
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces
+          path: app/web_test/test-results/
 
   linux-desktop:
     runs-on: ubuntu-latest
@@ -101,6 +141,16 @@ jobs:
       - name: Report fake host test failures
         if: failure()
         run: scripts/annotate-test-failure fake-host-app.log
+      - name: App flows against pi (faux model)
+        timeout-minutes: 15
+        run: |
+          set -o pipefail
+          xvfb-run -a just test-pi-app linux 2>&1 | tee pi-app.log
+        env:
+          PI_AHP_HOST_DIR: ${{ github.workspace }}/pi-agent-host-protocol
+      - name: Report pi app test failures
+        if: failure()
+        run: scripts/annotate-test-failure pi-app.log
       - name: Package .tar.gz and .deb
         run: scripts/package-linux
       - uses: actions/upload-artifact@v4
