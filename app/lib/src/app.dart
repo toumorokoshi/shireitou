@@ -1,12 +1,11 @@
 /// The root widget.
 library;
 
-import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'desktop/app_menu.dart';
-import 'host_connection.dart';
+import 'hosts/open_hosts.dart';
 import 'screens/connect_screen.dart';
 import 'screens/sessions_screen.dart';
 import 'theme.dart';
@@ -27,18 +26,17 @@ class ShireitouApp extends StatelessWidget {
   );
 }
 
-/// Shows the session list once connected, otherwise the connect screen.
+/// Shows the session list while any host is connected (or reconnecting),
+/// otherwise the connect screen.
 class HomeScreen extends ConsumerWidget {
   /// Creates the home screen.
   const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final status = ref.watch(hostConnectionProvider.select((s) => s.status));
-    return switch (status) {
-      ConnectionStatus.connected ||
-      ConnectionStatus.reconnecting => const SessionsScreen(),
-      _ => const ConnectScreen(),
-    };
+    final live = ref.watch(
+      hostInfosProvider.select((hosts) => hosts.any((h) => h.live)),
+    );
+    return live ? const SessionsScreen() : const ConnectScreen();
   }
 }

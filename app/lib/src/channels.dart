@@ -20,7 +20,8 @@ final _log = Logger('channels');
 typedef SubscribedBuilder = Widget Function(BuildContext context, bool failed);
 
 /// Keeps [channel] subscribed (mirrored as [kind]) while mounted, so
-/// descendants can watch its state in [hostConnectionProvider].
+/// descendants can watch its state in [hostConnectionProvider] (for the
+/// host of the enclosing [HostScope]).
 class ChannelSubscriber extends ConsumerStatefulWidget {
   /// Creates a [ChannelSubscriber].
   const ChannelSubscriber({
@@ -50,7 +51,7 @@ class _ChannelSubscriberState extends ConsumerState<ChannelSubscriber> {
   @override
   void initState() {
     super.initState();
-    _connection = ref.read(hostConnectionProvider.notifier);
+    _connection = ref.read(hostConnectionProvider(context.host).notifier);
     _subscribe(widget.channel, widget.kind);
   }
 
@@ -86,20 +87,21 @@ class _ChannelSubscriberState extends ConsumerState<ChannelSubscriber> {
   Widget build(BuildContext context) => widget.builder(context, _failed);
 }
 
-/// The text behind a `ContentRef` URI, read with `resourceRead` while
-/// something watches it.
-final resourceTextProvider = FutureProvider.autoDispose.family<String, String>((
-  ref,
-  uri,
-) async {
-  final result = await ref
-      .read(hostConnectionProvider.notifier)
-      .readResource(uri);
-  return switch (result.encoding) {
-    ContentEncoding.base64 => utf8.decode(
-      base64.decode(result.data),
-      allowMalformed: true,
-    ),
-    _ => result.data,
-  };
-});
+/// A `ContentRef` URI on a host.
+typedef HostResource = ({String host, String uri});
+
+/// The text behind a `ContentRef` URI on a host, read with `resourceRead`
+/// while something watches it.
+final resourceTextProvider = FutureProvider.autoDispose
+    .family<String, HostResource>((ref, resource) async {
+      final result = await ref
+          .read(hostConnectionProvider(resource.host).notifier)
+          .readResource(resource.uri);
+      return switch (result.encoding) {
+        ContentEncoding.base64 => utf8.decode(
+          base64.decode(result.data),
+          allowMalformed: true,
+        ),
+        _ => result.data,
+      };
+    });

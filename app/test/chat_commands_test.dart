@@ -1,6 +1,6 @@
 import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shireitou/src/screens/new_session_screen.dart';
+import 'package:shireitou/src/composer/directory_browser.dart';
 import 'package:shireitou/src/session_detail/chat_commands.dart';
 import 'package:shireitou/src/session_list/session_filter.dart';
 
@@ -170,5 +170,21 @@ void main() {
   test('directoryUri keeps file URIs and converts paths', () {
     expect(directoryUri('file:///a/b/'), 'file:///a/b/');
     expect(directoryUri(' /a/b c '), 'file:///a/b%20c');
+  });
+
+  test('folder browser paths', () {
+    expect(parentFolder('/a/b'), '/a');
+    expect(parentFolder('/a'), '/');
+    expect(parentFolder('/'), isNull);
+    expect(childFolder('/', 'a'), '/a');
+    expect(childFolder('/a', 'b'), '/a/b');
+    expect(
+      folderNames(const [
+        DirectoryEntry(name: 'b', type: DirectoryEntryType.directory),
+        DirectoryEntry(name: 'README', type: DirectoryEntryType.file),
+        DirectoryEntry(name: 'A', type: DirectoryEntryType.directory),
+      ]),
+      ['A', 'b'],
+    );
   });
 }

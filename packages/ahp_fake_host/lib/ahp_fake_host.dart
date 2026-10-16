@@ -3,5 +3,6 @@
 /// message names the flow (see [Scenario]).
 library;
 
+export 'src/fake_config.dart';
 export 'src/fake_host.dart';
 export 'src/script.dart';

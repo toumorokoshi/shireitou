@@ -1,4 +1,7 @@
+import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shireitou/src/hosts/open_hosts.dart';
+import 'package:shireitou/src/session_list/session_list_view.dart';
 import 'package:shireitou/src/session_list/folder_grouping.dart';
 
 import 'fixtures.dart';
@@ -81,6 +84,64 @@ void main() {
 
     test('no sessions means no folders', () {
       expect(groupSessionsByFolder([]), isEmpty);
+    });
+  });
+
+  group('hosts and worktree metadata', () {
+    test('the same path on two hosts is two folders', () {
+      final groups = groupHostSessions([
+        HostSession('ws://a', session('1', directory: 'file:///src/app')),
+        HostSession('ws://b', session('2', directory: 'file:///src/app')),
+      ]);
+      expect(groups.map((g) => g.host), unorderedEquals(['ws://a', 'ws://b']));
+      expect(groups.map((g) => g.id).toSet(), hasLength(2));
+    });
+
+    test('repo and branch come from the project and _meta.git', () {
+      final worktree = session('1', directory: 'file:///src/app-worktrees/fix')
+          .copyWith(
+            project: const ProjectInfo(
+              uri: 'file:///src/app',
+              displayName: 'app',
+            ),
+            meta: {
+              'git': {'branchName': 'fix'},
+            },
+          );
+      expect(worktreeInfoOf(worktree), (repo: 'app', branch: 'fix'));
+      final root = worktree.copyWith(workingDirectories: ['file:///src/app/']);
+      expect(worktreeInfoOf(root).repo, isNull);
+      expect(worktreeInfoOf(session('2')), (repo: null, branch: null));
+      final group = groupSessionsByFolder([worktree]).single;
+      expect(group.repo, 'app');
+      expect(group.branch, 'fix');
+      expect(
+        folderDetails(group, 'laptop'),
+        'laptop · app · ⎇ fix · /src/app-worktrees/fix',
+      );
+      expect(
+        folderDetails(groupSessionsByFolder([session('3')]).single, null),
+        '',
+      );
+    });
+
+    test('recentFolders lists a host\'s folders, newest first', () {
+      final sessions = [
+        HostSession(
+          'a',
+          session('1', directory: 'file:///x', modifiedAt: '2026-10-01'),
+        ),
+        HostSession(
+          'a',
+          session('2', directory: 'file:///y/', modifiedAt: '2026-10-03'),
+        ),
+        HostSession(
+          'a',
+          session('3', directory: 'file:///x', modifiedAt: '2026-10-02'),
+        ),
+        HostSession('b', session('4', directory: 'file:///z')),
+      ];
+      expect(recentFolders(sessions, 'a'), ['/y', '/x']);
     });
   });
 }

@@ -20,6 +20,8 @@ import 'package:shireitou/src/desktop/desktop_window.dart';
 import 'package:shireitou/src/desktop/window_bounds.dart';
 import 'package:shireitou/src/host_connection.dart';
 import 'package:shireitou/src/hosts/host_store.dart';
+import 'package:shireitou/src/hosts/open_hosts.dart';
+import 'package:shireitou/src/hosts/saved_hosts.dart';
 import 'package:window_manager/window_manager.dart';
 
 const _url = String.fromEnvironment('AHP_URL');
@@ -58,16 +60,18 @@ void main() {
         child: const ShireitouApp(),
       ),
     );
-    final connection = container.read(hostConnectionProvider.notifier);
-    await tester.runAsync(() => connection.connect(_url, name: 'smoke'));
+    final host = SavedHost(url: _url, name: 'smoke');
+    final open = container.read(openHostsProvider.notifier);
+    await tester.runAsync(() => open.connect(host));
     expect(
-      container.read(hostConnectionProvider).status,
+      container.read(hostConnectionProvider(host.key)).status,
       ConnectionStatus.connected,
     );
+    expect(container.read(hostStorageProblemProvider), isNull);
     final hosts = await tester.runAsync(
       () => container.read(hostStoreProvider).loadHosts(),
     );
     expect(hosts!.first.label, 'smoke');
-    await tester.runAsync(connection.disconnect);
+    await tester.runAsync(open.disconnectAll);
   }, skip: _url.isEmpty);
 }

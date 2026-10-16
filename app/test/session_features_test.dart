@@ -10,7 +10,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shireitou/src/app.dart';
-import 'package:shireitou/src/host_connection.dart';
 import 'package:shireitou/src/session_detail/code_highlight.dart';
 
 import 'fake_connection.dart';
@@ -33,7 +32,7 @@ Future<FakeHostConnection> _pump(
   final connection = FakeHostConnection(state);
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [hostConnectionProvider.overrideWith(() => connection)],
+      overrides: hostOverrides(connection: connection),
       child: const ShireitouApp(),
     ),
   );
@@ -313,7 +312,7 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [hostConnectionProvider.overrideWith(() => connection)],
+        overrides: hostOverrides(connection: connection),
         child: const ShireitouApp(),
       ),
     );

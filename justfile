@@ -39,7 +39,8 @@ fake-host *args:
 
 # Drive the real app against the fake host: approvals, input requests,
 # session-level requests, MCP sign-in, terminals, diffs and review,
-# subagent chats, queued messages, drafts and paging. Linux needs a
+# subagent chats, queued messages, drafts and paging; a second host, the
+# composer and session settings. Linux needs a
 # display; `flutter-tester` runs it headless (no window plugin).
 test-fake-host-app device="linux":
     cd app && flutter test integration_test/fake_host_flows_test.dart -d {{device}}

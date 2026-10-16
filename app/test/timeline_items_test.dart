@@ -67,6 +67,22 @@ void main() {
     );
     expect(sessionUsage(chat), (input: 1200, output: 30));
     expect(lastModelOf(chat), 'm1');
+    expect(lastModelSelection(chat), isNull);
+    final picked = chat.copyWith(
+      turns: [
+        chat.turns.first.copyWith(
+          message: userMessage(
+            'hi',
+            model: const ModelSelection(
+              id: 'm2',
+              config: {'thinkingLevel': 'high'},
+            ),
+          ),
+        ),
+      ],
+      activeTurn: null,
+    );
+    expect(lastModelSelection(picked)?.config, {'thinkingLevel': 'high'});
   });
 }
 

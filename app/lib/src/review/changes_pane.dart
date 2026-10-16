@@ -37,20 +37,18 @@ class _ChangesPaneState extends ConsumerState<ChangesPane> {
   @override
   Widget build(BuildContext context) {
     final session = ref.watch(
-      hostConnectionProvider.select(
-        (s) => s.sessionChannels[widget.session]?.state,
-      ),
+      hostConnectionProvider(context.host)
+          .select((s) => s.sessionChannels[widget.session]?.state),
     );
     final chatUri = widget.chat;
     final chat = chatUri == null
         ? null
         : ref.watch(
-            hostConnectionProvider.select(
-              (s) => s.chatChannels[chatUri]?.state,
-            ),
+            hostConnectionProvider(context.host)
+                .select((s) => s.chatChannels[chatUri]?.state),
           );
     final version = ref.watch(
-      hostConnectionProvider.select((s) => s.protocolVersion),
+      hostConnectionProvider(context.host).select((s) => s.protocolVersion),
     );
     final entries = availableChangesets(
       session,
@@ -167,6 +165,7 @@ class _ChangesetView extends ConsumerWidget {
     ChangesetOperation op, {
     ChangesetOperationTarget? target,
   }) async {
+    final host = context.host;
     if (op.confirmation case final question?) {
       final ok = await showDialog<bool>(
         context: context,
@@ -189,7 +188,7 @@ class _ChangesetView extends ConsumerWidget {
     }
     try {
       final result = await ref
-          .read(hostConnectionProvider.notifier)
+          .read(hostConnectionProvider(host).notifier)
           .invokeChangesetOperation(uri, op.id, target: target);
       if (!context.mounted) return;
       _snack(context, result.message?.text ?? '${op.label}: done');
@@ -199,8 +198,13 @@ class _ChangesetView extends ConsumerWidget {
         } else if (context.mounted) {
           await showDialog<void>(
             context: context,
-            builder: (_) =>
-                _FollowUpDialog(title: op.label, content: followUp.content.uri),
+            builder: (_) => HostScope(
+              host: host,
+              child: _FollowUpDialog(
+                title: op.label,
+                content: followUp.content.uri,
+              ),
+            ),
           );
         }
       }
@@ -212,7 +216,8 @@ class _ChangesetView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(
-      hostConnectionProvider.select((s) => s.changesetChannels[uri]?.state),
+      hostConnectionProvider(context.host)
+          .select((s) => s.changesetChannels[uri]?.state),
     );
     if (state == null) {
       return Center(
@@ -304,7 +309,7 @@ class _ChangesetView extends ConsumerWidget {
   ) {
     try {
       ref
-          .read(hostConnectionProvider.notifier)
+          .read(hostConnectionProvider(context.host).notifier)
           .dispatch(
             uri,
             ChangesetFilesReviewChangedAction(
@@ -435,7 +440,9 @@ class _FollowUpDialog extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final text = ref.watch(resourceTextProvider(content));
+    final text = ref.watch(
+      resourceTextProvider((host: context.host, uri: content)),
+    );
     return AlertDialog(
       title: Text(title),
       content: SingleChildScrollView(

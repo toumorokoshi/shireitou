@@ -14,8 +14,10 @@ exercised against a real host.
   so clients fall back to `initialize`), `listSessions`, `subscribe`,
   `unsubscribe`, `createSession`, `fetchTurns`, `authenticate`, `ping`,
   `dispatchAction`, `resourceRead` (the two sides of scripted file edits),
-  `invokeChangesetOperation` and `moveChat` (reorders a movable chat
-  within its session; other destinations are refused).
+  `invokeChangesetOperation`, `moveChat` (reorders a movable chat
+  within its session; other destinations are refused), `resourceList`,
+  `resolveSessionConfig` and `sessionConfigCompletions` (see "Starting
+  sessions" below).
 - It keeps real protocol state (`RootState`, `SessionState`, `ChatState`,
   `TerminalState`, `ChangesetState`, `CanvasState`, catalogue
   `SessionSummary`s) and advances it with the client package's own
@@ -28,6 +30,9 @@ exercised against a real host.
   `rejectionReason` to the sender only.
 - A token, when set, is accepted in the `tkn` query parameter or an
   `Authorization: Bearer` header.
+- `name` sets `serverInfo.name` and `titlePrefix` prefixes the seeded
+  sessions' titles, so a second instance (for multi-host tests) is told
+  apart: `FakeAhpHost(name: 'second-host', titlePrefix: 'Other ')`.
 - It starts with two sessions and one agent, `fake`:
   - `ahp-session:/scripted` ("Scripted session") with chat
     `ahp-chat:/scripted`, where the flows below run.
@@ -41,6 +46,29 @@ exercised against a real host.
   and `revert` (file scope; removes the file)), and `Turn changes`
   (`ahp-changeset:/<id>/turn/{turnId}`). It also lists two server tools
   and a ready MCP server customization ("Example Docs").
+
+## Starting sessions
+
+- **Models:** the agent offers `scripted`, whose `configSchema` has a
+  `thinkingLevel` choice (`low`, `medium` (default), `high`; the property
+  name VS Code's and pi's agents use), and `scripted-fast` without options.
+- **Filesystem:** `resourceList` serves an in-memory tree around
+  `defaultDirectory` (`/workspace` with `README.md`, `packages/api`,
+  `packages/web`) plus `/srv/scratch`; other URIs are `-32008`.
+- **Session settings:** `resolveSessionConfig` returns `mode`
+  (`interactive`/`plan`/`autopilot`, `sessionMutable`, as VS Code's agent
+  host names it) and, for folders inside `/workspace` (a "repository"),
+  `branch` (`enumDynamic`; `sessionConfigCompletions` filters `main`,
+  `feature/login`, `fix/crash`). `values` fills in the defaults. The
+  session keeps them as `SessionState.config`; `session/configChanged` is
+  accepted for `sessionMutable` settings and rejected otherwise.
+- **Worktree metadata:** sessions in the repository list `project`
+  (`/workspace`, "workspace") and the branch in `_meta.git.branchName`,
+  the shape VS Code's agent host uses.
+- **Creation failure:** `createSession` in a folder the tree does not have
+  succeeds, then the host dispatches `session/creationFailed`
+  ("No such folder: …") on the session channel a step later and never
+  lists the session, the way pi fails.
 
 ## Scripted flows
 
@@ -64,6 +92,7 @@ echo that lists the keywords.
 | `code`       | A markdown reply with a fenced Dart block.                                                                                                                                                                                                                                   |
 | `slow`       | Streams a reply with `chat/delta`, then keeps the turn running for `slowDuration` (4 s by default) unless stopped, so messages can be queued, edited and reordered.                                                                                                          |
 | `cd`         | Adds `packages/api` to the session's and the chat's working directories.                                                                                                                                                                                                     |
+| `settings`   | Replies with the message's model and options (`Model: scripted`, `thinkingLevel: high`) and the session's settings (`mode: plan`, `branch: …`).                                                                                                                              |
 
 If the user stops the turn while the script waits, the script ends and the
 session-level entry is removed.
@@ -86,13 +115,21 @@ Paste the printed `ws://…?tkn=…` URL into the app's connect screen, open
   chat, MCP sign-in and cancel, background work, change counts, queued
   messages and rejected actions, terminals (tool calls and background
   shells), diffs, changesets with review and operations, subagent chats,
-  `moveChat`, canvases, queued message editing and reordering, and
-  paging a windowed chat.
+  `moveChat`, canvases, queued message editing and reordering, paging a
+  windowed chat, `resourceList`, `resolveSessionConfig` and completions,
+  a session started with settings and a model with options (and a mode
+  changed mid-session), and a creation failure that `createSession`
+  reports at once.
 - `app/integration_test/fake_host_flows_test.dart` (`just
 test-fake-host-app [linux|macos]`, run by CI on both desktops): the real
   app, with the host in the same process, connects through the connect
   screen and drives approve, deny, answer, decline, the "Waiting for you"
-  panel and MCP sign-in through the UI. Remembered hosts are kept in
+  panel and MCP sign-in through the UI. A third test adds a second fake
+  host from the host switcher, checks the merged list and the switcher,
+  starts a session from a folder's "+" button with the host picker,
+  folder browser, a model option, the mode and a branch suggestion, changes
+  the mode from the follow-up bar, and checks that a session in a missing
+  folder fails with the host's error at once. Remembered hosts are kept in
   memory (an overridden `hostStoreProvider`), so it needs no keyring or
   keychain; secure storage is the desktop smoke test's job. Linux needs a
   display (`xvfb-run -a just test-fake-host-app linux`).

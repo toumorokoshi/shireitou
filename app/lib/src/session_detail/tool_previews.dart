@@ -192,9 +192,8 @@ class LiveTerminal extends ConsumerWidget {
     builder: (context, failed) => Consumer(
       builder: (context, ref, _) {
         final state = ref.watch(
-          hostConnectionProvider.select(
-            (s) => s.terminalChannels[terminal]?.state,
-          ),
+          hostConnectionProvider(context.host)
+              .select((s) => s.terminalChannels[terminal]?.state),
         );
         return TerminalBox(
           title: state?.title ?? title,
@@ -268,15 +267,18 @@ Future<void> openTerminal(
   String? preview,
 }) => Navigator.of(context).push(
   MaterialPageRoute<void>(
-    builder: (_) => Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: Padding(
-        padding: const EdgeInsets.all(12),
-        child: LiveTerminal(
-          terminal: terminal,
-          title: title,
-          preview: preview,
-          maxHeight: null,
+    builder: (_) => HostScope(
+      host: context.host,
+      child: Scaffold(
+        appBar: AppBar(title: Text(title)),
+        body: Padding(
+          padding: const EdgeInsets.all(12),
+          child: LiveTerminal(
+            terminal: terminal,
+            title: title,
+            preview: preview,
+            maxHeight: null,
+          ),
         ),
       ),
     ),

@@ -4,6 +4,7 @@ library;
 import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter/material.dart';
 
+import '../hosts/open_hosts.dart';
 import 'folder_grouping.dart';
 import 'relative_time.dart';
 import 'status_badges.dart';
@@ -16,17 +17,27 @@ class SessionListView extends StatelessWidget {
     required this.groups,
     required this.onSelect,
     this.selected,
+    this.onNewSession,
+    this.hostLabels = const {},
     this.now,
   });
 
   /// Folders to show, already grouped and sorted.
   final List<FolderGroup> groups;
 
-  /// URI of the selected session, highlighted in the list.
-  final String? selected;
+  /// The selected session, highlighted in the list.
+  final SessionRef? selected;
 
-  /// Called with a session's URI when its row is tapped.
-  final ValueChanged<String> onSelect;
+  /// Called with a session when its row is tapped.
+  final ValueChanged<SessionRef> onSelect;
+
+  /// Starts a session in a folder (the header's "+" button); no button
+  /// when null.
+  final ValueChanged<FolderGroup>? onNewSession;
+
+  /// Host labels by host key, shown on folder headers when sessions of
+  /// more than one host are listed (AV-012).
+  final Map<String, String> hostLabels;
 
   /// Clock for relative times; defaults to `DateTime.now()`.
   final DateTime? now;
@@ -41,21 +52,36 @@ class SessionListView extends StatelessWidget {
       children: [
         for (final group in groups)
           ExpansionTile(
-            key: PageStorageKey(group.key ?? noFolderLabel),
+            key: PageStorageKey(group.id),
             initiallyExpanded: true,
             leading: const Icon(Icons.folder_outlined),
             title: Text(group.label),
-            subtitle: group.path.isEmpty
-                ? null
-                : Text(group.path, overflow: TextOverflow.ellipsis),
-            trailing: _FolderCounts(group: group),
+            subtitle: switch (folderDetails(
+              group,
+              hostLabels.length > 1 ? hostLabels[group.host] : null,
+            )) {
+              '' => null,
+              final details => Text(
+                details,
+                overflow: TextOverflow.ellipsis,
+                maxLines: 2,
+              ),
+            },
+            trailing: _FolderCounts(
+              group: group,
+              onNewSession: onNewSession == null
+                  ? null
+                  : () => onNewSession!(group),
+            ),
             children: [
               for (final session in group.sessions)
                 SessionTile(
                   session: session,
                   now: clock,
-                  selected: session.resource == selected,
-                  onTap: () => onSelect(session.resource),
+                  selected:
+                      selected == (host: group.host, session: session.resource),
+                  onTap: () =>
+                      onSelect((host: group.host, session: session.resource)),
                 ),
             ],
           ),
@@ -64,10 +90,20 @@ class SessionListView extends StatelessWidget {
   }
 }
 
+/// The line under a folder's name: its host (when several are listed),
+/// repository and branch when the host reports them, and its full path.
+String folderDetails(FolderGroup group, String? hostLabel) => [
+  ?hostLabel,
+  ?group.repo,
+  if (group.branch case final branch?) '⎇ $branch',
+  if (group.path.isNotEmpty) group.path,
+].join(' · ');
+
 class _FolderCounts extends StatelessWidget {
-  const _FolderCounts({required this.group});
+  const _FolderCounts({required this.group, this.onNewSession});
 
   final FolderGroup group;
+  final VoidCallback? onNewSession;
 
   @override
   Widget build(BuildContext context) {
@@ -83,6 +119,13 @@ class _FolderCounts extends StatelessWidget {
             child: const Icon(Icons.notifications_outlined, size: 20),
           ),
         ],
+        if (onNewSession != null)
+          IconButton(
+            tooltip: 'New session in ${group.label}',
+            icon: const Icon(Icons.add),
+            visualDensity: VisualDensity.compact,
+            onPressed: onNewSession,
+          ),
       ],
     );
   }

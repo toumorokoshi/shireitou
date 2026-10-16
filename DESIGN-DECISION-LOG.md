@@ -1,5 +1,84 @@
 # Design Decision Log
 
+## 2026-10-16: Several hosts at once, the full composer, and model and mode pickers
+
+- **One client per host, scoped by an InheritedWidget:**
+  `hostConnectionProvider` became a Riverpod family keyed by the host key
+  (the URL without `tkn`, as for remembered hosts), each entry owning one
+  `AhpClient`. `openHostsProvider` lists the connected hosts in the order
+  they were added; `hostInfosProvider` derives status and labels, and
+  `allSessionsProvider` merges the catalogues into `HostSession`s. Rather
+  than threading a host argument through every widget of the session view,
+  a `HostScope` `InheritedWidget` above the view names the host
+  (`context.host`); views are keyed by `(host, session)`, so the lookup
+  registers no dependency. Pushed pages and dialogs wrap themselves in a
+  `HostScope`. Alternative considered: Riverpod scoped overrides, which
+  need `dependencies` declared on every provider that reads them.
+- **Host switcher, not host tabs:** the app bar title is a menu showing
+  "All hosts" or one host, each host's status and error, and "Add host…"
+  (the connect page, pushed). The list shows every host by default (AV-012),
+  folders are keyed by host and folder (the same path on two hosts is two
+  folders), and folder headers name the host when several are listed.
+  Labels prefer the user's name, then `serverInfo.name`, then the URL, and
+  append the address when two would read the same. A host whose first
+  connect fails is dropped again (its error stays on the connect page);
+  which hosts were open is not restored after a restart (GAPS.md).
+- **Storage problems are shown, not just logged:** `HostStore` now throws;
+  `SavedHosts` keeps the list in memory, reports the error to
+  `hostStorageProblemProvider`, and `retry()` merges the stored and
+  in-memory lists and saves. `describeStorageError` maps the Linux plugin's
+  `KeyringLocked` code and a missing `org.freedesktop.secrets` service to
+  plain advice; the banner (connect page and session list) has Retry and
+  Dismiss.
+- **Agent/model selection (open question answered):** surveyed pi 0.1.0
+  and VS Code's agent host (`src/vs/platform/agentHost`). Both put the
+  model on each message (`Message.model`, ids from `AgentInfo.models`) and
+  its options in `SessionModelInfo.configSchema`, both using a
+  `thinkingLevel` property (pi: off…xhigh; VS Code Claude "Effort Level"
+  low…max; Copilot and Codex add `reasoningEffort`, `contextTier`,
+  `contextSize`). The mode is a session setting from `resolveSessionConfig`
+  in VS Code (`mode`: interactive/plan/autopilot, `sessionMutable`; also
+  `autoApprove`, `isolation`, `branch` with `sessionConfigCompletions`),
+  not `Message.agent`, which selects custom agents. pi stubs
+  `resolveSessionConfig` with an empty schema and has no mode. So: the
+  composer renders the selected model's `configSchema` as a form and sends
+  `ModelSelection {id, config}` with the first message, and renders
+  whatever `resolveSessionConfig` returns (re-resolving when the agent,
+  folder or a setting changes; `enumDynamic` properties get host
+  suggestions) and passes the values as `createSession` `config`. No
+  setting names are hard-coded. In a session, a bar above the follow-up
+  box picks the next message's model and options (starting from the last
+  message's `Message.model`) and offers the `sessionMutable` choice
+  settings, changed with `session/configChanged`; all settings are listed
+  in session details. `ConfigPropertySchema` and
+  `SessionConfigPropertySchema` are mapped to one pure `ConfigField`.
+- **Worktree metadata (open question answered):** AHP 1.0.0 has no repo or
+  branch fields. VS Code's host sets `SessionSummary.project` to the git
+  repository root (named by `displayName`) and puts the branch in
+  `_meta.git.branchName` (a documented VS Code convention); pi reports
+  neither. Folder labels therefore stay the folder name and path, plus the
+  repository when `project` names one other than the folder (a worktree or
+  sub-folder) and the branch from `_meta.git` when present; pi's folders
+  show the path only.
+- **Creation failures surface at once:** pi answers `createSession`, then
+  dispatches `session/creationFailed` on the session channel and never
+  lists the session; VS Code lists it with an error status. `createSession`
+  now subscribes to the URI it sent while waiting (pi accepts its
+  `ahp-session:/` alias) and the pure `creationOutcome` returns a failure
+  for `lifecycle: failed`, keeps waiting while `creating`, and otherwise
+  waits for the catalogue. A second subscriber to a channel now waits for
+  the first one's snapshot, which `openSession` right after
+  `createSession` needed.
+- **Folder browser and recent folders:** "Browse…" uses `resourceList`
+  (one folder at a time, folders only). Recent folders are the host's
+  sessions' folders, newest first, instead of a separate stored list.
+- **Fake host:** `name` and `titlePrefix` tell a second instance apart; an
+  in-memory filesystem answers `resourceList`; the `scripted` model has a
+  `thinkingLevel` option; `resolveSessionConfig` returns `mode` and, in the
+  repository, a dynamic `branch`; sessions there carry `project` and
+  `_meta.git`; creating a session in a missing folder fails like pi; the
+  `settings` keyword echoes the model, options and settings.
+
 ## 2026-10-16: Timeline previews, review pane, chat switcher and windowed history
 
 - **More mirrored channel kinds, one code path:** `HostState` now mirrors

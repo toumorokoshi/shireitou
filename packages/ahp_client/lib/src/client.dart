@@ -15,6 +15,7 @@ import 'channel_mirror.dart';
 import 'protocol.dart';
 import 'protocol_version.dart';
 import 'session_catalogue.dart';
+import 'session_creation.dart';
 import 'subscriptions.dart';
 import 'transport_io.dart'
     if (dart.library.js_interop) 'transport_web.dart'
@@ -49,6 +50,11 @@ ChannelConnector webSocketConnector({
 /// and waits for the handshake (AHP-001, AHP-002).
 Future<StreamChannel<String>> connectWebSocket(Uri uri) =>
     webSocketConnector()(uri);
+
+/// Whether [error] is a host's JSON-RPC "method not found" (`-32601`), for
+/// optional commands such as `resolveSessionConfig` or `resourceList`.
+bool isMethodNotFound(Object error) =>
+    error is RpcException && error.code == -32601;
 
 /// Root-channel notifications that update the session catalogue.
 const _catalogueNotifications = [
@@ -115,6 +121,7 @@ class AhpClient {
   final _failures = StreamController<ActionFailure>.broadcast();
   final _pendingTimers = <Timer>{};
   final _loadingTurns = <String>{};
+  final _subscribing = <String, Future<Snapshot?>>{};
   Timer? _pingTimer;
   bool _pingInFlight = false;
   HostState _state = const HostState();
@@ -199,7 +206,28 @@ class AhpClient {
     final change = acquireSubscription(_subscriptions, channel);
     _subscriptions = change.counts;
     final peer = _peer;
-    if (!change.sendToHost || peer == null) return null;
+    if (!change.sendToHost || peer == null) {
+      // A later observer waits for the first one's snapshot, so the channel
+      // is mirrored when this returns.
+      await _subscribing[channel]?.catchError((Object _) => null);
+      return null;
+    }
+    final request = _subscribeOnHost(peer, channel, kind);
+    _subscribing[channel] = request;
+    try {
+      return await request;
+    } finally {
+      if (identical(_subscribing[channel], request)) {
+        unawaited(_subscribing.remove(channel));
+      }
+    }
+  }
+
+  Future<Snapshot?> _subscribeOnHost(
+    Peer peer,
+    String channel,
+    ChannelKind kind,
+  ) async {
     if (_state.missingChannels.contains(channel)) {
       _set(
         _state.copyWith(
@@ -389,10 +417,14 @@ class AhpClient {
 
   /// Creates a session with a client-chosen `ahp-session:/<uuid>` URI
   /// (AHP-040), retrying with a new URI on `-32003 SessionAlreadyExists`.
+  /// [config] carries the values collected with [resolveSessionConfig].
   ///
   /// Waits until the session appears in the catalogue and returns its
   /// catalogue key, which may differ from the URI sent (see
-  /// [resolveSessionResource]).
+  /// [resolveSessionResource]). Meanwhile it watches the session channel,
+  /// so a backend that fails to start (`session/creationFailed`, or a
+  /// snapshot whose `lifecycle` is `creationFailed`) throws
+  /// [SessionCreationFailedError] at once instead of waiting for [timeout].
   Future<String> createSession({
     String? provider,
     List<String>? workingDirectories,
@@ -416,14 +448,105 @@ class AhpClient {
         }
         rethrow;
       }
-      final listed = resolveSessionResource(_state.sessions, session);
-      if (listed != null) return listed;
-      return states
-          .map((state) => resolveSessionResource(state.sessions, session))
-          .firstWhere((resource) => resource != null)
-          .then((resource) => resource!)
-          .timeout(timeout);
+      return _awaitCreated(session, timeout);
     }
+  }
+
+  Future<String> _awaitCreated(String session, Duration timeout) async {
+    // Hosts that publish the session under another URI (pi) may refuse
+    // the sent one; then only the catalogue tells.
+    final watched = subscribe(session, kind: ChannelKind.session).then(
+      (_) => true,
+      onError: (Object error) {
+        _log.fine('not watching $session while it starts: $error');
+        return false;
+      },
+    );
+    try {
+      final outcome =
+          creationOutcome(_state, session) ??
+          await states
+              .map((state) => creationOutcome(state, session))
+              .firstWhere((outcome) => outcome != null)
+              .timeout(timeout);
+      return switch (outcome!) {
+        SessionCreated(:final resource) => resource,
+        SessionCreationFailed(:final error) => throw SessionCreationFailedError(
+          session,
+          error,
+        ),
+      };
+    } finally {
+      unawaited(
+        watched.then((subscribed) {
+          if (subscribed) unsubscribe(session);
+        }),
+      );
+    }
+  }
+
+  /// Lists the directory [uri] on the host's filesystem (`resourceList`),
+  /// for a remote folder picker (AV-043). Throws the host's JSON-RPC error
+  /// when [uri] is not a readable directory or the host does not offer
+  /// `resourceList` (`-32601`).
+  Future<List<DirectoryEntry>> listDirectory(String uri) async {
+    final peer = _peer;
+    if (peer == null) throw StateError('not connected');
+    return ResourceListResult.fromJson(
+      await peer.sendRequest(
+        'resourceList',
+        ResourceListParams(uri: uri).toJson(),
+      ) as JsonMap,
+    ).entries;
+  }
+
+  /// Asks the host which session settings (such as a mode or a branch) an
+  /// agent takes in [workingDirectory], given the [config] chosen so far
+  /// (`resolveSessionConfig`, AV-041). The result's `values` include the
+  /// host's defaults and go to [createSession] as `config`.
+  Future<ResolveSessionConfigResult> resolveSessionConfig({
+    String? provider,
+    String? workingDirectory,
+    JsonMap? config,
+  }) async {
+    final peer = _peer;
+    if (peer == null) throw StateError('not connected');
+    return ResolveSessionConfigResult.fromJson(
+      await peer.sendRequest(
+        'resolveSessionConfig',
+        ResolveSessionConfigParams(
+          provider: provider,
+          workingDirectory: workingDirectory,
+          config: config,
+        ).toJson(),
+      ) as JsonMap,
+    );
+  }
+
+  /// The values the host suggests for the session setting [property] whose
+  /// schema has `enumDynamic` (`sessionConfigCompletions`), matching
+  /// [query].
+  Future<List<SessionConfigValueItem>> sessionConfigCompletions({
+    required String property,
+    String? provider,
+    String? workingDirectory,
+    JsonMap? config,
+    String? query,
+  }) async {
+    final peer = _peer;
+    if (peer == null) throw StateError('not connected');
+    return SessionConfigCompletionsResult.fromJson(
+      await peer.sendRequest(
+        'sessionConfigCompletions',
+        SessionConfigCompletionsParams(
+          property: property,
+          provider: provider,
+          workingDirectory: workingDirectory,
+          config: config,
+          query: query,
+        ).toJson(),
+      ) as JsonMap,
+    ).items;
   }
 
   /// Pushes a bearer [token] for the protected [resource] (`authenticate`,

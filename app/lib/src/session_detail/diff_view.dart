@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../channels.dart';
+import '../host_connection.dart';
 import 'code_highlight.dart';
 import 'diff_lines.dart';
 
@@ -81,7 +82,9 @@ class FileEditDiff extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     AsyncValue<String> side(ContentRef? content) => content == null
         ? const AsyncData('')
-        : ref.watch(resourceTextProvider(content.uri));
+        : ref.watch(
+            resourceTextProvider((host: context.host, uri: content.uri)),
+          );
     final old = side(before);
     final current = side(after);
     if (old.hasError || current.hasError) {
@@ -396,12 +399,15 @@ Future<void> openFileDiff(
   List<Widget> actions = const [],
 }) => Navigator.of(context).push(
   MaterialPageRoute<void>(
-    builder: (_) => FileDiffPage(
-      title: shortPath(uri),
-      before: before,
-      after: after,
-      path: uri,
-      actions: actions,
+    builder: (_) => HostScope(
+      host: context.host,
+      child: FileDiffPage(
+        title: shortPath(uri),
+        before: before,
+        after: after,
+        path: uri,
+        actions: actions,
+      ),
     ),
   ),
 );

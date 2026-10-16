@@ -433,6 +433,17 @@ String? lastModelOf(ChatState chat) {
   return null;
 }
 
+/// The model the user last asked for in [chat] (`Message.model`, with its
+/// options), to keep using it for follow-ups; null when every message used
+/// the host's default.
+ModelSelection? lastModelSelection(ChatState chat) {
+  if (chat.activeTurn?.message.model case final model?) return model;
+  for (final turn in chat.turns.reversed) {
+    if (turn.message.model case final model?) return model;
+  }
+  return null;
+}
+
 /// The inline previews of [toolCall] (AV-065, AV-069): terminals, file
 /// edits (also those awaiting confirmation) and subagent chats.
 List<ToolResultContent> toolCallPreviews(ToolCallState toolCall) => [

@@ -110,7 +110,14 @@ WebSocket ──► json_rpc_2 Peer ──► AhpClient (I/O edge)
 - **Creating sessions:** `createSession` retries on `-32003`, then waits for
   the session in the catalogue and returns the URI the host lists
   (`resolveSessionResource` matches pi's `pi:/<id>` to the
-  `ahp-session:/<id>` that was sent).
+  `ahp-session:/<id>` that was sent). Meanwhile it subscribes to the sent
+  URI, so `session/creationFailed` (or a snapshot whose `lifecycle` is
+  `failed`) throws `SessionCreationFailedError` at once; the pure
+  `creationOutcome` (`session_creation.dart`) decides. A second subscriber
+  to a channel waits for the first one's snapshot.
+- **Composer commands:** `listDirectory` (`resourceList`),
+  `resolveSessionConfig` and `sessionConfigCompletions` are plain
+  requests; `isMethodNotFound` tells an optional command the host lacks.
 - **Reconnect:** when the socket drops after a successful connect, the client
   retries with exponential backoff (0.5 s doubling to 30 s) using
   `reconnect`, and falls back to `initialize` when the host answers
@@ -150,17 +157,33 @@ Dart source); `bin/generate.dart` does the file I/O. See
 
 ## app
 
-- `lib/src/host_connection.dart`: a Riverpod `Notifier<HostState>` that owns
-  the `AhpClient`, mirrors its `states` stream, and forwards `openSession`,
-  `dispatch` and `startSession` (create, open, send the first prompt).
-  Widgets `select` the fields they need, so chat streaming only rebuilds the
-  open timeline.
+- `lib/src/host_connection.dart`: `hostConnectionProvider`, a Riverpod
+  `Notifier<HostState>` family keyed by host (the URL without its token),
+  each owning one `AhpClient`, mirroring its `states` stream, and
+  forwarding `openSession`, `dispatch`, the composer commands and
+  `startSession` (create with settings, open, send the first prompt with
+  the model). Widgets `select` the fields they need, so chat streaming only
+  rebuilds the open timeline. `HostScope` (an `InheritedWidget`) tells the
+  session view and everything under it which host it shows
+  (`context.host`); pages and dialogs pushed from there wrap themselves in
+  one.
 - `lib/src/hosts/`: `saved_hosts.dart` is the pure host list logic
   (`rememberHost`, `forgetHost`, `hostKey` = URL without `tkn`, JSON
   encoding); `host_store.dart` keeps the list in `flutter_secure_storage`
   (migrating the single host older versions saved) behind the
-  `savedHostsProvider` notifier. The connect screen prefills the most
-  recent host and lists the rest.
+  `savedHostsProvider` notifier, and reports storage errors (a locked
+  keyring) to `hostStorageProblemProvider`, shown by `HostStorageBanner`
+  with Retry. `open_hosts.dart` holds the connected hosts
+  (`openHostsProvider`), their status and labels (`hostInfosProvider`,
+  pure `hostLabels`) and the merged inbox (`allSessionsProvider` of
+  `HostSession`s). The connect screen prefills the most recent host and
+  lists the rest; "Add host…" in the host switcher pushes it again.
+- `lib/src/composer/`: `config_fields.dart` is pure: a model's
+  `configSchema` and a session config schema become `ConfigField`s, with
+  `configValues`, `modelSelection` and `mutableSessionFields`.
+  `config_form.dart` renders them (dropdowns, switches, text, and host
+  suggestions for `enumDynamic`), and `directory_browser.dart` is the
+  `resourceList` folder picker.
 - `lib/src/desktop/`: native window setup. `window_bounds.dart` is pure
   (placement encoding, minimum size, whether a saved position is on a
   display); `desktop_window.dart` applies it with `window_manager` and
@@ -173,7 +196,8 @@ Dart source); `bin/generate.dart` does the file I/O. See
   compact (< 700 dp) pushes the session onto a new page, medium shows list
   plus detail, wide (≥ 1200 dp) adds a review pane.
 - `lib/src/session_list/`: pure, tested view logic:
-  `groupSessionsByFolder` (one folder per working directory, AV-025),
+  `groupHostSessions` (one folder per host and working directory, with
+  repository and branch from `project` and `_meta.git`, AV-025),
   `badgesFor` / `needsAttention` (AV-021), `filterSessions` (Active,
   Needs attention, Archived, All; AV-022), and `formatRelativeTime`.
 - `lib/src/session_detail/`: the session view. `timeline_items.dart` and
@@ -218,5 +242,9 @@ Dart source); `bin/generate.dart` does the file I/O. See
 - `lib/src/channels.dart`: `ChannelSubscriber`, which keeps a channel
   subscribed while a widget is mounted, and `resourceTextProvider`, which
   reads `ContentRef` text with `resourceRead`.
-- `lib/src/screens/new_session_screen.dart`: the composer (agent, model,
-  working directory, prompt).
+- `lib/src/screens/new_session_screen.dart`: the composer (host, agent,
+  model and its options, working directory with folder browser and recent
+  folders, the agent's session settings from `resolveSessionConfig`,
+  prompt). In a session, `message_settings.dart` is the bar above the
+  follow-up box that picks the next message's model and options and
+  changes `sessionMutable` settings.

@@ -12,6 +12,7 @@ export 'src/protocol.dart';
 export 'src/protocol_version.dart';
 export 'src/root_reducer.dart';
 export 'src/session_catalogue.dart';
+export 'src/session_creation.dart';
 export 'src/session_reducer.dart';
 export 'src/session_status.dart';
 export 'src/subscriptions.dart';

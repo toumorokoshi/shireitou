@@ -50,7 +50,11 @@ enum Scenario {
   slow('slow'),
 
   /// Adds a working directory to the session and the chat.
-  cd('cd');
+  cd('cd'),
+
+  /// Replies with the message's model and options and the session's
+  /// settings (AV-041).
+  settings('settings');
 
   const Scenario(this.keyword);
 

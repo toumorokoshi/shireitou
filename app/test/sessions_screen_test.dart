@@ -6,7 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shireitou/src/app.dart';
-import 'package:shireitou/src/host_connection.dart';
 import 'package:shireitou/src/hosts/saved_hosts.dart';
 import 'package:shireitou/src/session_detail/session_status_widgets.dart';
 
@@ -24,7 +23,7 @@ Future<FakeHostConnection> _pump(
   final connection = FakeHostConnection(state);
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [hostConnectionProvider.overrideWith(() => connection)],
+      overrides: hostOverrides(connection: connection),
       child: const ShireitouApp(),
     ),
   );
@@ -104,12 +103,21 @@ void main() {
   });
 
   testWidgets('shows a connection error', (tester) async {
-    await _pump(
+    final connection = await _pump(
       tester,
       const HostState(status: ConnectionStatus.failed, error: 'boom'),
       const Size(800, 900),
     );
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Host URL'),
+      testHost.url,
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Connect'));
+    await tester.pumpAndSettle();
+    expect(connection.connected, [testHost.url]);
     expect(find.text('boom'), findsOneWidget);
+    // A failed host is not kept open.
+    expect(find.text('Connect to a host'), findsOneWidget);
   });
 
   testWidgets('wide layout shows folders, badges and three panes', (

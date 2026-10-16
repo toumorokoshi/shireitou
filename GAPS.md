@@ -21,7 +21,11 @@ built the rest of the timeline (code highlighting, grouped tool calls,
 live terminals, inline diffs, the chat switcher, queued message editing,
 paging of windowed history) and UI for the mirrored session state
 (review pane, drafts, canvases, session details), with terminal,
-changeset and canvas channels mirrored by the client. Remaining work:
+changeset and canvas channels mirrored by the client. Iteration 8
+(2026-10-16) connected several hosts at once (merged session list, host
+switcher, keyring problems shown to the user) and completed the composer
+(host picker, folder browser, model options, session settings, immediate
+creation errors) and the in-session model and mode pickers. Remaining work:
 
 - **Approvals and input against a real host:** tool approvals (AV-083),
   input requests (AV-084), session-level requests and MCP sign-in are
@@ -37,11 +41,24 @@ changeset and canvas channels mirrored by the client. Remaining work:
   again) until the host sends `session/inputNeededRemoved`; a rejected
   answer only shows the usual snackbar. Client tool execution entries
   (`toolClientExecution`) are ignored because the app provides no tools.
-- **Composer (AV-040, AV-041):** no host picker (one host), no directory
-  browser (AV-043), no mode/thinking-level options from the model's
-  `configSchema`, and no "+" button on folder headers. A session whose
-  creation fails (`session/creationFailed`) is never listed by pi, so
-  `createSession` waits for its 30 s timeout instead of showing the error.
+- **Composer and settings, remaining details (AV-040 to AV-043):**
+  - Settings are edited only when they are JSON primitives: `array` and
+    `object` properties of a model `configSchema` or session config are
+    sent with their defaults and not shown. Custom agents
+    (`Message.agent`, `AgentSelection` from `AgentCustomization`) have no
+    picker, and `chatMutable` settings (in the protocol's main branch, not
+    1.0.0) are not offered per chat.
+  - A re-resolved `resolveSessionConfig` adds and removes fields, but a
+    field already on screen keeps the value it showed when it appeared
+    (the host's new default for it is still sent unless the user changed
+    it).
+  - Recent folders are derived from the host's sessions, not stored, so a
+    folder browsed to but never used is not remembered.
+  - Only the fake host was seen to answer `resolveSessionConfig` with
+    settings and `session/creationFailed`; pi answers an empty schema and
+    has no mode. That `createSession` sees pi's `session/creationFailed`
+    relies on pi accepting a subscription to the `ahp-session:/` URI it
+    was created with (true in pi 0.1.0's code; not run against pi).
 - **Timeline, remaining details:**
   - Diff lines are highlighted one line at a time, so constructs that span
     lines (block comments, multi-line strings) can be coloured wrongly.
@@ -65,9 +82,10 @@ changeset and canvas channels mirrored by the client. Remaining work:
     be moved within their session (no move to another or a new session,
     `ChatMoveToNewSessionDestination`), and only "left/right" from a menu,
     not by dragging.
-  - Drafts sync the follow-up text only (no model, agent or attachments,
-    since the box has no pickers); a draft from another client replaces
-    the box's text only while the user has not typed since the last sync.
+  - Drafts sync the follow-up text only (not the model picked in the
+    follow-up bar, agents or attachments); a draft from another client
+    replaces the box's text only while the user has not typed since the
+    last sync.
 - **Review pane, remaining details (AV-100 to AV-105):** compare-turns
   changesets (`{originalTurnId}`/`{modifiedTurnId}`) always compare the
   oldest and the newest turn (there is no picker for the two turns);
@@ -94,13 +112,16 @@ changeset and canvas channels mirrored by the client. Remaining work:
 - **Session list:** no "Done" filter (AV-022), archive only from the session
   header (AV-024), no attention count in the title (AV-120), no keyboard
   shortcuts (AV-140), no search or sort.
-- **Hosts (AV-010):** up to 20 hosts are remembered, but the app holds one
-  connection at a time, so there is no host switcher in the session list
-  and no host picker in the composer. Secure storage per platform:
+- **Hosts (AV-010 to AV-012):** several hosts are connected at once, but
+  which hosts were open is not remembered: after a restart the user
+  reconnects them from Recent hosts. A host whose first connect fails is
+  not kept open (its error shows on the connect page). Secure storage per
+  platform:
   - Web: encrypted local storage; verified.
   - Linux: libsecret; verified by the desktop smoke test with a fresh
-    gnome-keyring. A locked keyring or no Secret Service means hosts are
-    not saved; the app only logs a warning and does not tell the user.
+    gnome-keyring. A locked keyring (`KeyringLocked`) or no Secret Service
+    is shown as a banner with Retry; the banner's wording was checked
+    against the plugin's error codes, not against a real locked keyring.
   - macOS: login keychain (`usesDataProtectionKeychain: false`, so no
     `keychain-access-groups` entitlement or provisioning profile); verified
     only by the CI smoke test, never on a developer Mac.
@@ -176,21 +197,20 @@ changeset and canvas channels mirrored by the client. Remaining work:
   panel, MCP sign-in, code blocks, grouped calls, terminals, diffs, the
   review pane, subagent chats, queued messages, drafts and paging against
   the fake host, on Linux and macOS (and headless with
-  `just test-fake-host-app flutter-tester`). The composer, session list
-  filters, archive and reconnect are not driven end to end, and the web
-  app is still only driven by a Playwright script kept outside the repo.
+  `just test-fake-host-app flutter-tester`), and a second fake host with
+  the host switcher, the composer (host picker, folder browser, model
+  options, session settings, creation failure) and the mode picker. The
+  session list filters, archive and reconnect are not driven end to end,
+  and the web app is still only driven by a Playwright script kept outside
+  the repo. Headless (`flutter-tester`), the draft step of the second test
+  intermittently times out (seen before iteration 8 too); it passes on
+  the Linux and macOS devices in CI.
 - Everything else in [specs/agents-view.md](specs/agents-view.md) and
   [specs/agent-host-protocol-client.md](specs/agent-host-protocol-client.md)
   not listed as done in their status sections.
 
 ## Open questions
 
-- **Worktree metadata:** check whether hosts report repo and branch for a
-  working directory. If they don't, folder labels fall back to the path only.
-- **Agent/model selection:** pi takes the model per message
-  (`Message.model`, ids from `AgentInfo.models`) and has no session config.
-  Check how other hosts expose mode and model through `SessionConfigState`
-  before adding those pickers.
 - **Todos/plans:** check whether AHP response parts carry structured todo or
   plan data (AV-046, AV-070).
 - **PR/branch metadata:** check whether hosts expose a PR URL (AV-105). It may

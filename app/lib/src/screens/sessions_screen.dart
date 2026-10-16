@@ -1,4 +1,5 @@
-/// The main screen: session list plus detail, laid out per tier (AV-003).
+/// The main screen: session list plus detail, laid out per tier (AV-003),
+/// over every connected host (AV-012).
 library;
 
 import 'package:ahp_client/ahp_client.dart';
@@ -7,17 +8,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../connection_notices.dart';
 import '../host_connection.dart';
+import '../hosts/open_hosts.dart';
 import '../layout.dart';
 import '../session_detail/session_detail_view.dart';
 import '../session_list/folder_grouping.dart';
 import '../session_list/session_filter.dart';
 import '../session_list/session_list_view.dart';
+import 'connect_screen.dart';
+import 'host_storage_banner.dart';
 import 'new_session_screen.dart';
 
 /// Width of the session list pane on medium and wide layouts.
 const _listPaneWidth = 380.0;
 
-/// Full-screen session browser for the connected host.
+/// Full-screen session browser for the connected hosts.
 class SessionsScreen extends ConsumerStatefulWidget {
   /// Creates the sessions screen.
   const SessionsScreen({super.key});
@@ -27,79 +31,142 @@ class SessionsScreen extends ConsumerStatefulWidget {
 }
 
 class _SessionsScreenState extends ConsumerState<SessionsScreen> {
-  String? _selected;
+  SessionRef? _selected;
   SessionFilter _filter = SessionFilter.active;
   LayoutTier _tier = LayoutTier.medium;
 
-  void _select(String uri) {
-    setState(() => _selected = uri);
+  /// The host the list is narrowed to; null shows every host.
+  String? _hostFilter;
+
+  void _select(SessionRef session) {
+    setState(() => _selected = session);
     if (_tier != LayoutTier.compact) return;
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => Scaffold(
           appBar: AppBar(),
-          body: SessionDetailView(key: ValueKey(uri), session: uri),
+          body: HostScope(
+            host: session.host,
+            child: SessionDetailView(
+              key: ValueKey(session),
+              session: session.session,
+            ),
+          ),
         ),
       ),
     );
   }
 
-  Future<void> _newSession() async {
-    final session = await Navigator.of(
-      context,
-    ).push(MaterialPageRoute<String>(builder: (_) => const NewSessionScreen()));
+  Future<void> _newSession({String? host, String? directory}) async {
+    final session = await Navigator.of(context).push(
+      MaterialPageRoute<SessionRef>(
+        builder: (_) => NewSessionScreen(
+          initialHost: host ?? _hostFilter,
+          initialDirectory: directory,
+        ),
+      ),
+    );
     if (session != null && mounted) _select(session);
+  }
+
+  Future<void> _addHost() => Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => const ConnectScreen(addingHost: true),
+    ),
+  );
+
+  Future<void> _disconnect(List<HostInfo> hosts) async {
+    final hostFilter = _hostFilter;
+    setState(() {
+      if (hostFilter == null || _selected?.host == hostFilter) {
+        _selected = null;
+      }
+      _hostFilter = null;
+    });
+    final open = ref.read(openHostsProvider.notifier);
+    if (hostFilter == null) {
+      await open.disconnectAll();
+    } else {
+      await open.disconnect(hostFilter);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Only the catalogue and connection fields; chat streaming does not
+    final hosts = ref.watch(hostInfosProvider);
+    // A host that went away clears the filter and the selection.
+    if (_hostFilter case final filter?
+        when !hosts.any((h) => h.key == filter)) {
+      _hostFilter = null;
+    }
+    if (_selected case final selected?
+        when !hosts.any((h) => h.key == selected.host && h.live)) {
+      _selected = null;
+    }
+    // Only the catalogues and connection fields; chat streaming does not
     // rebuild the list.
-    final sessions = ref.watch(
-      hostConnectionProvider.select((s) => s.sessions),
-    );
-    final status = ref.watch(hostConnectionProvider.select((s) => s.status));
-    final serverName = ref.watch(
-      hostConnectionProvider.select((s) => s.serverInfo?.name),
-    );
-    final version = ref.watch(
-      hostConnectionProvider.select((s) => s.protocolVersion),
-    );
-    final notice = compatibilityNotice(version);
-    final groups = groupSessionsByFolder(
-      filterSessions(sessions.values, _filter),
-    );
+    final sessions = ref.watch(allSessionsProvider);
+    final hostFilter = _hostFilter;
+    final shown = [
+      for (final s in sessions)
+        if ((hostFilter == null || s.host == hostFilter) &&
+            matchesFilter(s.summary.status, _filter))
+          s,
+    ];
+    final groups = groupHostSessions(shown);
+    final labels = {for (final h in hosts) h.key: h.label};
+    final notices = [
+      for (final h in hosts)
+        if (compatibilityNotice(h.protocolVersion) case final notice?)
+          (host: h, notice: notice),
+    ];
+    final reconnecting = [
+      for (final h in hosts)
+        if (h.status == ConnectionStatus.reconnecting) h.label,
+    ];
     final selected = _selected;
     return Scaffold(
       appBar: AppBar(
-        title: Text(serverName ?? 'shireitou'),
+        title: HostSwitcher(
+          hosts: hosts,
+          selected: hostFilter,
+          onSelect: (host) => setState(() => _hostFilter = host),
+          onAddHost: _addHost,
+        ),
         actions: [
           IconButton(
             tooltip: 'New session',
             icon: const Icon(Icons.add),
             onPressed: _newSession,
           ),
-          if (notice != null)
+          for (final (:host, :notice) in notices)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4),
               child: Tooltip(
-                message: notice,
+                message: hosts.length > 1 ? '${host.label}: $notice' : notice,
                 child: Chip(
                   avatar: const Icon(Icons.info_outline, size: 18),
-                  label: Text('AHP $version'),
+                  label: Text('AHP ${host.protocolVersion}'),
                 ),
               ),
             ),
-          if (status == ConnectionStatus.reconnecting)
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 12),
-              child: Chip(label: Text('Reconnecting…')),
+          if (reconnecting.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Chip(
+                label: Text(
+                  hosts.length > 1
+                      ? 'Reconnecting ${reconnecting.join(', ')}…'
+                      : 'Reconnecting…',
+                ),
+              ),
             ),
           IconButton(
-            tooltip: 'Disconnect',
+            tooltip: hostFilter == null || hosts.length == 1
+                ? 'Disconnect'
+                : 'Disconnect ${labels[hostFilter]}',
             icon: const Icon(Icons.logout),
-            onPressed: () =>
-                ref.read(hostConnectionProvider.notifier).disconnect(),
+            onPressed: () => _disconnect(hosts),
           ),
         ],
       ),
@@ -107,7 +174,9 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
         builder: (context, constraints) {
           final tier = _tier = layoutTierFor(constraints.maxWidth);
           final list = Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              const HostStorageBanner(),
               _FilterBar(
                 filter: _filter,
                 onChanged: (filter) => setState(() => _filter = filter),
@@ -117,6 +186,9 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                   groups: groups,
                   selected: _selected,
                   onSelect: _select,
+                  hostLabels: hostFilter == null ? labels : const {},
+                  onNewSession: (group) =>
+                      _newSession(host: group.host, directory: group.key),
                 ),
               ),
             ],
@@ -130,10 +202,13 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                 Expanded(
                   child: selected == null
                       ? const Center(child: Text('Select a session'))
-                      : SessionDetailView(
-                          key: ValueKey(selected),
-                          session: selected,
-                          reviewAsPane: tier == LayoutTier.wide,
+                      : HostScope(
+                          host: selected.host,
+                          child: SessionDetailView(
+                            key: ValueKey(selected),
+                            session: selected.session,
+                            reviewAsPane: tier == LayoutTier.wide,
+                          ),
                         ),
                 ),
               ],
@@ -144,6 +219,107 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
     );
   }
 }
+
+/// The host switcher in the title (AV-010, AV-012): shows which host the
+/// list is narrowed to (or "All hosts"), each host's connection status
+/// and error, and adds hosts.
+class HostSwitcher extends StatelessWidget {
+  /// Creates a [HostSwitcher].
+  const HostSwitcher({
+    super.key,
+    required this.hosts,
+    required this.selected,
+    required this.onSelect,
+    required this.onAddHost,
+  });
+
+  /// The open hosts.
+  final List<HostInfo> hosts;
+
+  /// The host the list shows, or null for all.
+  final String? selected;
+
+  /// Narrows the list to a host (null for all).
+  final ValueChanged<String?> onSelect;
+
+  /// Opens the page that connects another host.
+  final VoidCallback onAddHost;
+
+  static String _status(HostInfo host) => switch (host.status) {
+    ConnectionStatus.connected => 'Connected',
+    ConnectionStatus.reconnecting => 'Reconnecting…',
+    ConnectionStatus.connecting => 'Connecting…',
+    ConnectionStatus.failed => host.error ?? 'Failed',
+    ConnectionStatus.disconnected => 'Disconnected',
+  };
+
+  static Widget _dot(BuildContext context, HostInfo host) {
+    final scheme = Theme.of(context).colorScheme;
+    return Icon(
+      Icons.circle,
+      size: 10,
+      color: switch (host.status) {
+        ConnectionStatus.connected => Colors.green,
+        ConnectionStatus.failed => scheme.error,
+        _ => scheme.outline,
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final current = hosts.where((h) => h.key == selected).firstOrNull;
+    final title = switch ((current, hosts.length)) {
+      (final host?, _) => host.label,
+      (null, 1) => hosts.single.label,
+      (null, 0) => 'shireitou',
+      _ => 'All hosts',
+    };
+    return PopupMenuButton<String?>(
+      tooltip: 'Switch host',
+      onSelected: (key) => key == _addHostValue ? onAddHost() : onSelect(key),
+      itemBuilder: (context) => [
+        if (hosts.length > 1)
+          CheckedPopupMenuItem(
+            value: null,
+            checked: selected == null,
+            child: Text('All hosts (${hosts.length})'),
+          ),
+        for (final host in hosts)
+          CheckedPopupMenuItem(
+            value: host.key,
+            checked: selected == host.key,
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: _dot(context, host),
+              title: Text(host.label),
+              subtitle: Text(_status(host)),
+            ),
+          ),
+        const PopupMenuDivider(),
+        const PopupMenuItem(
+          value: _addHostValue,
+          child: ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.add_link),
+            title: Text('Add host…'),
+          ),
+        ),
+      ],
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(child: Text(title, overflow: TextOverflow.ellipsis)),
+          const Icon(Icons.arrow_drop_down),
+        ],
+      ),
+    );
+  }
+}
+
+/// The [HostSwitcher] menu value that adds a host (never a host key,
+/// which is a ws:// URL).
+const _addHostValue = '#add-host';
 
 /// Filter chips above the session list (AV-022).
 class _FilterBar extends StatelessWidget {

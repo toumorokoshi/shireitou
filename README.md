@@ -6,8 +6,10 @@ coding-agent sessions running on
 with a UX modeled on the GitHub Agents view and Cursor's Agents Window.
 
 > Status: usable for chat and review, on the web and as macOS and Linux
-> desktop apps. The app connects to a host (remembering recent hosts),
-> lists its sessions grouped by working directory, opens a session's
+> desktop apps. The app connects to several hosts at once (remembering
+> recent hosts), lists their sessions in one inbox grouped by host and
+> working directory (with repository and branch when the host reports
+> them), opens a session's
 > history (paging older turns in when the host windows it), streams
 > replies with highlighted code, groups similar tool calls, shows live
 > terminal output and inline diffs, switches between a session's chats
@@ -15,9 +17,10 @@ with a UX modeled on the GitHub Agents view and Cursor's Agents Window.
 > syncs drafts, stops turns, answers tool approvals, input requests (also
 > from other chats) and MCP sign-in prompts, reviews changesets (files,
 > diffs, "reviewed" marks, host operations), shows background work,
-> canvases and session details, and starts new sessions. Simultaneous
-> connections to several hosts and notifications are not built yet; see
-> [GAPS.md](GAPS.md).
+> canvases and session details, and starts new sessions (host, agent,
+> model and its options such as the thinking level, a folder browsed on
+> the host, and the agent's settings such as the mode). Notifications are
+> not built yet; see [GAPS.md](GAPS.md).
 
 ## Layout
 

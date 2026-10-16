@@ -19,7 +19,9 @@ import '../channels.dart';
 import '../review/changes_pane.dart';
 import '../review/review_logic.dart';
 import 'chat_commands.dart';
+import '../composer/config_fields.dart';
 import 'chat_switcher.dart';
+import 'message_settings.dart';
 import 'pending_messages.dart';
 import 'session_info.dart';
 import 'session_inputs.dart';
@@ -74,7 +76,7 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
   @override
   void initState() {
     super.initState();
-    _connection = ref.read(hostConnectionProvider.notifier);
+    _connection = ref.read(hostConnectionProvider(context.host).notifier);
     _failures = _connection.failures.listen(
       (failure) => _showMessage(describeActionFailure(failure)),
     );
@@ -92,7 +94,9 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
         _defaultChat = chat;
         _opening = false;
       });
-      final summary = ref.read(hostConnectionProvider).sessions[widget.session];
+      final summary = ref
+          .read(hostConnectionProvider(context.host))
+          .sessions[widget.session];
       if (summary != null && !summary.status.isReadFlag) _setRead(true);
     } on Object catch (error) {
       if (mounted) {
@@ -170,9 +174,8 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
   Widget build(BuildContext context) {
     // New turns clear IsRead; while the session is open, it stays read.
     ref.listen(
-      hostConnectionProvider.select(
-        (s) => s.sessions[widget.session]?.status.isReadFlag,
-      ),
+      hostConnectionProvider(context.host)
+          .select((s) => s.sessions[widget.session]?.status.isReadFlag),
       (_, read) {
         if (read == false && !_opening && !_keepUnread) {
           // Not from inside the provider's notification.
@@ -181,12 +184,12 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
       },
     );
     final summary = ref.watch(
-      hostConnectionProvider.select((s) => s.sessions[widget.session]),
+      hostConnectionProvider(context.host)
+          .select((s) => s.sessions[widget.session]),
     );
     final sessionState = ref.watch(
-      hostConnectionProvider.select(
-        (s) => s.sessionChannels[widget.session]?.state,
-      ),
+      hostConnectionProvider(context.host)
+          .select((s) => s.sessionChannels[widget.session]?.state),
     );
     final chats = switchableChats(sessionState);
     // A chat the session no longer lists falls back to the default one.
@@ -199,18 +202,17 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
     final chat = chatUri == null
         ? null
         : ref.watch(
-            hostConnectionProvider.select(
-              (s) => s.chatChannels[chatUri]?.state,
-            ),
+            hostConnectionProvider(context.host)
+                .select((s) => s.chatChannels[chatUri]?.state),
           );
     final protocolVersion = ref.watch(
-      hostConnectionProvider.select((s) => s.protocolVersion),
+      hostConnectionProvider(context.host).select((s) => s.protocolVersion),
     );
     bool supports(ProtocolFeature f) => supportsFeature(protocolVersion, f);
     final prompts = sessionPrompts(sessionState, chat);
     // The host could not resume the session after a reconnect (AHP-004).
     final missing = ref.watch(
-      hostConnectionProvider.select(
+      hostConnectionProvider(context.host).select(
         (s) =>
             s.missingChannels.contains(widget.session) ||
             (chatUri != null && s.missingChannels.contains(chatUri)),
@@ -241,6 +243,20 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
     final pending = chat == null
         ? const <PendingMessageItem>[]
         : pendingMessages(chat);
+    // Model and mode pickers (AV-041): models of the session's agent, and
+    // the session settings that may change mid-session.
+    final provider = summary?.provider ?? sessionState?.provider;
+    final models = ref.watch(
+      hostConnectionProvider(context.host).select(
+        (s) =>
+            s.root?.agents
+                .where((a) => a.provider == provider)
+                .firstOrNull
+                ?.models ??
+            const <SessionModelInfo>[],
+      ),
+    );
+    final sessionFields = mutableSessionFields(sessionState?.config);
     final conversation = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -292,9 +308,17 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
             key: ValueKey(chatUri),
             working: chat.activeTurn != null,
             draft: chat.draft,
+            models: models,
+            initialModel: lastModelSelection(chat),
+            sessionFields: sessionFields,
+            sessionValues: sessionState?.config?.values ?? const {},
+            onSessionSettingChanged: (id, value) => _dispatch(
+              widget.session,
+              SessionConfigChangedAction(config: {id: value}).toJson(),
+            ),
             onDraftChanged: (text) =>
                 _dispatch(chatUri!, draftAction(text, previous: chat.draft)),
-            onSend: (text, {required steer}) => _dispatch(
+            onSend: (text, {required steer, model}) => _dispatch(
               chatUri!,
               sendMessageAction(
                 chat,
@@ -302,6 +326,7 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
                 id: const Uuid().v4(),
                 now: DateTime.now(),
                 steer: steer,
+                model: model,
               ),
             ),
           ),
@@ -433,6 +458,8 @@ class _Header extends StatelessWidget {
       ?summary?.provider,
       ?model,
       if (summary != null) folderKeyOf(summary) ?? noFolderLabel,
+      if (summary != null)
+        if (worktreeInfoOf(summary).branch case final branch?) '⎇ $branch',
       if (usage != null && usage.input + usage.output > 0)
         '${usage.input} in · ${usage.output} out tokens',
       ?changesLabel(summary?.changes ?? chat?.changes),
@@ -620,13 +647,21 @@ class _TimelineState extends State<_Timeline> {
   }
 }
 
-/// Sends [text]; [steer] asks to deliver it at the agent's next step.
-typedef SendMessage = void Function(String text, {required bool steer});
+/// Sends [text] with [model] (null for the host's default); [steer] asks
+/// to deliver it at the agent's next step.
+typedef SendMessage = void Function(
+  String text, {
+  required bool steer,
+  ModelSelection? model,
+});
 
 /// The follow-up box (AV-080): Enter sends (or queues while working),
 /// Cmd/Ctrl+Enter sends now while working, Shift+Enter adds a newline.
 /// It starts from the chat's [draft] and syncs what the user types back
 /// as the draft, debounced ([onDraftChanged], `chat/draftChanged`).
+/// Above it, [MessageSettingsBar] picks the model (and its options) for
+/// the next message, starting from [initialModel], and changes the
+/// session's mutable settings.
 class FollowUpInput extends StatefulWidget {
   /// Creates a [FollowUpInput].
   const FollowUpInput({
@@ -636,7 +671,28 @@ class FollowUpInput extends StatefulWidget {
     this.draft,
     this.onDraftChanged,
     this.draftDelay = const Duration(milliseconds: 800),
+    this.models = const [],
+    this.initialModel,
+    this.sessionFields = const [],
+    this.sessionValues = const {},
+    this.onSessionSettingChanged,
   });
+
+  /// The agent's models; no pickers when empty and there are no
+  /// [sessionFields].
+  final List<SessionModelInfo> models;
+
+  /// The model the chat last used (`Message.model`).
+  final ModelSelection? initialModel;
+
+  /// Session settings that may change mid-session.
+  final List<ConfigField> sessionFields;
+
+  /// Their current values.
+  final Map<String, Object?> sessionValues;
+
+  /// Changes a session setting (`session/configChanged`).
+  final void Function(String id, Object? value)? onSessionSettingChanged;
 
   /// Whether a turn is running.
   final bool working;
@@ -665,6 +721,11 @@ class _FollowUpInputState extends State<FollowUpInput> {
   /// The text last synced with the chat's draft (sent or adopted).
   late String _synced = widget.draft?.text ?? '';
 
+  /// The model for the next message; follows [FollowUpInput.initialModel]
+  /// until the user picks one.
+  late ModelSelection? _model = widget.initialModel;
+  bool _pickedModel = false;
+
   @override
   void initState() {
     super.initState();
@@ -674,6 +735,9 @@ class _FollowUpInputState extends State<FollowUpInput> {
   @override
   void didUpdateWidget(FollowUpInput old) {
     super.didUpdateWidget(old);
+    if (!_pickedModel && widget.initialModel != old.initialModel) {
+      _model = widget.initialModel;
+    }
     final remote = widget.draft?.text ?? '';
     // Another client changed the draft, and the user has not typed since
     // the last sync: show theirs.
@@ -726,7 +790,7 @@ class _FollowUpInputState extends State<FollowUpInput> {
   void _send({required bool steer}) {
     final text = _text.text.trim();
     if (text.isEmpty) return;
-    widget.onSend(text, steer: steer);
+    widget.onSend(text, steer: steer, model: _model);
     _draftTimer?.cancel();
     final hadDraft = _synced.isNotEmpty || (widget.draft != null);
     _synced = '';
@@ -737,7 +801,27 @@ class _FollowUpInputState extends State<FollowUpInput> {
   }
 
   @override
-  Widget build(BuildContext context) => Padding(
+  Widget build(BuildContext context) => Column(
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      if (widget.models.isNotEmpty || widget.sessionFields.isNotEmpty)
+        MessageSettingsBar(
+          models: widget.models,
+          model: _model,
+          onModelChanged: (model) => setState(() {
+            _model = model;
+            _pickedModel = true;
+          }),
+          sessionFields: widget.sessionFields,
+          sessionValues: widget.sessionValues,
+          onSessionSettingChanged: widget.onSessionSettingChanged,
+        ),
+      _input(context),
+    ],
+  );
+
+  Widget _input(BuildContext context) => Padding(
     padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.end,

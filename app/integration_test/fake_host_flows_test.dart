@@ -4,7 +4,10 @@
 /// in the "Waiting for you" panel, and sign in to an MCP server; then code
 /// blocks, grouped tool calls, live terminal output, inline diffs and the
 /// review pane, a subagent chat and the chat switcher, queued messages,
-/// drafts and paging in a windowed chat.
+/// drafts and paging in a windowed chat; then a second host, the merged
+/// session list and host switcher, and the composer (host picker, folder
+/// browser, model options, session settings, a session that fails to
+/// start) and the follow-up mode picker.
 ///
 /// ```sh
 /// flutter test integration_test/fake_host_flows_test.dart -d linux
@@ -19,7 +22,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:shireitou/src/app.dart';
 import 'package:shireitou/src/desktop/desktop_window.dart';
-import 'package:shireitou/src/host_connection.dart';
+import 'package:shireitou/src/hosts/open_hosts.dart';
 import 'package:shireitou/src/hosts/host_store.dart';
 import 'package:shireitou/src/hosts/saved_hosts.dart';
 import 'package:shireitou/src/session_detail/code_highlight.dart';
@@ -81,7 +84,7 @@ class _Harness {
     );
     addTearDown(() async {
       await tester.runAsync(
-        () => container.read(hostConnectionProvider.notifier).disconnect(),
+        () => container.read(openHostsProvider.notifier).disconnectAll(),
       );
       container.dispose();
       await tester.runAsync(host.close);
@@ -391,4 +394,119 @@ void main() {
     }
     expect(host.chat(longChat)!.turnsNextCursor, isNull);
   }, timeout: const Timeout(Duration(minutes: 3)));
+
+  testWidgets('two hosts, the composer, session settings and a session '
+      'that fails to start', (tester) async {
+    final h = await _Harness.start(tester);
+    final second = FakeAhpHost(
+      token: 'second',
+      name: 'second-host',
+      titlePrefix: 'Other ',
+      stepDelay: const Duration(milliseconds: 20),
+    );
+    final url = (await tester.runAsync(second.start))!;
+    addTearDown(() => tester.runAsync(second.close));
+
+    // Folder labels carry the branch the host reports in `_meta.git`.
+    expect(find.textContaining('⎇ main'), findsWidgets);
+
+    // Add the second host from the host switcher.
+    await tester.tap(find.byTooltip('Switch host'));
+    await h.settle();
+    await tester.tap(find.text('Add host…'));
+    await h.settle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Host URL'),
+      url.toString(),
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Connect'));
+    await h.waitFor(find.text('Other Scripted session'));
+    // Let the "Add a host" page close.
+    await h.settle();
+    expect(find.text('Scripted session'), findsOneWidget);
+    expect(find.text('All hosts'), findsOneWidget);
+    expect(find.textContaining('second-host · ⎇ main'), findsOneWidget);
+
+    // The switcher narrows the list to one host.
+    await tester.tap(find.byTooltip('Switch host'));
+    await h.settle();
+    await tester.tap(find.text('second-host').last);
+    await h.settle();
+    expect(find.text('Scripted session'), findsNothing);
+    expect(find.text('Other Scripted session'), findsOneWidget);
+
+    // Start a session on the second host from its folder's "+" button.
+    await tester.tap(find.byTooltip('New session in workspace'));
+    await h.waitFor(find.text('Mode'));
+    expect(find.text('second-host'), findsWidgets);
+    await tester.tap(find.text('Host default'));
+    await h.settle();
+    await tester.tap(find.text('Scripted').last);
+    await h.settle();
+    await tester.tap(find.text('Medium'));
+    await h.settle();
+    await tester.tap(find.text('High').last);
+    await h.settle();
+    await tester.tap(find.text('Interactive'));
+    await h.settle();
+    await tester.tap(find.text('Plan').last);
+    await h.settle();
+
+    // Browse to a sub-folder; the repository's branch setting appears.
+    await tester.tap(find.text('Browse…'));
+    await h.waitFor(find.text('packages'));
+    await tester.tap(find.text('packages'));
+    await h.waitFor(find.text('api'));
+    await tester.tap(find.text('api'));
+    await h.waitFor(find.text('No sub-folders'));
+    await tester.tap(find.text('Choose this folder'));
+    await h.settle();
+    await h.waitFor(find.widgetWithText(TextField, 'Branch'));
+    await tester.enterText(find.widgetWithText(TextField, 'Branch'), 'fix');
+    await h.waitFor(find.text('fix/crash'));
+    await tester.tap(find.text('fix/crash'));
+    await h.settle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Prompt'),
+      'settings',
+    );
+    await tester.tap(find.text('Start session'));
+    await h.waitFor(find.textContaining('thinkingLevel: high'));
+    // Let the composer close.
+    await h.settle();
+    expect(find.textContaining('mode: plan'), findsOneWidget);
+    expect(find.textContaining('branch: fix/crash'), findsOneWidget);
+
+    // The mode may change mid-session (`session/configChanged`).
+    await tester.tap(find.text('Plan'));
+    await h.settle();
+    await tester.tap(find.text('Autopilot').last);
+    await h.waitUntil(
+      'the mode change',
+      () => second.received.any(
+        (r) =>
+            r.action['type'] == 'session/configChanged' &&
+            (r.action['config'] as Map?)?['mode'] == 'autopilot',
+      ),
+    );
+
+    // A session in a folder the host does not have fails at once, with
+    // the host's error (not after the 30 s creation timeout).
+    await tester.tap(find.byTooltip('New session'));
+    await h.waitFor(find.text('Start session'));
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Working directory'),
+      '/missing',
+    );
+    await tester.enterText(find.widgetWithText(TextField, 'Prompt'), 'hi');
+    await tester.tap(find.text('Start session'));
+    final started = DateTime.now();
+    await h.waitFor(
+      find.text('The session could not start: No such folder: /missing'),
+    );
+    expect(
+      DateTime.now().difference(started),
+      lessThan(const Duration(seconds: 10)),
+    );
+  });
 }

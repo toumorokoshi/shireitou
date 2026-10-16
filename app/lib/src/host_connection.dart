@@ -1,23 +1,60 @@
-/// Riverpod state for the connection to one AHP host.
+/// Riverpod state for the connections to AHP hosts, one [HostConnection]
+/// per host (AV-012), and the [HostScope] that tells widgets which host
+/// they show.
 library;
 
 import 'dart:async';
 
 import 'package:ahp_client/ahp_client.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import 'hosts/host_store.dart';
 import 'hosts/saved_hosts.dart';
 
-/// The connected host's state. Widgets watch this; the [AhpClient] owns the
-/// socket and publishes [HostState] changes.
-final hostConnectionProvider = NotifierProvider<HostConnection, HostState>(
-  HostConnection.new,
-);
+/// A host's state, by host key ([SavedHost.key], the URL without its
+/// token). Widgets watch this; the [AhpClient] owns the socket and
+/// publishes [HostState] changes.
+final hostConnectionProvider =
+    NotifierProvider.family<HostConnection, HostState, String>(
+      HostConnection.new,
+    );
 
-/// Holds the [AhpClient] for the current host and mirrors its state.
+/// Tells the widgets below which host (a [SavedHost.key]) they show, so
+/// they can watch `hostConnectionProvider(context.host)`. Routes pushed
+/// from inside need their own [HostScope].
+class HostScope extends InheritedWidget {
+  /// Creates a [HostScope] for [host].
+  const HostScope({super.key, required this.host, required super.child});
+
+  /// The host key.
+  final String host;
+
+  /// The host of the nearest [HostScope]. It does not register a
+  /// dependency: views are keyed by host, so it never changes under them.
+  static String of(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<HostScope>()?.host ??
+      (throw FlutterError('No HostScope above ${context.widget}'));
+
+  @override
+  bool updateShouldNotify(HostScope oldWidget) => host != oldWidget.host;
+}
+
+/// Shorthand for [HostScope.of].
+extension HostScopeContext on BuildContext {
+  /// The key of the host this part of the tree shows.
+  String get host => HostScope.of(this);
+}
+
+/// Holds the [AhpClient] for one host and mirrors its state.
 class HostConnection extends Notifier<HostState> {
+  /// Creates the connection holder for the host with key [host].
+  HostConnection(this.host);
+
+  /// The host key ([SavedHost.key]).
+  final String host;
+
   AhpClient? _client;
   StreamSubscription<HostState>? _subscription;
   StreamSubscription<ActionFailure>? _failureSubscription;
@@ -122,19 +159,55 @@ class HostConnection extends Notifier<HostState> {
     required String token,
   }) => _connected.authenticate(resource: resource, token: token);
 
-  /// Creates a session for [provider] in [workingDirectory] and sends
-  /// [prompt] as its first turn (AV-040). Returns the session's URI as the
-  /// host lists it.
+  /// Lists a folder on the host (`resourceList`, AV-043).
+  Future<List<DirectoryEntry>> listDirectory(String uri) =>
+      _connected.listDirectory(uri);
+
+  /// The session settings [provider] takes in [workingDirectory]
+  /// (`resolveSessionConfig`, AV-041).
+  Future<ResolveSessionConfigResult> resolveSessionConfig({
+    String? provider,
+    String? workingDirectory,
+    JsonMap? config,
+  }) => _connected.resolveSessionConfig(
+    provider: provider,
+    workingDirectory: workingDirectory,
+    config: config,
+  );
+
+  /// Suggested values for a dynamic session setting
+  /// (`sessionConfigCompletions`).
+  Future<List<SessionConfigValueItem>> sessionConfigCompletions({
+    required String property,
+    String? provider,
+    String? workingDirectory,
+    JsonMap? config,
+    String? query,
+  }) => _connected.sessionConfigCompletions(
+    property: property,
+    provider: provider,
+    workingDirectory: workingDirectory,
+    config: config,
+    query: query,
+  );
+
+  /// Creates a session for [provider] in [workingDirectory] with the
+  /// session settings [config], and sends [prompt] as its first turn with
+  /// [model] (AV-040, AV-041). Returns the session's URI as the host lists
+  /// it. Throws [SessionCreationFailedError] as soon as the host reports
+  /// that the session could not start.
   Future<String> startSession({
     required String provider,
     required String workingDirectory,
     required String prompt,
     ModelSelection? model,
+    JsonMap? config,
   }) async {
     final client = _connected;
     final session = await client.createSession(
       provider: provider,
       workingDirectories: [workingDirectory],
+      config: config == null || config.isEmpty ? null : config,
     );
     final chat = await client.openSession(session);
     if (chat != null) {

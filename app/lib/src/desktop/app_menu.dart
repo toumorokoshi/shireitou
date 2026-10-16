@@ -1,13 +1,12 @@
 /// The native macOS menu bar.
 library;
 
-import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../host_connection.dart';
+import '../hosts/open_hosts.dart';
 
 /// Whether [AppMenuBar] shows a native menu bar: only macOS has one.
 bool get hasNativeMenuBar =>
@@ -25,9 +24,9 @@ class AppMenuBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (!hasNativeMenuBar) return child;
-    final connected =
-        ref.watch(hostConnectionProvider.select((s) => s.status)) !=
-        ConnectionStatus.disconnected;
+    final connected = ref.watch(
+      openHostsProvider.select((hosts) => hosts.isNotEmpty),
+    );
     return PlatformMenuBar(
       menus: appMenus(connected: connected, ref: ref),
       child: child,
@@ -35,8 +34,8 @@ class AppMenuBar extends ConsumerWidget {
   }
 }
 
-/// The menus for the macOS menu bar. "Disconnect" (⌘⇧D) is enabled while
-/// [connected].
+/// The menus for the macOS menu bar. "Disconnect All" (⌘⇧D) is enabled
+/// while [connected] to any host.
 List<PlatformMenuItem> appMenus({
   required bool connected,
   required WidgetRef ref,
@@ -74,14 +73,14 @@ List<PlatformMenuItem> appMenus({
     label: 'Host',
     menus: [
       PlatformMenuItem(
-        label: 'Disconnect',
+        label: 'Disconnect All',
         shortcut: const SingleActivator(
           LogicalKeyboardKey.keyD,
           meta: true,
           shift: true,
         ),
         onSelected: connected
-            ? () => ref.read(hostConnectionProvider.notifier).disconnect()
+            ? () => ref.read(openHostsProvider.notifier).disconnectAll()
             : null,
       ),
     ],

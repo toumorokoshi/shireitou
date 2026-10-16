@@ -12,6 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../channels.dart';
+import '../composer/config_fields.dart';
 import '../host_connection.dart';
 
 /// A readable label for a working directory URI.
@@ -52,9 +53,8 @@ class CanvasChips extends StatelessWidget {
           builder: (context, failed) => Consumer(
             builder: (context, ref, _) {
               final state = ref.watch(
-                hostConnectionProvider.select(
-                  (s) => s.canvasChannels[canvas.resource]?.state,
-                ),
+                hostConnectionProvider(context.host)
+                    .select((s) => s.canvasChannels[canvas.resource]?.state),
               );
               final url = state?.url;
               return Tooltip(
@@ -88,7 +88,10 @@ Future<void> showSessionInfo(
   required String? chat,
 }) => Navigator.of(context).push(
   MaterialPageRoute<void>(
-    builder: (_) => SessionInfoSheet(session: session, chat: chat),
+    builder: (_) => HostScope(
+      host: context.host,
+      child: SessionInfoSheet(session: session, chat: chat),
+    ),
   ),
 );
 
@@ -105,7 +108,9 @@ class SessionInfoSheet extends ConsumerWidget {
 
   void _dispatch(BuildContext context, WidgetRef ref, JsonMap action) {
     try {
-      ref.read(hostConnectionProvider.notifier).dispatch(session, action);
+      ref
+          .read(hostConnectionProvider(context.host).notifier)
+          .dispatch(session, action);
     } on StateError catch (error) {
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
         SnackBar(content: Text('Could not send that: ${error.message}')),
@@ -116,15 +121,17 @@ class SessionInfoSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(
-      hostConnectionProvider.select((s) => s.sessionChannels[session]?.state),
+      hostConnectionProvider(context.host)
+          .select((s) => s.sessionChannels[session]?.state),
     );
     final chatState = chat == null
         ? null
         : ref.watch(
-            hostConnectionProvider.select((s) => s.chatChannels[chat]?.state),
+            hostConnectionProvider(context.host)
+                .select((s) => s.chatChannels[chat]?.state),
           );
     final version = ref.watch(
-      hostConnectionProvider.select((s) => s.protocolVersion),
+      hostConnectionProvider(context.host).select((s) => s.protocolVersion),
     );
     final theme = Theme.of(context);
     Widget heading(String text) => Padding(
@@ -166,6 +173,27 @@ class SessionInfoSheet extends ConsumerWidget {
                       dense: true,
                       leading: const Icon(Icons.folder_special_outlined),
                       title: Text(directoryLabel(d)),
+                    ),
+                ],
+                if (state.config case final config?
+                    when config.schema.properties.isNotEmpty) ...[
+                  heading('Settings'),
+                  for (final field in sessionConfigFields(config.schema))
+                    ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.tune),
+                      title: Text(field.title),
+                      subtitle: Text(
+                        field.labelOf(
+                          config.values[field.id] ?? field.defaultValue,
+                        ),
+                      ),
+                      trailing: field.sessionMutable
+                          ? null
+                          : const Tooltip(
+                              message: 'Fixed when the session started',
+                              child: Icon(Icons.lock_outline, size: 16),
+                            ),
                     ),
                 ],
                 if (canvases.isNotEmpty) ...[

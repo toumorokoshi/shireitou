@@ -16,6 +16,7 @@ import 'package:json_rpc_2/json_rpc_2.dart';
 import 'package:stream_channel/stream_channel.dart';
 import 'package:web_socket_channel/io.dart';
 
+import 'fake_config.dart';
 import 'script.dart';
 
 /// The agent provider the fake host offers.
@@ -56,6 +57,7 @@ const clientDispatchable = <String>{
   'session/isReadChanged',
   'session/isArchivedChanged',
   'session/titleChanged',
+  'session/configChanged',
   'session/mcpServerStartRequested',
   'session/mcpServerStopRequested',
   'session/mcpServerBackgroundRequested',
@@ -87,11 +89,14 @@ class FakeAhpHost {
     this.backgroundDuration = const Duration(seconds: 3),
     this.defaultDirectory = '/workspace',
     this.slowDuration = const Duration(seconds: 4),
-  }) {
+    this.name = 'ahp-fake-host',
+    this.titlePrefix = '',
+  }) : directories = fakeDirectories(defaultDirectory),
+       files = fakeFiles(defaultDirectory) {
     _addSession(
       longSession,
       longChat,
-      title: 'Long session',
+      title: '${titlePrefix}Long session',
       workingDirectories: [defaultDirectory],
     );
     final history = longHistory(longTurnCount, DateTime.utc(2026, 10, 1));
@@ -104,7 +109,7 @@ class FakeAhpHost {
     _addSession(
       seededSession,
       seededChat,
-      title: 'Scripted session',
+      title: '${titlePrefix}Scripted session',
       workingDirectories: [defaultDirectory],
     );
   }
@@ -123,6 +128,21 @@ class FakeAhpHost {
 
   /// How long the `slow` flow keeps its turn running unless stopped.
   final Duration slowDuration;
+
+  /// The `serverInfo.name` sent in `initialize`, which clients show as the
+  /// host's name; give a second instance another one.
+  final String name;
+
+  /// Put before the seeded sessions' titles, to tell two hosts apart.
+  final String titlePrefix;
+
+  /// The folders `resourceList` knows; [defaultDirectory] is a git
+  /// repository on branch `main`. Creating a session in any other folder
+  /// fails with `session/creationFailed`.
+  final Set<String> directories;
+
+  /// The files `resourceList` lists.
+  final Set<String> files;
 
   HttpServer? _server;
   final _connections = <_Connection>{};
@@ -244,6 +264,42 @@ class FakeAhpHost {
         _createSession(p.value as JsonMap);
         return null;
       })
+      ..registerMethod('resourceList', (Parameters p) {
+        final params = ResourceListParams.fromJson(p.value as JsonMap);
+        final entries = listFakeDirectory(
+          pathOfUri(params.uri),
+          directories,
+          files,
+        );
+        if (entries == null) {
+          throw RpcException(
+            AhpErrorCodes.notFound,
+            'not a directory: ${params.uri}',
+          );
+        }
+        return ResourceListResult(entries: entries).toJson();
+      })
+      ..registerMethod('resolveSessionConfig', (Parameters p) {
+        final params = ResolveSessionConfigParams.fromJson(p.value as JsonMap);
+        final schema = sessionConfigSchema(
+          params.workingDirectory,
+          defaultDirectory,
+        );
+        return ResolveSessionConfigResult(
+          schema: schema,
+          values: resolvedConfigValues(schema, params.config),
+        ).toJson();
+      })
+      ..registerMethod('sessionConfigCompletions', (Parameters p) {
+        final params = SessionConfigCompletionsParams.fromJson(
+          p.value as JsonMap,
+        );
+        return SessionConfigCompletionsResult(
+          items: params.property == branchProperty
+              ? branchCompletions(params.query)
+              : const [],
+        ).toJson();
+      })
       ..registerMethod('fetchTurns', (Parameters p) {
         _fetchTurns(FetchTurnsParams.fromJson(p.value as JsonMap));
         return <String, Object?>{};
@@ -316,7 +372,7 @@ class FakeAhpHost {
     return InitializeResult(
       protocolVersion: version,
       serverSeq: _serverSeq,
-      serverInfo: const Implementation(name: 'ahp-fake-host', version: '0.1.0'),
+      serverInfo: Implementation(name: name, version: '0.1.0'),
       snapshots: [
         for (final channel in subscriptions)
           if (_snapshot(channel) case final snapshot?)
@@ -332,13 +388,7 @@ class FakeAhpHost {
         provider: fakeProvider,
         displayName: 'Fake agent',
         description: 'Scripted host for tests',
-        models: [
-          SessionModelInfo(
-            id: 'scripted',
-            provider: fakeProvider,
-            name: 'Scripted',
-          ),
-        ],
+        models: fakeModels,
       ),
     ],
     activeSessions: _chats.values.where((c) => c.activeTurn != null).length,
@@ -381,8 +431,21 @@ class FakeAhpHost {
     String chat, {
     required String title,
     List<String>? workingDirectories,
+    JsonMap? config,
+    bool failed = false,
   }) {
     final now = _now();
+    final directory = workingDirectories?.firstOrNull;
+    final schema = sessionConfigSchema(
+      directory == null ? null : 'file://${pathOfUri(directory)}',
+      defaultDirectory,
+    );
+    final values = resolvedConfigValues(schema, config);
+    // Like VS Code's host: the repository as the project, the branch in
+    // `_meta.git` (a VS Code convention, not part of AHP).
+    final inRepo =
+        directory != null &&
+        inRepository(pathOfUri(directory), defaultDirectory);
     _chats[chat] = ChatState(
       resource: chat,
       title: title,
@@ -398,7 +461,8 @@ class FakeAhpHost {
       title: title,
       status: _chats[chat]!.status,
       workingDirectories: workingDirectories,
-      lifecycle: SessionLifecycle.ready,
+      lifecycle: failed ? SessionLifecycle.creating : SessionLifecycle.ready,
+      config: SessionConfigState(schema: schema, values: values),
       activeClients: const [],
       chats: [_chatSummary(chat)],
       defaultChat: chat,
@@ -426,11 +490,23 @@ class FakeAhpHost {
           files: [],
           operations: changesetOperations,
         );
+    if (failed) return;
     _summaries[session] = SessionSummary(
       provider: fakeProvider,
       title: title,
       status: _chats[chat]!.status,
       workingDirectories: workingDirectories,
+      project: inRepo
+          ? ProjectInfo(
+              uri: 'file://$defaultDirectory',
+              displayName: defaultDirectory.split('/').last,
+            )
+          : null,
+      meta: inRepo
+          ? {
+              'git': {'branchName': values[branchProperty] ?? 'main'},
+            }
+          : null,
       resource: session,
       createdAt: now,
       modifiedAt: now,
@@ -445,16 +521,48 @@ class FakeAhpHost {
       throw RpcException(AhpErrorCodes.sessionAlreadyExists, 'exists');
     }
     final id = session.split('/').last;
+    final missing = [
+      for (final d in params.workingDirectories ?? const <String>[])
+        if (!directories.contains(pathOfUri(d))) d,
+    ];
     _addSession(
       session,
       'ahp-chat:/$id',
       title: 'New session',
       workingDirectories: params.workingDirectories,
+      config: params.config,
+      failed: missing.isNotEmpty,
     );
+    if (missing.isNotEmpty) {
+      // Like pi: the request succeeds, the backend fails a moment later,
+      // and the session is never listed.
+      _later(() {
+        _emit(
+          session,
+          SessionCreationFailedAction(
+            error: ErrorInfo(
+              errorType: 'creationFailed',
+              message: 'No such folder: ${pathOfUri(missing.first)}',
+            ),
+          ).toJson(),
+        );
+      });
+      return;
+    }
     _notifyRoot('root/sessionAdded', {
       'channel': rootChannel,
       'summary': _summaries[session]!.toJson(),
     });
+  }
+
+  /// Runs [callback] after [stepDelay] unless the host closes first.
+  void _later(void Function() callback) {
+    late final Timer timer;
+    timer = Timer(stepDelay, () {
+      _timers.remove(timer);
+      callback();
+    });
+    _timers.add(timer);
   }
 
   void _notifyRoot(String method, JsonMap params) {
@@ -557,7 +665,8 @@ class FakeAhpHost {
       }
     }
     final chat = _chats[defaultChatOf(state)];
-    final old = _summaries[session]!;
+    final old = _summaries[session];
+    if (old == null) return;
     final next = old.copyWith(
       title: state.title,
       status: summaryStatus(
@@ -598,6 +707,8 @@ class FakeAhpHost {
         ? 'unknown channel $channel'
         : type == 'chat/turnStarted' && _chats[channel]!.activeTurn != null
         ? 'a turn is already running'
+        : type == 'session/configChanged'
+        ? _configRejection(channel, action)
         : null;
     _emit(
       channel,
@@ -615,6 +726,19 @@ class FakeAhpHost {
       final started = ChatTurnStartedAction.fromJson(action);
       unawaited(_runTurn(channel, started.turnId, started.message.text));
     }
+  }
+
+  /// Why a `session/configChanged` on [session] is refused: only settings
+  /// the schema marks `sessionMutable` may change.
+  String? _configRejection(String session, JsonMap action) {
+    final schema = _sessions[session]?.config?.schema;
+    if (schema == null) return 'the session has no settings';
+    final keys = (action['config'] as JsonMap? ?? const {}).keys;
+    final fixed = [
+      for (final key in keys)
+        if (schema.properties[key]?.sessionMutable != true) key,
+    ];
+    return fixed.isEmpty ? null : 'cannot change ${fixed.join(', ')}';
   }
 
   // ── Script ───────────────────────────────────────────────────────────
@@ -694,6 +818,7 @@ class FakeAhpHost {
         Scenario.code => _codeFlow(chat, turnId),
         Scenario.slow => _slowFlow(chat, turnId),
         Scenario.cd => _cdFlow(chat, turnId),
+        Scenario.settings => _settingsFlow(chat, turnId),
       };
       if (!finished || !await _step(chat, turnId)) return;
     }
@@ -1336,6 +1461,13 @@ class FakeAhpHost {
     while (DateTime.now().isBefore(until)) {
       if (!await _step(chat, turnId)) return false;
     }
+    return true;
+  }
+
+  Future<bool> _settingsFlow(String chat, String turnId) async {
+    final model = _chats[chat]?.activeTurn?.message.model;
+    final config = _sessions[_sessionOfChat[chat]]?.config?.values;
+    _say(chat, turnId, settingsReply(model, config));
     return true;
   }
 

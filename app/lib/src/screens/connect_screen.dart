@@ -7,7 +7,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../host_connection.dart';
 import '../hosts/host_store.dart';
+import '../hosts/open_hosts.dart';
 import '../hosts/saved_hosts.dart';
+import 'host_storage_banner.dart';
 
 /// Host URL prefilled from `--dart-define=AHP_URL=...`.
 const _defaultUrl = String.fromEnvironment('AHP_URL');
@@ -15,8 +17,13 @@ const _defaultUrl = String.fromEnvironment('AHP_URL');
 /// Asks for a host URL and connection token, then connects. Lists the
 /// remembered hosts to reconnect, edit or forget.
 class ConnectScreen extends ConsumerStatefulWidget {
-  /// Creates the connect screen.
-  const ConnectScreen({super.key});
+  /// Creates the connect screen. When [addingHost], it is a page pushed
+  /// over the session list that connects one more host (AV-012) and
+  /// closes once connected.
+  const ConnectScreen({super.key, this.addingHost = false});
+
+  /// Whether another host is being added to the open ones.
+  final bool addingHost;
 
   @override
   ConsumerState<ConnectScreen> createState() => _ConnectScreenState();
@@ -28,10 +35,14 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
   final _token = TextEditingController();
   final _form = GlobalKey<FormState>();
 
+  /// The key of the host being connected; its state shows progress and
+  /// errors.
+  String? _attempt;
+
   @override
   void initState() {
     super.initState();
-    if (_defaultUrl.isNotEmpty) return;
+    if (_defaultUrl.isNotEmpty || widget.addingHost) return;
     // Prefill the most recent host so it does not have to be retyped.
     ref.read(savedHostsProvider.future).then((hosts) {
       if (hosts.isEmpty || !mounted || _url.text.isNotEmpty) return;
@@ -53,11 +64,20 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
     _token.text = host.token;
   }
 
-  void _connect() {
+  Future<void> _connect() async {
     if (!_form.currentState!.validate()) return;
-    ref
-        .read(hostConnectionProvider.notifier)
-        .connect(_url.text, token: _token.text, name: _name.text);
+    final host = SavedHost(
+      url: _url.text.trim(),
+      token: _token.text.trim(),
+      name: _name.text.trim(),
+    );
+    setState(() => _attempt = host.key);
+    await ref.read(openHostsProvider.notifier).connect(host);
+    if (!mounted || !widget.addingHost) return;
+    if (ref.read(hostConnectionProvider(host.key)).status ==
+        ConnectionStatus.connected) {
+      Navigator.of(context).pop();
+    }
   }
 
   void _connectTo(SavedHost host) {
@@ -75,10 +95,17 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final host = ref.watch(hostConnectionProvider);
+    final attempt = _attempt;
+    final host = attempt == null
+        ? const HostState()
+        : ref.watch(hostConnectionProvider(attempt));
     final connecting = host.status == ConnectionStatus.connecting;
     final theme = Theme.of(context);
+    final open = {for (final h in ref.watch(openHostsProvider)) h.key};
     return Scaffold(
+      appBar: widget.addingHost
+          ? AppBar(title: const Text('Add a host'))
+          : null,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -90,8 +117,11 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    const HostStorageBanner(),
                     Text(
-                      'Connect to a host',
+                      widget.addingHost
+                          ? 'Connect to another host'
+                          : 'Connect to a host',
                       style: theme.textTheme.headlineSmall,
                     ),
                     const SizedBox(height: 8),
@@ -151,6 +181,7 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
                       ),
                     ],
                     _SavedHostList(
+                      open: open,
                       enabled: !connecting,
                       onConnect: _connectTo,
                       onEdit: _fill,
@@ -169,18 +200,25 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
 /// The remembered hosts, most recent first (AV-010).
 class _SavedHostList extends ConsumerWidget {
   const _SavedHostList({
+    required this.open,
     required this.enabled,
     required this.onConnect,
     required this.onEdit,
   });
 
+  /// Keys of the hosts already connected; they are not offered.
+  final Set<String> open;
   final bool enabled;
   final ValueChanged<SavedHost> onConnect;
   final ValueChanged<SavedHost> onEdit;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final hosts = ref.watch(savedHostsProvider).value ?? const [];
+    final hosts = [
+      for (final host
+          in ref.watch(savedHostsProvider).value ?? const <SavedHost>[])
+        if (!open.contains(host.key)) host,
+    ];
     if (hosts.isEmpty) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

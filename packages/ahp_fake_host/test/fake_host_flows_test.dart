@@ -7,6 +7,7 @@ import 'dart:async';
 
 import 'package:ahp_client/ahp_client.dart';
 import 'package:ahp_fake_host/ahp_fake_host.dart';
+import 'package:json_rpc_2/json_rpc_2.dart';
 import 'package:test/test.dart';
 
 const _timeout = Duration(seconds: 10);
@@ -578,5 +579,117 @@ void main() {
       Scenario.ask,
     ]);
     expect(scenariosFor('toolbox'), isEmpty);
+  });
+
+  group('starting sessions', () {
+    test('lists folders on the host (resourceList)', () async {
+      final entries = await client.listDirectory('file:///workspace');
+      expect(
+        [for (final e in entries) '${e.type.wireValue}:${e.name}'],
+        ['directory:packages', 'file:README.md'],
+      );
+      await expectLater(
+        client.listDirectory('file:///nowhere'),
+        throwsA(isA<RpcException>()),
+      );
+    });
+
+    test('resolves session settings and completes branches', () async {
+      final inRepo = await client.resolveSessionConfig(
+        provider: fakeProvider,
+        workingDirectory: 'file:///workspace',
+        config: {'mode': 'plan'},
+      );
+      expect(inRepo.schema.properties.keys, ['mode', 'branch']);
+      expect(inRepo.values, {'mode': 'plan', 'branch': 'main'});
+      expect(inRepo.schema.properties['mode']!.sessionMutable, isTrue);
+      final outside = await client.resolveSessionConfig(
+        provider: fakeProvider,
+        workingDirectory: 'file:///srv/scratch',
+      );
+      expect(outside.schema.properties.keys, ['mode']);
+      final branches = await client.sessionConfigCompletions(
+        property: 'branch',
+        query: 'fix',
+      );
+      expect([for (final b in branches) b.value], ['fix/crash']);
+    });
+
+    test('creates a session with settings, a model and its options', () async {
+      final session = await client.createSession(
+        provider: fakeProvider,
+        workingDirectories: ['file:///workspace/packages/api'],
+        config: {'mode': 'plan', 'branch': 'feature/login'},
+      );
+      final summary = client.state.sessions[session]!;
+      expect(summary.project?.displayName, 'workspace');
+      expect((summary.meta?['git'] as Map?)?['branchName'], 'feature/login');
+      final newChat = (await client.openSession(session))!;
+      client.dispatch(
+        newChat,
+        ChatTurnStartedAction(
+          turnId: 'turn-settings',
+          startedAt: DateTime.now().toUtc().toIso8601String(),
+          message: userMessage(
+            'settings',
+            model: const ModelSelection(
+              id: scriptedModel,
+              config: {'thinkingLevel': 'high'},
+            ),
+          ),
+        ).toJson(),
+      );
+      await until((s) => s.chatChannels[newChat]!.state.turns.isNotEmpty);
+      final reply = client
+          .state
+          .chatChannels[newChat]!
+          .state
+          .turns
+          .last
+          .responseParts
+          .whereType<MarkdownResponsePart>()
+          .single
+          .content;
+      expect(reply, contains('Model: scripted'));
+      expect(reply, contains('thinkingLevel: high'));
+      expect(reply, contains('mode: plan'));
+      expect(reply, contains('branch: feature/login'));
+
+      // The mode may change mid-session; the branch may not.
+      client.dispatch(
+        session,
+        const SessionConfigChangedAction(config: {'mode': 'autopilot'})
+            .toJson(),
+      );
+      client.dispatch(
+        session,
+        const SessionConfigChangedAction(config: {'branch': 'main'}).toJson(),
+      );
+      await until((s) => s.sessionChannels[session]!.pending.isEmpty);
+      expect(client.state.sessionChannels[session]!.state.config!.values, {
+        'mode': 'autopilot',
+        'branch': 'feature/login',
+      });
+      expect(host.rejected.single.action['config'], {'branch': 'main'});
+    });
+
+    test('a session that fails to start throws at once', () async {
+      final started = DateTime.now();
+      await expectLater(
+        client.createSession(
+          provider: fakeProvider,
+          workingDirectories: ['file:///missing'],
+        ),
+        throwsA(
+          isA<SessionCreationFailedError>().having(
+            (e) => e.error?.message,
+            'message',
+            'No such folder: /missing',
+          ),
+        ),
+      );
+      expect(DateTime.now().difference(started), lessThan(_timeout));
+      expect(client.state.sessions.keys, isNot(contains(endsWith('missing'))));
+    });
   });
 }
