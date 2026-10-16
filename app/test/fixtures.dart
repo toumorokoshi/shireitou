@@ -87,3 +87,93 @@ ChatState chatFixture({bool active = true}) => ChatState(
         )
       : null,
 );
+
+/// The session channel of `pi:/1`: a second chat ("Reviewer") with an
+/// open input request, and a confirmation the open chat already shows.
+SessionState sessionWithRequests() => SessionState(
+  provider: 'pi',
+  title: 'Fix login',
+  status: SessionStatus.inputNeeded,
+  lifecycle: SessionLifecycle.ready,
+  activeClients: const [],
+  defaultChat: 'ahp-chat:/1',
+  chats: const [
+    ChatSummary(
+      resource: 'ahp-chat:/1',
+      title: 'Fix login',
+      status: SessionStatus.inputNeeded,
+      modifiedAt: '2026-10-01T00:00:00Z',
+    ),
+    ChatSummary(
+      resource: 'ahp-chat:/side',
+      title: 'Reviewer',
+      status: SessionStatus.inputNeeded,
+      modifiedAt: '2026-10-01T00:00:00Z',
+    ),
+  ],
+  inputNeeded: const [
+    SessionToolConfirmationRequest(
+      id: 'confirm-rm',
+      chat: 'ahp-chat:/1',
+      turnId: 'turn-2',
+      toolCall: ToolCallPendingConfirmationState(
+        toolCallId: 'rm',
+        toolName: 'bash',
+        displayName: 'Bash',
+        invocationMessage: PlainString('Run `rm a.txt`'),
+      ),
+    ),
+    SessionChatInputRequest(
+      id: 'side',
+      chat: 'ahp-chat:/side',
+      request: ChatInputRequest(
+        id: 'side-req',
+        message: 'Merge the branch?',
+        questions: [
+          ChatInputBooleanQuestion(
+            id: 'merge',
+            message: 'Merge',
+            defaultValue: true,
+          ),
+        ],
+      ),
+    ),
+  ],
+);
+
+/// A chat whose active turn waits for MCP sign-in, with a background
+/// shell.
+ChatState authChatFixture() => chatFixture().copyWith(
+  backgroundWork: const [
+    BackgroundShellWork(
+      id: 'w',
+      label: 'npm test',
+      startedAt: '2026-10-01T00:00:00Z',
+      command: 'npm test',
+    ),
+  ],
+  activeTurn: ActiveTurn(
+    id: 'turn-2',
+    startedAt: '2026-10-01T00:00:00Z',
+    message: userMessage('Search the docs'),
+    responseParts: const [
+      ToolCallResponsePart(
+        toolCall: ToolCallAuthRequiredState(
+          toolCallId: 'search',
+          toolName: 'search_docs',
+          displayName: 'Search docs',
+          contributor: ToolCallMcpContributor(customizationId: 'docs'),
+          invocationMessage: PlainString('Search Example Docs'),
+          confirmed: ToolCallConfirmationReason.notNeeded,
+          auth: McpAuthRequirement(
+            reason: McpAuthRequiredReason.required,
+            resource: ProtectedResourceMetadata(
+              resource: 'https://mcp.example.com',
+              resourceName: 'Example Docs',
+            ),
+          ),
+        ),
+      ),
+    ],
+  ),
+);

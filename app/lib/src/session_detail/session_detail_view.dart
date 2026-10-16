@@ -16,6 +16,8 @@ import '../session_list/folder_grouping.dart';
 import '../session_list/session_list_view.dart';
 import '../session_list/status_badges.dart';
 import 'chat_commands.dart';
+import 'session_inputs.dart';
+import 'session_status_widgets.dart';
 import 'timeline_items.dart';
 import 'timeline_parts.dart';
 
@@ -97,6 +99,11 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
     }
   }
 
+  Future<void> _authenticate({
+    required String resource,
+    required String token,
+  }) => _connection.authenticate(resource: resource, token: token);
+
   void _setRead(bool read) => _dispatch(
     widget.session,
     SessionIsReadChangedAction(isRead: read).toJson(),
@@ -132,6 +139,15 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
               (s) => s.chatChannels[chatUri]?.state,
             ),
           );
+    final sessionState = ref.watch(
+      hostConnectionProvider.select(
+        (s) => s.sessionChannels[widget.session]?.state,
+      ),
+    );
+    final protocolVersion = ref.watch(
+      hostConnectionProvider.select((s) => s.protocolVersion),
+    );
+    final prompts = sessionPrompts(sessionState, chat);
     // The host could not resume the session after a reconnect (AHP-004).
     final missing = ref.watch(
       hostConnectionProvider.select(
@@ -152,6 +168,7 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
       (final chat?, _) => _Timeline(
         chat: chat,
         onAction: (action) => _dispatch(chatUri!, action),
+        onAuthenticate: _authenticate,
       ),
     };
     return Column(
@@ -160,6 +177,12 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
         _Header(
           summary: summary,
           chat: chat,
+          backgroundWork:
+              supportsFeature(protocolVersion, ProtocolFeature.backgroundWork)
+              ? chat?.backgroundWork ?? const []
+              : const [],
+          mcpAlerts: mcpServerAlerts(sessionState),
+          onAuthenticate: _authenticate,
           onStop: chat == null
               ? null
               : () {
@@ -173,6 +196,16 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
           },
         ),
         const Divider(height: 1),
+        if (prompts.isNotEmpty && !missing) ...[
+          SessionInputPanel(
+            prompts: prompts,
+            session: sessionState,
+            openChat: chatUri,
+            onDispatch: _dispatch,
+            onAuthenticate: _authenticate,
+          ),
+          const Divider(height: 1),
+        ],
         Expanded(child: body),
         if (chat != null)
           FollowUpInput(
@@ -198,6 +231,9 @@ class _Header extends StatelessWidget {
   const _Header({
     required this.summary,
     required this.chat,
+    required this.backgroundWork,
+    required this.mcpAlerts,
+    required this.onAuthenticate,
     required this.onStop,
     required this.onArchive,
     required this.onMarkUnread,
@@ -205,6 +241,9 @@ class _Header extends StatelessWidget {
 
   final SessionSummary? summary;
   final ChatState? chat;
+  final List<BackgroundWork> backgroundWork;
+  final List<McpServerAlert> mcpAlerts;
+  final Authenticate onAuthenticate;
   final VoidCallback? onStop;
   final ValueChanged<bool> onArchive;
   final VoidCallback onMarkUnread;
@@ -225,6 +264,7 @@ class _Header extends StatelessWidget {
       if (summary != null) folderKeyOf(summary) ?? noFolderLabel,
       if (usage != null && usage.input + usage.output > 0)
         '${usage.input} in · ${usage.output} out tokens',
+      ?changesLabel(summary?.changes ?? chat?.changes),
     ];
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
@@ -255,6 +295,13 @@ class _Header extends StatelessWidget {
                     if (status != null)
                       for (final badge in badgesFor(status))
                         StatusBadgeChip(badge: badge),
+                    if (backgroundWork.isNotEmpty)
+                      BackgroundWorkChip(work: backgroundWork),
+                    if (mcpAlerts.isNotEmpty)
+                      McpServerAlertChips(
+                        alerts: mcpAlerts,
+                        onAuthenticate: onAuthenticate,
+                      ),
                     if (activity != null)
                       Semantics(
                         liveRegion: true,
@@ -299,10 +346,15 @@ class _Header extends StatelessWidget {
 /// The turns, newest at the bottom, following new output unless the user
 /// scrolled up (AV-066).
 class _Timeline extends StatefulWidget {
-  const _Timeline({required this.chat, required this.onAction});
+  const _Timeline({
+    required this.chat,
+    required this.onAction,
+    required this.onAuthenticate,
+  });
 
   final ChatState chat;
   final ValueChanged<JsonMap> onAction;
+  final Authenticate onAuthenticate;
 
   @override
   State<_Timeline> createState() => _TimelineState();
@@ -346,6 +398,7 @@ class _TimelineState extends State<_Timeline> {
             itemBuilder: (context, index) => buildTimelineItem(
               items[items.length - 1 - index],
               widget.onAction,
+              onAuthenticate: widget.onAuthenticate,
             ),
           ),
         ),

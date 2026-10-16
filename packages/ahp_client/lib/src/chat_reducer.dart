@@ -11,9 +11,9 @@ const _activityMask = (1 << 5) - 1;
 
 /// Applies [action] to [state], mirroring the protocol's `chatReducer`.
 ///
-/// Actions for another turn than the active one, and actions this client
-/// does not model yet (background work, canvases, changesets, MCP auth,
-/// working directories, drafts), leave [state] unchanged.
+/// Every 1.0.0 chat action is handled. Actions for another turn than the
+/// active one, and unknown actions (from a newer host), leave [state]
+/// unchanged.
 ChatState reduceChat(ChatState state, ChatAction action) => switch (action) {
   ChatTurnStartedAction() => _turnStarted(state, action),
   ChatDeltaAction(:final turnId, :final partId, :final content) => _updatePart(
@@ -213,17 +213,63 @@ ChatState reduceChat(ChatState state, ChatAction action) => switch (action) {
       enabled: isArchived,
     ),
   ),
-  ChatToolCallAuthRequiredAction() ||
-  ChatToolCallAuthResolvedAction() ||
-  ChatBackgroundWorkSetAction() ||
-  ChatBackgroundWorkRemovedAction() ||
-  ChatMovableChangedAction() ||
-  ChatChangesetsChangedAction() ||
-  ChatCanvasesChangedAction() ||
-  ChatWorkingDirectorySetAction() ||
-  ChatWorkingDirectoryRemovedAction() ||
-  ChatQueuedMessagesReorderedAction() ||
-  ChatDraftChangedAction() ||
+  ChatToolCallAuthRequiredAction() => _refreshStatus(
+    _updateToolCall(
+      state,
+      action.turnId,
+      action.toolCallId,
+      (tc) => _toolCallAuthRequired(tc, action),
+    ),
+  ),
+  ChatToolCallAuthResolvedAction() => _refreshStatus(
+    _updateToolCall(
+      state,
+      action.turnId,
+      action.toolCallId,
+      (tc) => _toolCallAuthResolved(tc, action),
+    ),
+  ),
+  ChatBackgroundWorkSetAction(:final work) => state.copyWith(
+    backgroundWork: [
+      for (final w in state.backgroundWork ?? const <BackgroundWork>[])
+        if (w.id != work.id) w else work,
+      if (!(state.backgroundWork ?? const []).any((w) => w.id == work.id)) work,
+    ],
+  ),
+  ChatBackgroundWorkRemovedAction(:final id) =>
+    (state.backgroundWork ?? const []).any((w) => w.id == id)
+        ? state.copyWith(
+            backgroundWork: [
+              for (final w in state.backgroundWork!)
+                if (w.id != id) w,
+            ],
+          )
+        : state,
+  ChatMovableChangedAction(:final movable) => state.copyWith(movable: movable),
+  ChatChangesetsChangedAction(:final changesets) => state.copyWith(
+    changesets: changesets,
+  ),
+  ChatCanvasesChangedAction(:final canvases) => state.copyWith(
+    canvases: canvases,
+  ),
+  ChatWorkingDirectorySetAction(:final directory) =>
+    (state.workingDirectories ?? const []).contains(directory)
+        ? state
+        : state.copyWith(
+            workingDirectories: [...?state.workingDirectories, directory],
+          ),
+  ChatWorkingDirectoryRemovedAction(:final directory) =>
+    state.workingDirectories?.contains(directory) ?? false
+        ? state.copyWith(
+            workingDirectories: [...state.workingDirectories!]
+              ..remove(directory),
+          )
+        : state,
+  ChatQueuedMessagesReorderedAction(:final order) => _queuedReordered(
+    state,
+    order,
+  ),
+  ChatDraftChangedAction(:final draft) => state.copyWith(draft: draft),
   ChatActionUnknown() => state,
 };
 
@@ -704,4 +750,66 @@ ChatState _pendingRemoved(ChatState state, PendingMessageKind kind, String id) {
   ];
   if (filtered.length == queued.length) return state;
   return state.copyWith(queuedMessages: filtered.isEmpty ? null : filtered);
+}
+
+/// `chat/toolCallAuthRequired`: a running MCP tool call pauses for
+/// authentication. Calls from other contributors are left alone.
+ToolCallState _toolCallAuthRequired(
+  ToolCallState tc,
+  ChatToolCallAuthRequiredAction action,
+) => switch (tc) {
+  ToolCallRunningState(contributor: final ToolCallMcpContributor contributor) =>
+    ToolCallAuthRequiredState(
+      toolCallId: tc.toolCallId,
+      toolName: tc.toolName,
+      displayName: tc.displayName,
+      intention: tc.intention,
+      contributor: contributor,
+      meta: action.meta ?? tc.meta,
+      invocationMessage: tc.invocationMessage,
+      toolInput: tc.toolInput,
+      confirmed: tc.confirmed,
+      selectedOption: tc.selectedOption,
+      content: tc.content,
+      auth: action.auth,
+    ),
+  _ => tc,
+};
+
+/// `chat/toolCallAuthResolved`: the paused call runs again.
+ToolCallState _toolCallAuthResolved(
+  ToolCallState tc,
+  ChatToolCallAuthResolvedAction action,
+) => switch (tc) {
+  ToolCallAuthRequiredState() => ToolCallRunningState(
+    toolCallId: tc.toolCallId,
+    toolName: tc.toolName,
+    displayName: tc.displayName,
+    intention: tc.intention,
+    contributor: tc.contributor,
+    meta: action.meta ?? tc.meta,
+    invocationMessage: tc.invocationMessage,
+    toolInput: tc.toolInput,
+    confirmed: tc.confirmed,
+    selectedOption: tc.selectedOption,
+    content: tc.content,
+  ),
+  _ => tc,
+};
+
+/// `chat/queuedMessagesReordered`: the queued messages named in [order]
+/// first (unknown and repeated IDs skipped), then the rest in their old
+/// order.
+ChatState _queuedReordered(ChatState state, List<String> order) {
+  final existing = state.queuedMessages;
+  if (existing == null) return state;
+  final byId = {for (final m in existing) m.id: m};
+  final ordered = <String>{};
+  final reordered = [
+    for (final id in order)
+      if (byId.containsKey(id) && ordered.add(id)) byId[id]!,
+    for (final m in existing)
+      if (!ordered.contains(m.id)) m,
+  ];
+  return state.copyWith(queuedMessages: reordered);
 }

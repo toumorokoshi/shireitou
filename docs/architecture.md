@@ -52,12 +52,18 @@ WebSocket ──► json_rpc_2 Peer ──► AhpClient (I/O edge)
   session channel, then to its `defaultChat` (pi publishes it as
   `ahp-chat://default/<base64url(pi:/<id>)>`). Their snapshots become
   `ChannelMirror<SessionState>` and `ChannelMirror<ChatState>` entries in
-  `HostState`, advanced by `reduceSession` and `reduceChat` (a port of the
-  protocol's `chatReducer`: turns, `chat/delta` streaming, reasoning, the
-  tool call lifecycle, input requests, pending messages, errors). Tool
-  calls are the generated `ToolCallState` sealed union, one class per
-  lifecycle status, and the reducer builds the next state the way the
-  protocol's reducer does.
+  `HostState`, advanced by `reduceSession` and `reduceChat`, ports of the
+  protocol's `sessionReducer` and `chatReducer` that handle every 1.0.0
+  action: turns, `chat/delta` streaming, reasoning, the tool call
+  lifecycle (including MCP `auth-required`), input requests, pending
+  messages and their order, background work, changesets, canvases,
+  working directories, drafts; and on the session, chats and their order,
+  customizations and MCP server state, server tools, active clients,
+  working directories, `_meta` and the session-level `inputNeeded` list,
+  which also sets the `InputNeeded` status bit. Tool calls are the
+  generated `ToolCallState` sealed union, one class per lifecycle status.
+  `changeset_reducer.dart` ports the changeset and canvas reducers; those
+  channels are not subscribed yet.
 - **Write-ahead dispatch (AHP-022):** `dispatch(channel, action)` sends a
   `dispatchAction` notification with the next `clientSeq` and applies the
   action to the channel's mirror at once. A `ChannelMirror` holds the
@@ -84,6 +90,9 @@ WebSocket ──► json_rpc_2 Peer ──► AhpClient (I/O edge)
   `applyEnvelope` ignores those actions and `dispatch` throws
   `UnsupportedActionError` for them; the app shows an "AHP 0.9.0" chip.
   See the spec's "0.9.0 compatibility" section.
+- **Authentication:** `authenticate(resource, token)` pushes a token
+  (AHP-060), which is how a client resumes a tool call waiting on MCP
+  sign-in. `expiresIn` is dropped under 0.9.0.
 - **Creating sessions:** `createSession` retries on `-32003`, then waits for
   the session in the catalogue and returns the URI the host lists
   (`resolveSessionResource` matches pi's `pi:/<id>` to the
@@ -107,6 +116,13 @@ WebSocket ──► json_rpc_2 Peer ──► AhpClient (I/O edge)
 - **URIs are opaque:** pi publishes sessions as `pi:/<id>` even when they
   were created as `ahp-session:/<id>`, so the catalogue is keyed by the
   `resource` the host sends.
+
+## packages/ahp_fake_host
+
+A scripted AHP host in Dart for tests, built on `ahp_client`'s generated
+types and reducers. It asks for approvals, input, MCP sign-in and runs
+background work when a message names the flow. See
+[fake-host.md](fake-host.md).
 
 ## packages/ahp_wire_gen
 
@@ -149,9 +165,16 @@ Dart source); `bin/generate.dart` does the file I/O. See
   `chat_commands.dart` are pure: `timelineItems(ChatState)` flattens turns
   into rows, and the command builders return the chat actions to dispatch.
   `session_detail_view.dart` holds the header (status, activity, Stop,
-  archive, mark unread), the reversed timeline that follows new output
-  (AV-066), and the follow-up box. `timeline_parts.dart` renders markdown
+  archive, mark unread, change counts, background work and MCP server
+  alerts), the "Waiting for you" panel, the reversed timeline that follows
+  new output (AV-066), and the follow-up box. `session_inputs.dart` is
+  pure: `sessionPrompts` picks the session's `inputNeeded` entries the
+  open chat does not already show (requests from other chats, or not yet
+  mirrored), and `mcpServerAlerts` the MCP servers that need sign-in or
+  failed. `session_status_widgets.dart` renders them; answers go to the
+  request's own chat even when it is not subscribed. `timeline_parts.dart` renders markdown
   (`flutter_markdown_plus`), collapsed reasoning, tool call cards with
-  Approve/Deny, input request forms and errors.
+  Approve/Deny (and Sign in / Cancel for `auth-required` calls, with a
+  token dialog), input request forms and errors.
 - `lib/src/screens/new_session_screen.dart`: the composer (agent, model,
   working directory, prompt).

@@ -80,6 +80,13 @@ class HostConnection extends Notifier<HostState> {
   void dispatch(String channel, JsonMap action) =>
       _connected.dispatch(channel, action);
 
+  /// Pushes a bearer [token] for the protected [resource] (`authenticate`),
+  /// for example to resume a tool call waiting on MCP sign-in.
+  Future<void> authenticate({
+    required String resource,
+    required String token,
+  }) => _connected.authenticate(resource: resource, token: token);
+
   /// Creates a session for [provider] in [workingDirectory] and sends
   /// [prompt] as its first turn (AV-040). Returns the session's URI as the
   /// host lists it.

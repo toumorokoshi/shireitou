@@ -8,8 +8,9 @@ with a UX modeled on the GitHub Agents view and Cursor's Agents Window.
 > Status: usable for chat, on the web and as macOS and Linux desktop apps.
 > The app connects to a host (remembering recent hosts), lists its sessions
 > grouped by working directory, opens a session's history, streams replies
-> live, sends follow-ups, stops turns, answers tool approvals and input
-> requests, and starts new sessions. Diffs/review, simultaneous connections
+> live, sends follow-ups, stops turns, answers tool approvals, input
+> requests (also from other chats) and MCP sign-in prompts, shows
+> background work and change counts, and starts new sessions. Diffs/review, simultaneous connections
 > to several hosts and notifications are not built yet; see
 > [GAPS.md](GAPS.md).
 
@@ -18,6 +19,9 @@ with a UX modeled on the GitHub Agents view and Cursor's Agents Window.
 - [`packages/ahp_client/`](packages/ahp_client/): pure-Dart AHP client (no
   Flutter dependency). Wire types, pure reducers, and the WebSocket JSON-RPC
   connection.
+- [`packages/ahp_fake_host/`](packages/ahp_fake_host/): a scripted AHP
+  host for tests that asks for tool approvals, input and MCP sign-in (see
+  [docs/fake-host.md](docs/fake-host.md)).
 - [`packages/ahp_wire_gen/`](packages/ahp_wire_gen/): generates the client's
   wire types from the vendored AHP 1.0.0 JSON Schemas (see
   [docs/wire-types.md](docs/wire-types.md)).
@@ -25,13 +29,15 @@ with a UX modeled on the GitHub Agents view and Cursor's Agents Window.
 - [`examples/`](examples/): recorded AHP traffic used by tests.
 
 The root `pubspec.yaml` is a [pub workspace](https://dart.dev/tools/pub/workspaces),
-so one `flutter pub get` at the root resolves both packages.
+so one `flutter pub get` at the root resolves every package.
 
 ## Documentation
 
 - [docs/architecture.md](docs/architecture.md): how the code is organized.
 - [docs/wire-types.md](docs/wire-types.md): how the AHP wire types are
   generated from the JSON Schemas, and how to upgrade the protocol version.
+- [docs/fake-host.md](docs/fake-host.md): the scripted fake host and the
+  tests that use it.
 - [docs/desktop.md](docs/desktop.md): macOS and Linux builds, dependencies,
   window behavior, packaging and the desktop smoke test.
 - [specs/agents-view.md](specs/agents-view.md): UI and feature requirements.
@@ -51,7 +57,9 @@ Requires Flutter 3.47.7 (Dart 3.13), Node.js (for prettier), and
 flutter pub get          # resolves the whole workspace
 just lint                # prettier, dart format, dart/flutter analyze
 just fix                 # dart fix, then format
-just test                # ahp_client unit tests and app widget tests
+just test                # unit and widget tests, client flows on the fake host
+just fake-host           # run the scripted fake host (prints its URL)
+just test-fake-host-app linux   # drive the app against the fake host
 just test-integration    # ahp_client against a real pi-agent-host-protocol
 just test-model          # a real model turn through pi (costs tokens)
 just test-desktop linux  # desktop smoke test against pi (see docs/desktop.md)

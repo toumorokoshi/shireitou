@@ -2,6 +2,7 @@
 /// 1.0.0. See `specs/agent-host-protocol-client.md`.
 library;
 
+export 'src/changeset_reducer.dart';
 export 'src/channel_mirror.dart';
 export 'src/chat_reducer.dart';
 export 'src/client.dart';

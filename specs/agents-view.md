@@ -145,9 +145,10 @@ yet.
 
 ## Implementation status
 
-As of 2026-10-16, iteration 3 (`app/`), verified on web and on the Linux
+As of 2026-10-16, iteration 6 (`app/`), verified on web and on the Linux
 desktop app against pi-agent-host-protocol (macOS is built and
-smoke-tested in CI):
+smoke-tested in CI). Approvals, input requests and MCP sign-in are driven
+end to end against the scripted fake host on Linux and macOS in CI:
 
 | ID     | Status  | Notes                                                                                                                                                                                                                                                                                    |
 | ------ | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -165,17 +166,17 @@ smoke-tested in CI):
 | AV-025 | Done    | See [Worktree grouping](#worktree-grouping).                                                                                                                                                                                                                                             |
 | AV-040 | Partial | Agent, model, working directory (text field, defaults to the host's `defaultDirectory`) and prompt; Enter submits. One host, so no host picker.                                                                                                                                          |
 | AV-041 | Partial | Model picker from `AgentInfo.models`, sent as the first message's `model`. No mode/reasoning options.                                                                                                                                                                                    |
-| AV-060 | Done    | Title, agent, model, folder, tokens, status, live activity, Stop, archive, mark unread.                                                                                                                                                                                                  |
+| AV-060 | Done    | Title, agent, model, folder, tokens, change counts, status, live activity, background work (1.0.0), MCP servers needing sign-in, Stop, archive, mark unread.                                                                                                                             |
 | AV-061 | Partial | Markdown with live streaming; no syntax highlighting or code-block copy button.                                                                                                                                                                                                          |
 | AV-062 | Done    |                                                                                                                                                                                                                                                                                          |
-| AV-063 | Done    | Icon per tool name, summary, status, expandable input/output with copy.                                                                                                                                                                                                                  |
+| AV-063 | Done    | Icon per tool name, summary, status, expandable input/output with copy; `auth-required` calls offer Sign in (token) and Cancel.                                                                                                                                                          |
 | AV-066 | Done    | Reversed list follows new output; "Jump to latest" when scrolled up.                                                                                                                                                                                                                     |
 | AV-067 | Done    | Inline errors with Retry for resumable ones; tokens per turn and per session.                                                                                                                                                                                                            |
 | AV-080 | Done    | Enter sends (queues while working), Cmd/Ctrl+Enter steers, Shift+Enter newline.                                                                                                                                                                                                          |
 | AV-081 | Partial | Queued and steering messages are shown and removable; no edit or reorder.                                                                                                                                                                                                                |
 | AV-082 | Done    |                                                                                                                                                                                                                                                                                          |
-| AV-083 | Done    | Approve/Deny or host options, risk score. Not verified against a host; pi never asks.                                                                                                                                                                                                    |
-| AV-084 | Done    | Text, number, integer, boolean, single- and multi-select. Not verified against a host.                                                                                                                                                                                                   |
+| AV-083 | Done    | Approve/Deny or host options, risk score; also from the "Waiting for you" panel for requests the timeline does not show. Verified against the fake host by `app/integration_test/fake_host_flows_test.dart` (pi never asks).                                                             |
+| AV-084 | Done    | Text, number, integer, boolean, single- and multi-select, inline or in the "Waiting for you" panel (session-level `inputNeeded`, other chats). Verified against the fake host.                                                                                                           |
 
 ## Out of scope (initially)
 

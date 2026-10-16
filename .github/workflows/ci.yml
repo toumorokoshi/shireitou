@@ -93,6 +93,12 @@ jobs:
           >/dev/null && just test-desktop linux'
         env:
           PI_AHP_HOST_DIR: ${{ github.workspace }}/pi-agent-host-protocol
+      - name: App flows against the fake host
+        timeout-minutes: 15
+        run: >
+          xvfb-run -a dbus-run-session -- bash -c
+          'echo -n ci | gnome-keyring-daemon --unlock --components=secrets
+          >/dev/null && just test-fake-host-app linux'
       - name: Package .tar.gz and .deb
         run: scripts/package-linux
       - uses: actions/upload-artifact@v4
@@ -127,6 +133,9 @@ jobs:
         run: just test-desktop macos
         env:
           PI_AHP_HOST_DIR: ${{ github.workspace }}/pi-agent-host-protocol
+      - name: App flows against the fake host
+        timeout-minutes: 15
+        run: just test-fake-host-app macos
       - name: Package unsigned .dmg
         run: scripts/package-macos
       - uses: actions/upload-artifact@v4

@@ -1,0 +1,19 @@
+name: ahp_fake_host
+description: >-
+  A scripted Agent Host Protocol host for tests: asks for tool approvals,
+  input, MCP sign-in and runs background work on cue.
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.13.5
+dependencies:
+  ahp_client:
+    path: ../ahp_client
+  json_rpc_2: ^4.1.0
+  stream_channel: ^2.1.4
+  web_socket_channel: ^3.0.3
+dev_dependencies:
+  lints: ^6.1.0
+  test: ^1.31.1

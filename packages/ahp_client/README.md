@@ -31,6 +31,9 @@ await client.connect();
 | `src/protocol_version.dart`  | what 1.0.0 added over 0.9.0, `ProtocolFeature`, `UnsupportedActionError`                                                  |
 | `src/channel_mirror.dart`    | write-ahead `ChannelMirror`, pending-action rollback, `ActionFailure`                                                     |
 | `src/root_reducer.dart`      | pure `reduceRoot(RootState, RootAction)`                                                                                  |
+| `src/session_reducer.dart`   | pure `reduceSession`, a port of the protocol's `sessionReducer` (every 1.0.0 session action)                              |
+| `src/chat_reducer.dart`      | pure `reduceChat`, a port of the protocol's `chatReducer` (every 1.0.0 chat action)                                       |
+| `src/changeset_reducer.dart` | pure `reduceChangeset` and `reduceCanvasJson` (channels not mirrored yet)                                                 |
 | `src/session_catalogue.dart` | pure functions for `listSessions` and `root/session*` notifications                                                       |
 | `src/subscriptions.dart`     | pure reference counting for `subscribe` / `unsubscribe`                                                                   |
 | `src/host_state.dart`        | `HostState` and pure functions that apply snapshots, envelopes, reconnects (`missing` channels) and pending-action expiry |

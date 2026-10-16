@@ -10,6 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shireitou/src/app.dart';
 import 'package:shireitou/src/host_connection.dart';
 import 'package:shireitou/src/hosts/saved_hosts.dart';
+import 'package:shireitou/src/session_detail/session_status_widgets.dart';
 
 import 'fixtures.dart';
 
@@ -41,6 +42,15 @@ class FakeHostConnection extends HostConnection {
   void dispatch(String channel, JsonMap action) =>
       dispatched.add((channel, action));
 
+  /// (resource, token) pairs pushed with `authenticate`.
+  final authenticated = <(String, String)>[];
+
+  @override
+  Future<void> authenticate({
+    required String resource,
+    required String token,
+  }) async => authenticated.add((resource, token));
+
   /// The `type`s of the dispatched actions.
   List<Object?> get types => [for (final (_, a) in dispatched) a['type']];
 }
@@ -63,7 +73,7 @@ Future<FakeHostConnection> _pump(
   return connection;
 }
 
-HostState connected({ChatState? chat}) => HostState(
+HostState connected({ChatState? chat, SessionState? sessionState}) => HostState(
   status: ConnectionStatus.connected,
   serverInfo: const Implementation(name: 'pi-agent-host-protocol'),
   sessions: catalogueFromSummaries([
@@ -76,6 +86,9 @@ HostState connected({ChatState? chat}) => HostState(
     session('3', directory: 'file:///src/old', title: 'Old', status: 97),
   ]),
   chatChannels: {'ahp-chat:/1': ChannelMirror.snapshot(chat ?? chatFixture())},
+  sessionChannels: {
+    if (sessionState != null) 'pi:/1': ChannelMirror.snapshot(sessionState),
+  },
 );
 
 void main() {
@@ -362,5 +375,84 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.textContaining('did not confirm that in time'), findsOneWidget);
+  });
+
+  testWidgets('session-level requests from another chat are answered in '
+      'the panel; ones the timeline shows are not repeated', (tester) async {
+    final connection = await _pump(
+      tester,
+      connected(sessionState: sessionWithRequests()),
+      const Size(1400, 1000),
+    );
+    await tester.tap(find.text('Fix login'));
+    await tester.pumpAndSettle();
+    final panel = find.byType(SessionInputPanel);
+    expect(find.text('Waiting for you (1)'), findsOneWidget);
+    expect(
+      find.descendant(of: panel, matching: find.text('In Reviewer')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: panel, matching: find.text('Run `rm a.txt`')),
+      findsNothing,
+    );
+    await tester.tap(find.descendant(of: panel, matching: find.text('Submit')));
+    final (channel, action) = connection.dispatched.last;
+    expect(channel, 'ahp-chat:/side');
+    expect(action['type'], 'chat/inputCompleted');
+    expect(action['requestId'], 'side-req');
+    expect(action['answers'], {
+      'merge': {
+        'state': 'submitted',
+        'value': {'kind': 'boolean', 'value': true},
+      },
+    });
+  });
+
+  testWidgets('MCP sign-in, background work and change counts', (tester) async {
+    final connection = await _pump(
+      tester,
+      connected(chat: authChatFixture()).copyWith(
+        protocolVersion: '1.0.0',
+        sessions: catalogueFromSummaries([
+          session('1', title: 'Fix login', status: 24).copyWith(
+            changes: const ChangesSummary(additions: 3, deletions: 1, files: 1),
+          ),
+        ]),
+      ),
+      const Size(1400, 1000),
+    );
+    await tester.tap(find.text('Fix login'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Sign-in required'), findsWidgets);
+    expect(find.text('1 in background'), findsOneWidget);
+    expect(find.textContaining('+3 −1 · 1 file'), findsOneWidget);
+
+    await tester.tap(find.text('Sign in'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Access token'),
+      'tok',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Sign in').last);
+    await tester.pumpAndSettle();
+    expect(connection.authenticated, [('https://mcp.example.com', 'tok')]);
+
+    await tester.tap(find.text('Cancel tool call'));
+    final (channel, action) = connection.dispatched.last;
+    expect(channel, 'ahp-chat:/1');
+    expect(action['type'], 'chat/toolCallComplete');
+    expect((action['result']! as JsonMap)['success'], isFalse);
+  });
+
+  testWidgets('a 0.9.0 host shows no background work', (tester) async {
+    await _pump(
+      tester,
+      connected(chat: authChatFixture()).copyWith(protocolVersion: '0.9.0'),
+      const Size(1400, 1000),
+    );
+    await tester.tap(find.text('Fix login'));
+    await tester.pumpAndSettle();
+    expect(find.text('1 in background'), findsNothing);
   });
 }

@@ -8,6 +8,7 @@ lint:
     dart format --output=none --set-exit-if-changed .
     cd packages/ahp_client && dart analyze --fatal-infos
     cd packages/ahp_wire_gen && dart analyze --fatal-infos
+    cd packages/ahp_fake_host && dart analyze --fatal-infos
     cd app && flutter analyze --fatal-infos
 
 # Format markdown and Dart files.
@@ -19,14 +20,27 @@ format:
 fix:
     cd packages/ahp_client && dart fix --apply
     cd packages/ahp_wire_gen && dart fix --apply
+    cd packages/ahp_fake_host && dart fix --apply
     cd app && dart fix --apply
     just format
 
-# Run unit and widget tests (integration tests excluded).
+# Run unit and widget tests (pi integration tests excluded), and the
+# client flows against the scripted fake host.
 test:
     cd packages/ahp_wire_gen && dart test
     cd packages/ahp_client && dart test -x integration
+    cd packages/ahp_fake_host && dart test
     cd app && flutter test
+
+# Run the scripted fake AHP host (asks for approvals, input and sign-in;
+# see packages/ahp_fake_host). Pass `--port N`, `--token T` or `--no-token`.
+fake-host *args:
+    cd packages/ahp_fake_host && dart run ahp_fake_host {{args}}
+
+# Drive the real app against the fake host: approvals, input requests,
+# session-level requests and MCP sign-in. Linux needs a display.
+test-fake-host-app device="linux":
+    cd app && flutter test integration_test/fake_host_flows_test.dart -d {{device}}
 
 # Run the integration tests against pi-agent-host-protocol (no model turns).
 # Set PI_AHP_HOST_DIR to the checkout (default: a sibling of this repo).

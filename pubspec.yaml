@@ -5,6 +5,7 @@ environment:
 workspace:
   - packages/ahp_client
   - packages/ahp_wire_gen
+  - packages/ahp_fake_host
   - app
 dev_dependencies:
   lints: ^6.0.0

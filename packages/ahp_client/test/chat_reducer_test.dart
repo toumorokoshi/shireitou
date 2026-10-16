@@ -413,4 +413,202 @@ void main() {
       expect(part, isA<ResponsePartUnknown>());
     });
   });
+
+  group('MCP authentication (AHP-062)', () {
+    ToolCallRunningState running({ToolCallContributor? contributor}) =>
+        ToolCallRunningState(
+          toolCallId: 'x',
+          toolName: 'search',
+          displayName: 'Search',
+          contributor: contributor,
+          invocationMessage: const PlainString('Search docs'),
+          confirmed: ToolCallConfirmationReason.notNeeded,
+          content: const [ToolResultTextContent(text: 'partial')],
+        );
+    const mcp = ToolCallMcpContributor(customizationId: 'm1');
+    const authRequired = {
+      'type': 'chat/toolCallAuthRequired',
+      'turnId': 't1',
+      'toolCallId': 'x',
+      'auth': {
+        'reason': 'required',
+        'resource': {'resource': 'https://mcp.example.com'},
+        'description': 'Sign in to Docs',
+      },
+    };
+
+    test('an MCP tool call pauses for auth and needs input', () {
+      final paused = _reduce(
+        _chat([ToolCallResponsePart(toolCall: running(contributor: mcp))]),
+        authRequired,
+      );
+      final call = _toolCall(paused) as ToolCallAuthRequiredState;
+      expect(call.auth.description, 'Sign in to Docs');
+      expect(call.content, hasLength(1));
+      expect(paused.status.isInputNeeded, isTrue);
+
+      final resumed = _reduce(paused, {
+        'type': 'chat/toolCallAuthResolved',
+        'turnId': 't1',
+        'toolCallId': 'x',
+      });
+      expect(_toolCall(resumed), isA<ToolCallRunningState>());
+      expect(_toolCall(resumed).content, hasLength(1));
+      expect(resumed.status.isInputNeeded, isFalse);
+      expect(resumed.status.isInProgress, isTrue);
+    });
+
+    test('only failures complete a call waiting for auth', () {
+      final paused = _reduce(
+        _chat([ToolCallResponsePart(toolCall: running(contributor: mcp))]),
+        authRequired,
+      );
+      JsonMap complete({required bool success}) => {
+        'type': 'chat/toolCallComplete',
+        'turnId': 't1',
+        'toolCallId': 'x',
+        'requiresResultConfirmation': true,
+        'result': {'success': success, 'pastTenseMessage': 'Searched'},
+      };
+      expect(_reduce(paused, complete(success: true)), same(paused));
+      final cancelled = _reduce(paused, complete(success: false));
+      final call = _toolCall(cancelled) as ToolCallCompletedState;
+      expect(call.success, isFalse);
+      expect(call.content, hasLength(1));
+    });
+
+    test('calls not from an MCP server never need auth', () {
+      final state = _chat([ToolCallResponsePart(toolCall: running())]);
+      expect(_reduce(state, authRequired), same(state));
+    });
+  });
+
+  group('chat metadata (1.0.0)', () {
+    final state = _chat(const []);
+
+    test('background work is upserted and removed', () {
+      var next = _reduce(state, {
+        'type': 'chat/backgroundWorkSet',
+        'work': {
+          'kind': 'shell',
+          'id': 'w1',
+          'label': 'npm test',
+          'startedAt': '2026-01-01T00:00:00Z',
+          'command': 'npm test',
+        },
+      });
+      next = _reduce(next, {
+        'type': 'chat/backgroundWorkSet',
+        'work': {
+          'kind': 'subagent',
+          'id': 'w2',
+          'label': 'Explore',
+          'startedAt': '2026-01-01T00:00:00Z',
+          'chat': 'ahp-chat:/sub',
+        },
+      });
+      next = _reduce(next, {
+        'type': 'chat/backgroundWorkSet',
+        'work': {
+          'kind': 'shell',
+          'id': 'w1',
+          'label': 'npm test (watch)',
+          'startedAt': '2026-01-01T00:00:00Z',
+          'command': 'npm test -- --watch',
+        },
+      });
+      expect(next.backgroundWork!.map((w) => w.label), [
+        'npm test (watch)',
+        'Explore',
+      ]);
+      expect(next.backgroundWork![1], isA<BackgroundSubagentWork>());
+      final removed = _reduce(next, {
+        'type': 'chat/backgroundWorkRemoved',
+        'id': 'w1',
+      });
+      expect(removed.backgroundWork!.single.id, 'w2');
+      expect(
+        _reduce(removed, {'type': 'chat/backgroundWorkRemoved', 'id': 'w1'}),
+        same(removed),
+      );
+    });
+
+    test('changesets, canvases, movable and draft are replaced', () {
+      var next = _reduce(state, {
+        'type': 'chat/changesetsChanged',
+        'changesets': [
+          {
+            'label': 'Chat',
+            'uriTemplate': 'ahp-changeset:/c',
+            'changeKind': 'chat',
+          },
+        ],
+      });
+      next = _reduce(next, {
+        'type': 'chat/canvasesChanged',
+        'canvases': [
+          {'resource': 'ahp-canvas:/1'},
+        ],
+      });
+      next = _reduce(next, {'type': 'chat/movableChanged', 'movable': true});
+      next = _reduce(next, {
+        'type': 'chat/draftChanged',
+        'draft': userMessage('half a thought').toJson(),
+      });
+      expect(next.changesets!.single.label, 'Chat');
+      expect(next.canvases!.single.resource, 'ahp-canvas:/1');
+      expect(next.movable, isTrue);
+      expect(next.draft?.text, 'half a thought');
+      next = _reduce(next, {'type': 'chat/changesetsChanged'});
+      next = _reduce(next, {'type': 'chat/canvasesChanged'});
+      next = _reduce(next, {'type': 'chat/draftChanged'});
+      expect(next.changesets, isNull);
+      expect(next.canvases, isNull);
+      expect(next.draft, isNull);
+    });
+
+    test('working directories are added once and removed', () {
+      var next = _reduce(state, {
+        'type': 'chat/workingDirectorySet',
+        'directory': '/a',
+      });
+      expect(
+        _reduce(next, {'type': 'chat/workingDirectorySet', 'directory': '/a'}),
+        same(next),
+      );
+      next = _reduce(next, {
+        'type': 'chat/workingDirectoryRemoved',
+        'directory': '/a',
+      });
+      expect(next.workingDirectories, isEmpty);
+      expect(
+        _reduce(next, {
+          'type': 'chat/workingDirectoryRemoved',
+          'directory': '/a',
+        }),
+        same(next),
+      );
+    });
+
+    test('queued messages are reordered; unnamed ones keep their order', () {
+      final queued = state.copyWith(
+        queuedMessages: [
+          for (final id in ['a', 'b', 'c'])
+            PendingMessage(id: id, message: userMessage(id)),
+        ],
+      );
+      final next = _reduce(queued, {
+        'type': 'chat/queuedMessagesReordered',
+        'order': ['c', 'x', 'c', 'a'],
+      });
+      expect(next.queuedMessages!.map((m) => m.id), ['c', 'a', 'b']);
+      expect(
+        _reduce(state, {
+          'type': 'chat/queuedMessagesReordered',
+          'order': ['a'],
+        }),
+        same(state),
+      );
+    });
+  });
 }

@@ -1,0 +1,205 @@
+/// Session-level widgets around the timeline: the "Waiting for you" panel
+/// for `SessionState.inputNeeded`, the background work chip and MCP server
+/// alerts.
+library;
+
+import 'package:ahp_client/ahp_client.dart';
+import 'package:flutter/material.dart';
+
+import 'session_inputs.dart';
+import 'timeline_parts.dart';
+
+/// Dispatches [action] on [channel].
+typedef DispatchTo = void Function(String channel, JsonMap action);
+
+/// The session's open input requests that the timeline does not show
+/// (from other chats, or not mirrored in the open chat yet), each
+/// answerable in place. Answers go to the request's own chat, which need
+/// not be subscribed.
+class SessionInputPanel extends StatelessWidget {
+  /// Creates a [SessionInputPanel] for [prompts] (see [sessionPrompts]).
+  const SessionInputPanel({
+    super.key,
+    required this.prompts,
+    required this.session,
+    required this.openChat,
+    required this.onDispatch,
+    this.onAuthenticate,
+  });
+
+  /// The requests to show.
+  final List<SessionInputRequest> prompts;
+
+  /// The session, for chat titles.
+  final SessionState? session;
+
+  /// The chat the timeline shows.
+  final String? openChat;
+
+  /// Dispatches an answer to a request's chat.
+  final DispatchTo onDispatch;
+
+  /// Pushes an MCP sign-in token.
+  final Authenticate? onAuthenticate;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: theme.colorScheme.surfaceContainerLow,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.45,
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.front_hand_outlined,
+                    color: theme.colorScheme.primary,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Waiting for you (${prompts.length})',
+                    style: theme.textTheme.titleSmall,
+                  ),
+                ],
+              ),
+              for (final entry in prompts) _entry(context, entry),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _entry(BuildContext context, SessionInputRequest entry) {
+    final chat = entry.chat;
+    void dispatch(JsonMap action) => onDispatch(chat, action);
+    final Widget body = switch (entry) {
+      SessionChatInputRequest(:final request) => InputRequestCard(
+        key: ValueKey(entry.id),
+        part: InputRequestResponsePart(request: request),
+        onAction: dispatch,
+      ),
+      SessionToolConfirmationRequest(:final turnId, :final toolCall) =>
+        switch (toolCall) {
+          final ToolCallState call => ToolCallCard(
+            key: ValueKey(entry.id),
+            turnId: turnId,
+            toolCall: call,
+            onAction: dispatch,
+          ),
+          _ => const Text('A tool call needs confirmation.'),
+        },
+      SessionToolAuthenticationRequest(:final turnId, :final toolCall) =>
+        ToolCallCard(
+          key: ValueKey(entry.id),
+          turnId: turnId,
+          toolCall: toolCall,
+          onAction: dispatch,
+          onAuthenticate: onAuthenticate,
+        ),
+      SessionToolClientExecutionRequest() => const SizedBox.shrink(),
+      SessionInputRequestUnknown(:final kind) => Text(
+        'The host is waiting for input this app cannot show ($kind).',
+      ),
+    };
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (chat != openChat)
+            Text(
+              'In ${chatTitleOf(session, chat)}',
+              style: Theme.of(context).textTheme.labelMedium,
+            ),
+          body,
+        ],
+      ),
+    );
+  }
+}
+
+/// "2 in background": the chat's background shells and subagents, listed
+/// in a menu.
+class BackgroundWorkChip extends StatelessWidget {
+  /// Creates a [BackgroundWorkChip] for non-empty [work].
+  const BackgroundWorkChip({super.key, required this.work});
+
+  /// The running background work.
+  final List<BackgroundWork> work;
+
+  @override
+  Widget build(BuildContext context) => PopupMenuButton<void>(
+    tooltip: 'Background work',
+    itemBuilder: (_) => [
+      for (final w in work)
+        PopupMenuItem<void>(
+          enabled: false,
+          child: Text(backgroundWorkLabel(w)),
+        ),
+    ],
+    child: Chip(
+      visualDensity: VisualDensity.compact,
+      avatar: const Icon(Icons.motion_photos_on_outlined, size: 16),
+      label: Text('${work.length} in background'),
+    ),
+  );
+}
+
+/// A chip per MCP server that needs sign-in or failed. Tapping one that
+/// needs sign-in asks for a token.
+class McpServerAlertChips extends StatelessWidget {
+  /// Creates [McpServerAlertChips] for [alerts].
+  const McpServerAlertChips({
+    super.key,
+    required this.alerts,
+    this.onAuthenticate,
+  });
+
+  /// The servers that need attention.
+  final List<McpServerAlert> alerts;
+
+  /// Pushes a sign-in token.
+  final Authenticate? onAuthenticate;
+
+  @override
+  Widget build(BuildContext context) {
+    final onAuthenticate = this.onAuthenticate;
+    return Wrap(
+      spacing: 4,
+      children: [
+        for (final (:server, :message) in alerts)
+          Tooltip(
+            message: message,
+            child: ActionChip(
+              visualDensity: VisualDensity.compact,
+              avatar: Icon(
+                server.state is McpServerAuthRequiredState
+                    ? Icons.key
+                    : Icons.error_outline,
+                size: 16,
+              ),
+              label: Text(server.name),
+              onPressed: switch (server.state) {
+                McpServerAuthRequiredState(:final resource)
+                    when onAuthenticate != null =>
+                  () => signInWithToken(
+                    context,
+                    resource: resource,
+                    onAuthenticate: onAuthenticate,
+                  ),
+                _ => null,
+              },
+            ),
+          ),
+      ],
+    );
+  }
+}

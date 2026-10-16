@@ -132,3 +132,17 @@ bool inputComplete(ChatInputRequest request, Map<String, Object?> values) =>
     (request.questions ?? const <ChatInputQuestion>[]).every(
       (q) => !(q.required ?? false) || inputAnswer(q, values[q.id]) != null,
     );
+
+/// The action that gives up on [toolCall] in [turnId] while it waits for
+/// MCP sign-in (AHP-062): a failed `chat/toolCallComplete`, the only
+/// completion the protocol allows from `auth-required`.
+JsonMap cancelAuthAction(String turnId, ToolCallState toolCall) =>
+    ChatToolCallCompleteAction(
+      turnId: turnId,
+      toolCallId: toolCall.toolCallId,
+      result: const ToolCallResult(
+        success: false,
+        pastTenseMessage: PlainString('Sign-in cancelled'),
+        error: ToolCallError(message: 'The user cancelled the sign-in.'),
+      ),
+    ).toJson();

@@ -1,5 +1,71 @@
 # Design Decision Log
 
+## 2026-10-16: Full reducers, session-level input and a scripted fake host
+
+- **Reducers mirror the protocol for every action:** `reduceSession` and
+  `reduceChat` now port all of `sessionReducer` and `chatReducer` from
+  `@microsoft/agent-host-protocol@1.0.0`, including the edge cases
+  (`session/chatsReordered` only applies a permutation, a replaced working
+  directory that already exists earlier is dropped, `inputNeeded` drives
+  the `InputNeeded` bit except for client tool execution, toggling a
+  plugin or MCP server sets `enablement` while other customizations keep
+  the legacy `enabled`, `chat/toolCallAuthRequired` only applies to
+  running MCP calls, an `auth-required` call only completes with a
+  failure). The switch is exhaustive over the generated unions, so a new
+  protocol action is a compile error rather than a silent no-op; only the
+  `…Unknown` member (a newer host) is ignored. Customization edits go
+  through JSON (`toJson` + `fromJson`) where the TypeScript reducer
+  spreads objects, so unknown kinds are handled the same way.
+- **Changeset and canvas reducers without subscriptions:** ported now
+  (`changeset_reducer.dart`) because they are small and the review pane
+  (AV-100 to AV-103) needs them, but the client does not subscribe to
+  those channels yet; change counts in the UI come from the catalogue's
+  `SessionSummary.changes` (present in 0.9.0 too). The terminal, resource
+  watch, annotations and automation reducers are not ported (no UI).
+- **1.0.0 gating:** the client already ignores 1.0.0-only actions under
+  0.9.0, so the reducers need no version checks. UI built on 1.0.0-only
+  state checks `supportsFeature` (the background work chip);
+  `authenticate` drops `expiresIn` without `tokenExpiry`.
+- **Session-level input requests:** a "Waiting for you" panel above the
+  timeline shows `SessionState.inputNeeded` entries the open chat does not
+  already show. An entry is hidden when its tool call or input request is
+  anywhere in the open chat, so a request answered inline (write-ahead
+  makes the call `running` at once) does not reappear before the host
+  removes the entry. Answers are dispatched to the entry's own chat even
+  when the client is not subscribed to it; there is no mirror to update,
+  so nothing is pending and the host's `session/inputNeededRemoved` is the
+  confirmation. Client tool execution entries are not shown (this client
+  provides no tools).
+- **MCP sign-in without OAuth:** `auth-required` tool calls (and MCP
+  servers in `authRequired` state, as header chips) offer "Sign in", which
+  asks the user to paste a token and calls the new
+  `AhpClient.authenticate`, and "Cancel tool call", a failed
+  `chat/toolCallComplete` (the only completion the protocol allows from
+  `auth-required`). A real OAuth/PKCE flow (AHP-060) needs a redirect
+  handler per platform and is left for later.
+- **Minimal UI for the rest:** background work is a header chip with a
+  menu of labels, change counts are added to the header details. Drafts,
+  canvases, working directory changes, server tools, active clients,
+  customizations other than MCP alerts, chat order and `movable` are
+  mirrored but have no UI yet (see GAPS.md).
+- **A fake host in Dart, in the workspace:** `packages/ahp_fake_host`
+  reuses `ahp_client`'s generated types and reducers to keep real state,
+  so it costs little code and cannot drift from the client's model of the
+  protocol. It is driven by keywords in the user's message (`tool`, `ask`,
+  `side`, `auth`, `background`, `edit`) rather than a config file, so the
+  same host serves automated tests and manual runs (`just fake-host`).
+  Reconnect always answers `-32008`, so clients re-initialize. The risk of
+  sharing reducers (a reducer bug the host and client agree on) is
+  covered by the reducer unit tests against the TypeScript semantics and
+  by the recorded pi traffic.
+- **Where its tests run:** client-level flows run over a real loopback
+  WebSocket with a token in `just test` (fast, no display). The app-level
+  integration test starts the host in the app's own process (no extra
+  process to manage) and drives the UI through the connect screen; it is a
+  separate `just test-fake-host-app` recipe and CI step on Linux (Xvfb,
+  fresh keyring) and macOS, so a failure is attributed to it rather than to
+  the desktop smoke test, which `scripts/test-desktop` now runs alone.
+
 ## 2026-10-16: Wire type generation
 
 - **Generated from the JSON Schemas, output committed:** a new pure-Dart

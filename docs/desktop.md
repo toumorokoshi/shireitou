@@ -101,3 +101,11 @@ display and a fresh unlocked keyring, as CI does:
 xvfb-run -a dbus-run-session -- bash -c \
   'echo -n pw | gnome-keyring-daemon --unlock --components=secrets >/dev/null && just test-desktop linux'
 ```
+
+`just test-fake-host-app [linux|macos]` runs
+`app/integration_test/fake_host_flows_test.dart` the same way: the app
+against the scripted fake host (approvals, input requests, MCP sign-in;
+see [fake-host.md](fake-host.md)). CI runs it as its own step after the
+smoke test on both desktops. Locally, with a fresh keyring, set
+`XDG_DATA_HOME` to an empty directory so gnome-keyring does not show a
+prompt that blocks the test.

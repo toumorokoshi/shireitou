@@ -11,11 +11,19 @@ import 'package:url_launcher/url_launcher.dart';
 import 'chat_commands.dart';
 import 'timeline_items.dart';
 
-/// Builds the widget for one [item]. [onAction] dispatches a chat action.
+/// Pushes a token for a protected resource (`authenticate`).
+typedef Authenticate = Future<void> Function({
+  required String resource,
+  required String token,
+});
+
+/// Builds the widget for one [item]. [onAction] dispatches a chat action;
+/// [onAuthenticate] signs a tool call in to its MCP server.
 Widget buildTimelineItem(
   TimelineItem item,
-  ValueChanged<JsonMap> onAction,
-) => switch (item) {
+  ValueChanged<JsonMap> onAction, {
+  Authenticate? onAuthenticate,
+}) => switch (item) {
   UserMessageItem(:final message) => UserMessageBubble(message: message),
   ResponsePartItem(:final turnId, :final part, :final active) => switch (part) {
     MarkdownResponsePart(:final content) => MarkdownText(content),
@@ -24,6 +32,7 @@ Widget buildTimelineItem(
       turnId: turnId,
       toolCall: toolCall,
       onAction: active ? onAction : null,
+      onAuthenticate: active ? onAuthenticate : null,
     ),
     InputRequestResponsePart() => InputRequestCard(
       part: part,
@@ -153,6 +162,7 @@ class ToolCallCard extends StatelessWidget {
     required this.turnId,
     required this.toolCall,
     this.onAction,
+    this.onAuthenticate,
   });
 
   /// Turn the call belongs to.
@@ -163,6 +173,9 @@ class ToolCallCard extends StatelessWidget {
 
   /// Dispatches approve/deny; null for finished turns.
   final ValueChanged<JsonMap>? onAction;
+
+  /// Pushes an MCP sign-in token; null hides "Sign in".
+  final Authenticate? onAuthenticate;
 
   @override
   Widget build(BuildContext context) {
@@ -211,6 +224,13 @@ class ToolCallCard extends StatelessWidget {
             ],
           ),
           if (waiting && onAction != null) _approvalBar(context),
+          if (toolCall case final ToolCallAuthRequiredState call
+              when onAction != null)
+            _AuthBar(
+              auth: call.auth,
+              onSignIn: onAuthenticate,
+              onCancel: () => onAction!(cancelAuthAction(turnId, call)),
+            ),
         ],
       ),
     );
@@ -280,6 +300,137 @@ class ToolCallCard extends StatelessWidget {
           Wrap(spacing: 8, runSpacing: 8, children: buttons),
         ],
       ),
+    );
+  }
+}
+
+/// The call to action of a tool call waiting for MCP sign-in (AHP-062).
+class _AuthBar extends StatelessWidget {
+  const _AuthBar({
+    required this.auth,
+    required this.onSignIn,
+    required this.onCancel,
+  });
+
+  final McpAuthRequirement auth;
+  final Authenticate? onSignIn;
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    final resource = auth.resource;
+    final name = resource.resourceName ?? resource.resource;
+    final onSignIn = this.onSignIn;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(auth.description ?? 'Sign in to $name to continue.'),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (onSignIn != null)
+                FilledButton.icon(
+                  icon: const Icon(Icons.key),
+                  label: const Text('Sign in'),
+                  onPressed: () => signInWithToken(
+                    context,
+                    resource: resource,
+                    onAuthenticate: onSignIn,
+                  ),
+                ),
+              OutlinedButton(
+                onPressed: onCancel,
+                child: const Text('Cancel tool call'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Asks for a token for [resource] and pushes it with [onAuthenticate].
+/// Shows a snackbar when the host refuses it.
+///
+/// There is no OAuth flow yet (AHP-060): the user pastes a token.
+Future<void> signInWithToken(
+  BuildContext context, {
+  required ProtectedResourceMetadata resource,
+  required Authenticate onAuthenticate,
+}) async {
+  final token = await showDialog<String>(
+    context: context,
+    builder: (context) => _TokenDialog(resource: resource),
+  );
+  if (token == null || token.isEmpty) return;
+  try {
+    await onAuthenticate(resource: resource.resource, token: token);
+  } on Object catch (error) {
+    if (context.mounted) {
+      ScaffoldMessenger.maybeOf(context)
+          ?.showSnackBar(SnackBar(content: Text('Sign-in failed: $error')));
+    }
+  }
+}
+
+class _TokenDialog extends StatefulWidget {
+  const _TokenDialog({required this.resource});
+
+  final ProtectedResourceMetadata resource;
+
+  @override
+  State<_TokenDialog> createState() => _TokenDialogState();
+}
+
+class _TokenDialogState extends State<_TokenDialog> {
+  final _token = TextEditingController();
+
+  @override
+  void dispose() {
+    _token.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final resource = widget.resource;
+    final docs = resource.resourceDocumentation;
+    return AlertDialog(
+      title: Text('Sign in to ${resource.resourceName ?? resource.resource}'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Paste an access token for ${resource.resource}.'),
+          if (docs != null)
+            TextButton(
+              onPressed: () => launchUrl(Uri.parse(docs)),
+              child: const Text('How to get a token'),
+            ),
+          TextField(
+            controller: _token,
+            autofocus: true,
+            obscureText: true,
+            decoration: const InputDecoration(labelText: 'Access token'),
+            onSubmitted: (value) => Navigator.pop(context, value.trim()),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, _token.text.trim()),
+          child: const Text('Sign in'),
+        ),
+      ],
     );
   }
 }

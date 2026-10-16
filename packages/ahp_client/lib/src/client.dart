@@ -351,6 +351,31 @@ class AhpClient {
     }
   }
 
+  /// Pushes a bearer [token] for the protected [resource] (`authenticate`,
+  /// AHP-060), for example to resume a tool call waiting on MCP sign-in.
+  Future<void> authenticate({
+    required String resource,
+    required String token,
+    int? expiresIn,
+    List<String>? scopes,
+  }) async {
+    final peer = _peer;
+    if (peer == null) throw StateError('not connected');
+    if (expiresIn != null &&
+        !supportsFeature(_state.protocolVersion, ProtocolFeature.tokenExpiry)) {
+      expiresIn = null;
+    }
+    await peer.sendRequest(
+      'authenticate',
+      AuthenticateParams(
+        resource: resource,
+        token: token,
+        expiresIn: expiresIn,
+        scopes: scopes,
+      ).toJson(),
+    );
+  }
+
   /// Sends a protocol-level `ping`.
   Future<void> ping() async {
     final peer = _peer;

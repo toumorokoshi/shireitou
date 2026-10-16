@@ -13,15 +13,25 @@ the native token header, and remembered hosts. Iteration 4 (2026-10-16)
 finished reconnect (`missing` channels, liveness pings), write-ahead
 rollback on timeout and reconnect, and 0.9.0 degradation. Iteration 5
 (2026-10-16) generated the wire types from the AHP 1.0.0 JSON Schemas.
-Remaining work:
+Iteration 6 (2026-10-16) completed the session and chat reducers, showed
+session-level input requests, MCP sign-in, background work and change
+counts, and added a scripted fake host (`packages/ahp_fake_host`) that
+approvals and input requests are tested against. Remaining work:
 
-- **Not verified against a host:** tool approvals (AV-083) and input
-  requests (AV-084) are covered by reducer and widget tests only, because pi
-  runs tools without confirmation and sends no elicitations. Test them
-  against a host that asks (for example VS Code's agent host or a fake host
-  script).
-- **Session-level input requests:** `SessionState.inputNeeded` is kept as
-  raw JSON and not shown.
+- **Approvals and input against a real host:** tool approvals (AV-083),
+  input requests (AV-084), session-level requests and MCP sign-in are
+  verified against the scripted fake host only (client flows in
+  `just test`, the app in `just test-fake-host-app`; see
+  [docs/fake-host.md](docs/fake-host.md)). No production host that asks
+  (for example VS Code's agent host) has been tried; pi never asks. The
+  fake host does not cover host-provided confirmation `options`, risk
+  assessments, editable tool input, result confirmation
+  (`pending-result-confirmation`) or `chat/inputAnswerChanged` drafts.
+- **"Waiting for you" panel:** a request answered from the panel in a chat
+  the client is not subscribed to stays visible (and can be submitted
+  again) until the host sends `session/inputNeededRemoved`; a rejected
+  answer only shows the usual snackbar. Client tool execution entries
+  (`toolClientExecution`) are ignored because the app provides no tools.
 - **Composer (AV-040, AV-041):** no host picker (one host), no directory
   browser (AV-043), no mode/thinking-level options from the model's
   `configSchema`, and no "+" button on folder headers. A session whose
@@ -33,13 +43,21 @@ Remaining work:
   be edited or reordered (AV-081). Older turns are not paged in on scroll
   (AV-068; pi always sends full history). Very long chats rebuild the whole
   `ChatState` per delta; windowed delivery (AHP-029) is not built.
-- **Chat reducer coverage:** background work, canvases, changesets, MCP
-  auth (`chat/toolCallAuthRequired`/`chat/toolCallAuthResolved`), working
-  directories, queued-message reordering and draft actions are ignored
-  (listed explicitly as no-ops in `reduceChat`). Session customizations,
-  MCP servers, changesets, server tools, active clients, input requests,
-  chat reordering and `_meta` are ignored (`reduceSession` falls through).
-  The generated types for all of them exist.
+- **Mirrored state without UI:** every chat and session action is
+  reduced, but these have no UI yet: chat drafts (`chat/draftChanged`; the
+  follow-up box neither shows nor sends drafts), canvases, per-chat and
+  per-session working directory changes, `movable` and chat order (no
+  chat switcher, AV-069), server tools, active clients, `_meta`,
+  customizations (only MCP servers needing sign-in or failing show, as
+  header chips; no list, toggles, start/stop or backgrounding of a
+  blocking start), and changesets (counts only; no file list or review,
+  AV-100 to AV-103). Background work is a chip with labels only: no
+  terminal output for shells and no link to a subagent's chat.
+- **MCP sign-in:** "Sign in" asks the user to paste a token and calls
+  `authenticate`. There is no OAuth/PKCE flow from
+  `ProtectedResourceMetadata`/`McpOAuthClient` (AHP-060), no handling of
+  `auth/required` or `-32007` (AHP-061), and no `expiresIn` or scopes in
+  the dialog.
 - **Session list:** no "Done" filter (AV-022), archive only from the session
   header (AV-024), no attention count in the title (AV-120), no keyboard
   shortcuts (AV-140), no search or sort.
@@ -59,9 +77,11 @@ Remaining work:
     channel kind by `host_state.dart` and the reducers; snapshots of
     channels the client does not mirror (terminal, changeset, canvas,
     annotations, resource watch, automation) are not decoded at all yet.
-    `TerminalState`, `ChangesetState`, `CanvasState`, ... and their action
-    unions (`TerminalAction`, `ChangesetAction`, ...) exist but have no
-    reducers.
+    `reduceChangeset` and `reduceCanvasJson` exist (tested, not wired:
+    `ChannelKind` has no changeset or canvas kind and nothing subscribes
+    to those channels). `TerminalAction`, `AnnotationsAction`,
+    `ResourceWatchAction`, `AutomationAction` and `AutomationRunAction`
+    have no reducers.
   - The partial summaries (`session/chatUpdated` and
     `root/sessionSummaryChanged` `changes`) are `JsonMap` and merged as
     JSON, because hosts clear a field with an explicit `null`.
@@ -84,9 +104,11 @@ Remaining work:
   1.0.0-only actions and refuses to dispatch them, and the app shows an
   "AHP 0.9.0" chip (see "0.9.0 compatibility" in
   [specs/agent-host-protocol-client.md](specs/agent-host-protocol-client.md)).
-  None of the 1.0.0-only UI exists yet; when per-chat read/archive,
-  background work, per-chat changes, chat moving/reordering or canvases are
-  built, they must check `supportsFeature`. No real host that speaks only
+  The background work chip checks `supportsFeature`; when per-chat
+  read/archive, per-chat changes, chat moving/reordering, canvases or MCP
+  backgrounding get UI, they must check it too. The fake host can
+  negotiate 0.9.0 but its scripts still send 1.0.0-only actions
+  (`chat/backgroundWorkSet`), which the client drops under 0.9.0. No real host that speaks only
   0.9.0 was tested: pi was made to negotiate 0.9.0 by offering only that.
 - **Write-ahead and liveness tuning:** the pending-action timeout (30 s),
   ping interval (15 s) and ping timeout (10 s) are fixed defaults, not
@@ -114,11 +136,14 @@ Remaining work:
     workflow publishing them on tags.
 - **Other platforms:** iOS, Android and Windows builds have not been run
   either (no Android SDK or Windows machine here).
-- **App-level integration test in CI:** the desktop smoke test
-  (`app/integration_test/desktop_smoke_test.dart`) covers window setup,
-  connecting with a token and saving the host, on Linux and macOS. It does
-  not drive the UI (sessions, chat). The web app is still only driven by a
-  Playwright script kept outside the repo.
+- **App-level integration tests in CI:** the desktop smoke test covers
+  window setup, connecting with a token and saving the host against pi;
+  `app/integration_test/fake_host_flows_test.dart` drives the connect
+  screen, a session, approvals, input requests, the "Waiting for you"
+  panel and MCP sign-in against the fake host, on Linux and macOS. The
+  composer, session list filters, archive and reconnect are not driven
+  end to end, and the web app is still only driven by a Playwright script
+  kept outside the repo.
 - Everything else in [specs/agents-view.md](specs/agents-view.md) and
   [specs/agent-host-protocol-client.md](specs/agent-host-protocol-client.md)
   not listed as done in their status sections.
