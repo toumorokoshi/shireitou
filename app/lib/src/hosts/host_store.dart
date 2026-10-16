@@ -18,10 +18,18 @@ final _log = Logger('host_store');
 /// On macOS this uses the legacy file-based login keychain
 /// (`usesDataProtectionKeychain: false`), which works in the app sandbox
 /// without the `keychain-access-groups` entitlement and so without a
-/// provisioning profile. Linux uses libsecret (a running secret service such
-/// as gnome-keyring), Windows DPAPI, and web encrypted local storage.
+/// provisioning profile. iOS keeps the items in the keychain, readable
+/// after the first unlock (so a reconnect in the background can read the
+/// token) and never synced or restored to another device. Android encrypts
+/// them with a Keystore key (the app opts out of backups, since the key
+/// does not survive a restore). Linux uses libsecret (a running secret
+/// service such as gnome-keyring), Windows DPAPI, and web encrypted local
+/// storage.
 const secureStorage = FlutterSecureStorage(
   mOptions: MacOsOptions(usesDataProtectionKeychain: false),
+  iOptions: IOSOptions(
+    accessibility: KeychainAccessibility.first_unlock_this_device,
+  ),
 );
 
 /// The [HostStore]; tests override it.

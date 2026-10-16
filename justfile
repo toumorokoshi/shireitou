@@ -81,10 +81,21 @@ test-model:
     cd packages/ahp_client && dart test -t model
 
 # Run the desktop smoke test (window, secure storage, token header) on a
-# native device against pi. Linux needs a display and an unlocked keyring;
-# see scripts/test-desktop.
+# native device (linux, macos or windows) against pi. Linux needs a display
+# and an unlocked keyring; see scripts/test-desktop.
 test-desktop device="linux":
     scripts/test-desktop {{device}}
+
+# Run the mobile smoke test (secure storage, the phone layout against the
+# fake host) on an Android emulator or iOS simulator, e.g.
+# `just test-mobile emulator-5554`; see docs/mobile.md.
+test-mobile device:
+    scripts/test-mobile {{device}}
+
+# Re-render the app icons from app/assets/icon/shireitou.svg (needs
+# Playwright's Chromium in app/web_test); see docs/packaging.md.
+icons:
+    scripts/render-icon
 
 # Regenerate the AHP wire types from the vendored JSON Schemas (see
 # packages/ahp_wire_gen), then the freezed code in ahp_client. CI fails when

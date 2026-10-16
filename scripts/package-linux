@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # package-linux - packages the release bundle from `flutter build linux` as
-# a .tar.gz and an unsigned .deb in app/build/dist/.
+# a .tar.gz, an unsigned .deb and an AppImage in app/build/dist/.
 #
 # Usage: scripts/package-linux
-# Run `cd app && flutter build linux --release` first.
+# Run `cd app && flutter build linux --release` first. The AppImage needs
+# appimagetool: set APPIMAGETOOL to it, or the script downloads release
+# $APPIMAGETOOL_VERSION from GitHub (and the AppImage runtime with it).
 set -euo pipefail
 umask 022
 
@@ -11,8 +13,8 @@ repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 app="$repo/app"
 version="$(sed -n 's/^version: \([0-9.]*\).*/\1/p' "$app/pubspec.yaml")"
 case "$(uname -m)" in
-  x86_64) arch=amd64; flutter_arch=x64 ;;
-  aarch64 | arm64) arch=arm64; flutter_arch=arm64 ;;
+  x86_64) arch=amd64; flutter_arch=x64; appimage_arch=x86_64 ;;
+  aarch64 | arm64) arch=arm64; flutter_arch=arm64; appimage_arch=aarch64 ;;
   *) echo "unsupported architecture $(uname -m)" >&2; exit 1 ;;
 esac
 bundle="$app/build/linux/$flutter_arch/release/bundle"
@@ -26,24 +28,40 @@ rm -rf "$dist"
 mkdir -p "$dist"
 tar -czf "$dist/shireitou-$version-linux-$arch.tar.gz" -C "$bundle" .
 
-root="$(mktemp -d)"
-trap 'rm -rf "$root"' EXIT
-chmod 755 "$root"
-mkdir -p "$root/DEBIAN" "$root/opt/shireitou" "$root/usr/bin" \
-  "$root/usr/share/applications" "$root/usr/share/icons/hicolor/512x512/apps"
-cp -r "$bundle/." "$root/opt/shireitou/"
-ln -s /opt/shireitou/shireitou "$root/usr/bin/shireitou"
-cp "$app/web/icons/Icon-512.png" \
-  "$root/usr/share/icons/hicolor/512x512/apps/dev.shireitou.shireitou.png"
-cat >"$root/usr/share/applications/dev.shireitou.shireitou.desktop" <<DESKTOP
+id=dev.shireitou.shireitou
+icons="$app/assets/icon/linux"
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+
+# The desktop entry; the window's app ID and WM_CLASS are $id too
+# (linux/runner), so docks match the window to it on X11 and Wayland.
+desktop_entry() {
+  cat <<DESKTOP
 [Desktop Entry]
 Type=Application
 Name=shireitou
 Comment=Agents view for Agent Host Protocol hosts
-Exec=/opt/shireitou/shireitou
-Icon=dev.shireitou.shireitou
+Exec=$1
+Icon=$id
+Terminal=false
 Categories=Development;
+StartupWMClass=$id
 DESKTOP
+}
+
+# .deb: the bundle in /opt/shireitou.
+root="$work/deb"
+mkdir -p "$root/DEBIAN" "$root/opt/shireitou" "$root/usr/bin" \
+  "$root/usr/share/applications"
+chmod 755 "$root"
+cp -r "$bundle/." "$root/opt/shireitou/"
+ln -s /opt/shireitou/shireitou "$root/usr/bin/shireitou"
+for size_dir in "$icons"/*; do
+  size="$(basename "$size_dir")"
+  mkdir -p "$root/usr/share/icons/hicolor/$size/apps"
+  cp "$size_dir/$id.png" "$root/usr/share/icons/hicolor/$size/apps/"
+done
+desktop_entry /opt/shireitou/shireitou >"$root/usr/share/applications/$id.desktop"
 cat >"$root/DEBIAN/control" <<CONTROL
 Package: shireitou
 Version: $version
@@ -58,4 +76,30 @@ Description: Agents view for Agent Host Protocol hosts
  Start, monitor and steer coding-agent sessions on Agent Host Protocol hosts.
 CONTROL
 dpkg-deb --build --root-owner-group "$root" "$dist/shireitou_${version}_$arch.deb"
+
+# AppImage: the bundle at the AppDir's root, started by AppRun. GTK 3 and
+# libsecret come from the system, as for the .tar.gz.
+appdir="$work/shireitou.AppDir"
+mkdir -p "$appdir/usr/share/applications"
+cp -r "$bundle/." "$appdir/"
+cat >"$appdir/AppRun" <<'APPRUN'
+#!/bin/sh
+here="$(dirname "$(readlink -f "$0")")"
+exec "$here/shireitou" "$@"
+APPRUN
+chmod 755 "$appdir/AppRun"
+desktop_entry shireitou >"$appdir/$id.desktop"
+cp "$appdir/$id.desktop" "$appdir/usr/share/applications/"
+cp "$icons/256x256/$id.png" "$appdir/$id.png"
+ln -s "$id.png" "$appdir/.DirIcon"
+tool="${APPIMAGETOOL:-}"
+if [[ -z "$tool" ]]; then
+  tool="$work/appimagetool"
+  curl -fsSL -o "$tool" \
+    "https://github.com/AppImage/appimagetool/releases/download/${APPIMAGETOOL_VERSION:-1.9.1}/appimagetool-$appimage_arch.AppImage"
+  chmod 755 "$tool"
+fi
+# Without FUSE (containers, CI), appimagetool runs extracted.
+ARCH="$appimage_arch" APPIMAGE_EXTRACT_AND_RUN=1 "$tool" --no-appstream \
+  "$appdir" "$dist/shireitou-$version-linux-$appimage_arch.AppImage"
 ls -l "$dist"

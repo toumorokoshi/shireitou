@@ -4,6 +4,8 @@
 /// frames.
 library;
 
+import 'dart:io';
+
 import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -88,11 +90,13 @@ class AppHarness {
   /// The app's providers; [restart] replaces them.
   ProviderContainer container;
 
-  /// Sizes the window, pumps the app and disconnects every host when the
-  /// test ends.
+  /// Sizes the window (to [size]), pumps the app and disconnects every
+  /// host when the test ends. On a phone or tablet the app keeps the
+  /// device's screen; headless (`flutter-tester`) it gets [size].
   static Future<AppHarness> launch(
     WidgetTester tester, {
     List<String> Function()? describeHost,
+    Size size = const Size(1400, 1000),
   }) async {
     // The macOS runner starts with the window hidden (main() shows it), and
     // a hidden window renders no frames, so pumping would wait forever.
@@ -101,16 +105,16 @@ class AppHarness {
     final windowed = await tester.runAsync(() async {
       try {
         await setUpDesktopWindow();
-        await windowManager.setSize(const Size(1400, 1000));
+        await windowManager.setSize(size);
         return true;
       } on MissingPluginException {
         // The headless flutter-tester device (`flutter test` without -d)
-        // has no window plugin.
+        // and mobile devices have no window plugin.
         return false;
       }
     });
-    if (windowed != true) {
-      tester.view.physicalSize = const Size(1400, 1000);
+    if (windowed != true && !Platform.isAndroid && !Platform.isIOS) {
+      tester.view.physicalSize = size;
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
     }

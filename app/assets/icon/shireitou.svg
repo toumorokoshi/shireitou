@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- shireitou (司令塔, "control tower"): a control tower sending signals.
+       The source of every app icon; scripts/render-icon renders the PNGs
+       in this folder from it (see docs/packaging.md). -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5C6BC0"/>
+      <stop offset="1" stop-color="#1A237E"/>
+    </linearGradient>
+  </defs>
+  <rect id="background" width="1024" height="1024" fill="url(#sky)"/>
+  <g id="tower" transform="translate(512 542) scale(0.92) translate(-512 -482)">
+    <g fill="none" stroke="#FFD54F" stroke-width="36" stroke-linecap="round">
+      <path d="M 596.3 169.3 A 110 110 0 0 1 596.3 310.7"/>
+      <path d="M 427.7 169.3 A 110 110 0 0 0 427.7 310.7"/>
+      <path d="M 649.9 124.3 A 180 180 0 0 1 649.9 355.7"/>
+      <path d="M 374.1 124.3 A 180 180 0 0 0 374.1 355.7"/>
+    </g>
+    <g fill="#FFFFFF">
+      <circle cx="512" cy="240" r="30"/>
+      <rect x="497" y="240" width="30" height="90"/>
+      <rect x="312" y="310" width="400" height="36" rx="18"/>
+      <path d="M 336 346 L 688 346 L 652 470 L 372 470 Z"/>
+      <rect x="352" y="466" width="320" height="34" rx="10"/>
+      <path d="M 452 500 L 572 500 L 612 806 L 412 806 Z"/>
+      <rect x="312" y="800" width="400" height="44" rx="22"/>
+    </g>
+    <g fill="#26C6DA">
+      <path d="M 358 372 L 666 372 L 650 440 L 374 440 Z"/>
+    </g>
+    <g fill="#FFFFFF">
+      <rect x="430" y="372" width="14" height="68"/>
+      <rect x="505" y="372" width="14" height="68"/>
+      <rect x="580" y="372" width="14" height="68"/>
+    </g>
+  </g>
+</svg>

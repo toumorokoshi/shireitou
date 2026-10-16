@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+# render-icon - renders app/assets/icon/shireitou.svg into the PNGs that
+# flutter_launcher_icons and the Linux packages use, with Playwright's
+# Chromium (from app/web_test), then regenerates the platform icons.
+#
+# Usage: scripts/render-icon
+# Needs `npm ci && npx playwright install chromium` in app/web_test.
+set -euo pipefail
+
+repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+icons="$repo/app/assets/icon"
+cd "$repo/app/web_test"
+node --input-type=module - "$icons" <<'JS'
+import { mkdir, readFile } from "node:fs/promises";
+import { dirname } from "node:path";
+import { chromium } from "@playwright/test";
+
+const dir = process.argv[2];
+const svg = await readFile(`${dir}/shireitou.svg`, "utf8");
+// Each variant changes the SVG in the page before the screenshot.
+const rounded = (doc) => {
+    const root = doc.querySelector("svg");
+    root.setAttribute("viewBox", "-100 -100 1224 1224");
+    const ns = "http://www.w3.org/2000/svg";
+    const clip = doc.createElementNS(ns, "clipPath");
+    clip.id = "squircle";
+    const rect = doc.createElementNS(ns, "rect");
+    for (const [k, v] of Object.entries({
+      x: 0, y: 0, width: 1024, height: 1024, rx: 230,
+    })) rect.setAttribute(k, v);
+    clip.append(rect);
+    root.querySelector("defs").append(clip);
+    const group = doc.createElementNS(ns, "g");
+    group.setAttribute("clip-path", "url(#squircle)");
+    group.append(...[...root.children].filter((c) => c.tagName !== "defs"));
+    root.append(group);
+};
+// [file, size, change]
+const variants = [
+  // Full bleed: iOS, Android (legacy), the web.
+  ["icon.png", 1024, () => {}],
+  // macOS, Windows and Linux: a rounded square inside the grid's margins.
+  ["icon-rounded.png", 1024, rounded],
+  ["linux/512x512/dev.shireitou.shireitou.png", 512, rounded],
+  ["linux/256x256/dev.shireitou.shireitou.png", 256, rounded],
+  ["linux/128x128/dev.shireitou.shireitou.png", 128, rounded],
+  ["linux/64x64/dev.shireitou.shireitou.png", 64, rounded],
+  ["linux/48x48/dev.shireitou.shireitou.png", 48, rounded],
+  // Android adaptive and themed icons, web maskable: the tower alone,
+  // inside the adaptive icon's safe zone.
+  [
+    "icon-foreground.png",
+    1024,
+    (doc) => {
+      doc.getElementById("background").remove();
+      doc
+        .getElementById("tower")
+        .setAttribute("transform", "translate(512 512) scale(0.85) translate(-512 -482)");
+    },
+  ],
+];
+const browser = await chromium.launch();
+const page = await browser.newPage();
+for (const [name, size, change] of variants) {
+  await page.setViewportSize({ width: size, height: size });
+  await page.setContent(
+    `<style>html,body{margin:0;background:transparent}svg{display:block;width:${size}px;height:${size}px}</style>${svg}`,
+  );
+  await page.evaluate(`(${change.toString()})(document)`);
+  await mkdir(dirname(`${dir}/${name}`), { recursive: true });
+  await page.screenshot({ path: `${dir}/${name}`, omitBackground: true });
+  console.log(`rendered ${name}`);
+}
+await browser.close();
+JS
+cd "$repo/app"
+dart run flutter_launcher_icons
+# flutter_launcher_icons 0.14 rewrites this unrelated Xcode setting.
+sed -i.bak 's/ASSET_SYMBOL_EXTENSIONS = AppIcon;/ASSET_SYMBOL_EXTENSIONS = YES;/' \
+  ios/Runner.xcodeproj/project.pbxproj
+rm ios/Runner.xcodeproj/project.pbxproj.bak

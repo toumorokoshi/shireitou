@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# package-windows - packages the release build from `flutter build windows`
+# as a .zip and an .msix in app/build/dist/, both signed when the signing
+# secrets are set (see docs/packaging.md). Runs in Git Bash on Windows.
+#
+# Usage: scripts/package-windows
+# Run `cd app && flutter build windows --release` first.
+#
+# Signing (optional):
+#   WINDOWS_CERTIFICATE           base64 of a code signing .pfx
+#   WINDOWS_CERTIFICATE_PASSWORD  its password
+#   WINDOWS_PUBLISHER             the certificate's subject, e.g.
+#                                 "CN=Example Ltd, O=Example Ltd, C=US"
+# Without them the .exe is unsigned (SmartScreen warns) and the .msix is
+# unsigned, so Windows will not install it; it is built to check packaging
+# and left out of releases.
+set -euo pipefail
+
+repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+app="$repo/app"
+version="$(sed -n 's/^version: \([0-9.]*\).*/\1/p' "$app/pubspec.yaml")"
+release="$app/build/windows/x64/runner/Release"
+dist="$app/build/dist"
+[[ -f "$release/shireitou.exe" ]] || {
+  echo "no release build at $release; run flutter build windows --release" >&2
+  exit 1
+}
+
+rm -rf "$dist"
+mkdir -p "$dist"
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+
+msix_args=(--sign-msix false)
+if [[ -n "${WINDOWS_CERTIFICATE:-}" ]]; then
+  cert="$(cygpath -w "$work/certificate.pfx")"
+  echo "$WINDOWS_CERTIFICATE" | base64 --decode >"$work/certificate.pfx"
+  signtool="$(ls -d "/c/Program Files (x86)/Windows Kits/10/bin/"*/x64/signtool.exe | sort -V | tail -1)"
+  echo "signing with $signtool"
+  "$signtool" sign //fd SHA256 //td SHA256 //tr http://timestamp.digicert.com \
+    //f "$cert" //p "${WINDOWS_CERTIFICATE_PASSWORD:-}" "$(cygpath -w "$release/shireitou.exe")"
+  msix_args=(--certificate-path "$cert"
+    --certificate-password "${WINDOWS_CERTIFICATE_PASSWORD:-}"
+    --publisher "${WINDOWS_PUBLISHER:?WINDOWS_PUBLISHER must be the certificate subject}")
+else
+  echo "unsigned: WINDOWS_CERTIFICATE is unset" >&2
+fi
+
+(cd "$release" && 7z a -tzip "$(cygpath -w "$dist/shireitou-$version-windows-x64.zip")" . >/dev/null)
+
+cd "$app"
+dart run msix:create --build-windows false --install-certificate false \
+  --output-path "$(cygpath -w "$dist")" \
+  --output-name "shireitou-$version-windows-x64" "${msix_args[@]}"
+ls -l "$dist"

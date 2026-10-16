@@ -9,6 +9,7 @@
 library;
 
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
@@ -35,10 +36,12 @@ abstract interface class OsNotifier {
 }
 
 /// [OsNotifier] on `flutter_local_notifications` (Linux through the
-/// freedesktop notification service, macOS through UserNotifications,
-/// Windows through toast notifications). Initialized on first use; any
-/// failure (no notification daemon, permission refused) is logged and
-/// the notification dropped.
+/// freedesktop notification service, macOS and iOS through
+/// UserNotifications, Windows through toast notifications, Android
+/// through a notification channel). Initialized on first use, which asks
+/// for permission on macOS, iOS and Android 13+; any failure (no
+/// notification daemon, permission refused) is logged and the
+/// notification dropped.
 class LocalNotifier implements OsNotifier {
   /// Creates a [LocalNotifier] that calls [onOpen] with a clicked
   /// notification's payload.
@@ -56,6 +59,8 @@ class LocalNotifier implements OsNotifier {
         settings: const InitializationSettings(
           linux: LinuxInitializationSettings(defaultActionName: 'Open'),
           macOS: DarwinInitializationSettings(),
+          iOS: DarwinInitializationSettings(),
+          android: AndroidInitializationSettings('ic_notification'),
           windows: WindowsInitializationSettings(
             appName: 'shireitou',
             appUserModelId: 'Shireitou.Shireitou.Desktop',
@@ -65,7 +70,13 @@ class LocalNotifier implements OsNotifier {
         onDidReceiveNotificationResponse: (response) =>
             onOpen(response.payload),
       );
-      return ok ?? false;
+      if (ok != true) return false;
+      final android = _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
+      // Android 13+ asks at run time; earlier versions answer true.
+      return await android?.requestNotificationsPermission() ?? true;
     } on Object catch (error) {
       _log.warning('notifications are not available: $error');
       return false;
@@ -81,24 +92,47 @@ class LocalNotifier implements OsNotifier {
   }) async {
     if (!await (_ready ??= _initialize())) return;
     try {
-      await _plugin.show(id: id, title: title, body: body, payload: payload);
+      await _plugin.show(
+        id: id,
+        title: title,
+        body: body,
+        payload: payload,
+        notificationDetails: _details,
+      );
     } on Object catch (error) {
       _log.warning('could not show a notification: $error');
     }
   }
 }
 
-/// Whether this platform gets local notifications: the desktop apps.
+/// Android's notification channel; other platforms need no details.
+const _details = NotificationDetails(
+  android: AndroidNotificationDetails(
+    'attention',
+    'Sessions that need you',
+    channelDescription:
+        'A session needs input, finished its turn or failed (AV-121).',
+    importance: Importance.high,
+    priority: Priority.high,
+  ),
+);
+
+/// Whether this platform gets local notifications: the desktop apps, and
+/// iOS and Android while the app runs (also briefly in the background).
 /// The web build would need the plugin's service worker in place of
-/// Flutter's, and mobile is out of scope (see GAPS.md). Widget tests run
-/// as Android unless they say otherwise, so they get none.
+/// Flutter's (see GAPS.md). Widget tests run as Android on a desktop host
+/// unless they say otherwise, so they get none: on Android and iOS the
+/// real platform (`dart:io`) must agree.
 bool get localNotificationsSupported =>
     !kIsWeb &&
-    const {
-      TargetPlatform.linux,
-      TargetPlatform.macOS,
-      TargetPlatform.windows,
-    }.contains(defaultTargetPlatform);
+    switch (defaultTargetPlatform) {
+      TargetPlatform.linux ||
+      TargetPlatform.macOS ||
+      TargetPlatform.windows => true,
+      TargetPlatform.android => Platform.isAndroid,
+      TargetPlatform.iOS => Platform.isIOS,
+      _ => false,
+    };
 
 /// Sessions to open, from clicked notifications (and the run compare
 /// page); the sessions screen selects them.

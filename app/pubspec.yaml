@@ -36,6 +36,43 @@ dev_dependencies:
   integration_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+  msix: ^3.18.0
 
 flutter:
   uses-material-design: true
+
+# App icons, generated from assets/icon/shireitou.svg by scripts/render-icon
+# (see docs/packaging.md).
+flutter_launcher_icons:
+  image_path: assets/icon/icon.png
+  android: true
+  min_sdk_android: 24
+  adaptive_icon_background: "#283593"
+  adaptive_icon_foreground: assets/icon/icon-foreground.png
+  adaptive_icon_monochrome: assets/icon/icon-foreground.png
+  ios: true
+  remove_alpha_ios: true
+  background_color_ios: "#283593"
+  web:
+    generate: true
+    image_path: assets/icon/icon.png
+    background_color: "#283593"
+    theme_color: "#3F51B5"
+  windows:
+    generate: true
+    image_path: assets/icon/icon-rounded.png
+    icon_size: 256
+  macos:
+    generate: true
+    image_path: assets/icon/icon-rounded.png
+
+# Windows .msix (scripts/package-windows signs it when the secrets are set).
+msix_config:
+  display_name: shireitou
+  publisher_display_name: shireitou developers
+  publisher: CN=shireitou
+  identity_name: dev.shireitou.shireitou
+  logo_path: assets/icon/icon-rounded.png
+  capabilities: internetClient,internetClientServer,privateNetworkClientServer
+  languages: en-us

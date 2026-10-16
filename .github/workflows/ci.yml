@@ -119,18 +119,20 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y clang cmake ninja-build pkg-config \
-            libgtk-3-dev libsecret-1-dev xvfb gnome-keyring dbus-x11
+            libgtk-3-dev libsecret-1-dev xvfb gnome-keyring dbus-x11 openbox
       - run: npm ci
         working-directory: pi-agent-host-protocol
       - run: flutter pub get
       - name: Build Linux
         run: cd app && flutter build linux --release
+      # Under a real window manager (openbox), which enforces the minimum
+      # size hint the way desktop window managers do.
       - name: Desktop smoke test
         timeout-minutes: 15
         run: >
           xvfb-run -a dbus-run-session -- bash -c
           'echo -n ci | gnome-keyring-daemon --unlock --components=secrets
-          >/dev/null && just test-desktop linux'
+          >/dev/null && (openbox &) && sleep 1 && just test-desktop linux'
         env:
           PI_AHP_HOST_DIR: ${{ github.workspace }}/pi-agent-host-protocol
       - name: App flows against the fake host
@@ -151,7 +153,7 @@ jobs:
       - name: Report pi app test failures
         if: failure()
         run: scripts/annotate-test-failure pi-app.log
-      - name: Package .tar.gz and .deb
+      - name: Package .tar.gz, .deb and AppImage
         run: scripts/package-linux
       - uses: actions/upload-artifact@v4
         with:
@@ -199,3 +201,117 @@ jobs:
         with:
           name: shireitou-macos
           path: app/build/dist/
+
+  windows-desktop:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: toumorokoshi/pi-agent-host-protocol
+          path: pi-agent-host-protocol
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - uses: extractions/setup-just@v2
+      - run: npm ci
+        working-directory: pi-agent-host-protocol
+      - run: flutter pub get
+      - name: Build Windows
+        run: cd app && flutter build windows --release
+      - name: Desktop smoke test
+        timeout-minutes: 20
+        run: |
+          set -o pipefail
+          just test-desktop windows 2>&1 | tee desktop.log
+        env:
+          PI_AHP_HOST_DIR: ${{ github.workspace }}/pi-agent-host-protocol
+      - name: Report smoke test failures
+        if: failure()
+        run: scripts/annotate-test-failure desktop.log
+      - name: App flows against the fake host
+        timeout-minutes: 20
+        run: |
+          set -o pipefail
+          just test-fake-host-app windows 2>&1 | tee fake-host-app.log
+      - name: Report fake host test failures
+        if: failure()
+        run: scripts/annotate-test-failure fake-host-app.log
+      - name: Package .zip and unsigned .msix
+        run: scripts/package-windows
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shireitou-windows
+          path: app/build/dist/
+
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Build APK (debug-signed)
+        run: scripts/package-android
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shireitou-android
+          path: app/build/dist/
+      - name: Enable KVM for the emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Mobile smoke test on an emulator
+        timeout-minutes: 30
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
+          script: scripts/test-mobile emulator-5554
+
+  ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Build iOS (not signed)
+        run: cd app && flutter build ios --release --no-codesign
+      - name: Boot an iPhone simulator
+        run: |
+          udid="$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          print(next(d["udid"] for runtime, ds in sorted(devices.items(), reverse=True)
+                     if "iOS" in runtime for d in ds if d["name"].startswith("iPhone")))
+          ')"
+          xcrun simctl boot "$udid"
+          xcrun simctl bootstatus "$udid"
+          echo "SIMULATOR=$udid" >> "$GITHUB_ENV"
+      - name: Mobile smoke test on the simulator
+        timeout-minutes: 30
+        run: scripts/test-mobile "$SIMULATOR"

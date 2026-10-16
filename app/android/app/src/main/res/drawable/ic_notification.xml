@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The notification icon: the app icon's tower (assets/icon/shireitou.svg)
+     as a white silhouette, as Android requires. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="1024"
+    android:viewportHeight="1024">
+    <group
+        android:translateY="28"
+        android:scaleX="1.04"
+        android:scaleY="1.04"
+        android:pivotX="512"
+        android:pivotY="482">
+        <path
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="44"
+            android:strokeLineCap="round"
+            android:pathData="M596.3,169.3 A110,110 0 0,1 596.3,310.7 M427.7,169.3 A110,110 0 0,0 427.7,310.7 M649.9,124.3 A180,180 0 0,1 649.9,355.7 M374.1,124.3 A180,180 0 0,0 374.1,355.7" />
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M512,210 a30,30 0 1,1 0,60 a30,30 0 1,1 0,-60 Z M497,240 L527,240 L527,312 L497,312 Z M330,310 L694,310 A18,18 0 0,1 694,346 L330,346 A18,18 0 0,1 330,310 Z M352,466 L672,466 L672,500 L352,500 Z M452,500 L572,500 L612,806 L412,806 Z M334,800 L690,800 A22,22 0 0,1 690,844 L334,844 A22,22 0 0,1 334,800 Z" />
+        <!-- The cab, with the windows cut out. -->
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:fillType="evenOdd"
+            android:pathData="M336,346 L688,346 L652,470 L372,470 Z M358,372 L374,440 L650,440 L666,372 Z" />
+    </group>
+</vector>

@@ -1,0 +1,185 @@
+# Builds the release packages and, for a version tag (v0.1.0), publishes
+# them as a GitHub Release. Signing and notarization steps run only when
+# their secrets are set; see docs/packaging.md for the list.
+#
+# Pushes to main that touch packaging also run the builds (without
+# publishing), so a broken release is noticed before tagging.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+    branches: [main]
+    paths:
+      - .github/workflows/release.yml
+      - scripts/package-*
+      - app/pubspec.yaml
+      - app/assets/icon/**
+  workflow_dispatch:
+
+env:
+  FLUTTER_VERSION: 3.47.7
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: version
+        name: The tag matches the app version
+        run: |
+          version="$(sed -n 's/^version: \([0-9.]*\).*/\1/p' app/pubspec.yaml)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_REF_TYPE" == tag && "$GITHUB_REF_NAME" != "v$version" ]]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match app/pubspec.yaml version $version"
+            exit 1
+          fi
+
+  linux:
+    needs: version
+    strategy:
+      matrix:
+        runner: [ubuntu-latest, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      # Flutter publishes no Linux arm64 SDK archive, so both architectures
+      # use a checkout of the release (the engine artifacts exist for both).
+      - name: Install Flutter
+        run: |
+          git clone --depth 1 --branch "$FLUTTER_VERSION" \
+            https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config \
+            libgtk-3-dev libsecret-1-dev
+      - run: flutter pub get
+      - name: Build Linux
+        run: cd app && flutter build linux --release
+      - name: Package .tar.gz, .deb and AppImage
+        run: scripts/package-linux
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-linux-${{ runner.arch }}
+          path: app/build/dist/
+
+  macos:
+    needs: version
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Build macOS
+        run: cd app && flutter build macos --release
+      - name: Package .dmg (signed and notarized when the secrets are set)
+        run: scripts/package-macos
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-macos
+          path: app/build/dist/
+
+  windows:
+    needs: version
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Build Windows
+        run: cd app && flutter build windows --release
+      - name: Package .zip and .msix (signed when the secrets are set)
+        run: scripts/package-windows
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          WINDOWS_PUBLISHER: ${{ secrets.WINDOWS_PUBLISHER }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-windows
+          path: app/build/dist/
+
+  android:
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Build APK (release-signed when the secrets are set)
+        run: scripts/package-android
+        env:
+          ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-android
+          path: app/build/dist/
+
+  publish:
+    needs: [version, linux, macos, windows, android]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: dist
+          merge-multiple: true
+      - name: Checksums (GPG-signed when the secrets are set)
+        working-directory: dist
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          # An unsigned .msix cannot be installed, so it is not released.
+          if [[ -z "$WINDOWS_CERTIFICATE" ]]; then rm -f ./*.msix; fi
+          sha256sum -- * > SHA256SUMS
+          if [[ -n "$GPG_PRIVATE_KEY" ]]; then
+            echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+            gpg --batch --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" \
+              --armor --detach-sign SHA256SUMS
+          fi
+          ls -l
+      - name: Publish the GitHub Release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          name: shireitou ${{ needs.version.outputs.version }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: dist/*

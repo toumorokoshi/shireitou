@@ -1,11 +1,18 @@
 #!/usr/bin/env bash
-# package-macos - packages the release app from `flutter build macos` as an
-# unsigned, not notarized .dmg in app/build/dist/.
+# package-macos - packages the release app from `flutter build macos` as a
+# .dmg in app/build/dist/, signed with a Developer ID and notarized when the
+# signing secrets are set (see docs/packaging.md), otherwise unsigned.
 #
 # Usage: scripts/package-macos
-# Run `cd app && flutter build macos --release` first. Gatekeeper blocks the
-# unsigned app on other Macs until it is signed with a Developer ID and
-# notarized (see GAPS.md).
+# Run `cd app && flutter build macos --release` first.
+#
+# Signing (all optional; signing happens when MACOS_SIGNING_IDENTITY is set):
+#   MACOS_CERTIFICATE           base64 of a "Developer ID Application" .p12
+#                               (imported into a temporary keychain)
+#   MACOS_CERTIFICATE_PASSWORD  its password
+#   MACOS_SIGNING_IDENTITY      e.g. "Developer ID Application: Name (TEAMID)"
+# Notarization (when signing and all three are set):
+#   APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD (an app-specific password)
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -21,9 +28,61 @@ dist="$app/build/dist"
 rm -rf "$dist"
 mkdir -p "$dist"
 stage="$(mktemp -d)"
-trap 'rm -rf "$stage"' EXIT
+keychain=""
+cleanup() {
+  rm -rf "$stage"
+  if [[ -n "$keychain" ]]; then security delete-keychain "$keychain" || true; fi
+}
+trap cleanup EXIT
 cp -R "$bundle" "$stage/"
 ln -s /Applications "$stage/Applications"
-hdiutil create -volname shireitou -srcfolder "$stage" -ov -format UDZO \
-  "$dist/shireitou-$version-macos.dmg"
+dmg="$dist/shireitou-$version-macos.dmg"
+identity="${MACOS_SIGNING_IDENTITY:-}"
+
+if [[ -n "$identity" && -n "${MACOS_CERTIFICATE:-}" ]]; then
+  keychain="$stage/../signing-$$.keychain-db"
+  password="$(uuidgen)"
+  security create-keychain -p "$password" "$keychain"
+  security set-keychain-settings -lut 21600 "$keychain"
+  security unlock-keychain -p "$password" "$keychain"
+  echo "$MACOS_CERTIFICATE" | base64 --decode >"$stage/../cert-$$.p12"
+  security import "$stage/../cert-$$.p12" -k "$keychain" \
+    -P "${MACOS_CERTIFICATE_PASSWORD:-}" -T /usr/bin/codesign
+  rm -f "$stage/../cert-$$.p12"
+  security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain"
+  security list-keychains -d user -s "$keychain" \
+    $(security list-keychains -d user | tr -d '"')
+fi
+
+if [[ -n "$identity" ]]; then
+  echo "signing with $identity"
+  signed="$stage/shireitou.app"
+  sign() {
+    codesign --force --timestamp --options runtime --sign "$identity" "$@"
+  }
+  # Inside out: frameworks and libraries first, then the app with its
+  # entitlements (sandbox, network client and server).
+  find "$signed/Contents/Frameworks" -depth \
+    \( -name '*.framework' -o -name '*.dylib' \) -print0 |
+    while IFS= read -r -d '' item; do sign "$item"; done
+  sign --entitlements "$app/macos/Runner/Release.entitlements" "$signed"
+  codesign --verify --deep --strict "$signed"
+fi
+
+hdiutil create -volname shireitou -srcfolder "$stage" -ov -format UDZO "$dmg"
+
+if [[ -n "$identity" ]]; then
+  sign "$dmg"
+  if [[ -n "${APPLE_ID:-}" && -n "${APPLE_TEAM_ID:-}" && -n "${APPLE_APP_PASSWORD:-}" ]]; then
+    echo "notarizing $dmg"
+    xcrun notarytool submit "$dmg" --apple-id "$APPLE_ID" \
+      --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --wait
+    xcrun stapler staple "$dmg"
+    spctl --assess --type open --context context:primary-signature -v "$dmg"
+  else
+    echo "not notarized: APPLE_ID, APPLE_TEAM_ID or APPLE_APP_PASSWORD is unset" >&2
+  fi
+else
+  echo "unsigned: MACOS_SIGNING_IDENTITY is unset" >&2
+fi
 ls -l "$dist"

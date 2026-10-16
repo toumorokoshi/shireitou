@@ -1,6 +1,8 @@
 /// How the app sends the user to an authorization server and gets the
 /// redirect back (AHP-060): the system browser and a loopback server on
-/// native platforms, a new tab and `oauth_callback.html` on the web.
+/// desktop, the app's URL scheme on iOS and Android
+/// (`app_scheme_redirect.dart`), a new tab and `oauth_callback.html` on
+/// the web.
 library;
 
 import 'package:ahp_client/ahp_client.dart';
@@ -8,6 +10,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'app_scheme_redirect.dart';
 import 'redirect_receiver_io.dart'
     if (dart.library.js_interop) 'redirect_receiver_web.dart';
 
@@ -36,6 +39,16 @@ Future<void> openInBrowser(Uri url) async {
 /// The platform's [OAuthBrowser]; the fake host tests replace it with one
 /// that fetches the URL itself.
 final oauthBrowserProvider = Provider<OAuthBrowser>(
-  (ref) =>
-      const OAuthBrowser(receiver: startRedirectReceiver, open: openInBrowser),
+  (ref) => usesAppScheme
+      ? appSchemeBrowser()
+      : const OAuthBrowser(
+          receiver: startRedirectReceiver,
+          open: openInBrowser,
+        ),
 );
+
+/// Whether sign-in redirects to the app's URL scheme (iOS and Android).
+bool get usesAppScheme =>
+    !kIsWeb &&
+    (defaultTargetPlatform == TargetPlatform.iOS ||
+        defaultTargetPlatform == TargetPlatform.android);

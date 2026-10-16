@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # test-desktop - runs the desktop smoke test (app/integration_test) on a
-# native device (linux or macos) against a pi-agent-host-protocol host that
+# native device (linux, macos or windows) against a pi-agent-host-protocol host that
 # requires a connection token.
 #
 # Usage: scripts/test-desktop [device]   (default: linux)
@@ -19,6 +19,8 @@ url=""
 
 if [[ -f "$host_dir/src/bin/pi-agent-host-protocol.ts" ]]; then
   temp="$(mktemp -d)"
+  # Git Bash on Windows: give node a Windows path.
+  if command -v cygpath >/dev/null; then temp="$(cygpath -m "$temp")"; fi
   log="$temp/pi.log"
   (
     cd "$host_dir"

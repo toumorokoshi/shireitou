@@ -97,6 +97,12 @@ install(TARGETS ${BINARY_NAME} RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}"
 install(FILES "${FLUTTER_ICU_DATA_FILE}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
   COMPONENT Runtime)
 
+# The window icon (my_application.cc); packages also install it in the
+# hicolor icon theme (scripts/package-linux).
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../assets/icon/linux/256x256/dev.shireitou.shireitou.png"
+  DESTINATION "${INSTALL_BUNDLE_DATA_DIR}" RENAME "app_icon.png"
+  COMPONENT Runtime)
+
 install(FILES "${FLUTTER_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
   COMPONENT Runtime)
 

@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# test-mobile - runs the mobile smoke test (app/integration_test/
+# mobile_smoke_test.dart) on an Android emulator or iOS simulator, and
+# turns failures into GitHub Actions annotations.
+#
+# Usage: scripts/test-mobile <device-id>
+#   Android: scripts/test-mobile emulator-5554
+#   iOS:     scripts/test-mobile "$(xcrun simctl list devices booted -j | ...)"
+set -euo pipefail
+
+repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+device="${1:?usage: test-mobile <device-id>}"
+log="$repo/mobile.log"
+cd "$repo/app"
+if ! flutter test integration_test/mobile_smoke_test.dart -d "$device" 2>&1 | tee "$log"; then
+  "$repo/scripts/annotate-test-failure" "$log"
+  exit 1
+fi

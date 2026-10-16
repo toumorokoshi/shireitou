@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# package-android - builds the release APK and copies it to app/build/dist/.
+# Signed with the release key when the signing secrets are set (see
+# docs/packaging.md), otherwise with the debug key (installs for testing,
+# but cannot update or be updated by a release-signed build).
+#
+# Usage: scripts/package-android
+#
+# Signing (optional):
+#   ANDROID_KEYSTORE           base64 of the upload/release keystore (.jks)
+#   ANDROID_KEYSTORE_PASSWORD  its password
+#   ANDROID_KEY_ALIAS          the key's alias
+#   ANDROID_KEY_PASSWORD       the key's password (default: the store's)
+set -euo pipefail
+
+repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+app="$repo/app"
+version="$(sed -n 's/^version: \([0-9.]*\).*/\1/p' "$app/pubspec.yaml")"
+dist="$app/build/dist"
+properties="$app/android/key.properties"
+work="$(mktemp -d)"
+trap 'rm -rf "$work" "$properties"' EXIT
+
+if [[ -n "${ANDROID_KEYSTORE:-}" ]]; then
+  echo "$ANDROID_KEYSTORE" | base64 --decode >"$work/release.jks"
+  cat >"$properties" <<PROPERTIES
+storeFile=$work/release.jks
+storePassword=${ANDROID_KEYSTORE_PASSWORD:?}
+keyAlias=${ANDROID_KEY_ALIAS:?}
+keyPassword=${ANDROID_KEY_PASSWORD:-$ANDROID_KEYSTORE_PASSWORD}
+PROPERTIES
+else
+  echo "signed with the debug key: ANDROID_KEYSTORE is unset" >&2
+fi
+
+(cd "$app" && flutter build apk --release)
+rm -rf "$dist"
+mkdir -p "$dist"
+cp "$app/build/app/outputs/flutter-apk/app-release.apk" \
+  "$dist/shireitou-$version-android.apk"
+ls -l "$dist"

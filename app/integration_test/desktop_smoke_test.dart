@@ -1,5 +1,5 @@
-/// Desktop smoke test: runs the real Linux or macOS app, checks the window
-/// setup and placement saving, and, when `AHP_URL` is defined, connects to
+/// Desktop smoke test: runs the real Linux, macOS or Windows app, checks the
+/// window setup, the minimum size (Linux and Windows) and placement saving, and, when `AHP_URL` is defined, connects to
 /// that host (token in the `Authorization` header and `tkn`) and checks the
 /// host is remembered in platform secure storage.
 ///
@@ -9,6 +9,7 @@
 library;
 
 import 'package:ahp_client/ahp_client.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -48,6 +49,22 @@ void main() {
     );
     expect(saved?.bounds.size, const Size(900, 640));
   });
+
+  testWidgets('the window cannot be made smaller than the minimum size', (
+    tester,
+  ) async {
+    await setUpDesktopWindow();
+    await windowManager.setSize(const Size(200, 150));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 500)),
+    );
+    final size = await windowManager.getSize();
+    expect(size.width, greaterThanOrEqualTo(minimumWindowSize.width));
+    expect(size.height, greaterThanOrEqualTo(minimumWindowSize.height));
+    await windowManager.setSize(const Size(900, 640));
+    // On macOS, AppKit applies the minimum to the user's resizing only, not
+    // to frames the app sets; GTK and Win32 apply it to both.
+  }, skip: defaultTargetPlatform == TargetPlatform.macOS);
 
   testWidgets('connects and remembers the host in secure storage', (
     tester,
