@@ -11,7 +11,7 @@ order of operations.
 6. implement the change requested in the prompt.
 7. run linting and formatting before committing.
 8. Identify any remaining issues or features that need to be implemented.
-  8a. include them in GAPS.md
+   8a. include them in GAPS.md
 9. summarize any major decisions or changes into DESIGN-DECISION-LOG.md. Include the date.
 10. commit and push the change.
 
