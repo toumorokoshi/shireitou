@@ -276,6 +276,24 @@ class _Harness {
     }
   }
 
+  /// Opens the menu of [opener] (a dropdown) and picks [item]. The tap
+  /// is repeated when no menu opens within a few seconds (slow CI
+  /// runners sometimes drop a tap during a rebuild).
+  Future<void> pick(Finder opener, String item) async {
+    final choice = find.text(item);
+    for (var attempt = 1; choice.evaluate().isEmpty; attempt++) {
+      if (attempt > 3) _timedOut('the menu item "$item"');
+      await tapVisible(opener);
+      final deadline = DateTime.now().add(const Duration(seconds: 5));
+      while (choice.evaluate().isEmpty && DateTime.now().isBefore(deadline)) {
+        await idle(100);
+      }
+    }
+    await settle();
+    await tester.tap(choice.last);
+    await settle();
+  }
+
   /// Types [text] into the follow-up box.
   Future<void> type(String text) async {
     // The box keeps focus after sending, and enterText only attaches the
@@ -539,10 +557,7 @@ void main() {
     debugPrint('fake host flows: -32007');
     await tester.tap(find.byTooltip(RegExp(r'^New session \(')));
     await h.waitFor(find.text('Start session'));
-    await tester.tap(find.text('Fake agent'));
-    await h.settle();
-    await tester.tap(find.text('Secured agent').last);
-    await h.settle();
+    await h.pick(find.text('Fake agent'), 'Secured agent');
     expect(
       find.text('Secured agent needs you to sign in to Fake agent service.'),
       findsOneWidget,
@@ -736,18 +751,9 @@ void main() {
     await tester.tap(find.byTooltip('New session in workspace'));
     await h.waitFor(find.text('Mode'));
     expect(find.text('second-host'), findsWidgets);
-    await tester.tap(find.text('Host default'));
-    await h.settle();
-    await tester.tap(find.text('Scripted').last);
-    await h.settle();
-    await tester.tap(find.text('Medium'));
-    await h.settle();
-    await tester.tap(find.text('High').last);
-    await h.settle();
-    await tester.tap(find.text('Interactive'));
-    await h.settle();
-    await tester.tap(find.text('Plan').last);
-    await h.settle();
+    await h.pick(find.text('Host default'), 'Scripted');
+    await h.pick(find.text('Medium'), 'High');
+    await h.pick(find.text('Interactive'), 'Plan');
 
     // Browse to a sub-folder; the repository's branch setting appears.
     await tester.tap(find.text('Browse…'));
