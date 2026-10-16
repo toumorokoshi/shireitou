@@ -20,6 +20,10 @@ blocks = re.findall(
 )
 if not blocks:
     blocks = [text[-3000:]]
+# Progress lines the tests print (for example "fake host flows: deny").
+progress = re.findall(r"^.*fake host flows: .*$", text, re.M)
+if progress:
+    blocks.insert(0, "Last progress: " + progress[-1].strip())
 for block in blocks[:3]:
     message = block.replace("%", "%25").replace("\r", "").replace("\n", "%0A")
     print(f"::error title=flutter test failure::{message}")

@@ -65,9 +65,13 @@
   separate `just test-fake-host-app` recipe and CI step on Linux (Xvfb,
   fresh keyring) and macOS, so a failure is attributed to it rather than to
   the desktop smoke test, which `scripts/test-desktop` now runs alone.
-  It replaces the host store with an in-memory one: on macOS CI the login
-  keychain still holds the smoke test's item, written by another build of
-  the app, and reading it asks for permission, which hung the first run.
+  It replaces the host store with an in-memory one, so it needs no keyring
+  or keychain (secure storage is the smoke test's job), and it calls
+  `setUpDesktopWindow()` itself: the macOS runner starts with the window
+  hidden until `main()` shows it, a hidden window renders no frames, and
+  every `pump()` then waits forever (which is how the first CI runs hung).
+  `scripts/annotate-test-failure` turns its failures into annotations,
+  since job logs need a GitHub token to read.
 
 ## 2026-10-16: Wire type generation
 

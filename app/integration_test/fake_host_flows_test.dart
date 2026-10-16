@@ -14,6 +14,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:shireitou/src/app.dart';
+import 'package:shireitou/src/desktop/desktop_window.dart';
 import 'package:shireitou/src/host_connection.dart';
 import 'package:shireitou/src/hosts/host_store.dart';
 import 'package:shireitou/src/hosts/saved_hosts.dart';
@@ -45,9 +46,11 @@ void main() {
       stepDelay: const Duration(milliseconds: 20),
     );
     final url = (await tester.runAsync(host.start))!;
-    // Room for the list, the panel and a whole input form.
+    // The macOS runner starts with the window hidden (main() shows it), and
+    // a hidden window renders no frames, so pumping would wait forever.
+    // Then make room for the list, the panel and a whole input form.
     await tester.runAsync(() async {
-      await windowManager.ensureInitialized();
+      await setUpDesktopWindow();
       await windowManager.setSize(const Size(1400, 1000));
     });
     final container = ProviderContainer(
