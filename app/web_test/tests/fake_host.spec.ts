@@ -69,9 +69,9 @@ test("a session, shortcuts, OAuth sign-in and a reconnect", async ({ page, conte
 	// The connection drops and comes back.
 	relay.refusing = true;
 	relay.drop();
-	await expect(page.getByLabel("Reconnecting…")).toBeVisible();
+	await expect(page.getByLabel("Reconnecting…", { exact: true })).toBeVisible();
 	relay.refusing = false;
-	await expect(page.getByLabel("Reconnecting…")).toHaveCount(0);
+	await expect(page.getByLabel("Reconnecting…", { exact: true })).toHaveCount(0);
 	await send(page, "after the reconnect");
 	await expect(page.getByText(/^You said: after the reconnect/)).toBeVisible();
 });

@@ -405,7 +405,10 @@ class _HostHeader extends StatelessWidget {
           Icon(
             Icons.circle,
             size: 10,
-            semanticLabel: hostStatusText(host),
+            // Other states are spelled out beside the label.
+            semanticLabel: host.status == ConnectionStatus.connected
+                ? hostStatusText(host)
+                : null,
             color: switch (host.status) {
               ConnectionStatus.connected => Colors.green,
               ConnectionStatus.failed => scheme.error,
@@ -432,6 +435,7 @@ class _HostHeader extends StatelessWidget {
             const SizedBox(width: 6),
             Expanded(
               child: Tooltip(
+                excludeFromSemantics: true,
                 message: hostStatusText(host),
                 child: Text(
                   hostStatusText(host),
@@ -532,6 +536,7 @@ class _FolderHeader extends StatelessWidget {
             const SizedBox(width: 6),
             Expanded(
               child: Tooltip(
+                excludeFromSemantics: true,
                 message: details,
                 child: Text(
                   details,
