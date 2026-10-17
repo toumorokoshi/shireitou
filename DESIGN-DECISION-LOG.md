@@ -5,7 +5,7 @@
 - **Usability feedback goes first.** Pinning, renaming sessions from the
   title, a working indicator in the chat, a denser sidebar, hosts and
   workspaces listed in the sidebar instead of a dropdown, drag and drop
-  workspace ordering, click to edit queued messages, and desktop
+  workspace ordering, click to edit queued messages, desktop
   notifications when the user's turn comes, and a collapsible review
   pane closed by default, are listed at the top of
   `GAPS.md`, ahead of the protocol and platform work.
