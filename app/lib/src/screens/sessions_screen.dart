@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../composer/new_session_draft.dart';
 import '../composer/new_session_view.dart';
 import '../connection_notices.dart';
+import '../desktop/desktop_window.dart';
 import '../host_connection.dart';
 import '../hosts/open_hosts.dart';
 import '../hosts/saved_hosts.dart';
@@ -35,6 +36,11 @@ import '../notifications/notifications.dart';
 import '../runs/compare_screen.dart';
 import '../runs/run_group_store.dart';
 import '../runs/run_groups.dart';
+import '../review/changes_pane.dart';
+import '../review/review_pane_store.dart';
+import '../title_bar/session_history.dart';
+import '../theme/app_colors.dart';
+import '../title_bar/title_bar.dart';
 import 'connect_screen.dart';
 import 'host_storage_banner.dart';
 
@@ -59,6 +65,9 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
   LayoutTier _tier = LayoutTier.medium;
   final _search = TextEditingController();
   final _searchFocus = FocusNode(debugLabel: 'session search');
+
+  /// The sessions opened, for the title bar's back and forward (AV-091).
+  SessionHistory _history = emptySessionHistory;
 
   /// The sessions picked for a bulk action; null when not selecting.
   Set<SessionRef>? _selection;
@@ -177,8 +186,13 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
     },
   );
 
-  void _select(SessionRef session) {
-    setState(() => _selected = session);
+  /// Opens [session]; [record] adds it to the back and forward history
+  /// (false when going back or forward).
+  void _select(SessionRef session, {bool record = true}) {
+    setState(() {
+      _selected = session;
+      if (record) _history = visitedSession(_history, session);
+    });
     final groups = _groups;
     final pinned = _pinned;
     unawaited(
@@ -189,6 +203,29 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
           ),
     );
     _showPage((_) => _detailPage(session));
+  }
+
+  /// Opens the session [delta] entries away in the history (AV-091).
+  void _goInHistory(int delta) {
+    _history = steppedHistory(_history, delta);
+    if (currentSession(_history) case final session?) {
+      _select(session, record: false);
+    }
+  }
+
+  /// Expands the sidebar if it is collapsed, then focuses and selects the
+  /// search field (AV-027).
+  Future<void> _focusSearch() async {
+    if (ref.read(sidebarCollapsedProvider)) {
+      await ref.read(sidebarCollapsedProvider.notifier).set(false);
+      await WidgetsBinding.instance.endOfFrame;
+    }
+    if (!mounted) return;
+    _searchFocus.requestFocus();
+    _search.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: _search.text.length,
+    );
   }
 
   /// Shows the draft for [target] in the session pane, or as a page on
@@ -246,11 +283,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
         _newSession();
       case AppCommand.searchSessions:
         if (detailOnTop) Navigator.of(context).pop();
-        _searchFocus.requestFocus();
-        _search.selection = TextSelection(
-          baseOffset: 0,
-          extentOffset: _search.text.length,
-        );
+        unawaited(_focusSearch());
       case AppCommand.nextSession:
         _step(1);
       case AppCommand.previousSession:
@@ -436,47 +469,55 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _syncVisible();
     });
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(hostsTitle(hosts, hostFilter)),
-        actions: [
-          IconButton(
-            tooltip: 'New session (${shortcutLabel(AppCommand.newSession)})',
-            icon: const Icon(Icons.add),
-            onPressed: () => _newSession(),
+    final actions = <Widget>[
+      for (final (:host, :notice) in notices)
+        Tooltip(
+          message: hosts.length > 1 ? '${host.label}: $notice' : notice,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.info_outline, size: 16),
+                const SizedBox(width: 4),
+                Text('AHP ${host.protocolVersion}'),
+              ],
+            ),
           ),
-          for (final (:host, :notice) in notices)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Tooltip(
-                message: hosts.length > 1 ? '${host.label}: $notice' : notice,
-                child: Chip(
-                  avatar: const Icon(Icons.info_outline, size: 18),
-                  label: Text('AHP ${host.protocolVersion}'),
-                ),
-              ),
+        ),
+      if (reconnecting.isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Text(
+            hosts.length > 1
+                ? 'Reconnecting ${reconnecting.join(', ')}…'
+                : 'Reconnecting…',
+          ),
+        ),
+      IconButton(
+        tooltip: 'New session (${shortcutLabel(AppCommand.newSession)})',
+        icon: const Icon(Icons.add),
+        onPressed: () => _newSession(),
+      ),
+      if (ref.watch(notifierProvider) != null) const NotificationsMenu(),
+      PopupMenuButton<void>(
+        tooltip: 'More',
+        icon: const Icon(Icons.more_horiz),
+        itemBuilder: (_) => [
+          PopupMenuItem<void>(
+            onTap: () => unawaited(_disconnect(hosts)),
+            child: Text(
+              hostFilter == null || hosts.length == 1
+                  ? 'Disconnect'
+                  : 'Disconnect ${labels[hostFilter]}',
             ),
-          if (reconnecting.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Chip(
-                label: Text(
-                  hosts.length > 1
-                      ? 'Reconnecting ${reconnecting.join(', ')}…'
-                      : 'Reconnecting…',
-                ),
-              ),
-            ),
-          if (ref.watch(notifierProvider) != null) const NotificationsMenu(),
-          IconButton(
-            tooltip: hostFilter == null || hosts.length == 1
-                ? 'Disconnect'
-                : 'Disconnect ${labels[hostFilter]}',
-            icon: const Icon(Icons.logout),
-            onPressed: () => _disconnect(hosts),
           ),
         ],
       ),
+    ];
+    final sidebarCollapsed = ref.watch(sidebarCollapsedProvider);
+    final history = _history;
+    return Scaffold(
       body: LayoutBuilder(
         builder: (context, constraints) {
           final tier = _tier = layoutTierFor(constraints.maxWidth);
@@ -578,26 +619,96 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
               ),
             ],
           );
+          final workspace = workspaceTitle(
+            selected == null ? null : byRef[selected],
+          );
           return switch (tier) {
-            LayoutTier.compact => list,
-            LayoutTier.medium || LayoutTier.wide => Row(
+            LayoutTier.compact => Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                SizedBox(width: _listPaneWidth, child: list),
-                const VerticalDivider(width: 1),
+                AppBar(
+                  title: Text(hostsTitle(hosts, hostFilter)),
+                  actions: actions,
+                ),
+                Expanded(child: list),
+              ],
+            ),
+            LayoutTier.medium || LayoutTier.wide => Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ColoredBox(
+                  color: AppColors.of(context).titleBarBackground,
+                  child: SafeArea(
+                    bottom: false,
+                    child: TitleBar(
+                      title: workspace ?? hostsTitle(hosts, hostFilter),
+                      isWorkspace: workspace != null,
+                      searchTooltip:
+                          'Search sessions '
+                          '(${shortcutLabel(AppCommand.searchSessions)})',
+                      onSearch: () => unawaited(_focusSearch()),
+                      sidebarCollapsed: sidebarCollapsed,
+                      onToggleSidebar: () => unawaited(
+                        ref.read(sidebarCollapsedProvider.notifier).toggle(),
+                      ),
+                      onBack: canGoBack(history)
+                          ? () => _goInHistory(-1)
+                          : null,
+                      onForward: canGoForward(history)
+                          ? () => _goInHistory(1)
+                          : null,
+                      leadingInset: drawsInWindowTitleBar
+                          ? trafficLightsWidth
+                          : 0,
+                      draggable: drawsInWindowTitleBar,
+                      actions: [
+                        if (tier == LayoutTier.wide && selected != null)
+                          ReviewPaneToggle(
+                            open: ref.watch(reviewPaneOpenProvider),
+                            changes: byRef[selected]?.changes,
+                            onToggle: () => unawaited(
+                              ref
+                                  .read(reviewPaneOpenProvider.notifier)
+                                  .toggle(),
+                            ),
+                          ),
+                        ...actions,
+                      ],
+                    ),
+                  ),
+                ),
                 Expanded(
-                  child: selected == null
-                      ? switch (_draft) {
-                          final draft? => _draftView(draft),
-                          null => const Center(child: Text('Select a session')),
-                        }
-                      : HostScope(
-                          host: selected.host,
-                          child: SessionDetailView(
-                            key: ValueKey(selected),
-                            session: selected.session,
-                            reviewAsPane: tier == LayoutTier.wide,
+                  child: Row(
+                    children: [
+                      if (!sidebarCollapsed) ...[
+                        SizedBox(
+                          width: _listPaneWidth,
+                          child: Material(
+                            color: AppColors.of(context).sidebarBackground,
+                            child: list,
                           ),
                         ),
+                        const VerticalDivider(width: 1),
+                      ],
+                      Expanded(
+                        child: selected == null
+                            ? switch (_draft) {
+                                final draft? => _draftView(draft),
+                                null => const Center(
+                                  child: Text('Select a session'),
+                                ),
+                              }
+                            : HostScope(
+                                host: selected.host,
+                                child: SessionDetailView(
+                                  key: ValueKey(selected),
+                                  session: selected.session,
+                                  reviewAsPane: tier == LayoutTier.wide,
+                                ),
+                              ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),

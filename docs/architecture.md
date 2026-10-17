@@ -277,8 +277,17 @@ Dart source); `bin/generate.dart` does the file I/O. See
   of hard-coded colours.
 - `lib/src/screens/`: the connect screen and the sessions screen. The
   sessions screen picks a layout tier with `layoutTierFor(width)`:
-  compact (< 700 dp) pushes the session onto a new page, medium shows list
-  plus detail, wide (≥ 1200 dp) adds a review pane.
+  compact (< 700 dp) pushes the session onto a new page under a small
+  app bar, medium shows the title bar over list plus detail, wide
+  (≥ 1200 dp) adds a review pane.
+- `lib/src/title_bar/`: the title bar (AV-091). `title_bar.dart` is the
+  `TitleBar` widget (callbacks only, no state), `workspaceTitle` ("folder
+  [repo]") and `sidebarCollapsedProvider` (a `StoredFlag` from
+  `prefs.dart`, as `reviewPaneOpenProvider` is);
+  `session_history.dart` is the back and forward history as pure
+  functions over a list of `SessionRef`s and an index. The sessions
+  screen keeps the history and passes the bar its actions, including the
+  review pane's `ReviewPaneToggle`.
 - `lib/src/session_list/`: pure, tested view logic:
   `groupHostSessions` (one folder per host and working directory, with
   repository and branch from `project` and `_meta.git`, AV-025),

@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shireitou/src/app.dart';
 import 'package:shireitou/src/composer/new_session_view.dart';
 import 'package:shireitou/src/hosts/saved_hosts.dart';
+import 'package:shireitou/src/review/changes_pane.dart';
 import 'package:shireitou/src/session_detail/session_detail_view.dart';
 import 'package:shireitou/src/session_detail/session_status_widgets.dart';
 
@@ -470,9 +471,17 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('Sign-in required'), findsWidgets);
     expect(find.text('1 in background'), findsOneWidget);
-    // In the header's details, and on the review pane toggle.
-    expect(find.textContaining('+3 −1 · 1 file'), findsNWidgets(2));
-    expect(find.text('+3 −1 · 1 file'), findsOneWidget);
+    // In the header's details, and in the title bar's review pane
+    // toggle's tooltip and badge.
+    expect(find.textContaining('+3 −1 · 1 file'), findsOneWidget);
+    expect(find.byTooltip(RegExp(r'\+3 −1 · 1 file$')), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(ReviewPaneToggle),
+        matching: find.text('1'),
+      ),
+      findsOneWidget,
+    );
 
     await tester.tap(find.text('Sign in'));
     await tester.pumpAndSettle();

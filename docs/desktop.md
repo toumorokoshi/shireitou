@@ -116,9 +116,23 @@ arm64 machine):
   command twice); on Linux, Windows and the web the same keys, with Ctrl,
   are Flutter shortcuts (`lib/src/shortcuts.dart`). Linux uses the GTK
   header bar.
+- The app draws its own title bar (AV-091, `lib/src/title_bar/`). On
+  macOS `MainFlutterWindow.swift` makes the native title bar transparent
+  and hidden-titled, runs the content view under it
+  (`fullSizeContentView`), and adds an empty `.unifiedCompact` toolbar so
+  the title bar is 38 pt tall, as the app's bar is, with the traffic
+  lights centred in it. The app's bar leaves 76 px for them
+  (`drawsInWindowTitleBar` in `desktop_window.dart`), and its empty
+  space moves the window when dragged and zooms it on a double-click
+  (`window_manager`'s `DragToMoveArea`, behind the buttons so their
+  clicks do not wait for a double-click). Windows and Linux keep the
+  native frame (the GTK header bar on Linux) with the app's bar under
+  it.
 - The window title carries the attention count (sessions that need
   input, failed or are unread), like "(3) shireitou" (AV-120), set with
-  `window_manager`; on the web it is the tab title.
+  `window_manager`; on the web it is the tab title. macOS hides the
+  title text (the app's bar is drawn there), but it still names the
+  window in the Window menu and Mission Control.
 
 ## Notifications (AV-121)
 
@@ -127,7 +141,7 @@ a session: it needs input or an approval, its turn finished (the
 `InProgress` bit cleared) or it failed, using
 [`flutter_local_notifications`](https://pub.dev/packages/flutter_local_notifications)
 (`lib/src/notifications/`). All three are on by default; each can be
-turned off from the bell menu in the session list's app bar (saved with
+turned off from the bell menu in the title bar (saved with
 `shared_preferences`). Nothing is posted for the session on screen while
 the window has focus (other sessions still notify), or for sessions that
 appear when a host connects. Clicking a notification brings the window

@@ -1,5 +1,62 @@
 # Design Decision Log
 
+## 2026-10-16: Reference theme and title bar (AV-090, AV-091)
+
+- **Colours sampled from the screenshot.** The dark theme's greys come
+  from `design/reference/agents-window.png`: the title bar and sidebar
+  `#121314`, the main pane `#191A1B`, the composer and menus `#202122`,
+  the user bubble `#292A2B`, the selected row `#2C2D2E`, hairlines
+  `#2A2B2C`, muted text `#8C8C8C`; text is `#CCCCCC` and the accent a
+  VS Code-like blue (`#3794FF`). The light theme mirrors the structure
+  with light greys and `#0066CC`. They replace a Material indigo seed
+  scheme, which tinted surfaces and looked nothing like the reference.
+- **`ColorScheme` first, a `ThemeExtension` for the rest.** The greys
+  go into the scheme's slots (`surface`, `surfaceContainer*`,
+  `outlineVariant`, `secondaryContainer`) so stock Material widgets
+  pick them up; tokens with no slot (sidebar and title bar background,
+  bubble, hover and selected fills, muted text, status colours) are in
+  `AppColors`, read with `AppColors.of(context)`, which falls back to
+  the scheme so widgets also work under a plain `ThemeData` (widget
+  tests). Other agents restyling the sidebar and timeline use the same
+  tokens.
+- **Flat, compact desktop.** Elevation 0 and a transparent
+  `surfaceTint` for cards, app bars, dialogs and sheets; menus keep an
+  elevation of 2 with a hairline border so they stand off the page.
+  Desktop gets `VisualDensity.compact` and 13 px body text; mobile keeps
+  the standard density and sizes for touch. The font is the platform's
+  system font (SF on macOS, Segoe on Windows): adding Inter would grow
+  every package for little gain.
+- **The selected-tile fill is not themed.** A theme-wide
+  `selectedTileColor` paints checked popup menu items, which Flutter
+  asserts against; selected rows set their fill themselves.
+- **macOS title bar from the runner, not a plugin.** Four lines in
+  `MainFlutterWindow.swift` (transparent title bar, hidden title,
+  full-size content, an empty `.unifiedCompact` toolbar to make the
+  title bar 38 pt so the traffic lights centre in the app's bar) set it
+  before the first frame; `window_manager`'s `setTitleBarStyle` would
+  apply it only after Dart starts, and `macos_window_utils` is a new
+  dependency for the same calls. Dragging and double-click zoom use
+  `window_manager`'s `DragToMoveArea`, placed behind the bar's buttons:
+  wrapped around them, its double-tap recogniser would hold every click
+  for the double-tap timeout.
+- **History as pure functions.** Back and forward are a list of opened
+  `SessionRef`s and an index (`session_history.dart`), capped at 100;
+  opening a session after going back drops the forward entries, as a
+  browser does. Drafts are not entries.
+- **What moved where.** The review pane toggle moved from beside the
+  session header to the title bar as an icon (counts in the tooltip,
+  the file count in a badge); it shows on wide layouts, where the pane
+  exists. The app bar's protocol and reconnecting chips became plain
+  text on the bar's right, New session and the bell stay icons, and
+  Disconnect moved into a "…" menu (a one-click destructive icon in a
+  slim bar is easy to hit by mistake). The centre box names the open
+  session's workspace as "folder [repo]", else the host title the app
+  bar showed ("All hosts", the host's name), which keeps that context.
+- **Sidebar toggle and search.** The collapsed sidebar is remembered in
+  `PrefsStore` through a new `StoredFlag` notifier, which the review
+  pane's setting now uses too. Search (Cmd/Ctrl+K or the centre box)
+  expands a collapsed sidebar first, since the search field is in it.
+
 ## 2026-10-16: One shared Pinned section at the top of the sidebar (AV-028)
 
 This reverses the earlier "pins lead their folder" decision (see

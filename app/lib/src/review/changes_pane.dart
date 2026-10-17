@@ -519,9 +519,10 @@ class CollapsibleReviewPane extends StatelessWidget {
   );
 }
 
-/// Opens and closes the review pane (AV-003), labelled with the session's
-/// [changes] ("+3 −1 · 1 file") so the user sees there is something to
-/// review.
+/// Opens and closes the review pane (AV-003): an icon in the title bar
+/// (AV-091) with the session's [changes] ("+3 −1 · 1 file") in its
+/// tooltip and the number of changed files in a badge, so the user sees
+/// there is something to review.
 class ReviewPaneToggle extends StatelessWidget {
   /// Creates the toggle.
   const ReviewPaneToggle({
@@ -541,19 +542,34 @@ class ReviewPaneToggle extends StatelessWidget {
   final VoidCallback onToggle;
 
   @override
-  Widget build(BuildContext context) => Tooltip(
-    message: reviewToggleTooltip(
+  Widget build(BuildContext context) {
+    final tooltip = reviewToggleTooltip(
       open: open,
       shortcut: shortcutLabel(AppCommand.toggleReviewPane),
-    ),
-    excludeFromSemantics: true,
-    child: TextButton.icon(
-      onPressed: onToggle,
-      icon: Icon(open ? Icons.chevron_right : Icons.rate_review_outlined),
-      label: Text(
-        changesLabel(changes) ?? 'Changes',
-        semanticsLabel: reviewToggleSemantics(open: open, changes: changes),
+    );
+    final files = changes?.files ?? 0;
+    final changed =
+        files > 0 ||
+        (changes?.additions ?? 0) > 0 ||
+        (changes?.deletions ?? 0) > 0;
+    return Semantics(
+      label: reviewToggleSemantics(open: open, changes: changes),
+      button: true,
+      onTap: onToggle,
+      excludeSemantics: true,
+      child: IconButton(
+        tooltip: [tooltip, ?changesLabel(changes)].join('\n'),
+        isSelected: open,
+        onPressed: onToggle,
+        icon: Badge(
+          isLabelVisible: changed,
+          backgroundColor: Theme.of(context).colorScheme.primary,
+          textColor: Theme.of(context).colorScheme.onPrimary,
+          label: files > 0 ? Text('$files') : null,
+          smallSize: 6,
+          child: const Icon(Icons.rate_review_outlined),
+        ),
       ),
-    ),
-  );
+    );
+  }
 }

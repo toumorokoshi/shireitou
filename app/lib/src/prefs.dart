@@ -1,5 +1,5 @@
 /// Small, non-secret app settings kept on this device (notification
-/// settings, run groups), behind an interface tests replace.
+/// settings, run groups, pane visibility), behind an interface tests replace.
 library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -64,3 +64,39 @@ class MemoryPrefsStore implements PrefsStore {
 
 /// The app's [PrefsStore].
 final prefsStoreProvider = Provider<PrefsStore>((ref) => SharedPrefsStore());
+
+/// A true or false setting kept with [prefsStoreProvider] under [key]
+/// ("true" or "false"); false until it loads and when unset.
+class StoredFlag extends Notifier<bool> {
+  /// Creates the setting stored under [key].
+  StoredFlag(this.key);
+
+  /// The [PrefsStore] key.
+  final String key;
+
+  Future<void>? _loading;
+
+  @override
+  bool build() {
+    _loading = _load();
+    return false;
+  }
+
+  Future<void> _load() async {
+    state = await ref.read(prefsStoreProvider).read(key) == 'true';
+  }
+
+  /// Sets it to [value] and saves it, after it has loaded so the loaded
+  /// value does not replace [value].
+  Future<void> set(bool value) async {
+    await _loading;
+    state = value;
+    await ref.read(prefsStoreProvider).write(key, '$value');
+  }
+
+  /// Turns it off when on, and on when off.
+  Future<void> toggle() async {
+    await _loading;
+    await set(!state);
+  }
+}

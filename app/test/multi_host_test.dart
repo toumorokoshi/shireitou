@@ -143,7 +143,11 @@ void main() {
     expect(find.text('test host'), findsOneWidget);
     expect(find.text('/src/app'), findsOneWidget);
     expect(find.text('build box'), findsNWidgets(2));
-    expect(find.byTooltip('Disconnect build box'), findsOneWidget);
+    await tester.tap(find.byTooltip('More'));
+    await tester.pumpAndSettle();
+    expect(find.text('Disconnect build box'), findsOneWidget);
+    await tester.tapAt(Offset.zero);
+    await tester.pumpAndSettle();
 
     // Opening a session shows it from its own host.
     await tester.tap(find.text('Deploy'));
@@ -151,7 +155,9 @@ void main() {
     expect(find.textContaining('Queue a follow-up'), findsOneWidget);
 
     // Disconnecting the host leaves the other one.
-    await tester.tap(find.byTooltip('Disconnect build box'));
+    await tester.tap(find.byTooltip('More'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Disconnect build box'));
     await tester.pumpAndSettle();
     expect(find.text('Fix login'), findsOneWidget);
     expect(find.text('Deploy'), findsNothing);

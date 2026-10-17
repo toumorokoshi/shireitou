@@ -27,6 +27,13 @@ bool get isDesktop =>
       _ => false,
     };
 
+/// Whether the app draws its title bar in the native window's title bar
+/// area (AV-091): macOS, where `MainFlutterWindow.swift` makes the title
+/// bar transparent and the content view full size, with the traffic
+/// lights over the app's bar.
+bool get drawsInWindowTitleBar =>
+    isDesktop && defaultTargetPlatform == TargetPlatform.macOS;
+
 /// Sets the minimum size, restores the saved placement, shows the window,
 /// and starts saving its placement. Does nothing off desktop. Failures are
 /// logged and the window is shown as the runner created it.

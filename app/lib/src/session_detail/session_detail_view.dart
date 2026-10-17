@@ -654,19 +654,7 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Row(
-                  children: [
-                    Expanded(child: header),
-                    ReviewPaneToggle(
-                      open: open,
-                      changes: summary?.changes ?? chat?.changes,
-                      onToggle: () => unawaited(
-                        ref.read(reviewPaneOpenProvider.notifier).toggle(),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                  ],
-                ),
+                header,
                 const Divider(height: 1),
                 Expanded(child: conversation),
               ],

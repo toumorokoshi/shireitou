@@ -53,13 +53,6 @@ AppImage and the release workflow (see
   UI** in [design/reference/agents-window.md](design/reference/agents-window.md)
   (AV-090 to AV-096). Do these before the items below.
 
-  - **Theme and title bar (AV-090, AV-091):** system light or dark, the
-    reference's flat dark palette; a slim title bar with the sidebar
-    toggle, back and forward, a workspace box and a review pane icon.
-    The theme's tokens are in `app/lib/src/theme/` (`AppColors.of(context)`
-    for `sidebarBackground`, `hairline`, `mutedText`, `bubbleFill`,
-    `selectedFill`, `hoverFill`, `statusColors`; see
-    [docs/architecture.md](docs/architecture.md)).
   - **Sidebar (AV-092, AV-093):** the "Sessions" header with icon
     buttons; Pinned, Chats and per-directory workspace sections instead
     of the host tree; two-line rows with a status dot, hover pin and
@@ -71,6 +64,22 @@ AppImage and the release workflow (see
   - **Composer (AV-096):** the rounded box with chips along its bottom,
     for follow-ups and new sessions alike.
 
+- **Theme and title bar (AV-090, AV-091), remaining details:** the
+  theme's tokens are in `app/lib/src/theme/` (`AppColors.of(context)`;
+  see [docs/architecture.md](docs/architecture.md)); hard-coded colours
+  remain in the diff view, the terminal preview and the sidebar's
+  connection dot, for the sidebar and timeline restyles (AV-092 to
+  AV-095) to move onto the tokens. The font is the platform's system
+  font (no Inter asset). On macOS the bar keeps the traffic lights'
+  space in full screen too (where they are hidden), a double-click
+  always zooms (the system's "double-click a window's title bar"
+  setting is not read), and the traffic lights' placement is not
+  checked by a test (CI cannot see native window chrome). New session
+  and Disconnect are also in the title bar's right side ("+" and "…")
+  until the sidebar header's "New" and "…" menu (AV-092) hold them;
+  then the bar's copies can go. Back and forward have no shortcut and
+  forget the history on restart; the compact layout has no back and
+  forward (the system back button pops the session page).
 - **SSH terminal (AV-014), remaining details:** no terminal on the web
   (browsers have no TCP sockets; a WebSocket-to-SSH bridge on the host
   would be needed). The SSH agent works only on Linux: not in the
