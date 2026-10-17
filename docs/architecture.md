@@ -293,7 +293,8 @@ Dart source); `bin/generate.dart` does the file I/O. See
   with a copy button; `terminal_text.dart` turns terminal output into
   plain text. `chat_switcher.dart`, `pending_messages.dart` and
   `session_info.dart` are the chat switcher (AV-069), the queued messages
-  panel (AV-081) and the session details page (working directories,
+  panel (AV-081; clicking a message opens an inline editor, saved with
+  the pure `savePendingEditAction`) and the session details page (working directories,
   canvases, customizations, server tools, active clients).
   `session_inputs.dart` is pure: `sessionPrompts` picks the session's `inputNeeded` entries the
   open chat does not already show (requests from other chats, or not yet

@@ -309,6 +309,23 @@ JsonMap editPendingAction(
 JsonMap removePendingAction(PendingMessageKind kind, String id) =>
     ChatPendingMessageRemovedAction(kind: kind, id: id).toJson();
 
+/// The action that saves an inline edit of [pending] as [text] (AV-081):
+/// an edit with the trimmed text, a removal when [text] is blank, or null
+/// when nothing is sent, because [text] is unchanged or [pending] is null
+/// (the host sent or removed the message while it was being edited, and
+/// setting it again would queue it anew).
+JsonMap? savePendingEditAction(
+  PendingMessageKind kind,
+  PendingMessage? pending,
+  String text,
+) {
+  if (pending == null) return null;
+  final trimmed = text.trim();
+  if (trimmed.isEmpty) return removePendingAction(kind, pending.id);
+  if (trimmed == pending.message.text) return null;
+  return editPendingAction(kind, pending, trimmed);
+}
+
 /// The action that moves the queued message at [from] to position [to]
 /// (both indexes into [queued], [to] counted after the removal), or null
 /// when nothing moves (AV-081).

@@ -1,5 +1,27 @@
 # Design Decision Log
 
+## 2026-10-16: Click a queued message to edit it in place (AV-081)
+
+- **An inline editor in the row, not the follow-up box.** The follow-up
+  box holds the chat's draft, synced to the host (`chat/draftChanged`),
+  so loading a queued message into it would replace or mix with that
+  draft, and sending from it starts a new message rather than editing
+  the queued one. Editing in the row keeps the draft and the message's
+  place in the queue, and matches how it is shown. The menu's "Edit"
+  opens the same editor; the old edit dialog is gone.
+- **Enter saves, Shift+Enter adds a line, Esc cancels, empty removes**,
+  like the follow-up box's keys. Save and Cancel buttons do the same
+  for touch and screen readers.
+- **The tile and the trailing buttons are siblings.** Only the
+  `ListTile` (icon, text, subtitle) opens the editor, so a tap on the
+  menu or the drag handle never does.
+- **A message the host sends or removes while being edited closes the
+  editor and is not set again.** `savePendingEditAction` returns null
+  for a message no longer pending, because `chat/pendingMessageSet` with
+  its ID would queue it anew; the panel shows a notice instead. The
+  pure function also skips unchanged text and turns blank text into
+  `chat/pendingMessageRemoved`.
+
 ## 2026-10-16: Pinned sessions (AV-028)
 
 - **Pinned sessions lead their folder, and that folder leads the list.**

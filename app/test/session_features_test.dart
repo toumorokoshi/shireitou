@@ -452,10 +452,10 @@ void main() {
     await tester.tap(find.text('Edit'));
     await tester.pumpAndSettle();
     await tester.enterText(
-      find.widgetWithText(TextField, 'Message'),
+      find.widgetWithText(TextField, 'Edit message'),
       'first, edited',
     );
-    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.tap(find.byTooltip('Save'));
     await tester.pumpAndSettle();
     final edited = connection.dispatched.last.$2;
     expect(edited['type'], 'chat/pendingMessageSet');

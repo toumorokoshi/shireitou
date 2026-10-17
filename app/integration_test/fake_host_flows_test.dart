@@ -369,18 +369,15 @@ void main() {
       await h.waitFor(find.text(text));
     }
     await h.pick(find.byTooltip('Message actions').last, 'Move up');
-    await tester.tap(find.byTooltip('Message actions').last);
+    // Clicking a queued message opens it for editing in place.
+    await tester.tap(find.text('first').last);
     await h.settle();
-    await tester.tap(find.text('Edit'));
-    await h.settle();
-    await tester.enterText(
-      find.widgetWithText(TextField, 'Message'),
-      'first, edited',
-    );
-    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    final editor = find.widgetWithText(TextField, 'Edit message');
+    await tester.enterText(editor, 'first, edited');
+    await tester.tap(find.byTooltip('Save'));
     await h.waitUntil(
-      'the edit dialog to close',
-      () => find.byType(AlertDialog).evaluate().isEmpty,
+      'the inline editor to close',
+      () => editor.evaluate().isEmpty,
     );
     await h.waitUntil(
       'the host to reorder and edit the queue',

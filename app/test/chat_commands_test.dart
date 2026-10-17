@@ -49,6 +49,31 @@ void main() {
     expect(stopAction(idle, now), isNull);
   });
 
+  group('savePendingEditAction', () {
+    final queued = PendingMessage(id: 'q1', message: userMessage('first'));
+    const kind = PendingMessageKind.queued;
+
+    test('sets the trimmed text', () {
+      final action = savePendingEditAction(kind, queued, ' first, edited ')!;
+      expect(action['type'], 'chat/pendingMessageSet');
+      expect(action['id'], 'q1');
+      expect((action['message']! as JsonMap)['text'], 'first, edited');
+    });
+
+    test('removes the message when the text is blank', () {
+      expect(savePendingEditAction(kind, queued, '  '), {
+        'type': 'chat/pendingMessageRemoved',
+        'kind': 'queued',
+        'id': 'q1',
+      });
+    });
+
+    test('sends nothing when unchanged or no longer pending', () {
+      expect(savePendingEditAction(kind, queued, 'first '), isNull);
+      expect(savePendingEditAction(kind, null, 'edited'), isNull);
+    });
+  });
+
   group('confirmToolCallAction', () {
     test('approve and deny', () {
       expect(confirmToolCallAction('turn-2', pendingTool, approve: true), {

@@ -62,13 +62,17 @@ AppImage and the release workflow (see
     (AV-012, AV-025, AV-031).
   - **Reorder workspaces:** drag and drop workspace folders in the
     sidebar to reorder them, with the order remembered.
-  - **Click to edit a queued message (AV-081):** clicking a queued
-    message should open it for editing, rather than going through a
-    menu.
   - **Collapsible right-hand pane (AV-003):** on wide layouts the review
     pane beside the timeline is always open. Make it collapsible,
     closed by default, so the timeline gets the space.
 
+- **Editing queued messages in place (AV-081), remaining details:** when
+  the host sends or removes a message while it is open in the editor, the
+  editor closes with a notice and the typed text is lost (it is not
+  copied or re-queued). A change to the message's text from another
+  client while it is being edited is not shown; saving overwrites it.
+  Clicking the steering message also edits it, though the agent may take
+  it before the edit is saved.
 - **Approvals and input against a real host:** tool approvals (AV-083)
   with host options, risk assessments, edited input and result
   confirmation, input requests (AV-084) with synced drafts,
