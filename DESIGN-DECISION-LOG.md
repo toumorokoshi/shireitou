@@ -6,7 +6,8 @@
   title, a working indicator in the chat, a denser sidebar, hosts and
   workspaces listed in the sidebar instead of a dropdown, drag and drop
   workspace ordering, click to edit queued messages, and desktop
-  notifications when the user's turn comes are listed at the top of
+  notifications when the user's turn comes, and a collapsible review
+  pane closed by default, are listed at the top of
   `GAPS.md`, ahead of the protocol and platform work.
 
 ## 2026-10-16: Windows, iOS and Android in CI, app icon, AppImage and releases

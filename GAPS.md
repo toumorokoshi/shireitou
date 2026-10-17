@@ -74,6 +74,9 @@ AppImage and the release workflow (see
     should be shown whenever a session is waiting on the user (turn
     finished or input needed). Check that the existing notifications
     fire in this case on each desktop platform.
+  - **Collapsible right-hand pane (AV-003):** on wide layouts the review
+    pane beside the timeline is always open. Make it collapsible,
+    closed by default, so the timeline gets the space.
 
 - **Approvals and input against a real host:** tool approvals (AV-083)
   with host options, risk assessments, edited input and result
