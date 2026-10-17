@@ -1,5 +1,14 @@
 # Design Decision Log
 
+## 2026-10-16: User-reported gaps take highest priority
+
+- **Usability feedback goes first.** Pinning, renaming sessions from the
+  title, a working indicator in the chat, a denser sidebar, hosts and
+  workspaces listed in the sidebar instead of a dropdown, drag and drop
+  workspace ordering, click to edit queued messages, and desktop
+  notifications when the user's turn comes are listed at the top of
+  `GAPS.md`, ahead of the protocol and platform work.
+
 ## 2026-10-16: Windows, iOS and Android in CI, app icon, AppImage and releases
 
 - **Mobile OAuth through the app's URL scheme, with a little native code

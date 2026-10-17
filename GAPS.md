@@ -49,6 +49,32 @@ smoke-tested Windows, iOS and Android in CI, added the app icon, the
 AppImage and the release workflow (see
 [docs/packaging.md](docs/packaging.md)). Remaining work:
 
+- **Highest priority (user feedback, 2026-10-16):** do these before the
+  items below.
+
+  - **Pin sessions (AV-028):** sessions cannot be pinned to the top of
+    the list.
+  - **Rename a session:** clicking the session's title in the header
+    should let the user edit it in place.
+  - **Working indicator:** while a session is working, the chat shows
+    nothing at the bottom of the timeline; add a typing ("…") or
+    spinner indicator there.
+  - **Denser sidebar:** the icons and text in the left-hand session list
+    are too large. Use smaller icons and fonts and thin rows so more
+    sessions fit.
+  - **Hosts and workspaces in the sidebar:** replace the host dropdown
+    with a tree on the left that lists every host and its workspaces
+    (AV-012, AV-025, AV-031).
+  - **Reorder workspaces:** drag and drop workspace folders in the
+    sidebar to reorder them, with the order remembered.
+  - **Click to edit a queued message (AV-081):** clicking a queued
+    message should open it for editing, rather than going through a
+    menu.
+  - **Notify when it is my turn (AV-121):** a desktop notification
+    should be shown whenever a session is waiting on the user (turn
+    finished or input needed). Check that the existing notifications
+    fire in this case on each desktop platform.
+
 - **Approvals and input against a real host:** tool approvals (AV-083)
   with host options, risk assessments, edited input and result
   confirmation, input requests (AV-084) with synced drafts,
