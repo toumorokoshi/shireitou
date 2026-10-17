@@ -30,8 +30,9 @@ with a UX modeled on the GitHub Agents view and Cursor's Agents Window.
 > the last run reconnect on start. Agents' todo lists show as checklists,
 > plan reviews take a choice plus feedback, the session header links to
 > the branch's pull request, one prompt can start several runs to
-> compare and pick from, and the desktop apps notify when a session
-> needs input, finishes or fails. Push notifications for a closed app
+> compare and pick from, and the desktop apps (and the web app, where
+> the browser allows) notify when a session needs input, finishes or
+> fails. Push notifications for a closed app
 > are not built; see [GAPS.md](GAPS.md).
 
 ## Layout

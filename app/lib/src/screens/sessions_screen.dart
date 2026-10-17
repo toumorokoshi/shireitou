@@ -363,7 +363,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                 ),
               ),
             ),
-          if (localNotificationsSupported) const NotificationsMenu(),
+          if (ref.watch(notifierProvider) != null) const NotificationsMenu(),
           IconButton(
             tooltip: hostFilter == null || hosts.length == 1
                 ? 'Disconnect'

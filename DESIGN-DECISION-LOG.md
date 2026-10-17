@@ -37,6 +37,41 @@
   with a working chat ask for reduced motion (`reduceMotion` in
   `test/fixtures.dart`).
 
+## 2026-10-16: Notify reliably when it is the user's turn (AV-121)
+
+- **Root cause: permission was asked for lazily, inside the first
+  notification, and the web build had none.** `LocalNotifier`
+  initialized `flutter_local_notifications` (which on macOS, iOS and
+  Android 13 shows the permission prompt) only when the first event was
+  due, which is when the user is away in another app. Every
+  notification waited on that prompt; if it was missed or refused, the
+  failure was cached for the rest of the run without a log line or any
+  sign in the UI, so nothing was ever posted. The web app (`just run`
+  opens it in Chrome) posted no notifications at all. The status
+  pipeline itself was sound: pi publishes every status change through
+  `root/sessionSummaryChanged`, and the widget tests saw the events.
+  Now the app asks at start (`AttentionNotifications.initState`), a
+  refusal is logged and not cached (a later grant in System Settings
+  works without a restart), and the bell menu offers "Allow
+  notifications…" while permission is refused.
+- **The browser's Notification API directly, not the plugin's web
+  support.** `browser_notifier_web.dart` uses `package:web`'s
+  `Notification` (page notifications) behind a conditional import, like
+  the OAuth redirect receiver. Rejected: `flutter_local_notifications`'
+  web implementation, which needs its own service worker in place of
+  Flutter's. Page notifications are enough while the tab is open; push
+  for a closed tab belongs to the relay (AV-123).
+- **The turn ending is the trigger.** `attentionEvents` stays a pure
+  function of two catalogue snapshots; a turn that ends (`InProgress`
+  clears) is reported as failed when the new status has `Error`, else
+  finished, so a host that keeps `Error` set into the next turn no
+  longer hides that turn's failure. Defaults are unchanged: all three
+  events notify.
+- **Focus starts from the real lifecycle state** (`isForeground`)
+  instead of assuming focus, and only the session on screen in a
+  focused window is quiet. A clicked notification also raises the window
+  (`bringWindowToFront`), since Linux and Windows do not.
+
 ## 2026-10-16: User-reported gaps take highest priority
 
 - **Usability feedback goes first.** Pinning, renaming sessions from the

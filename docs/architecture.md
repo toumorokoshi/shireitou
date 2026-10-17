@@ -333,14 +333,19 @@ Dart source); `bin/generate.dart` does the file I/O. See
   and archives the others.
 - `lib/src/notifications/`: local notifications (AV-121).
   `attention_events.dart` is pure (`attentionEvents` from two session
-  lists, `NotificationSettings`, `shouldNotify`, payloads);
-  `notifications.dart` has the `OsNotifier` (on
-  `flutter_local_notifications`, desktop only), the settings store, the
+  lists, `NotificationSettings`, `shouldNotify`, `isForeground`,
+  payloads); `os_notifier.dart` is the `OsNotifier` interface
+  (`requestPermission`, `show`); `notifications.dart` has the
+  `LocalNotifier` (on `flutter_local_notifications`, desktop and
+  mobile), picks `browser_notifier_web.dart` (the browser's Notification
+  API) on the web through a conditional import, and has the permission
+  and settings stores, the
   `visibleSessionProvider` the sessions screen keeps current,
   `openSessionRequestsProvider` (sessions to open, from clicks and the
   run comparison) and `AttentionNotifications`, which the app wraps
-  around everything to watch the merged session list.
-  `notification_menu.dart` is the bell menu.
+  around everything to ask for permission at start and watch the merged
+  session list. `notification_menu.dart` is the bell menu, with "Allow
+  notifications…" while permission is refused.
 - `lib/src/prefs.dart`: `PrefsStore`, small non-secret settings in
   `shared_preferences` (memory in tests).
 - `lib/src/review/`: the "Files changed" pane (AV-100 to AV-103).

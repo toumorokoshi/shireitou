@@ -59,6 +59,19 @@ Future<void> setUpDesktopWindow() async {
   }
 }
 
+/// Shows and focuses the native window, for a clicked notification
+/// (AV-121); macOS raises the app itself, Linux and Windows do not. Does
+/// nothing off desktop; failures are logged.
+Future<void> bringWindowToFront() async {
+  if (!isDesktop) return;
+  try {
+    await windowManager.show();
+    await windowManager.focus();
+  } on Object catch (error) {
+    _log.fine('could not bring the window to the front: $error');
+  }
+}
+
 /// Sets the native window's title (AV-120). Does nothing off desktop or
 /// before [setUpDesktopWindow]; failures are logged.
 Future<void> setWindowTitle(String title) async {

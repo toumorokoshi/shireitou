@@ -121,25 +121,41 @@ arm64 machine):
 
 ## Notifications (AV-121)
 
-The desktop apps post a notification when a session needs input,
-finishes its turn or fails, using
+The desktop apps post a notification whenever it is the user's turn in
+a session: it needs input or an approval, its turn finished (the
+`InProgress` bit cleared) or it failed, using
 [`flutter_local_notifications`](https://pub.dev/packages/flutter_local_notifications)
-(`lib/src/notifications/`). Each event can be turned off from the bell
-menu in the session list's app bar (saved with `shared_preferences`).
-Nothing is posted for the session on screen while the window has focus,
-or for sessions that appear when a host connects. Clicking a
-notification brings up that session.
+(`lib/src/notifications/`). All three are on by default; each can be
+turned off from the bell menu in the session list's app bar (saved with
+`shared_preferences`). Nothing is posted for the session on screen while
+the window has focus (other sessions still notify), or for sessions that
+appear when a host connects. Clicking a notification brings the window
+to the front and opens that session.
+
+The app asks for permission when it starts, not when the first
+notification is due: a prompt that appears while the user is in another
+app is easy to miss, and nothing was posted until it was answered. When
+permission is refused, the bell menu shows "Allow notifications…",
+which asks again and otherwise says to allow them in the system
+settings; a permission granted there later takes effect without a
+restart.
 
 - Linux: through the freedesktop notification service over D-Bus (the
   plugin is pure Dart, so the `.deb` needs no new library). Without a
   notification daemon (a bare X server, CI) the app logs
   `notifications are not available` and carries on.
-- macOS: through UserNotifications; macOS asks for permission on the
-  first notification. No entitlement is needed for local notifications.
+- macOS: through UserNotifications; macOS asks for permission when the
+  app starts. No entitlement is needed for local notifications. If the
+  bell menu keeps offering "Allow notifications…", check System
+  Settings > Notifications > shireitou.
 - Windows: toast notifications; built in CI, but never shown (the tests
   turn notifications off).
-- iOS and Android: see [mobile.md](mobile.md). The web build posts none
-  (see GAPS.md).
+- iOS and Android: see [mobile.md](mobile.md).
+- Web: the browser's Notification API (page notifications, no service
+  worker), while the tab is open. The browser asks for permission at
+  start; browsers that only ask after a click (Firefox, Safari) ask from
+  "Allow notifications…" in the bell menu. Clicking one focuses the tab
+  and opens the session.
 
 Notifications come from this process, so they stop when the app quits;
 push for a closed app needs the relay in

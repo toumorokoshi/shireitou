@@ -3,7 +3,8 @@
 /// merged session list while the app runs.
 ///
 /// Notifications are posted by this process, so they only arrive while
-/// the app runs (also minimized or in the background on desktop). Push
+/// the app runs (also minimized or in the background on desktop, and
+/// while the tab is open on the web). Push
 /// notifications for a closed or suspended app need a relay (AV-123,
 /// `specs/push-relay.md`).
 library;
@@ -17,31 +18,29 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 
+import '../desktop/desktop_window.dart';
 import '../hosts/open_hosts.dart';
 import '../prefs.dart';
 import 'attention_events.dart';
+import 'browser_notifier_io.dart'
+    if (dart.library.js_interop) 'browser_notifier_web.dart';
+import 'os_notifier.dart';
+
+export 'os_notifier.dart';
 
 final _log = Logger('notifications');
-
-/// Posts notifications.
-abstract interface class OsNotifier {
-  /// Shows a notification with [payload], which comes back when it is
-  /// clicked.
-  Future<void> show({
-    required int id,
-    required String title,
-    required String body,
-    required String payload,
-  });
-}
 
 /// [OsNotifier] on `flutter_local_notifications` (Linux through the
 /// freedesktop notification service, macOS and iOS through
 /// UserNotifications, Windows through toast notifications, Android
-/// through a notification channel). Initialized on first use, which asks
-/// for permission on macOS, iOS and Android 13+; any failure (no
+/// through a notification channel). [requestPermission] initializes the
+/// plugin, which asks for permission on macOS, iOS and Android 13+; the
+/// app calls it at start, so the prompt shows while the user is at the
+/// app rather than when the first session finishes. Any failure (no
 /// notification daemon, permission refused) is logged and the
-/// notification dropped.
+/// notification dropped, and a refusal is not remembered: the next call
+/// asks the system again, so permission granted later in the system
+/// settings takes effect without a restart.
 class LocalNotifier implements OsNotifier {
   /// Creates a [LocalNotifier] that calls [onOpen] with a clicked
   /// notification's payload.
@@ -70,7 +69,10 @@ class LocalNotifier implements OsNotifier {
         onDidReceiveNotificationResponse: (response) =>
             onOpen(response.payload),
       );
-      if (ok != true) return false;
+      if (ok != true) {
+        _log.warning('notification permission was not granted');
+        return false;
+      }
       final android = _plugin
           .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin
@@ -84,13 +86,21 @@ class LocalNotifier implements OsNotifier {
   }
 
   @override
+  Future<bool> requestPermission() async {
+    final ready = _ready ??= _initialize();
+    final ok = await ready;
+    if (!ok && identical(_ready, ready)) _ready = null;
+    return ok;
+  }
+
+  @override
   Future<void> show({
     required int id,
     required String title,
     required String body,
     required String payload,
   }) async {
-    if (!await (_ready ??= _initialize())) return;
+    if (!await requestPermission()) return;
     try {
       await _plugin.show(
         id: id,
@@ -117,14 +127,14 @@ const _details = NotificationDetails(
   ),
 );
 
-/// Whether this platform gets local notifications: the desktop apps, and
-/// iOS and Android while the app runs (also briefly in the background).
-/// The web build would need the plugin's service worker in place of
-/// Flutter's (see GAPS.md). Widget tests run as Android on a desktop host
-/// unless they say otherwise, so they get none: on Android and iOS the
-/// real platform (`dart:io`) must agree.
+/// Whether this platform gets notifications from the app's process: the
+/// desktop apps, iOS and Android while the app runs (also briefly in the
+/// background), and the web build where the browser has the Notification
+/// API. Widget tests run as Android on a desktop host unless they say
+/// otherwise, so they get none: on Android and iOS the real platform
+/// (`dart:io`) must agree.
 bool get localNotificationsSupported =>
-    !kIsWeb &&
+    kIsWeb ||
     switch (defaultTargetPlatform) {
       TargetPlatform.linux ||
       TargetPlatform.macOS ||
@@ -144,18 +154,42 @@ final openSessionRequestsProvider = Provider<StreamController<SessionRef>>((
   return controller;
 });
 
-/// The app's [OsNotifier], or null where there are no notifications.
-final notifierProvider = Provider<OsNotifier?>(
-  (ref) => localNotificationsSupported
-      ? LocalNotifier(
-          onOpen: (payload) {
-            if (sessionOfPayload(payload) case final session?) {
-              ref.read(openSessionRequestsProvider).add(session);
-            }
-          },
-        )
-      : null,
-);
+/// The app's [OsNotifier], or null where there are no notifications. A
+/// clicked notification brings the window to the front and opens its
+/// session.
+final notifierProvider = Provider<OsNotifier?>((ref) {
+  if (!localNotificationsSupported) return null;
+  void onOpen(String? payload) {
+    if (sessionOfPayload(payload) case final session?) {
+      unawaited(bringWindowToFront());
+      ref.read(openSessionRequestsProvider).add(session);
+    }
+  }
+
+  return kIsWeb
+      ? browserNotifier(onOpen: onOpen)
+      : LocalNotifier(onOpen: onOpen);
+});
+
+/// Whether the user allowed notifications: null until asked (at start,
+/// by [AttentionNotifications]), then the last answer.
+final notificationPermissionProvider =
+    NotifierProvider<NotificationPermission, bool?>(NotificationPermission.new);
+
+/// Asks for, and holds, the permission to notify.
+class NotificationPermission extends Notifier<bool?> {
+  @override
+  bool? build() => null;
+
+  /// Asks for permission (a prompt only when the user has not decided)
+  /// and returns whether notifications can be shown.
+  Future<bool> request() async {
+    final granted =
+        await ref.read(notifierProvider)?.requestPermission() ?? false;
+    if (ref.mounted) state = granted;
+    return granted;
+  }
+}
 
 /// The session the sessions screen shows, if any.
 final visibleSessionProvider = NotifierProvider<VisibleSession, SessionRef?>(
@@ -204,9 +238,9 @@ class NotificationSettingsStore extends Notifier<NotificationSettings> {
   }
 }
 
-/// Watches the merged session list while mounted and posts a
-/// notification for each [AttentionEvent] the user wants and is not
-/// already looking at.
+/// Asks for permission to notify at start, then watches the merged
+/// session list while mounted and posts a notification for each
+/// [AttentionEvent] the user wants and is not already looking at.
 class AttentionNotifications extends ConsumerStatefulWidget {
   /// Creates an [AttentionNotifications] around [child].
   const AttentionNotifications({super.key, required this.child});
@@ -222,14 +256,17 @@ class AttentionNotifications extends ConsumerStatefulWidget {
 class _AttentionNotificationsState
     extends ConsumerState<AttentionNotifications> {
   late final AppLifecycleListener _lifecycle;
-  bool _focused = true;
+  bool _focused = isForeground(WidgetsBinding.instance.lifecycleState);
 
   @override
   void initState() {
     super.initState();
     _lifecycle = AppLifecycleListener(
-      onStateChange: (state) => _focused = state == AppLifecycleState.resumed,
+      onStateChange: (state) => _focused = isForeground(state),
     );
+    if (ref.read(notifierProvider) != null) {
+      unawaited(ref.read(notificationPermissionProvider.notifier).request());
+    }
   }
 
   @override

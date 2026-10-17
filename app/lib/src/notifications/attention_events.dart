@@ -3,6 +3,7 @@
 library;
 
 import 'dart:convert';
+import 'dart:ui' show AppLifecycleState;
 
 import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter/foundation.dart';
@@ -75,14 +76,26 @@ List<AttentionEvent> attentionEvents(
   ];
 }
 
+/// The user's turn starts when input becomes needed, or when a turn ends
+/// (`InProgress` clears): failed if it ends in an error, otherwise
+/// finished. An error that appears without a running turn also counts.
+/// A host that keeps the `Error` bit through the next turn still gets
+/// that turn's failure reported, because the turn ending is the trigger.
 AttentionKind? _kind(SessionStatus old, SessionStatus now) {
-  if (now.isInputNeeded && !old.isInputNeeded) return AttentionKind.needsInput;
-  if (now.isError && !old.isError) return AttentionKind.failed;
-  if (old.isInProgress && !now.isInProgress && !now.isError) {
-    return AttentionKind.finished;
+  if (now.isInputNeeded) {
+    return old.isInputNeeded ? null : AttentionKind.needsInput;
   }
-  return null;
+  final turnEnded = old.isInProgress && !now.isInProgress;
+  if (now.isError) {
+    return turnEnded || !old.isError ? AttentionKind.failed : null;
+  }
+  return turnEnded ? AttentionKind.finished : null;
 }
+
+/// Whether the app's window has focus in lifecycle [state]; null (no
+/// lifecycle reported yet, as in tests) counts as focused.
+bool isForeground(AppLifecycleState? state) =>
+    state == null || state == AppLifecycleState.resumed;
 
 extension<T extends Object> on T? {
   R? let<R>(R Function(T value) f) => switch (this) {

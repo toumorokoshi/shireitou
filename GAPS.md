@@ -65,10 +65,6 @@ AppImage and the release workflow (see
   - **Click to edit a queued message (AV-081):** clicking a queued
     message should open it for editing, rather than going through a
     menu.
-  - **Notify when it is my turn (AV-121):** a desktop notification
-    should be shown whenever a session is waiting on the user (turn
-    finished or input needed). Check that the existing notifications
-    fire in this case on each desktop platform.
   - **Collapsible right-hand pane (AV-003):** on wide layouts the review
     pane beside the timeline is always open. Make it collapsible,
     closed by default, so the timeline gets the space.
@@ -178,16 +174,25 @@ AppImage and the release workflow (see
   The comparison shows each run's latest reply and change counts, not a
   diff between runs. A run that is removed on the host stays in its
   group as "Not available".
-- **Notifications (AV-121 to AV-123):** desktop, iOS and Android, while
-  the app runs. None was ever shown outside Linux: the app tests turn
-  notifications off, so macOS's and iOS's permission prompts, Windows
-  toasts (as an unpackaged app and from the `.msix`) and Android's
-  channel and Android 13 permission request were only built in CI. Linux
+- **Notifications (AV-121 to AV-123):** desktop, iOS, Android and the
+  web, while the app (or tab) runs. None was ever shown outside Linux:
+  the app tests turn notifications off, so macOS's and iOS's permission
+  prompts (now asked at start), Windows toasts (as an unpackaged app and
+  from the `.msix`), Android's channel and Android 13 permission
+  request, and the browser's Notification API were only built in CI and
+  checked with widget tests; each needs a check by hand on a real
+  machine. The macOS app is signed ad hoc; if macOS refuses
+  authorization to it, the bell menu keeps offering "Allow
+  notifications…" (a Developer ID signature would be the fix). Linux
   needs a freedesktop notification daemon (none in CI, where failures
-  are logged). The web build has none (the plugin's web support replaces
-  Flutter's service worker), and a suspended mobile app gets none. "Focused" comes from the app
-  lifecycle (`resumed`), which on Linux depends on the embedder reporting
-  window focus. There is no app-icon badge (AV-122). Push for a closed
+  are logged). Web notifications are page notifications: none from
+  Chrome on Android (it only allows service worker ones) and none once
+  the tab is closed, and Firefox and Safari only ask for permission from
+  the bell menu's "Allow notifications…" click. A suspended mobile app
+  gets none. "Focused" comes from the app lifecycle (`resumed`), which
+  on Linux depends on the embedder reporting window focus. A click
+  arriving while the connect screen is shown (no host connected) is
+  dropped. There is no app-icon badge (AV-122). Push for a closed
   app needs the relay in [specs/push-relay.md](specs/push-relay.md),
   which is not built (it needs Apple/Google push credentials and a
   signed app).

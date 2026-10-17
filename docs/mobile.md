@@ -66,7 +66,7 @@ real authorization server (see GAPS.md).
 Local notifications work as on desktop while the app runs (Android also
 for a while in the background): Android posts them on the "Sessions that
 need you" channel and asks for permission on Android 13 and later; iOS
-asks on the first notification. Nothing arrives once the system suspends
+asks when the app starts. Nothing arrives once the system suspends
 the app; that needs the push relay ([specs/push-relay.md](../specs/push-relay.md)).
 
 ## Mobile smoke test

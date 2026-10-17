@@ -26,7 +26,21 @@ const _idle = 1 | 32;
 const _failed = 1 | 2 | 32;
 
 class _RecordingNotifier implements OsNotifier {
+  _RecordingNotifier({this.granted = true});
+
+  /// The answer to permission requests.
+  bool granted;
+
+  /// How many times permission was asked for.
+  int requests = 0;
+
   final shown = <({int id, String title, String body, String payload})>[];
+
+  @override
+  Future<bool> requestPermission() async {
+    requests++;
+    return granted;
+  }
 
   @override
   Future<void> show({
@@ -80,6 +94,37 @@ void main() {
         attentionEvents([_s('1', _working)], [_s('1', _idle, host: 'other')]),
         isEmpty,
       );
+    });
+
+    test('a turn ending is the trigger, also with a sticky error bit', () {
+      List<AttentionKind> kinds(int before, int after) => [
+        for (final e in attentionEvents([_s('1', before)], [_s('1', after)]))
+          e.kind,
+      ];
+      // A host that keeps Error set while the next turn runs.
+      expect(kinds(_failed | 8, _failed), [AttentionKind.failed]);
+      // Input needed after an error, and an error while input was needed.
+      expect(kinds(_failed, _input), [AttentionKind.needsInput]);
+      expect(kinds(_input, _failed), [AttentionKind.failed]);
+      // Input needed, then the turn ends.
+      expect(kinds(_input, _idle), [AttentionKind.finished]);
+      // Starting a turn, reading and errors that stay are quiet.
+      expect(kinds(_idle, _working), isEmpty);
+      expect(kinds(_failed, _failed), isEmpty);
+      expect(kinds(1, _idle), isEmpty);
+      expect(kinds(_failed, _idle), isEmpty);
+    });
+
+    test('focus follows the app lifecycle', () {
+      expect(isForeground(null), isTrue);
+      expect(isForeground(AppLifecycleState.resumed), isTrue);
+      for (final state in [
+        AppLifecycleState.inactive,
+        AppLifecycleState.hidden,
+        AppLifecycleState.paused,
+      ]) {
+        expect(isForeground(state), isFalse);
+      }
     });
 
     test('settings, filtering and text', () {
@@ -140,6 +185,8 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    // Permission is asked for at start, not on the first notification.
+    expect(notifier.requests, 1);
 
     connection.state = host(_input);
     await tester.pump();
@@ -174,5 +221,71 @@ void main() {
           .enabled(AttentionKind.finished),
       isFalse,
     );
+  }, variant: TargetPlatformVariant.only(TargetPlatform.linux));
+
+  testWidgets('another session notifies while the window has focus, and a '
+      'refused permission can be asked for again', (tester) async {
+    tester.view.physicalSize = const Size(1400, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final notifier = _RecordingNotifier(granted: false);
+    HostState host(int one, int two) => HostState(
+      status: ConnectionStatus.connected,
+      sessions: catalogueFromSummaries([
+        session('1', title: 'Fix login', status: one),
+        session('2', title: 'Deploy', status: two),
+      ]),
+      chatChannels: {'ahp-chat:/1': ChannelMirror.snapshot(chatFixture())},
+    );
+    final connection = FakeHostConnection(host(_idle, _working));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ...hostOverrides(connection: connection),
+          notifierProvider.overrideWithValue(notifier),
+          prefsStoreProvider.overrideWithValue(MemoryPrefsStore()),
+        ],
+        child: const ShireitouApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(MaterialApp)),
+    );
+    expect(container.read(notificationPermissionProvider), isFalse);
+
+    // The menu offers to ask again; still refused, it says where to look.
+    await tester.tap(find.byTooltip('Notifications'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Allow notifications…'));
+    await tester.pumpAndSettle();
+    expect(notifier.requests, 2);
+    expect(find.textContaining('Notifications are blocked'), findsOneWidget);
+
+    // Allowed: the menu item goes away.
+    notifier.granted = true;
+    await tester.tap(find.byTooltip('Notifications'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Allow notifications…'));
+    await tester.pumpAndSettle();
+    expect(container.read(notificationPermissionProvider), isTrue);
+    await tester.tap(find.byTooltip('Notifications'));
+    await tester.pumpAndSettle();
+    expect(find.text('Allow notifications…'), findsNothing);
+    await tester.tapAt(Offset.zero);
+    await tester.pumpAndSettle();
+
+    // Session 1 is on screen and the window has focus; session 2 finishing
+    // still notifies.
+    container.read(openSessionRequestsProvider).add((
+      host: testHost.key,
+      session: 'pi:/1',
+    ));
+    await tester.pumpAndSettle();
+    expect(container.read(visibleSessionProvider)?.session, 'pi:/1');
+    connection.state = host(_idle, _idle);
+    await tester.pump();
+    expect(notifier.shown.single.title, 'Finished');
+    expect(notifier.shown.single.body, 'Deploy');
   }, variant: TargetPlatformVariant.only(TargetPlatform.linux));
 }
