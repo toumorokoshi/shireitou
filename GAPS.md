@@ -49,6 +49,19 @@ smoke-tested Windows, iOS and Android in CI, added the app icon, the
 AppImage and the release workflow (see
 [docs/packaging.md](docs/packaging.md)). Remaining work:
 
+- **Highest priority (user feedback, 2026-10-16):** do these before the
+  items below.
+
+  - **Pinned section at the top (AV-028):** pins currently sort first
+    inside their workspace folder. They should instead sit together in
+    one shared "Pinned" section at the very top of the sidebar, above
+    every host and workspace.
+  - **New session in the session pane (AV-040):** "New session" opens a
+    separate screen. It should open in the session pane, laid out like
+    an open session (empty timeline, the follow-up box as the prompt,
+    host, agent, model and folder pickers inline), as the GitHub agents
+    view does.
+
 - **SSH terminal (AV-014), remaining details:** no terminal on the web
   (browsers have no TCP sockets; a WebSocket-to-SSH bridge on the host
   would be needed). The SSH agent works only on Linux: not in the
