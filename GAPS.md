@@ -50,11 +50,7 @@ AppImage and the release workflow (see
 [docs/packaging.md](docs/packaging.md)). Remaining work:
 
 - **Reference UI, remaining differences** (compared with
-  `just screenshots`, see [docs/testing.md](docs/testing.md)): the
-  sidebar opens at 400 px and can be dragged wider; in the screenshots'
-  coordinates (the reference's 120% zoom already applied) the
-  reference's sidebar measures about 486 px, so titles still truncate a
-  little sooner until it is widened (`defaultSidebarWidth`). Each
+  `just screenshots`, see [docs/testing.md](docs/testing.md)): each
   finished turn keeps a small muted "Done · 1m 47s · tokens" footer
   (AV-067), which the reference does not have. The session header shows
   the session title, where the reference shows the current turn's

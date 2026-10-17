@@ -27,7 +27,7 @@ const minPaneWidth = 240.0;
 const maxPaneWidth = 600.0;
 
 /// The sidebar's width until the user drags its edge (AV-005).
-const defaultSidebarWidth = 400.0;
+const defaultSidebarWidth = 486.0;
 
 /// [width] kept between [minPaneWidth] and [maxPaneWidth], and at most
 /// [available] (the room left for the pane, so a narrow window keeps

@@ -14,9 +14,8 @@ toggle that did not look like the reference's.
   room left beside the pane (`clampedPaneWidth`), so a narrow window
   keeps space for the session. `StoredWidth` (`prefs.dart`) keeps the
   width in `PrefsStore` and writes it when the drag ends, not on every
-  pointer move. The sidebar defaults to 400 px, as asked; measured in the
-  screenshots' coordinates the reference's sidebar is about 486 px, so
-  that is the value to use if the default should match the PNG. The
+  pointer move. The sidebar defaults to 486 px, the reference's width
+  measured at its 120% zoom (it takes about a third of the window). The
   review pane got the same handle (default 380 px). The drag counts from
   pointer down (`DragStartBehavior.down`), so the edge follows the
   pointer exactly. At the 240 px minimum the sidebar header drops the

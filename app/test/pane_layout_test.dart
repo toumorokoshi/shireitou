@@ -161,10 +161,10 @@ void main() {
       SystemMouseCursors.resizeColumn,
     );
 
-    await tester.drag(_sidebarHandle, const Offset(100, 0));
+    await tester.drag(_sidebarHandle, const Offset(60, 0));
     await tester.pumpAndSettle();
-    expect(_sidebarEdge(tester), 500);
-    expect(prefs.values['sidebar_width'], '500.0');
+    expect(_sidebarEdge(tester), defaultSidebarWidth + 60);
+    expect(prefs.values['sidebar_width'], '${defaultSidebarWidth + 60}');
 
     await tester.drag(_sidebarHandle, const Offset(-1000, 0));
     await tester.pumpAndSettle();
