@@ -128,6 +128,28 @@ void main() {
       expect(decodeRunGroups(null), isEmpty);
     });
 
+    test('the outcome of starting runs', () {
+      final one = runOutcome(host: 'h', labels: ['A'], results: ['pi:/1']);
+      expect(one.started.single.ref, (host: 'h', session: 'pi:/1'));
+      expect(one.started.single.label, 'A');
+      expect(one.failures, isEmpty);
+      expect(
+        runOutcome(
+          host: 'h',
+          labels: ['A'],
+          results: [StateError('x')],
+        ).failures,
+        ['Bad state: x'],
+      );
+      final mixed = runOutcome(
+        host: 'h',
+        labels: ['A', 'B'],
+        results: ['pi:/1', StateError('x')],
+      );
+      expect(mixed.started.map((m) => m.label), ['A']);
+      expect(mixed.failures, ['Run 2: Bad state: x']);
+    });
+
     test('the latest reply of a chat', () {
       expect(lastReplyOf(chatFixture()), 'There is **one** file.');
       expect(
@@ -158,7 +180,7 @@ void main() {
       find.widgetWithText(TextField, 'Prompt'),
       'Fix the parser',
     );
-    await tester.tap(find.text('Start 2 runs'));
+    await tester.tap(find.byTooltip('Start 2 runs'));
     await tester.pumpAndSettle();
 
     expect(connection.started.map((s) => s.prompt), [

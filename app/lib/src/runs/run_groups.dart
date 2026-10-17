@@ -228,3 +228,24 @@ String? lastReplyOf(ChatState chat) {
   }
   return null;
 }
+
+/// The runs that started on [host] and the messages of those that did
+/// not, from [results] in run order (a started session's URI, or the
+/// error) and each run's [labels]. A failure is "Run 2: …" when there
+/// were several runs.
+({List<RunMember> started, List<String> failures}) runOutcome({
+  required String host,
+  required List<String> labels,
+  required List<Object> results,
+}) => (
+  started: [
+    for (final (i, result) in results.indexed)
+      if (result is String)
+        RunMember(host: host, session: result, label: labels[i]),
+  ],
+  failures: [
+    for (final (i, result) in results.indexed)
+      if (result is! String)
+        results.length == 1 ? '$result' : 'Run ${i + 1}: $result',
+  ],
+);

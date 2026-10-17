@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shireitou/src/app.dart';
+import 'package:shireitou/src/composer/new_session_view.dart';
 import 'package:shireitou/src/hosts/host_store.dart';
 import 'package:shireitou/src/hosts/saved_hosts.dart';
 import 'package:shireitou/src/session_list/session_list_view.dart';
@@ -211,20 +212,30 @@ void main() {
     // The build box's folder is listed first (its session is newer).
     await tester.tap(find.byTooltip('New session in app').first);
     await tester.pumpAndSettle();
-    expect(find.text('Host'), findsOneWidget);
-    expect(find.text('build box'), findsOneWidget);
+    expect(find.byTooltip('Host'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(NewSessionView),
+        matching: find.text('build box'),
+      ),
+      findsOneWidget,
+    );
     expect(find.widgetWithText(TextField, '/src/app'), findsOneWidget);
-    expect(find.text('Mode'), findsOneWidget);
+    expect(find.byTooltip('Mode'), findsOneWidget);
     expect(find.text('Interactive'), findsOneWidget);
     // Recent folders of the host are offered.
-    expect(find.widgetWithText(ActionChip, 'app'), findsOneWidget);
+    await tester.tap(find.byTooltip('Recent folders'));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(ListTile, 'app'), findsOneWidget);
+    await tester.tap(find.widgetWithText(ListTile, 'app'));
+    await tester.pumpAndSettle();
 
     // The model's configSchema becomes a "Thinking" picker.
-    await tester.tap(find.text('Host default'));
+    await tester.tap(find.text('Host default model'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Thinker').last);
     await tester.pumpAndSettle();
-    expect(find.text('Thinking'), findsOneWidget);
+    expect(find.byTooltip('Thinking'), findsOneWidget);
     await tester.tap(find.text('Medium'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('High').last);
@@ -236,7 +247,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Browse the host's folders.
-    await tester.tap(find.text('Browse…'));
+    await tester.tap(find.byTooltip('Browse…'));
     await tester.pumpAndSettle();
     expect(find.text('Choose a folder'), findsOneWidget);
     await tester.tap(find.text('lib'));
@@ -247,7 +258,7 @@ void main() {
     expect(find.widgetWithText(TextField, '/src/app/lib'), findsOneWidget);
 
     await tester.enterText(find.widgetWithText(TextField, 'Prompt'), 'Go');
-    await tester.tap(find.text('Start session'));
+    await tester.tap(find.byTooltip('Start session'));
     await tester.pumpAndSettle();
     final start = second.started.single;
     expect(start.directory, 'file:///src/app/lib');
@@ -270,7 +281,7 @@ void main() {
     await tester.tap(find.byTooltip(RegExp(r'^New session \(')));
     await tester.pumpAndSettle();
     await tester.enterText(find.widgetWithText(TextField, 'Prompt'), 'Go');
-    await tester.tap(find.text('Start session'));
+    await tester.tap(find.byTooltip('Start session'));
     await tester.pumpAndSettle();
     debugPrint(
       [for (final e in find.byType(Text).evaluate()) (e.widget as Text).data]
@@ -280,6 +291,8 @@ void main() {
       find.text('The session could not start: No such folder'),
       findsOneWidget,
     );
+    // The prompt is kept, to try again.
+    expect(find.widgetWithText(TextField, 'Go'), findsOneWidget);
   });
 
   testWidgets('follow-ups pick a model and its options, and the mode '

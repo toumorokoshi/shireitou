@@ -277,7 +277,13 @@ void main() {
     expect(connection.dispatched.last.$2['type'], 'chat/turnCancelled');
 
     await _press(tester, LogicalKeyboardKey.keyN);
-    expect(find.text('Start session'), findsOneWidget);
+    expect(find.byTooltip('Start session'), findsOneWidget);
+    // Cmd/Ctrl+L focuses the draft's prompt too.
+    final prompt = find.widgetWithText(TextField, 'Prompt');
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pump();
+    await _press(tester, LogicalKeyboardKey.keyL);
+    expect(tester.widget<TextField>(prompt).focusNode!.hasFocus, isTrue);
   });
 
   testWidgets('a compact layout steps through sessions page by page', (

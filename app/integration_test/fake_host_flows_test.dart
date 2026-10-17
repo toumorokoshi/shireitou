@@ -293,8 +293,8 @@ void main() {
     // session answers -32007 with a sign-in, then retries (AHP-061).
     debugPrint('fake host flows: -32007');
     await tester.tap(find.byTooltip(RegExp(r'^New session \(')));
-    await h.waitFor(find.text('Start session'));
-    await h.pick(find.text('Fake agent'), 'Secured agent');
+    await h.waitFor(find.byTooltip('Start session'));
+    await h.pick(find.byTooltip('Agent'), 'Secured agent');
     expect(
       find.text('Secured agent needs you to sign in to Fake agent service.'),
       findsOneWidget,
@@ -304,7 +304,7 @@ void main() {
       '/workspace',
     );
     await tester.enterText(find.widgetWithText(TextField, 'Prompt'), 'hi');
-    await h.tapVisible(find.text('Start session'));
+    await h.tapVisible(find.byTooltip('Start session'));
     await h.waitFor(find.text('Sign in to Fake agent service'));
     await tester.tap(find.text('Sign in with browser'));
     await h.waitFor(find.textContaining('You said: hi'));
@@ -489,14 +489,14 @@ void main() {
 
     // Start a session on the second host from its folder's "+" button.
     await tester.tap(find.byTooltip('New session in workspace'));
-    await h.waitFor(find.text('Mode'));
+    await h.waitFor(find.byTooltip('Mode'));
     expect(find.text('second-host'), findsWidgets);
-    await h.pick(find.text('Host default'), 'Scripted');
+    await h.pick(find.text('Host default model'), 'Scripted');
     await h.pick(find.text('Medium'), 'High');
     await h.pick(find.text('Interactive'), 'Plan');
 
     // Browse to a sub-folder; the repository's branch setting appears.
-    await tester.tap(find.text('Browse…'));
+    await tester.tap(find.byTooltip('Browse…'));
     await h.waitFor(find.text('packages'));
     await tester.tap(find.text('packages'));
     await h.waitFor(find.text('api'));
@@ -514,9 +514,9 @@ void main() {
       'settings',
     );
     // Below the fold on small windows (the parallel runs row adds height).
-    await h.tapVisible(find.text('Start session'));
+    await h.tapVisible(find.byTooltip('Start session'));
     await h.waitFor(find.textContaining('thinkingLevel: high'));
-    // Let the composer close.
+    // Let the draft turn into the session.
     await h.settle();
     expect(find.textContaining('mode: plan'), findsOneWidget);
     expect(find.textContaining('branch: fix/crash'), findsOneWidget);
@@ -537,13 +537,13 @@ void main() {
     // A session in a folder the host does not have fails at once, with
     // the host's error (not after the 30 s creation timeout).
     await tester.tap(find.byTooltip(RegExp(r'^New session \(')));
-    await h.waitFor(find.text('Start session'));
+    await h.waitFor(find.byTooltip('Start session'));
     await tester.enterText(
       find.widgetWithText(TextField, 'Working directory'),
       '/missing',
     );
     await tester.enterText(find.widgetWithText(TextField, 'Prompt'), 'hi');
-    await h.tapVisible(find.text('Start session'));
+    await h.tapVisible(find.byTooltip('Start session'));
     final started = DateTime.now();
     await h.waitFor(
       find.text('The session could not start: No such folder: /missing'),

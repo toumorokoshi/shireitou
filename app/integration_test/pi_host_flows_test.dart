@@ -51,10 +51,10 @@ Future<void> _startSession(
 }) async {
   final tester = h.tester;
   await tester.tap(find.byTooltip(RegExp(r'^New session \(')));
-  await h.waitFor(find.text('Start session'));
+  await h.waitFor(find.byTooltip('Start session'));
   if (folder != null) {
     // pi lists the host's folders (resourceList).
-    await h.tapVisible(find.text('Browse…'));
+    await h.tapVisible(find.byTooltip('Browse…'));
     await h.waitFor(find.text(folder));
     await tester.tap(find.text(folder));
     await h.waitFor(find.text('No sub-folders'));
@@ -62,9 +62,9 @@ Future<void> _startSession(
     await h.settle();
   }
   await tester.enterText(find.widgetWithText(TextField, 'Prompt'), prompt);
-  await h.tapVisible(find.text('Start session'));
+  await h.tapVisible(find.byTooltip('Start session'));
   await h.waitFor(find.text('pi faux reply: $prompt'));
-  // Let the composer close.
+  // Let the draft turn into the session.
   await h.settle();
 }
 

@@ -1207,7 +1207,8 @@ typedef SendMessage = void Function(
 /// Above it, [MessageSettingsBar] picks the model (and its options) for
 /// the next message, starting from [initialModel], and changes the
 /// session's mutable settings. Typing one of [completionTriggers] at the
-/// start of a word opens [CompletionPopup] (AV-044).
+/// start of a word opens [CompletionPopup] (AV-044). The new-session
+/// draft (AV-040) uses it as its prompt, with its own [controller].
 class FollowUpInput extends StatefulWidget {
   /// Creates a [FollowUpInput].
   const FollowUpInput({
@@ -1225,7 +1226,25 @@ class FollowUpInput extends StatefulWidget {
     this.focusRequests,
     this.completionTriggers = const [],
     this.completionSource,
+    this.controller,
+    this.labelText,
+    this.hintText,
+    this.sendTooltip,
   });
+
+  /// The box's text, owned by the caller, who then also clears it after
+  /// a send; null for a box that owns its text and clears it on send.
+  final TextEditingController? controller;
+
+  /// The box's label; none when null.
+  final String? labelText;
+
+  /// The box's hint; null for the follow-up hint.
+  final String? hintText;
+
+  /// The send button's tooltip; null for "Send" (or "Queue" while
+  /// working).
+  final String? sendTooltip;
 
   /// Characters that open the completion popup; none when empty.
   final List<String> completionTriggers;
@@ -1272,7 +1291,10 @@ class FollowUpInput extends StatefulWidget {
 }
 
 class _FollowUpInputState extends State<FollowUpInput> {
-  late final _text = TextEditingController(text: widget.draft?.text ?? '');
+  late final _ownText = widget.controller == null
+      ? TextEditingController(text: widget.draft?.text ?? '')
+      : null;
+  late final _text = widget.controller ?? _ownText!;
   late final _focus = FocusNode(onKeyEvent: _onKey);
   final _completions = GlobalKey<CompletionPopupState>();
   Timer? _draftTimer;
@@ -1324,8 +1346,9 @@ class _FollowUpInputState extends State<FollowUpInput> {
   @override
   void dispose() {
     widget.focusRequests?.removeListener(_takeFocus);
+    _text.removeListener(_onChanged);
     _flushDraft();
-    _text.dispose();
+    _ownText?.dispose();
     _focus.dispose();
     super.dispose();
   }
@@ -1370,6 +1393,7 @@ class _FollowUpInputState extends State<FollowUpInput> {
       attachments: acceptedAttachments(_accepted, text),
     );
     _accepted.clear();
+    if (widget.controller != null) return;
     _draftTimer?.cancel();
     final hadDraft = _synced.isNotEmpty || (widget.draft != null);
     _synced = '';
@@ -1407,9 +1431,12 @@ class _FollowUpInputState extends State<FollowUpInput> {
     maxLines: 8,
     keyboardType: TextInputType.multiline,
     decoration: InputDecoration(
-      hintText: widget.working
-          ? 'Queue a follow-up (Enter) or steer now (Ctrl/Cmd+Enter)'
-          : 'Send a follow-up (Enter; Shift+Enter for a newline)',
+      labelText: widget.labelText,
+      hintText:
+          widget.hintText ??
+          (widget.working
+              ? 'Queue a follow-up (Enter) or steer now (Ctrl/Cmd+Enter)'
+              : 'Send a follow-up (Enter; Shift+Enter for a newline)'),
       border: const OutlineInputBorder(),
     ),
   );
@@ -1435,7 +1462,7 @@ class _FollowUpInputState extends State<FollowUpInput> {
         Expanded(child: _withCompletions(_field())),
         const SizedBox(width: 8),
         IconButton.filled(
-          tooltip: widget.working ? 'Queue' : 'Send',
+          tooltip: widget.sendTooltip ?? (widget.working ? 'Queue' : 'Send'),
           icon: Icon(widget.working ? Icons.schedule_send : Icons.send),
           onPressed: () => _send(steer: false),
         ),

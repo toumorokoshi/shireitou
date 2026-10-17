@@ -209,12 +209,14 @@ String modelSelectionLabel(
   ].join(' · ');
 }
 
+/// Whether [field] fits a compact dropdown (a choice the user may set);
+/// other fields need a form control.
+bool isPickerField(ConfigField field) =>
+    field.kind == ConfigFieldKind.choice && !field.readOnly;
+
 /// The session settings the user may still change (`sessionMutable`)
 /// with the choices the app can offer.
 List<ConfigField> mutableSessionFields(SessionConfigState? config) => [
   for (final field in sessionConfigFields(config?.schema))
-    if (field.sessionMutable &&
-        !field.readOnly &&
-        field.kind == ConfigFieldKind.choice)
-      field,
+    if (field.sessionMutable && isPickerField(field)) field,
 ];

@@ -6,7 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shireitou/src/app.dart';
+import 'package:shireitou/src/composer/new_session_view.dart';
 import 'package:shireitou/src/hosts/saved_hosts.dart';
+import 'package:shireitou/src/session_detail/session_detail_view.dart';
 import 'package:shireitou/src/session_detail/session_status_widgets.dart';
 
 import 'fake_connection.dart';
@@ -245,8 +247,11 @@ void main() {
     expect(find.text('Which branch?'), findsOneWidget);
   });
 
-  testWidgets('the composer lists agents and models', (tester) async {
-    await _pump(
+  testWidgets('"New session" drafts a session in the session pane, kept '
+      'while another session is open, and opens it when started', (
+    tester,
+  ) async {
+    final connection = await _pump(
       tester,
       connected().copyWith(
         defaultDirectory: 'file:///home/user/project/',
@@ -267,9 +272,83 @@ void main() {
     );
     await tester.tap(find.byTooltip(RegExp(r'^New session \(')));
     await tester.pumpAndSettle();
+    // In the pane beside the list, not a pushed page.
+    expect(find.byType(BackButton), findsNothing);
+    expect(find.byType(NewSessionView), findsOneWidget);
     expect(find.text('Pi'), findsOneWidget);
-    expect(find.text('Host default'), findsOneWidget);
+    expect(find.text('Host default model'), findsOneWidget);
     expect(find.text('/home/user/project'), findsOneWidget);
+    expect(find.textContaining('Write a prompt below'), findsOneWidget);
+    final draftRow = find.byKey(const ValueKey('new-session-draft'));
+    expect(tester.widget<ListTile>(draftRow).selected, isTrue);
+    // The prompt has the focus.
+    final prompt = find.widgetWithText(TextField, 'Prompt');
+    expect(tester.widget<TextField>(prompt).focusNode!.hasFocus, isTrue);
+    await tester.enterText(prompt, 'Fix the build');
+
+    // Another session, then back to the draft: the prompt is kept.
+    await tester.tap(find.text('Explain'));
+    await tester.pumpAndSettle();
+    expect(find.byType(NewSessionView), findsNothing);
+    expect(tester.widget<ListTile>(draftRow).selected, isFalse);
+    await tester.tap(draftRow);
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(TextField, 'Fix the build'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Start session'));
+    await tester.pumpAndSettle();
+    expect(connection.started.single.prompt, 'Fix the build');
+    expect(connection.started.single.directory, 'file:///home/user/project');
+    expect(find.byType(NewSessionView), findsNothing);
+    expect(draftRow, findsNothing);
+    expect(
+      tester.widget<SessionDetailView>(find.byType(SessionDetailView)).session,
+      'pi:/1',
+    );
+
+    // A new draft starts empty, and can be discarded.
+    await tester.tap(find.byTooltip(RegExp(r'^New session \(')));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(TextField, 'Fix the build'), findsNothing);
+    await tester.tap(find.byTooltip('Discard the draft'));
+    await tester.pumpAndSettle();
+    expect(find.byType(NewSessionView), findsNothing);
+    expect(find.text('Select a session'), findsOneWidget);
+  });
+
+  testWidgets('a compact layout drafts a session on its own page and '
+      'replaces it with the started session', (tester) async {
+    final connection = await _pump(
+      tester,
+      connected().copyWith(
+        defaultDirectory: 'file:///src/app',
+        root: const RootState(
+          agents: [
+            AgentInfo(
+              provider: 'pi',
+              displayName: 'Pi',
+              description: 'pi',
+              models: [],
+            ),
+          ],
+        ),
+      ),
+      const Size(500, 900),
+    );
+    await tester.tap(find.byTooltip(RegExp(r'^New session \(')));
+    await tester.pumpAndSettle();
+    expect(find.byType(BackButton), findsOneWidget);
+    await tester.enterText(find.widgetWithText(TextField, 'Prompt'), 'Hi');
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+    expect(connection.started.single.prompt, 'Hi');
+    expect(find.byType(NewSessionView), findsNothing);
+    expect(find.byType(SessionDetailView), findsOneWidget);
+    // Back goes to the list, not to the draft.
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.byType(SessionDetailView), findsNothing);
+    expect(find.byKey(const ValueKey('new-session-draft')), findsNothing);
   });
 
   testWidgets('an open session is marked read again after a new turn', (

@@ -45,30 +45,8 @@ class MessageSettingsBar extends StatelessWidget {
     final selected = model;
     final info = models.where((m) => m.id == selected?.id).firstOrNull;
     final options = modelConfigFields(info?.configSchema)
-        .where((f) => f.kind == ConfigFieldKind.choice && !f.readOnly)
+        .where(isPickerField)
         .toList();
-    final style = Theme.of(context).textTheme.bodySmall;
-    Widget picker<T>({
-      required String label,
-      required T? value,
-      required List<(T?, String)> items,
-      required ValueChanged<T?>? onChanged,
-    }) => Tooltip(
-      message: label,
-      child: DropdownButton<T?>(
-        key: ValueKey('picker-$label'),
-        value: items.any((i) => i.$1 == value) ? value : null,
-        isDense: true,
-        underline: const SizedBox.shrink(),
-        style: style,
-        hint: Text(label, style: style),
-        items: [
-          for (final (v, text) in items)
-            DropdownMenuItem(value: v, child: Text(text)),
-        ],
-        onChanged: onChanged,
-      ),
-    );
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
       child: Wrap(
@@ -76,7 +54,8 @@ class MessageSettingsBar extends StatelessWidget {
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           if (models.isNotEmpty)
-            picker<String>(
+            compactPicker<String>(
+              context,
               label: 'Model',
               value: selected?.id,
               items: [
@@ -92,7 +71,8 @@ class MessageSettingsBar extends StatelessWidget {
             ),
           if (selected != null)
             for (final field in options)
-              picker<Object>(
+              compactPicker<Object>(
+                context,
                 label: field.title,
                 value: selected.config?[field.id] ?? field.defaultValue,
                 items: [for (final o in field.options) (o.value, o.label)],
@@ -104,7 +84,8 @@ class MessageSettingsBar extends StatelessWidget {
                 ),
               ),
           for (final field in sessionFields)
-            picker<Object>(
+            compactPicker<Object>(
+              context,
               label: field.title,
               value: sessionValues[field.id] ?? field.defaultValue,
               items: [for (final o in field.options) (o.value, o.label)],
@@ -116,4 +97,33 @@ class MessageSettingsBar extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A borderless dropdown in small text, labelled by its tooltip (and by
+/// its hint while nothing is picked): the follow-up box's pickers and the
+/// new-session draft's host and agent pickers.
+Widget compactPicker<T>(
+  BuildContext context, {
+  required String label,
+  required T? value,
+  required List<(T?, String)> items,
+  required ValueChanged<T?>? onChanged,
+}) {
+  final style = Theme.of(context).textTheme.bodySmall;
+  return Tooltip(
+    message: label,
+    child: DropdownButton<T?>(
+      key: ValueKey('picker-$label'),
+      value: items.any((i) => i.$1 == value) ? value : null,
+      isDense: true,
+      underline: const SizedBox.shrink(),
+      style: style,
+      hint: Text(label, style: style),
+      items: [
+        for (final (v, text) in items)
+          DropdownMenuItem(value: v, child: Text(text)),
+      ],
+      onChanged: onChanged,
+    ),
+  );
 }

@@ -93,7 +93,8 @@ relay.
   Ctrl+. as the browser delivers them; MCP sign-in through a real new tab,
   the fake authorization server and `oauth_callback.html` (the code comes
   back over `BroadcastChannel`); a reconnect.
-- `pi.spec.ts`: the composer starts a pi session; a drop in the middle of a
+- `pi.spec.ts`: the new-session draft in the session pane starts a pi
+  session; a drop in the middle of a
   reply is replayed; a message lost with the connection is rolled back; pi
   restarts and the session continues. Skipped without a pi checkout.
 

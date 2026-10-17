@@ -21,7 +21,8 @@ with a UX modeled on the GitHub Agents view and Cursor's Agents Window.
 > prompts (OAuth in the browser with PKCE, or a pasted token; expired
 > tokens are refreshed), reviews changesets (files,
 > diffs, "reviewed" marks, host operations), shows background work,
-> canvases and session details, and starts new sessions (host, agent,
+> canvases and session details, and starts new sessions from a draft
+> in the session pane (host, agent,
 > model and its options such as the thinking level, a folder browsed on
 > the host, and the agent's settings such as the mode). The inbox has
 > filters, search, sort, a "Pinned" section at the top, rename, archive
@@ -146,8 +147,10 @@ just run chrome 'ws://127.0.0.1:63877?tkn=...'   # prefill the host URL
    under **Recent hosts**, most recent first, where you can reconnect, edit
    or forget them.
 
-4. Pick a session, or press **+** to start one: choose the agent, model and
-   folder, write a prompt and press Enter. In a session, Enter sends a
+4. Pick a session, or press **+** to start one: a draft opens in the
+   session pane, laid out like a session; choose the agent, model and
+   folder above its prompt, write the prompt and press Enter, and the
+   pane switches to the new session. In a session, Enter sends a
    follow-up (or queues it while the agent works), Cmd/Ctrl+Enter steers the
    running turn, Shift+Enter adds a newline, and **Stop** cancels the turn.
 

@@ -49,15 +49,6 @@ smoke-tested Windows, iOS and Android in CI, added the app icon, the
 AppImage and the release workflow (see
 [docs/packaging.md](docs/packaging.md)). Remaining work:
 
-- **Highest priority (user feedback, 2026-10-16):** do these before the
-  items below.
-
-  - **New session in the session pane (AV-040):** "New session" opens a
-    separate screen. It should open in the session pane, laid out like
-    an open session (empty timeline, the follow-up box as the prompt,
-    host, agent, model and folder pickers inline), as the GitHub agents
-    view does.
-
 - **SSH terminal (AV-014), remaining details:** no terminal on the web
   (browsers have no TCP sockets; a WebSocket-to-SSH bridge on the host
   would be needed). The SSH agent works only on Linux: not in the
@@ -71,7 +62,7 @@ AppImage and the release workflow (see
   opening another terminal. They are not driven on iOS or Android or in
   the desktop smoke tests.
 - **`/` completions (AV-044), remaining details:** the new-session
-  composer has no chat to send `completions` for, so it offers only the
+  draft has no chat to send `completions` for, so it offers only the
   skills and prompts the agent lists in `AgentInfo.customizations`
   (parsed `children` only; pi lists none, so there are no completions
   there against pi). Accepted attachments are sent when their insert
@@ -120,6 +111,17 @@ AppImage and the release workflow (see
   `activeClients`, so a host following the protocol never delegates one
   to it.
 - **Composer and settings, remaining details (AV-040 to AV-043):**
+  - New-session drafts live in memory only: they are lost when the app
+    restarts and are not synced to other clients (AHP has no session to
+    hold a draft before `createSession`). The sidebar lists only the last
+    opened draft; drafts for other hosts and folders come back by
+    starting "New session" there again. Drafts with no text are dropped.
+  - The draft's compact pickers offer only choices: a model option that
+    is a switch, number or text (none seen on pi or the fake host) is
+    sent with its default, and session settings that are not choices
+    (such as `branch`) are form fields in the timeline area rather than
+    inline chips. There is no repository or base-branch chip like the
+    GitHub agents view's, beyond what the agent's settings offer.
   - Settings are edited only when they are JSON primitives: `array` and
     `object` properties of a model `configSchema` or session config are
     sent with their defaults and not shown. Custom agents

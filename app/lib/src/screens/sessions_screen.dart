@@ -8,6 +8,8 @@ import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../composer/new_session_draft.dart';
+import '../composer/new_session_view.dart';
 import '../connection_notices.dart';
 import '../host_connection.dart';
 import '../hosts/open_hosts.dart';
@@ -35,7 +37,6 @@ import '../runs/run_group_store.dart';
 import '../runs/run_groups.dart';
 import 'connect_screen.dart';
 import 'host_storage_banner.dart';
-import 'new_session_screen.dart';
 
 /// Width of the session list pane on medium and wide layouts.
 const _listPaneWidth = 380.0;
@@ -74,8 +75,17 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
   /// The shown sessions in list order, for next/previous (AV-140).
   List<SessionRef> _order = const [];
 
-  /// The session page pushed on compact layouts, while open.
+  /// The session (or new-session) page pushed on compact layouts, while
+  /// open.
   Route<void>? _detailRoute;
+
+  /// The new session being drafted (AV-040), shown in the session pane
+  /// while [_selected] is null and listed atop the sidebar until it
+  /// starts or is discarded.
+  NewSessionTarget? _draft;
+
+  /// What was typed in drafts, by where they were opened; kept in memory.
+  var _drafts = <NewSessionTarget, NewSessionDraft>{};
 
   StreamSubscription<AppCommand>? _commands;
 
@@ -156,6 +166,17 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
     ),
   );
 
+  Widget _draftView(NewSessionTarget target) => NewSessionView(
+    key: ValueKey(target),
+    target: target,
+    draft: _drafts[target],
+    onDraftChanged: (draft) => _drafts = withDraft(_drafts, target, draft),
+    onStarted: (session) {
+      _discardDraft(target, closePage: false);
+      _select(session);
+    },
+  );
+
   void _select(SessionRef session) {
     setState(() => _selected = session);
     final groups = _groups;
@@ -167,8 +188,38 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
             (ids) => revealSession({...ids}, groups, session, pinned: pinned),
           ),
     );
+    _showPage((_) => _detailPage(session));
+  }
+
+  /// Shows the draft for [target] in the session pane, or as a page on
+  /// compact layouts.
+  void _openDraft(NewSessionTarget target) {
+    setState(() {
+      _draft = target;
+      _selected = null;
+    });
+    _showPage((_) => Scaffold(appBar: AppBar(), body: _draftView(target)));
+  }
+
+  /// Forgets the draft for [target]; pops its page on compact layouts
+  /// when [closePage].
+  void _discardDraft(NewSessionTarget target, {bool closePage = true}) {
+    _drafts = {
+      for (final MapEntry(:key, :value) in _drafts.entries)
+        if (key != target) key: value,
+    };
+    if (_draft != target) return;
+    setState(() => _draft = null);
+    if (closePage && (_detailRoute?.isCurrent ?? false)) {
+      Navigator.of(context).pop();
+    }
+  }
+
+  /// Pushes [page] on compact layouts, replacing the open session or
+  /// draft page; the other layouts show it in the pane.
+  void _showPage(WidgetBuilder page) {
     if (_tier != LayoutTier.compact) return;
-    final route = MaterialPageRoute<void>(builder: (_) => _detailPage(session));
+    final route = MaterialPageRoute<void>(builder: page);
     final navigator = Navigator.of(context);
     final previous = _detailRoute;
     _detailRoute = route;
@@ -192,7 +243,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
     if (!(ModalRoute.of(context)?.isCurrent ?? false) && !detailOnTop) return;
     switch (command) {
       case AppCommand.newSession:
-        unawaited(_newSession());
+        _newSession();
       case AppCommand.searchSessions:
         if (detailOnTop) Navigator.of(context).pop();
         _searchFocus.requestFocus();
@@ -221,17 +272,10 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
     if (next != null && next != _selected) _select(next);
   }
 
-  Future<void> _newSession({String? host, String? directory}) async {
-    final session = await Navigator.of(context).push(
-      MaterialPageRoute<SessionRef>(
-        builder: (_) => NewSessionScreen(
-          initialHost: host ?? _hostFilter,
-          initialDirectory: directory,
-        ),
-      ),
-    );
-    if (session != null && mounted) _select(session);
-  }
+  /// Opens a new-session draft (AV-040) on [host] in [directory] (a
+  /// folder's "+"), else on the filtered host.
+  void _newSession({String? host, String? directory}) =>
+      _openDraft((host: host ?? _hostFilter, directory: directory));
 
   Future<void> _addHost() => Navigator.of(context).push(
     MaterialPageRoute<void>(
@@ -399,7 +443,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
           IconButton(
             tooltip: 'New session (${shortcutLabel(AppCommand.newSession)})',
             icon: const Icon(Icons.add),
-            onPressed: _newSession,
+            onPressed: () => _newSession(),
           ),
           for (final (:host, :notice) in notices)
             Padding(
@@ -473,6 +517,16 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                   },
                   onDone: _endSelection,
                 ),
+              if (_draft case final draft?)
+                _DraftRow(
+                  selected:
+                      selected == null &&
+                      (tier != LayoutTier.compact ||
+                          (_detailRoute?.isActive ?? false)),
+                  dense: tier != LayoutTier.compact,
+                  onOpen: () => _openDraft(draft),
+                  onDiscard: () => _discardDraft(draft),
+                ),
               Expanded(
                 child: SessionListView(
                   tree: tree,
@@ -532,7 +586,10 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                 const VerticalDivider(width: 1),
                 Expanded(
                   child: selected == null
-                      ? const Center(child: Text('Select a session'))
+                      ? switch (_draft) {
+                          final draft? => _draftView(draft),
+                          null => const Center(child: Text('Select a session')),
+                        }
                       : HostScope(
                           host: selected.host,
                           child: SessionDetailView(
@@ -714,6 +771,45 @@ class _SelectionBar extends StatelessWidget {
           onPressed: onDone,
         ),
       ],
+    ),
+  );
+}
+
+/// The new-session draft atop the session list (AV-040): selected while
+/// the session pane shows it; it reopens the draft or discards it.
+class _DraftRow extends StatelessWidget {
+  const _DraftRow({
+    required this.selected,
+    required this.dense,
+    required this.onOpen,
+    required this.onDiscard,
+  });
+
+  /// Whether the session pane shows the draft.
+  final bool selected;
+
+  /// Thin rows for desktop layouts.
+  final bool dense;
+
+  /// Shows the draft.
+  final VoidCallback onOpen;
+
+  /// Forgets the draft and what was typed in it.
+  final VoidCallback onDiscard;
+
+  @override
+  Widget build(BuildContext context) => ListTile(
+    key: const ValueKey('new-session-draft'),
+    dense: dense,
+    selected: selected,
+    leading: const Icon(Icons.edit_note),
+    title: const Text(newSessionTitle),
+    subtitle: const Text('Draft'),
+    onTap: onOpen,
+    trailing: IconButton(
+      tooltip: 'Discard the draft',
+      icon: const Icon(Icons.close),
+      onPressed: onDiscard,
     ),
   );
 }

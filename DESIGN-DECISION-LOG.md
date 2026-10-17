@@ -31,6 +31,43 @@ sessions should sit together above every host and workspace.
   and folder ids contain `|`, so the id cannot clash. Opening a pinned
   session expands the section instead of its host and folder.
 
+## 2026-10-16: New sessions are drafted in the session pane (AV-040)
+
+- **Start a session where its timeline will be.** The GitHub agents view
+  (github.com/copilot/agents and the Agents panel) starts a task from
+  its prompt box: the repository, base branch, agent and model pickers
+  sit in the prompt field, Enter or "Start task" submits, and the new
+  session appears in the list right away. "New session" (the toolbar
+  button, a folder's "+", Cmd/Ctrl+N, the macOS menu) now opens a draft
+  in the session pane instead of pushing a separate screen: a "New
+  session" header, an empty timeline with a hint, and the same
+  `FollowUpInput` as an open session, used as the prompt. On compact
+  layouts the draft is the session page, and the started session
+  replaces it, so Back returns to the list.
+- **Reuse the follow-up box and its pickers.** `FollowUpInput` takes an
+  optional `controller` (the caller then owns and clears the text, so a
+  failed start keeps the prompt), a label, a hint and a send tooltip
+  ("Start session", "Start 3 runs"). Its `MessageSettingsBar` picks the
+  model, the model's choice options and the dropdown session settings
+  (such as `mode`); `compactPicker` was pulled out of it for the draft's
+  host and agent pickers. The working directory stays a text field (with
+  "Browse…" and a recent folders menu) because paths are often typed.
+  Settings that are not choices (such as `branch` with host suggestions)
+  and the parallel runs editor sit in the empty timeline area rather
+  than crowd the prompt. `isPickerField` decides which go where.
+- **Drafts in memory, listed in the sidebar.** The sessions screen keeps
+  what was typed per `NewSessionTarget` (the host and folder "New
+  session" preselected; `withDraft` drops empty drafts), so switching to
+  another session and back keeps the prompt, host, agent and folder. The
+  open draft is a "New session" row atop the session list, highlighted
+  while shown, with "Discard the draft". It is not stored or synced:
+  AHP has no session to hold a draft before `createSession`.
+- **Switch in place on success.** `onStarted` drops the draft and
+  selects the first started session, as a click in the list would; the
+  host's `createSession` plus the first `chat/turnStarted` put the
+  prompt in its timeline. Starting runs and splitting their results is
+  the pure `runOutcome`. The old `new_session_screen.dart` was removed.
+
 ## 2026-10-16: `/` completions in the composer and follow-up box (AV-044)
 
 - **The host's `completions` first, the session's skills second.** AHP

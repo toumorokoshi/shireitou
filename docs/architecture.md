@@ -229,7 +229,8 @@ Dart source); `bin/generate.dart` does the file I/O. See
   [ssh-terminal.md](ssh-terminal.md).
 - `lib/src/composer/`: `config_fields.dart` is pure: a model's
   `configSchema` and a session config schema become `ConfigField`s, with
-  `configValues`, `modelSelection` and `mutableSessionFields`.
+  `configValues`, `modelSelection`, `isPickerField` and
+  `mutableSessionFields`.
   `config_form.dart` renders them (dropdowns, switches, text, and host
   suggestions for `enumDynamic`), and `directory_browser.dart` is the
   `resourceList` folder picker. `completions.dart` is pure (AV-044): a
@@ -256,7 +257,7 @@ Dart source); `bin/generate.dart` does the file I/O. See
   keys to commands above the navigator (except on macOS, where the menu
   sends them); the sessions screen handles new session, search and
   next/previous, the visible session view handles stop and focus
-  composer, and its timeline previous and next turn (AV-074), each only
+  composer (the new-session draft focuses its prompt), and its timeline previous and next turn (AV-074), each only
   while its route is on top.
 - `lib/src/app.dart`: `MaterialApp` with light and dark themes that follow
   the system, titled with the attention count (`windowTitle`, AV-120).
@@ -381,7 +382,8 @@ Dart source); `bin/generate.dart` does the file I/O. See
   (`allowFreeformInput`) with the choice, for plan reviews (AV-046).
 - `lib/src/runs/`: parallel runs (AV-045). `run_groups.dart` is pure
   (`RunGroup` of `RunMember`s and a winner, `withGroup`, `withWinner`,
-  `groupOf`, `labelsOfRuns`, JSON, `lastReplyOf`); `run_group_store.dart`
+  `groupOf`, `labelsOfRuns`, JSON, `lastReplyOf`, `runOutcome` for the
+  started and failed runs); `run_group_store.dart`
   keeps the groups with `PrefsStore`; `runs_editor.dart` is the
   composer's "Add a run" section; `compare_screen.dart` shows the runs
   side by side (subscribing to each run's default chat), picks a winner
@@ -419,9 +421,21 @@ Dart source); `bin/generate.dart` does the file I/O. See
 - `lib/src/channels.dart`: `ChannelSubscriber`, which keeps a channel
   subscribed while a widget is mounted, and `resourceTextProvider`, which
   reads `ContentRef` text with `resourceRead`.
-- `lib/src/screens/new_session_screen.dart`: the composer (host, agent,
-  model and its options, working directory with folder browser and recent
-  folders, the agent's session settings from `resolveSessionConfig`,
-  prompt). In a session, `message_settings.dart` is the bar above the
-  follow-up box that picks the next message's model and options and
-  changes `sessionMutable` settings.
+- `lib/src/composer/new_session_view.dart`: the new-session draft
+  (AV-040), shown in the session pane (or as the session page on compact
+  layouts) and laid out like an open session: a "New session" header, an
+  empty timeline with a hint, the agent's non-dropdown settings (such as
+  `branch`) and the parallel runs editor, then compact host, agent and
+  working directory pickers (with "Browse…" and recent folders) above
+  the follow-up box (`FollowUpInput` with its own `controller`), whose
+  bar picks the model, its options and the dropdown settings (such as
+  `mode`). Sending starts the session (or runs) and calls `onStarted`;
+  the sessions screen then opens the session in place.
+  `new_session_draft.dart` is pure: `NewSessionTarget` (the host and
+  folder "New session" preselected), `NewSessionDraft` (what was picked
+  and typed), `withDraft` and `initialDirectoryText`; the sessions screen
+  keeps the drafts in memory and lists the open draft atop the sidebar.
+  In a session, `message_settings.dart` is the bar above the follow-up
+  box that picks the next message's model and options and changes
+  `sessionMutable` settings; its `compactPicker` is the dropdown both
+  use.
