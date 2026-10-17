@@ -931,4 +931,22 @@ void main() {
     await tester.pumpAndSettle();
     expect(_atTop(tester, 'Question 0\nwith details'), isTrue);
   });
+
+  testWidgets(
+    'scrolling past the oldest row pages older turns in, also '
+    'with bouncing physics (AV-068)',
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    (tester) async {
+      final connection = await _pump(
+        tester,
+        _state(chat: _longChat(3, from: 3, cursor: 'c1')),
+      );
+      expect(connection.loadedOlder, isEmpty);
+      // Overscrolled far past the top, the "load older" row is never built.
+      await tester.drag(find.byType(SuperListView), const Offset(0, 30000));
+      await tester.pump();
+      expect(connection.loadedOlder, isNotEmpty);
+      await tester.pumpAndSettle();
+    },
+  );
 }

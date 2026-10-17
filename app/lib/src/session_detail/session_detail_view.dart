@@ -1002,6 +1002,7 @@ class _TimelineState extends ConsumerState<_Timeline> {
     _scroll.addListener(() {
       final away = _scroll.offset > 200;
       if (away != _awayFromLatest) setState(() => _awayFromLatest = away);
+      _loadOlderNearTop();
     });
     // The visible rows are known after layout, when the list notifies.
     _list.addListener(_scheduleCurrentTurn);
@@ -1017,6 +1018,19 @@ class _TimelineState extends ConsumerState<_Timeline> {
   }
 
   TimelineRows get _rows => timelineItems(widget.chat);
+
+  /// Pages older turns in when the user scrolls near (or, with bouncing
+  /// physics, past) the oldest row (AV-068). The "load older" row does the
+  /// same when it is built, but rows past the end of the list are not
+  /// built while it is overscrolled.
+  void _loadOlderNearTop() {
+    final position = _scroll.position;
+    if (widget.chat.turnsNextCursor != null &&
+        position.hasContentDimensions &&
+        position.pixels >= position.maxScrollExtent - 250) {
+      unawaited(widget.onLoadOlder());
+    }
+  }
 
   /// The timeline row of the oldest list item on screen.
   int? get _topRow {

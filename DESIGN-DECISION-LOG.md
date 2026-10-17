@@ -133,6 +133,12 @@
   extraction (reusing `UserMessageItem` keys and `TimelineRows`), the
   current and stepped turn, the dot spacing (even, up to 24 dp, down to
   4 dp, then scrolling) and scrubbing; `turn_rail.dart` only draws.
+- **Older turns also page in from the scroll position.** Unlike
+  `ListView`, `SuperListView` builds no rows past the end of the list
+  while it is overscrolled, so with bouncing physics (macOS, iOS) a long
+  drag past the top never built the "load older" row and paging stalled.
+  The timeline now also loads older turns when the scroll position comes
+  within 250 dp of (or past) the oldest row.
 - **Compact layouts keep a 14 dp rail**, where dragging along the dots
   scrubs through turns (touch targets for single dots are too small
   there). One-turn chats show no rail.

@@ -434,7 +434,9 @@ void main() {
     final deadline = DateTime.now().add(const Duration(seconds: 40));
     while (find.text('Question 1').evaluate().isEmpty) {
       if (DateTime.now().isAfter(deadline)) h.timedOut('Question 1');
-      await tester.drag(timeline.first, const Offset(0, 3000));
+      // Small steps: a long drag overscrolls far past the oldest row on
+      // platforms with bouncing physics (macOS).
+      await tester.drag(timeline.first, const Offset(0, 400));
       await h.idle(100);
     }
     expect(host.chat(longChat)!.turnsNextCursor, isNull);
