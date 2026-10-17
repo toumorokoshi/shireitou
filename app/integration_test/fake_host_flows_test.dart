@@ -414,6 +414,11 @@ void main() {
       if (DateTime.now().isAfter(deadline)) h.timedOut('Question 1');
       await tester.drag(timeline.first, const Offset(0, 3000));
       await h.idle(100);
+      final pos = tester.state<ScrollableState>(timeline.first).position;
+      debugPrint(
+        'DIAG paging pixels=${pos.pixels} max=${pos.maxScrollExtent} '
+        'viewport=${pos.viewportDimension} questions=${[for (final e in find.textContaining('Question').evaluate()) (e.widget as Text).data]}',
+      );
     }
     expect(host.chat(longChat)!.turnsNextCursor, isNull);
   }, timeout: const Timeout(Duration(minutes: 3)));

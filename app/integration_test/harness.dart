@@ -207,6 +207,18 @@ class AppHarness {
     final texts = [
       for (final e in find.byType(Text).evaluate()) (e.widget as Text).data,
     ];
+    for (final e in find.byType(Scrollable).evaluate()) {
+      final state = (e as StatefulElement).state as ScrollableState;
+      final p = state.position;
+      final box = e.renderObject as RenderBox?;
+      debugPrint(
+        'DIAG scrollable ${state.axisDirection} pixels=${p.hasPixels ? p.pixels : null} '
+        'min=${p.hasContentDimensions ? p.minScrollExtent : null} '
+        'max=${p.hasContentDimensions ? p.maxScrollExtent : null} '
+        'viewport=${p.hasViewportDimension ? p.viewportDimension : null} '
+        'size=${box?.size} at=${box?.localToGlobal(Offset.zero)}',
+      );
+    }
     fail(
       'timed out waiting for $what; texts: $texts; '
       'host received: ${describeHost()}',

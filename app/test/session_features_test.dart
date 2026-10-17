@@ -931,4 +931,72 @@ void main() {
     await tester.pumpAndSettle();
     expect(_atTop(tester, 'Question 0\nwith details'), isTrue);
   });
+
+  testWidgets('SCRATCH paging by drag', (tester) async {
+    ChatState window(int from) => ChatState(
+      resource: _chat,
+      title: 'Fix login',
+      status: SessionStatus.idle,
+      modifiedAt: '2026-10-01T00:00:00Z',
+      turnsNextCursor: from > 1 ? 'c$from' : null,
+      turns: [
+        for (var i = from; i <= 60; i++)
+          Turn(
+            id: 'long-$i',
+            duration: 1200,
+            message: userMessage('Question $i'),
+            state: TurnState.complete,
+            responseParts: [
+              MarkdownResponsePart(
+                id: 'md-$i',
+                content: i % 5 == 0
+                    ? 'Answer $i, with code:\n\n```python\nprint($i)\n```'
+                    : 'Answer $i.',
+              ),
+            ],
+          ),
+      ],
+    );
+    final prefs = MemoryPrefsStore();
+    await prefs.write('review_pane_open', 'true');
+    final connection = _Pager(_state(chat: window(41)), (from) => _state(chat: window(from)));
+    tester.view.physicalSize = const Size(1400, 677);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ...hostOverrides(connection: connection),
+          prefsStoreProvider.overrideWithValue(prefs),
+        ],
+        child: const ShireitouApp(),
+      ),
+    );
+    await tester.tap(find.text('Fix login').first);
+    await tester.pumpAndSettle();
+    final timeline = find.byWidgetPredicate(
+      (w) => w is Scrollable && w.axisDirection == AxisDirection.up,
+    );
+    for (var i = 0; i < 40 && find.text('Question 1').evaluate().isEmpty; i++) {
+      await tester.drag(timeline.first, const Offset(0, 3000));
+      await tester.pump(const Duration(milliseconds: 100));
+      final texts = [for (final e in find.byType(Text).evaluate()) (e.widget as Text).data].where((t) => t != null && (t.startsWith('Question') || t.startsWith('Loading'))).toList();
+      debugPrint('SCR $i ${connection.from} $texts');
+    }
+    expect(find.text('Question 1'), findsOneWidget);
+  });
+}
+
+class _Pager extends FakeHostConnection {
+  _Pager(super.initial, this.page);
+  final HostState Function(int from) page;
+  int from = 41;
+  @override
+  Future<bool> loadOlderTurns(String chat) async {
+    if (from <= 1) return false;
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    from -= 20;
+    state = page(from);
+    return true;
+  }
 }
