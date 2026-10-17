@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../channels.dart';
 import '../host_connection.dart';
+import '../theme/app_colors.dart';
 import 'code_highlight.dart';
 import 'diff_view.dart';
 import 'terminal_text.dart';
@@ -94,8 +95,9 @@ class TerminalBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    const background = Color(0xFF1E1E1E);
-    final style = codeStyle(context).copyWith(color: const Color(0xFFD4D4D4));
+    final colors = AppColors.of(context);
+    final style = codeStyle(context)
+        .copyWith(color: colors.terminal.foreground);
     final body = SingleChildScrollView(
       reverse: true,
       padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
@@ -103,7 +105,7 @@ class TerminalBox extends StatelessWidget {
     );
     return Container(
       decoration: BoxDecoration(
-        color: background,
+        color: colors.terminal.background,
         borderRadius: BorderRadius.circular(6),
       ),
       child: Column(
@@ -112,15 +114,15 @@ class TerminalBox extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(10, 6, 6, 6),
-                child: Icon(Icons.terminal, size: 16, color: Colors.white70),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(10, 6, 6, 6),
+                child: Icon(Icons.terminal, size: 16, color: colors.mutedText),
               ),
               Expanded(
                 child: Text(
                   title,
                   style: theme.textTheme.labelMedium?.copyWith(
-                    color: Colors.white,
+                    color: colors.terminal.foreground,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -128,7 +130,7 @@ class TerminalBox extends StatelessWidget {
               Text(
                 status,
                 style: theme.textTheme.labelSmall?.copyWith(
-                  color: Colors.white70,
+                  color: colors.mutedText,
                 ),
               ),
               if (onOpen != null)
@@ -136,7 +138,7 @@ class TerminalBox extends StatelessWidget {
                   tooltip: 'Open terminal',
                   iconSize: 16,
                   visualDensity: VisualDensity.compact,
-                  color: Colors.white70,
+                  color: colors.mutedText,
                   icon: const Icon(Icons.open_in_full),
                   onPressed: onOpen,
                 )

@@ -271,11 +271,17 @@ Dart source); `bin/generate.dart` does the file I/O. See
   system font). `app_colors.dart` is the `AppColors` `ThemeExtension`
   with the tokens `ColorScheme` has no slot for: `sidebarBackground`,
   `titleBarBackground`, `raisedSurface`, `hairline`, `mutedText`,
-  `bubbleFill`, `selectedFill`, `hoverFill` and `statusColors` (running,
-  attention, done, error, idle). Widgets read them with
+  `bubbleFill`, `selectedFill`, `hoverFill`, `statusColors` (running,
+  attention, done, error, idle), the diff's `diffAddedFill`,
+  `diffRemovedFill` and `diffGutterText`, and `terminal`, xterm.dart's
+  `TerminalTheme` with VS Code's terminal palette, used by the AHP
+  terminal preview and the SSH terminal. Widgets read them with
   `AppColors.of(context)`, which falls back to values derived from the
   `ColorScheme` under a theme without the extension; use these instead
-  of hard-coded colours.
+  of hard-coded colours. `highlight_themes.dart` holds the code
+  highlighting themes (VS Code's Dark+ and Light+), and `contrast.dart`
+  the WCAG contrast ratio that `test/contrast_test.dart` uses to check
+  the tokens of both themes (4.5:1 for text, 3:1 for status dots).
 - `lib/src/screens/`: the connect screen and the sessions screen. The
   sessions screen picks a layout tier with `layoutTierFor(width)`:
   compact (< 700 dp) pushes the session onto a new page under a small

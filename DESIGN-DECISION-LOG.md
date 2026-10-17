@@ -1,5 +1,41 @@
 # Design Decision Log
 
+## 2026-10-17: Diff, terminal and highlight colours come from the theme; contrast is tested (AV-090)
+
+The diff view, the AHP terminal preview and the SSH terminal used fixed
+colours (a dark terminal in the light theme, GitHub's diff colours), and
+the status dot and muted text colours had not been checked for contrast.
+
+- **VS Code's colours.** The app's greys are VS Code's, so the new
+  tokens are VS Code's defaults: diff lines use its translucent
+  inserted and removed line fills (`#9BB95533`, `#FF000033`) over the
+  diff area, line numbers its `editorLineNumber.foreground`, and
+  terminals its integrated terminal palette, on the sidebar's grey so a
+  terminal reads as an inset box in both themes. Code is highlighted in
+  Dark+ and Light+ (`highlight_themes.dart`) instead of GitHub's themes.
+- **The terminal palette is xterm.dart's `TerminalTheme`.** It already
+  has the fields the SSH terminal needs, so `AppColors.terminal` holds
+  one instead of a copy of the type; it has no lerp, so it switches
+  halfway through a theme change.
+- **Contrast is a test, not a review.** `contrastRatio` (WCAG 2.x, with
+  translucent colours composited first) is checked against the tokens
+  of both themes in `test/contrast_test.dart`. Text, muted text, error
+  text and links need 4.5:1 and status dots 3:1 on every surface they
+  sit on (including the selected and hovered rows). To pass, the muted
+  text became `#999999` (dark) and `#616166` (light), the idle dot
+  `#808080` and `#787878`, and the light attention dot `#9A6700`; five
+  highlight colours were nudged (dark comment and regexp, light number,
+  type and attribute).
+- **Hairlines stay decorative.** Making dividers and box borders 3:1
+  would make them heavy, unlike the reference, and WCAG 1.4.11 does not
+  ask it of borders that are not needed to identify a control; fields
+  have placeholders and an accent border when focused (3:1). The test
+  only keeps hairlines visible (1.1:1).
+- **Diff fills keep syntax colours at 3:1.** On a tinted line some
+  highlight colours fall under 4.5:1 (as in VS Code); the plain code
+  text stays at 4.5:1 and the line numbers, which repeat the position,
+  at 3:1.
+
 ## 2026-10-16: Hosts are no longer a level of the sidebar (AV-092, AV-093)
 
 The user decided the sidebar should follow the reference UI

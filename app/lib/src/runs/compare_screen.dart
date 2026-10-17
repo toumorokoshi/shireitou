@@ -17,6 +17,7 @@ import '../session_list/status_badges.dart';
 import '../session_list/session_list_view.dart';
 import '../session_detail/session_inputs.dart';
 import '../session_detail/todo_list.dart';
+import '../theme/app_theme.dart';
 import 'run_group_store.dart';
 import 'run_groups.dart';
 
@@ -174,7 +175,7 @@ class _RunColumn extends StatelessWidget {
       shape: picked
           ? RoundedRectangleBorder(
               side: BorderSide(color: theme.colorScheme.primary, width: 2),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(appRadius),
             )
           : null,
       child: Padding(

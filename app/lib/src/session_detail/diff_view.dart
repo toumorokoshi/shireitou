@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../channels.dart';
 import '../host_connection.dart';
+import '../theme/app_colors.dart';
 import 'code_highlight.dart';
 import 'diff_lines.dart';
 
@@ -134,16 +135,11 @@ class _Message extends StatelessWidget {
       Padding(padding: const EdgeInsets.all(8), child: Text(text));
 }
 
-Color? _lineColor(BuildContext context, DiffLineKind? kind) {
-  final dark = Theme.of(context).brightness == Brightness.dark;
-  return switch (kind) {
-    DiffLineKind.added =>
-      dark ? const Color(0xFF12361F) : const Color(0xFFE6FFEC),
-    DiffLineKind.removed =>
-      dark ? const Color(0xFF4A1D20) : const Color(0xFFFFEBE9),
-    _ => null,
-  };
-}
+Color? _lineColor(AppColors colors, DiffLineKind? kind) => switch (kind) {
+  DiffLineKind.added => colors.diffAddedFill,
+  DiffLineKind.removed => colors.diffRemovedFill,
+  _ => null,
+};
 
 String _marker(DiffLineKind kind) => switch (kind) {
   DiffLineKind.added => '+',
@@ -169,10 +165,11 @@ class _LineRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final base = codeStyle(context);
-    final muted = base.copyWith(color: theme.colorScheme.onSurfaceVariant);
+    final colors = AppColors.of(context);
+    final muted = base.copyWith(color: colors.diffGutterText);
     String number(int? n) => (n?.toString() ?? '').padLeft(4);
     return Container(
-      color: _lineColor(context, line.kind),
+      color: _lineColor(colors, line.kind),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:xterm/xterm.dart';
 
 import '../hosts/saved_hosts.dart';
+import '../theme/app_colors.dart';
 import 'ssh_connect.dart';
 import 'ssh_settings.dart';
 import 'ssh_settings_dialog.dart';
@@ -222,6 +223,7 @@ class _SshTerminalViewState extends State<SshTerminalView> {
             focusNode: _focus,
             autofocus: true,
             keyboardAppearance: theme.brightness,
+            theme: AppColors.of(context).terminal,
             padding: const EdgeInsets.all(4),
             onSecondaryTapDown: (_, _) => unawaited(_copyOrPaste()),
           ),
@@ -271,7 +273,7 @@ class _StatusBar extends StatelessWidget {
       SshStatus.connected => (
         Icons.circle,
         'Connected to ${terminal.settings.label}',
-        Colors.green,
+        AppColors.of(context).statusColors.done,
       ),
       SshStatus.disconnected => (
         Icons.link_off,

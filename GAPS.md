@@ -59,9 +59,16 @@ AppImage and the release workflow (see
 
 - **Theme and title bar (AV-090, AV-091), remaining details:** the
   theme's tokens are in `app/lib/src/theme/` (`AppColors.of(context)`;
-  see [docs/architecture.md](docs/architecture.md)); hard-coded colours
-  remain in the diff view and the terminal preview, for the timeline
-  restyle (AV-095) to move onto the tokens. The font is the platform's system
+  see [docs/architecture.md](docs/architecture.md)). Contrast is checked
+  for text, muted text, status dots, error text, links, diff text and
+  the terminal's foreground; hairlines are left faint as decoration, so
+  an unfocused field's border is under 3:1 (the field is found by its
+  placeholder), and highlighted code on a removed or added diff line is
+  held to 3:1, not 4.5:1, as in VS Code. The terminal's ANSI colours
+  (VS Code's) are not checked, since the preview shows plain text. The
+  timeline's tool call, error and todo cards and the composer's popups
+  still use `Card` and `elevation:` (flat through the theme's
+  `cardTheme`, but menus keep a 2 dp shadow). The font is the platform's system
   font (no Inter asset). On macOS the bar keeps the traffic lights'
   space in full screen too (where they are hidden), a double-click
   always zooms (the system's "double-click a window's title bar"
@@ -384,8 +391,7 @@ AppImage and the release workflow (see
   hover). The hover card is a tooltip: it cannot be clicked (the path is
   not a link) and does not show on touch. The colours come from the
   AV-090 tokens (`AppColors`); unread has no status token, so its dot
-  uses the text colour (`colorScheme.onSurface`), and the dot colours
-  were not checked for contrast on both themes. The reference's
+  uses the text colour (`colorScheme.onSurface`). The reference's
   "Automations", "+N more" and "Customizations" footer are not built,
   by decision.
 - **Hosts (AV-010 to AV-012):** the open hosts' keys are saved with the

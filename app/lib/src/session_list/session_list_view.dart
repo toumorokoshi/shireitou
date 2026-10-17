@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 
 import '../hosts/open_hosts.dart';
-import '../theme/app_colors.dart';
+import '../theme/app_theme.dart';
 import 'folder_grouping.dart';
 import 'relative_time.dart';
 import 'session_tree.dart';
@@ -695,8 +695,13 @@ class _FolderHeader extends StatelessWidget {
     );
     return LayoutBuilder(
       builder: (context, constraints) {
+        final colors = AppColors.of(context);
         final feedback = Material(
-          elevation: 4,
+          color: colors.raisedSurface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(appRadius),
+            side: BorderSide(color: colors.hairline),
+          ),
           child: SizedBox(
             width: constraints.maxWidth,
             child: _row(interactive: false),
