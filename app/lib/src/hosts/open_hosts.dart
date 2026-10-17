@@ -31,8 +31,10 @@ class OpenHosts extends Notifier<List<SavedHost>> {
   List<SavedHost> build() => const [];
 
   /// Reconnects the remembered hosts that were open when the app last
-  /// ran (once; later calls do nothing). Hosts that fail stay open with
-  /// their error, so they can be retried.
+  /// ran (once; later calls do nothing). A host that cannot be reached
+  /// yet (asleep, or not started) is retried with backoff, reconnecting;
+  /// hosts that fail otherwise stay open with their error, so they can be
+  /// retried.
   Future<void> restore() async {
     if (_restored) return;
     _restored = true;
@@ -49,7 +51,15 @@ class OpenHosts extends Notifier<List<SavedHost>> {
     if (hosts.isEmpty) return;
     // Listed at once, in their old order, while they connect.
     state = hosts.fold(state, withHost);
-    await Future.wait([for (final host in hosts) _connect(host)]);
+    await Future.wait([for (final host in hosts) _connect(host, retry: true)]);
+  }
+
+  /// Retries every reconnecting host now and pings the connected ones,
+  /// for when the app returns to the foreground.
+  void checkConnections() {
+    for (final host in state) {
+      ref.read(hostConnectionProvider(host.key).notifier).checkConnection();
+    }
   }
 
   /// Connects to [host] alongside the others (reconnecting it if it was
@@ -70,9 +80,14 @@ class OpenHosts extends Notifier<List<SavedHost>> {
     if (host != null) await _connect(host);
   }
 
-  Future<void> _connect(SavedHost host) async {
+  Future<void> _connect(SavedHost host, {bool retry = false}) async {
     final connection = ref.read(hostConnectionProvider(host.key).notifier);
-    await connection.connect(host.url, token: host.token, name: host.name);
+    await connection.connect(
+      host.url,
+      token: host.token,
+      name: host.name,
+      retry: retry,
+    );
     if (ref.read(hostConnectionProvider(host.key)).status !=
         ConnectionStatus.failed) {
       return;

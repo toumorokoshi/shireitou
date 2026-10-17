@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:ahp_client/ahp_client.dart';
+import 'package:json_rpc_2/json_rpc_2.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -73,5 +76,49 @@ void main() {
     expect(reconnectDelay(1), const Duration(seconds: 1));
     expect(reconnectDelay(3), const Duration(seconds: 4));
     expect(reconnectDelay(40), const Duration(seconds: 30));
+  });
+
+  group('isTransientConnectError', () {
+    test('an unreachable or silent host is worth retrying', () {
+      expect(
+        isTransientConnectError(
+          const ConnectionProblem('refused', 'Connection refused'),
+        ),
+        isTrue,
+      );
+      expect(
+        isTransientConnectError(
+          ConnectionProblem('slow', TimeoutException('initialize')),
+        ),
+        isTrue,
+      );
+      expect(isTransientConnectError(StateError('peer closed')), isTrue);
+    });
+
+    test('errors that need the user are not', () {
+      expect(
+        isTransientConnectError(RpcException(-32005, 'unsupported version')),
+        isFalse,
+      );
+      expect(
+        isTransientConnectError(const ConnectionProblem('use ws://')),
+        isFalse,
+      );
+      expect(
+        isTransientConnectError(
+          const ConnectionProblem(
+            'refused',
+            'was not upgraded to websocket, HTTP status code: 403',
+          ),
+        ),
+        isFalse,
+      );
+      expect(
+        isTransientConnectError(
+          const ConnectionProblem('tls', 'HandshakeException: bad cert'),
+        ),
+        isFalse,
+      );
+    });
   });
 }

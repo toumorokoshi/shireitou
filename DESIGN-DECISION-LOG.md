@@ -1,5 +1,45 @@
 # Design Decision Log
 
+## 2026-10-17: Reconnects that do not get stuck (AHP-004)
+
+A host that dropped could stay disconnected for good. The reconnect loop
+awaited the socket and the `reconnect`, `initialize` and `listSessions`
+requests with no timeout, so one attempt the host never answered (a
+device waking from sleep, a changed network, a proxy holding the socket
+open) left the client in "Reconnecting…" forever. And `connect` gave up
+after one failure, so a remembered host restored on start while it was
+not up yet (the laptop just woke, the host was restarting) stayed failed
+until the user pressed Retry.
+
+- **A `handshakeTimeout` (20 s) per step** (opening the socket and each
+  handshake request) rather than one timeout around the whole attempt:
+  a timed-out step closes its socket, and a socket that opens after the
+  timeout is closed again. 20 s is above `pingInterval` + `pingTimeout`
+  and a slow host's `listSessions`; the timeout raises a
+  `ConnectionProblem` naming the step, which the host menu shows.
+- **A connection generation** (bumped by `connect` and `close`) instead
+  of the `_reconnecting` flag: with attempts now abandoned, a late socket
+  or a loop from an earlier connection must not replace the current one,
+  and a stale loop must not block a new one from starting.
+- **`connect(retry: true)` reuses the reconnect loop**, sending
+  `initialize` until the host has initialized once (it has no state to
+  resume). Only errors retrying can fix are retried
+  (`isTransientConnectError`: unreachable, dropped, timed out); a
+  JSON-RPC error such as an unsupported version, a URL that cannot work,
+  a refused token (HTTP 401/403) or a TLS failure still ends in `failed`.
+  The status while retrying is `reconnecting`, so the session list shows
+  with "Reconnecting…" rather than the connect screen.
+- **Only restored hosts retry.** A host added or picked on the connect
+  screen still fails at once, so the user sees the error where they
+  typed the URL. Rejected: retrying every remembered host, which would
+  leave the connect screen with no error to show.
+- **`checkConnection()` on returning to the foreground.** After a sleep
+  the backoff may have reached its 30 s cap, or the socket may be dead
+  with the next ping 15 s away; resuming retries or pings at once.
+  Rejected: a connectivity plugin (`connectivity_plus`) to react to
+  network changes, as a new dependency for what the timeout, ping and
+  resume check already cover.
+
 ## 2026-10-17: Persistent app name in the title bar (AV-091)
 
 With a session open, the title bar's centre box showed only the

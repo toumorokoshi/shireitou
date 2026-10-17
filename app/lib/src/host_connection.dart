@@ -86,8 +86,14 @@ class HostConnection extends Notifier<HostState> {
   /// Connects to [url], adding [token] as the `tkn` query parameter, and
   /// remembers the host (with its optional [name]) once connected. On
   /// native platforms the token is also sent as an `Authorization: Bearer`
-  /// header (AHP-002).
-  Future<void> connect(String url, {String? token, String? name}) async {
+  /// header (AHP-002). With [retry], a host that cannot be reached keeps
+  /// being retried, reconnecting, instead of failing (`AhpClient.connect`).
+  Future<void> connect(
+    String url, {
+    String? token,
+    String? name,
+    bool retry = false,
+  }) async {
     await _dispose();
     final client = AhpClient(
       uri: withConnectionToken(normalizeHostUri(url), token?.trim()),
@@ -110,7 +116,7 @@ class HostConnection extends Notifier<HostState> {
       _signedIn.add(resources);
     });
     await auth.start();
-    await client.connect();
+    await client.connect(retry: retry);
     if (client.state.status == ConnectionStatus.connected) {
       await ref
           .read(savedHostsProvider.notifier)
@@ -123,6 +129,9 @@ class HostConnection extends Notifier<HostState> {
           );
     }
   }
+
+  /// Retries or pings now instead of waiting (`AhpClient.checkConnection`).
+  void checkConnection() => _client?.checkConnection();
 
   /// Closes the connection.
   Future<void> disconnect() async {

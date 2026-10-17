@@ -154,6 +154,18 @@ WebSocket ──► json_rpc_2 Peer ──► AhpClient (I/O edge)
   unsubscribed, unmirrored and recorded in
   `HostState.missingChannels` (cleared by subscribing again); the session
   view then says the session is gone.
+  Opening the socket and each handshake request (`initialize`,
+  `reconnect`, `listSessions`) has a `handshakeTimeout` (20 s), so an
+  attempt the host never answers is abandoned and retried instead of
+  leaving the client in "Reconnecting…". A connection generation,
+  bumped by `connect` and `close`, stops a loop or socket from an earlier
+  connection from replacing the current one. `connect(retry: true)`
+  enters the same loop when the first attempt fails with an error
+  `isTransientConnectError` says retrying can fix (unreachable, dropped,
+  timed out; not a JSON-RPC error, a refused token or TLS), sending
+  `initialize` instead of `reconnect` until the host has initialized
+  once. `checkConnection()` ends the backoff wait early, or pings a
+  connected host at once.
 - **Liveness:** while connected the client sends `ping` every
   `pingInterval` (15 s). No answer within `pingTimeout` (10 s) drops the
   socket and starts the reconnect loop, so a dead socket (sleeping laptop,
@@ -204,7 +216,10 @@ Dart source); `bin/generate.dart` does the file I/O. See
   pure `hostLabels`) and the merged inbox (`allSessionsProvider` of
   `HostSession`s). `OpenHosts` saves the open hosts' keys
   (`HostStore.saveOpenHosts`) and `restore()` (called by `HomeScreen` on
-  start) reconnects them; a remembered host whose connect fails stays
+  start) reconnects them, with `retry: true` so a host that is not up yet
+  keeps being retried (reconnecting); `HomeScreen` also calls
+  `checkConnections()` when the app returns to the foreground. A
+  remembered host whose connect fails otherwise stays
   open, failed, with Retry and Remove in its submenu of the sidebar's
   "…" menu (and its error
   under Recent hosts on the connect screen), while a host that never

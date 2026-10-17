@@ -97,6 +97,7 @@ class AhpClient {
     this.pingInterval = const Duration(seconds: 15),
     this.pingTimeout = const Duration(seconds: 10),
     this.pendingActionTimeout = const Duration(seconds: 30),
+    this.handshakeTimeout = const Duration(seconds: 20),
     this.protocolVersions = offeredProtocolVersions,
   }) : clientId = clientId ?? const Uuid().v4();
 
@@ -135,6 +136,14 @@ class AhpClient {
   /// [Duration.zero] disables the timeout.
   final Duration pendingActionTimeout;
 
+  /// How long opening the socket and each handshake request
+  /// (`initialize`, `reconnect`, `listSessions`) may take before the
+  /// attempt is abandoned and, when reconnecting, tried again (AHP-004).
+  /// Without it a socket that never answers (after the device slept, or
+  /// behind a proxy that swallowed the host) stalls reconnecting forever.
+  /// [Duration.zero] disables the timeout.
+  final Duration handshakeTimeout;
+
   final _states = StreamController<HostState>.broadcast();
   final _actions = StreamController<ActionEnvelope>.broadcast();
   final _failures = StreamController<ActionFailure>.broadcast();
@@ -149,7 +158,19 @@ class AhpClient {
   Peer? _peer;
   int _clientSeq = 0;
   bool _closed = false;
-  bool _reconnecting = false;
+  bool _initialized = false;
+
+  /// Bumped by [connect] and [close], so a reconnect loop or socket from an
+  /// earlier connection stops instead of replacing the current one.
+  int _generation = 0;
+
+  /// The generation whose reconnect loop is running, if any.
+  int? _reconnectingGeneration;
+
+  /// Completes to end the current reconnect backoff early.
+  Completer<void>? _backoff;
+
+  bool get _reconnecting => _reconnectingGeneration == _generation;
 
   /// The current host state.
   HostState get state => _state;
@@ -176,23 +197,18 @@ class AhpClient {
   /// Connects, runs `initialize`, and loads the session catalogue.
   ///
   /// Errors are reported through [state] with [ConnectionStatus.failed].
-  Future<void> connect() async {
+  /// With [retry], a host that cannot be reached right now (see
+  /// [isTransientConnectError]) is instead retried with backoff, as
+  /// [ConnectionStatus.reconnecting] with the last [HostState.error], until
+  /// it answers or [close] is called; this returns after the first attempt.
+  Future<void> connect({bool retry = false}) async {
     _closed = false;
+    final generation = ++_generation;
+    _endBackoff();
     _set(_state.copyWith(status: ConnectionStatus.connecting, error: null));
     try {
-      final peer = await _open();
-      final result = InitializeResult.fromJson(
-        await peer.sendRequest(
-          'initialize',
-          initializeParams(
-            clientId: clientId,
-            clientInfo: clientInfo.toJson(),
-            initialSubscriptions: _subscriptions.keys.toList(),
-            locale: locale,
-            protocolVersions: protocolVersions,
-          ),
-        ) as JsonMap,
-      );
+      final peer = await _open(generation);
+      final result = await _initialize(peer, _subscriptions.keys.toList());
       _set(applyInitializeResult(_state, result));
       await _loadSessions(peer);
       _set(_state.copyWith(status: ConnectionStatus.connected));
@@ -203,19 +219,36 @@ class AhpClient {
       );
     } on Object catch (error) {
       _log.warning('connect failed: ${_describe(error)}');
+      if (generation != _generation) return;
       await _closePeer();
-      _set(
-        _state.copyWith(
-          status: ConnectionStatus.failed,
-          error: _describe(error),
-        ),
-      );
+      _set(_state.copyWith(error: _describe(error)));
+      if (retry && !_closed && isTransientConnectError(error)) {
+        unawaited(_reconnectLoop(generation));
+      } else {
+        _set(_state.copyWith(status: ConnectionStatus.failed));
+      }
+    }
+  }
+
+  /// Checks the connection now instead of waiting: while reconnecting the
+  /// next attempt starts at once, and while connected a liveness `ping` is
+  /// sent. For when the app returns to the foreground or the network comes
+  /// back, after the backoff may have grown to its cap.
+  void checkConnection() {
+    if (_closed) return;
+    if (_reconnecting) {
+      _endBackoff();
+    } else if (_peer case final peer?
+        when _state.status == ConnectionStatus.connected) {
+      unawaited(_checkLiveness(peer));
     }
   }
 
   /// Closes the connection and stops reconnecting.
   Future<void> close() async {
     _closed = true;
+    _generation++;
+    _endBackoff();
     _stopPings();
     for (final timer in _pendingTimers) {
       timer.cancel();
@@ -646,8 +679,26 @@ class AhpClient {
     }
   }
 
-  Future<Peer> _open() async {
-    final peer = Peer(await connector(uri));
+  /// Opens a socket for the connection [generation]. A socket that opens
+  /// after the attempt timed out, or after [close], is closed again.
+  Future<Peer> _open(int generation) async {
+    final opening = connector(uri);
+    final StreamChannel<String> channel;
+    try {
+      channel = await _timed(opening, 'opening the connection');
+    } on ConnectionProblem catch (error) {
+      if (error.cause is TimeoutException) {
+        unawaited(
+          opening.then((opened) => opened.sink.close(), onError: (Object _) {}),
+        );
+      }
+      rethrow;
+    }
+    if (generation != _generation) {
+      unawaited(channel.sink.close());
+      throw StateError('connection closed while opening');
+    }
+    final peer = Peer(channel);
     peer
       ..registerMethod('ping', (Parameters _) => null)
       ..registerMethod('action', (Parameters params) {
@@ -696,10 +747,13 @@ class AhpClient {
     String? cursor;
     do {
       final page = ListSessionsResult.fromJson(
-        await peer.sendRequest('listSessions', {
-          'channel': rootChannel,
-          'cursor': ?cursor,
-        }) as JsonMap,
+        await _timed(
+          peer.sendRequest('listSessions', {
+            'channel': rootChannel,
+            'cursor': ?cursor,
+          }),
+          'listSessions',
+        ) as JsonMap,
       );
       summaries.addAll(page.items);
       cursor = page.nextCursor;
@@ -715,85 +769,148 @@ class AhpClient {
         _state.status != ConnectionStatus.connected) {
       return;
     }
-    unawaited(_reconnectLoop());
+    unawaited(_reconnectLoop(_generation));
+  }
+
+  /// Sends `initialize` on [peer] with [subscriptions].
+  Future<InitializeResult> _initialize(
+    Peer peer,
+    List<String> subscriptions,
+  ) async {
+    final result = InitializeResult.fromJson(
+      await _timed(
+        peer.sendRequest(
+          'initialize',
+          initializeParams(
+            clientId: clientId,
+            clientInfo: clientInfo.toJson(),
+            initialSubscriptions: subscriptions,
+            locale: locale,
+            protocolVersions: protocolVersions,
+          ),
+        ),
+        'initialize',
+      ) as JsonMap,
+    );
+    _initialized = true;
+    return result;
   }
 
   /// Runs `initialize` again on [peer] after a reconnect the host could not
   /// resume, and drops the channels it has no snapshot for.
   Future<void> _reinitialize(Peer peer, List<String> subscriptions) async {
-    final result = InitializeResult.fromJson(
-      await peer.sendRequest(
-        'initialize',
-        initializeParams(
-          clientId: clientId,
-          clientInfo: clientInfo.toJson(),
-          initialSubscriptions: subscriptions,
-          locale: locale,
-          protocolVersions: protocolVersions,
-        ),
-      ) as JsonMap,
-    );
+    final result = await _initialize(peer, subscriptions);
     _clearPendingActions();
     final missing = unresumedChannels(_state, result.snapshots);
     _set(applyMissingChannels(applyInitializeResult(_state, result), missing));
     _dropSubscriptions(missing);
   }
 
-  /// Reconnects with backoff (AHP-004). Falls back to `initialize` when the
-  /// host no longer knows this client (`-32008 NotFound`).
-  Future<void> _reconnectLoop() async {
-    _reconnecting = true;
+  /// Reconnects with backoff (AHP-004) for the connection [generation].
+  /// Falls back to `initialize` when the host no longer knows this client
+  /// (`-32008 NotFound`), and sends it first when it never initialized
+  /// (`connect(retry: true)`); a failure there that retrying cannot fix
+  /// ends the loop as [ConnectionStatus.failed].
+  Future<void> _reconnectLoop(int generation) async {
+    _reconnectingGeneration = generation;
     _set(_state.copyWith(status: ConnectionStatus.reconnecting));
-    for (var attempt = 0; !_closed; attempt++) {
-      await Future<void>.delayed(reconnectDelay(attempt));
-      if (_closed) break;
+    bool current() => !_closed && generation == _generation;
+    for (var attempt = 0; current(); attempt++) {
+      await _wait(reconnectDelay(attempt));
+      if (!current()) break;
       try {
-        final peer = await _open();
+        final peer = await _open(generation);
         final subscriptions = _subscriptions.keys.toList();
-        try {
-          final result = ReconnectResult.fromJson(
-            await peer.sendRequest(
-              'reconnect',
-              reconnectParams(
-                clientId: clientId,
-                lastSeenServerSeq: _state.serverSeq,
-                subscriptions: subscriptions,
-              ),
-            ) as JsonMap,
-          );
-          if (result is ReconnectResultUnknown) {
-            // A result kind newer than this client: start over.
-            await _reinitialize(peer, subscriptions);
-          } else {
-            // A snapshot replaces mirrors without echoing anything, so
-            // report their pending actions first; a replay echoes the
-            // accepted ones.
-            if (result is ReconnectSnapshotResult) _clearPendingActions();
-            final missing = missingAfterReconnect(_state, result);
-            _set(applyReconnectResult(_state, result, clientId: clientId));
-            _dropSubscriptions(missing);
-          }
-        } on RpcException catch (error) {
-          if (error.code != AhpErrorCodes.notFound) rethrow;
-          await _reinitialize(peer, subscriptions);
+        if (!_initialized) {
+          final result = await _initialize(peer, subscriptions);
+          _set(applyInitializeResult(_state, result));
+        } else {
+          await _resume(peer, subscriptions);
         }
         // Whatever the host accepted is in the replay or snapshot; actions
         // still pending were lost with the old socket.
         _clearPendingActions();
         // Catalogue notifications are not replayed, so reload the list.
         await _loadSessions(peer);
+        if (!current()) break;
         _set(_state.copyWith(status: ConnectionStatus.connected, error: null));
         _startPings(peer);
         _log.info('reconnected after ${attempt + 1} attempt(s)');
         break;
       } on Object catch (error) {
         _log.fine('reconnect attempt ${attempt + 1} failed: $error');
+        if (!current()) break;
         await _closePeer();
         _set(_state.copyWith(error: _describe(error)));
+        if (!_initialized && !isTransientConnectError(error)) {
+          _set(_state.copyWith(status: ConnectionStatus.failed));
+          break;
+        }
       }
     }
-    _reconnecting = false;
+    if (_reconnectingGeneration == generation) _reconnectingGeneration = null;
   }
+
+  /// Resumes this client's subscriptions on [peer] with `reconnect`.
+  Future<void> _resume(Peer peer, List<String> subscriptions) async {
+    try {
+      final result = ReconnectResult.fromJson(
+        await _timed(
+          peer.sendRequest(
+            'reconnect',
+            reconnectParams(
+              clientId: clientId,
+              lastSeenServerSeq: _state.serverSeq,
+              subscriptions: subscriptions,
+            ),
+          ),
+          'reconnect',
+        ) as JsonMap,
+      );
+      if (result is ReconnectResultUnknown) {
+        // A result kind newer than this client: start over.
+        await _reinitialize(peer, subscriptions);
+      } else {
+        // A snapshot replaces mirrors without echoing anything, so report
+        // their pending actions first; a replay echoes the accepted ones.
+        if (result is ReconnectSnapshotResult) _clearPendingActions();
+        final missing = missingAfterReconnect(_state, result);
+        _set(applyReconnectResult(_state, result, clientId: clientId));
+        _dropSubscriptions(missing);
+      }
+    } on RpcException catch (error) {
+      if (error.code != AhpErrorCodes.notFound) rethrow;
+      await _reinitialize(peer, subscriptions);
+    }
+  }
+
+  /// Waits [delay] before the next reconnect attempt, or less when
+  /// [checkConnection] or [close] ends the wait.
+  Future<void> _wait(Duration delay) {
+    final backoff = _backoff = Completer<void>();
+    final timer = Timer(delay, _endBackoff);
+    return backoff.future.whenComplete(timer.cancel);
+  }
+
+  void _endBackoff() {
+    final backoff = _backoff;
+    _backoff = null;
+    if (backoff != null && !backoff.isCompleted) backoff.complete();
+  }
+
+  /// [request] with [handshakeTimeout]; a timeout throws a
+  /// [ConnectionProblem] naming [what] the host did not answer.
+  Future<T> _timed<T>(Future<T> request, String what) =>
+      handshakeTimeout <= Duration.zero
+      ? request
+      : request.timeout(
+          handshakeTimeout,
+          onTimeout: () => throw ConnectionProblem(
+            'The host did not finish $what within '
+            '${handshakeTimeout.inSeconds} s.',
+            TimeoutException(what, handshakeTimeout),
+          ),
+        );
 
   /// Rolls back every pending action and reports each one as
   /// [ActionFailureKind.connectionLost].

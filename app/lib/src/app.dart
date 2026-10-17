@@ -69,10 +69,22 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
+  late final AppLifecycleListener _lifecycle;
+
   @override
   void initState() {
     super.initState();
     ref.read(openHostsProvider.notifier).restore();
+    // A device that slept may have dead sockets, or a backoff at its cap.
+    _lifecycle = AppLifecycleListener(
+      onResume: () => ref.read(openHostsProvider.notifier).checkConnections(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _lifecycle.dispose();
+    super.dispose();
   }
 
   @override

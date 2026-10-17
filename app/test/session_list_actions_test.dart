@@ -581,6 +581,8 @@ void main() {
       final container = await pumpRestoring(tester);
       expect(connections[testHost.key]!.connected, [testHost.url]);
       expect(connections[other.key]!.connected, [other.url]);
+      // Restored hosts keep retrying a host that is not up yet.
+      expect(connections[other.key]!.retried, [true]);
       expect(find.text('Fix login'), findsOneWidget);
       expect(container.read(openHostsProvider).map((h) => h.key), [
         testHost.key,
@@ -598,6 +600,16 @@ void main() {
       await tester.tap(find.text('Retry build box'));
       await tester.pumpAndSettle();
       expect(connections[other.key]!.connected, [other.url, other.url]);
+
+      // Returning to the foreground checks every open host at once.
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      expect(connections[testHost.key]!.checks, 1);
+      expect(connections[other.key]!.checks, 1);
 
       await tester.tap(
         find.byTooltip('More actions (a host is not connected)'),
@@ -635,6 +647,8 @@ void main() {
       final container = await pumpRestoring(tester);
       await container.read(openHostsProvider.notifier).connect(other);
       await tester.pumpAndSettle();
+      // A host added from the connect screen fails at once instead.
+      expect(connections[other.key]!.retried, [false]);
       expect(container.read(openHostsProvider), isEmpty);
       final stored = await const FlutterSecureStorage().read(key: 'open_hosts');
       expect(decodeHostKeys(stored), isEmpty);

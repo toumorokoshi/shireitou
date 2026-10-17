@@ -81,6 +81,25 @@ int? upgradeStatusOf(String text) =>
       null => null,
     };
 
+/// Whether the handshake error [text] is a failed TLS handshake.
+bool isTlsFailure(String text) =>
+    text.contains('HandshakeException') ||
+    text.contains('CERTIFICATE_VERIFY_FAILED') ||
+    text.contains('TlsException');
+
+/// Whether connecting may succeed when tried again after [error]: the host
+/// could not be reached or did not answer in time. Not when the URL cannot
+/// work (a [ConnectionProblem] without a cause), the host refused the token
+/// (HTTP 401 or 403) or the TLS handshake failed. JSON-RPC errors are
+/// classified by `isTransientConnectError` in `protocol.dart`.
+bool isTransientTransportError(ConnectionProblem error) {
+  final cause = error.cause;
+  if (cause == null) return false;
+  final text = '$cause';
+  final status = upgradeStatusOf(text);
+  return status != 401 && status != 403 && !isTlsFailure(text);
+}
+
 /// A user-facing explanation of [error], raised while opening a WebSocket
 /// to [host]. [web] says whether the browser's `WebSocket` was used:
 /// browsers report every failed handshake the same way (no status, no
@@ -107,9 +126,7 @@ String describeTransportError(Object error, Uri host, {required bool web}) {
     case null:
       break;
   }
-  if (text.contains('HandshakeException') ||
-      text.contains('CERTIFICATE_VERIFY_FAILED') ||
-      text.contains('TlsException')) {
+  if (isTlsFailure(text)) {
     return 'The TLS handshake with $address failed: the host\'s '
         'certificate is not trusted, or the host does not speak TLS (try '
         'ws:// instead of wss://).';

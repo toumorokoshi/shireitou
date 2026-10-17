@@ -540,6 +540,19 @@ AppImage and the release workflow (see
     (its replay buffer would need thousands of missed actions), and a
     `missing` channel in the app against pi (covered by the client test;
     the app's handling is driven against the fake host).
+  - Retrying a restored host that is not up yet, the handshake timeout
+    and the foreground check are covered by client and widget tests with
+    an in-memory host, not driven against the fake host app or pi (for
+    example, starting the app before the host).
+  - Reconnects react to the timeout, the liveness ping and the app
+    returning to the foreground, not to network changes (no
+    connectivity plugin); a desktop app that stays in the foreground
+    while Wi-Fi comes back waits for its backoff (at most 30 s).
+  - A host that comes back on another port or with a new token (pi
+    prints a new `tkn` unless one is configured) cannot be reconnected
+    automatically; the client retries every 30 s, showing the refusal,
+    until the user edits the host. Once connected, a refused token
+    (HTTP 401/403) is retried like any other error.
   - The browser tests run in Chromium only (no Firefox or Safari), cover
     a subset of the desktop flows (no approvals, input requests, review
     pane or composer settings), and use the semantics tree

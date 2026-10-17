@@ -5,6 +5,8 @@ import 'dart:math' as math;
 
 import 'package:json_rpc_2/json_rpc_2.dart' show RpcException;
 
+import 'connection_problems.dart';
+
 /// The protocol version shireitou's wire types are modeled on.
 const targetProtocolVersion = '1.0.0';
 
@@ -173,6 +175,16 @@ String describeRpcError(int code, String message, Object? data) {
 /// error response (even `MethodNotFound` from a host without `ping`) proves
 /// the host answered; a timeout or a closed peer does not.
 bool isLivenessFailure(Object error) => error is! RpcException;
+
+/// Whether a failed connect is worth retrying with backoff (AHP-004): the
+/// host was unreachable, dropped the socket or did not answer in time. A
+/// JSON-RPC error (an unsupported protocol version, for example) and the
+/// transport problems [isTransientTransportError] rules out need the user.
+bool isTransientConnectError(Object error) => switch (error) {
+  RpcException() => false,
+  ConnectionProblem() => isTransientTransportError(error),
+  _ => true,
+};
 
 /// Exponential reconnect backoff with a cap: 0.5s, 1s, 2s, ... up to [max].
 Duration reconnectDelay(

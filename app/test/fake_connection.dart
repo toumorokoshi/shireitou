@@ -60,11 +60,26 @@ class FakeHostConnection extends HostConnection {
   /// URLs passed to [connect].
   final connected = <String>[];
 
+  /// The `retry` flag of each [connect] call.
+  final retried = <bool>[];
+
+  /// Calls to [checkConnection].
+  var checks = 0;
+
   @override
-  Future<void> connect(String url, {String? token, String? name}) async {
+  Future<void> connect(
+    String url, {
+    String? token,
+    String? name,
+    bool retry = false,
+  }) async {
     connected.add(url);
+    retried.add(retry);
     state = connectResult ?? initial;
   }
+
+  @override
+  void checkConnection() => checks++;
 
   @override
   Future<void> disconnect() async => state = const HostState();

@@ -74,7 +74,24 @@ class FakeHost {
   /// simulate a dead socket.
   Object? Function()? onPing;
 
+  /// While set, connections are refused as if nothing listened.
+  bool down = false;
+
+  /// While set, opening a connection never completes.
+  bool hangOnOpen = false;
+
+  /// Connections attempted, including refused and hung ones.
+  var opens = 0;
+
   Future<StreamChannel<String>> connect(Uri uri) async {
+    opens++;
+    if (down) {
+      throw const ConnectionProblem(
+        'Nothing is listening',
+        'Connection refused',
+      );
+    }
+    if (hangOnOpen) return Completer<StreamChannel<String>>().future;
     final controller = StreamChannelController<String>(sync: true);
     final peer = Peer(controller.foreign);
     const methods = [
@@ -158,6 +175,7 @@ void main() {
     Duration pingInterval = Duration.zero,
     Duration pingTimeout = const Duration(seconds: 1),
     Duration pendingActionTimeout = Duration.zero,
+    Duration handshakeTimeout = const Duration(seconds: 5),
   }) => AhpClient(
     uri: Uri.parse('ws://fake'),
     clientId: 'test-client',
@@ -165,7 +183,11 @@ void main() {
     pingInterval: pingInterval,
     pingTimeout: pingTimeout,
     pendingActionTimeout: pendingActionTimeout,
+    handshakeTimeout: handshakeTimeout,
   );
+
+  Future<HostState> next(ConnectionStatus status) =>
+      client.states.firstWhere((s) => s.status == status);
 
   setUp(() {
     host = FakeHost();
@@ -330,6 +352,97 @@ void main() {
       (s) => s.status == ConnectionStatus.connected,
     );
     expect(host.requests.map((r) => r.$1), contains('reconnect'));
+  });
+
+  test('a reconnect the host never answers is abandoned and retried', () async {
+    client = newClient(handshakeTimeout: const Duration(milliseconds: 50));
+    await client.connect();
+    host.onReconnect = (_) => Completer<void>().future;
+    final reconnected = next(ConnectionStatus.connected);
+    await host.peers.last.close();
+    await client.states.firstWhere((s) => s.error != null);
+    expect(client.state.status, ConnectionStatus.reconnecting);
+    expect(client.state.error, contains('reconnect'));
+    host.onReconnect = null;
+    await reconnected;
+    expect(host.requests.where((r) => r.$1 == 'reconnect'), hasLength(2));
+  });
+
+  test('a socket that never opens is abandoned and retried', () async {
+    client = newClient(handshakeTimeout: const Duration(milliseconds: 50));
+    await client.connect();
+    host.hangOnOpen = true;
+    final reconnected = next(ConnectionStatus.connected);
+    await host.peers.last.close();
+    await client.states.firstWhere((s) => s.error != null);
+    expect(client.state.error, contains('opening the connection'));
+    host.hangOnOpen = false;
+    await reconnected;
+    expect(host.opens, 3);
+  });
+
+  test('connect without retry fails when the host is down', () async {
+    host.down = true;
+    await client.connect();
+    expect(client.state.status, ConnectionStatus.failed);
+    expect(client.state.error, 'Nothing is listening');
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+    expect(host.opens, 1);
+  });
+
+  test('connect with retry keeps trying until the host is up', () async {
+    host.down = true;
+    await client.connect(retry: true);
+    expect(client.state.status, ConnectionStatus.reconnecting);
+    expect(client.state.error, 'Nothing is listening');
+    host.down = false;
+    await next(ConnectionStatus.connected);
+    expect(client.state.error, isNull);
+    // It never initialized, so it initializes instead of resuming.
+    expect(host.requests.map((r) => r.$1), contains('initialize'));
+    expect(host.requests.map((r) => r.$1), isNot(contains('reconnect')));
+    expect(client.state.sessions.keys, ['pi:/a', 'pi:/b']);
+  });
+
+  test('connect with retry stops on an error retrying cannot fix', () async {
+    host.onInitialize = (_) => throw RpcException(
+      AhpErrorCodes.unsupportedProtocolVersion,
+      'Unsupported protocol version',
+      data: {
+        'supportedVersions': ['2.0.0'],
+      },
+    );
+    await client.connect(retry: true);
+    expect(client.state.status, ConnectionStatus.failed);
+    await client.close();
+
+    // Also when the host comes up mid-retry and answers with one.
+    client = newClient();
+    host.down = true;
+    await client.connect(retry: true);
+    host.down = false;
+    await next(ConnectionStatus.failed);
+    expect(client.state.error, contains('host supports 2.0.0'));
+  });
+
+  test('checkConnection skips the reconnect backoff', () async {
+    host.down = true;
+    await client.connect(retry: true);
+    host.down = false;
+    client.checkConnection();
+    await next(ConnectionStatus.connected)
+        .timeout(const Duration(milliseconds: 300));
+  });
+
+  test('close stops a connect retry', () async {
+    host.down = true;
+    await client.connect(retry: true);
+    await client.close();
+    expect(client.state.status, ConnectionStatus.disconnected);
+    host.down = false;
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+    expect(host.opens, 1);
+    expect(client.state.status, ConnectionStatus.disconnected);
   });
 
   test('answered pings, even with an error, keep the connection', () async {
