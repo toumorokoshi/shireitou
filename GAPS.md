@@ -49,6 +49,18 @@ smoke-tested Windows, iOS and Android in CI, added the app icon, the
 AppImage and the release workflow (see
 [docs/packaging.md](docs/packaging.md)). Remaining work:
 
+- **Highest priority (user feedback, 2026-10-16):** do these before the
+  items below.
+
+  - **SSH terminal:** open an interactive SSH TTY to a host from the app.
+    Prefer a maintained third-party SSH client and terminal emulator
+    library over writing one from scratch.
+  - **Turn markers in the chat:** like the GitHub agents view, show a
+    column of dots, one per user turn, that jump to that turn when
+    clicked, so the history is easy to move through.
+  - **`/` completions (AV-044):** typing `/` in the composer or follow-up
+    box does not offer the agent's skills and commands.
+
 - **Renaming a session (AV-073), remaining details:** the session list
   renames in a dialog, not in place. A rename from the list of a session
   that is not open is not shown until the host updates its catalogue
