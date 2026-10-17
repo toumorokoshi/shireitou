@@ -27,6 +27,31 @@
 - **Nothing is sent for an empty or unchanged title** (`renameAction`
   trims and compares), so leaving the field without changes is free.
 
+## 2026-10-16: A collapsible review pane, closed by default (AV-003)
+
+- **Closed until the user opens it.** On wide layouts the review pane
+  took 380 dp beside the timeline even when there was nothing to review.
+  It now starts closed, so the timeline gets the width, and a button
+  right of the header opens it. The button shows the change counts
+  ("+3 −1 · 1 file", the header's `changesLabel`) so the user knows there
+  is something to review, with a spoken label in words for screen
+  readers. Medium and compact layouts keep their "Files changed" tab.
+- **One choice per device, not per session.** Whether the pane is open
+  is a single flag kept with `PrefsStore` (`review_pane_open`), like the
+  pinned sessions. A per-session choice would make the layout jump when
+  stepping through sessions with Alt+↓/↑.
+- **Cmd/Ctrl+Alt+B.** The shortcut joins the AV-140 commands
+  (`AppCommand.toggleReviewPane`) and the macOS Session menu (⌥⌘B). It is
+  the key editors such as VS Code use for their secondary side bar, and
+  the plain Cmd/Ctrl+B is left for the left sidebar. It acts only on
+  wide layouts.
+- **The button sits beside the header, not in it.** `_Header` is left
+  unchanged; the wide layout puts the toggle in a row after it, at the
+  right edge above the pane.
+- **Animated by width, not built while closed.** `CollapsibleReviewPane`
+  animates a width factor over 200 ms (none with reduced motion) and
+  builds nothing at zero, so a closed pane subscribes to no changesets.
+
 ## 2026-10-16: Hosts and workspaces in a dense sidebar tree (AV-012, AV-025)
 
 - **A tree replaces the host dropdown.** The sidebar lists every open

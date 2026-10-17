@@ -32,7 +32,11 @@ enum AppCommand {
   stop('Stop'),
 
   /// Focuses the follow-up box of the open session (Cmd/Ctrl+L).
-  focusComposer('Focus Composer');
+  focusComposer('Focus Composer'),
+
+  /// Opens or closes the review pane on wide layouts (Cmd/Ctrl+Alt+B,
+  /// AV-003).
+  toggleReviewPane('Toggle Review Pane');
 
   const AppCommand(this.label);
 
@@ -65,6 +69,12 @@ SingleActivator activatorFor(AppCommand command, {bool? apple}) {
     ),
     AppCommand.stop => primary(LogicalKeyboardKey.period),
     AppCommand.focusComposer => primary(LogicalKeyboardKey.keyL),
+    AppCommand.toggleReviewPane => SingleActivator(
+      LogicalKeyboardKey.keyB,
+      meta: cmd,
+      control: !cmd,
+      alt: true,
+    ),
   };
 }
 

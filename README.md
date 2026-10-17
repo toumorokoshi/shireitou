@@ -146,10 +146,11 @@ just run chrome 'ws://127.0.0.1:63877?tkn=...'   # prefill the host URL
    Shortcuts (Cmd on macOS, Ctrl elsewhere): Cmd/Ctrl+N new session,
    Cmd/Ctrl+K search sessions (with `agent:`, `status:`, `repo:` and
    `host:` qualifiers), Alt+↓/↑ next and previous session, Cmd/Ctrl+.
-   stop, Cmd/Ctrl+L focus the follow-up box. Right-click or long-press a
-   session to rename it, archive it, mark it read or unread, or select several;
-   swipe it left to archive it. Click a session's title in its header to
-   rename it.
+   stop, Cmd/Ctrl+L focus the follow-up box, Cmd/Ctrl+Alt+B open or close
+   the review pane (wide windows; it starts closed). Right-click or
+   long-press a session to rename it, archive it, mark it read or unread,
+   or select several; swipe it left to archive it. Click a session's
+   title in its header to rename it.
 
 `just test-integration` launches pi-agent-host-protocol from
 `PI_AHP_HOST_DIR` (default: `../pi-agent-host-protocol`, a sibling of this

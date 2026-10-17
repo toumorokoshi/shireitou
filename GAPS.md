@@ -54,9 +54,6 @@ AppImage and the release workflow (see
 
   - **Reorder workspaces:** drag and drop workspace folders in the
     sidebar to reorder them, with the order remembered.
-  - **Collapsible right-hand pane (AV-003):** on wide layouts the review
-    pane beside the timeline is always open. Make it collapsible,
-    closed by default, so the timeline gets the space.
 
 - **Renaming a session (AV-073), remaining details:** the session list
   renames in a dialog, not in place. A rename from the list of a session
@@ -147,7 +144,10 @@ AppImage and the release workflow (see
   `range`-scoped operations are not offered (no line selection, and no
   diff comments, AV-104); a non-external operation follow-up is shown as
   plain text. Side-by-side diffs appear from 900 dp in the full diff page
-  only.
+  only. On wide layouts the pane opens and closes (one choice for all
+  sessions, remembered on the device) but cannot be resized (AV-005),
+  and the left sidebar does not collapse yet. The header's details
+  still list the change counts, which the pane's toggle also shows.
 - **Todo lists and plans (AV-070, AV-046):** todo tools are recognized
   by name (`TodoWrite`, `todo_write`, `update_todo`, `manage_todo_list`,
   `update_plan`); a host that renames them, or an agent with another todo
@@ -278,7 +278,8 @@ AppImage and the release workflow (see
     over the field's own Alt+arrow navigation). On the web, browsers keep
     Ctrl+N for a new window, so the shortcut only works in the desktop
     apps there. Ctrl+K, Alt+↓, Ctrl+L and Ctrl+. are driven in Chromium
-    by `just test-web`, but Playwright sends keys through the DevTools
+    by `just test-web` (Ctrl+Alt+B, the review pane, only in the widget
+    and fake host app tests; on Windows, Ctrl+Alt can be AltGr), but Playwright sends keys through the DevTools
     protocol, so whether a real Chrome or Firefox lets the page have
     Ctrl+K and Ctrl+L before its own address bar was not checked. Keys
     only reach the app while the Flutter view has the focus: when the

@@ -91,3 +91,23 @@ String? changesetStatusLabel(ChangesetState state) => switch (state.status) {
   ChangesetStatus.error => 'Error: ${state.error?.message ?? 'unknown'}',
   ChangesetStatus.ready || ChangesetStatus.$unknown => null,
 };
+
+/// The review pane toggle's tooltip (AV-003): "Show review pane (⌥⌘B)"
+/// while closed, "Hide …" while [open]; [shortcut] is the key's label.
+String reviewToggleTooltip({required bool open, required String shortcut}) =>
+    '${open ? 'Hide' : 'Show'} review pane ($shortcut)';
+
+/// What a screen reader says for the review pane toggle: the action, then
+/// [changes] in words ("3 lines added, 1 removed, 1 file").
+String reviewToggleSemantics({
+  required bool open,
+  required ChangesSummary? changes,
+}) {
+  final files = changes?.files;
+  return [
+    '${open ? 'Hide' : 'Show'} review pane',
+    if (changes != null)
+      '${changes.additions ?? 0} lines added, ${changes.deletions ?? 0} removed',
+    if (files != null) '$files ${files == 1 ? 'file' : 'files'}',
+  ].join(', ');
+}

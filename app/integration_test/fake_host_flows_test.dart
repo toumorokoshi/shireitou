@@ -322,6 +322,9 @@ void main() {
     await h.send('edit');
     await h.waitFor(find.text('Edited README.md.'));
     await h.waitFor(find.text('A scripted host for tests.'));
+    // The review pane starts closed on wide layouts (AV-003).
+    expect(find.text('Reviewed 0 of 1'), findsNothing);
+    await h.shortcut(AppCommand.toggleReviewPane);
     await h.waitFor(find.text('Reviewed 0 of 1'));
     expect(find.text('1 file · +3 −1'), findsOneWidget);
     await h.tapVisible(find.byType(Checkbox));

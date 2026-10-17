@@ -391,7 +391,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('Sign-in required'), findsWidgets);
     expect(find.text('1 in background'), findsOneWidget);
-    expect(find.textContaining('+3 −1 · 1 file'), findsOneWidget);
+    // In the header's details, and on the review pane toggle.
+    expect(find.textContaining('+3 −1 · 1 file'), findsNWidgets(2));
+    expect(find.text('+3 −1 · 1 file'), findsOneWidget);
 
     await tester.tap(find.text('Sign in'));
     await tester.pumpAndSettle();

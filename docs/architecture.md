@@ -277,7 +277,11 @@ Dart source); `bin/generate.dart` does the file I/O. See
   canvases and MCP server alerts), the chat switcher, the "Waiting for
   you" panel, the reversed timeline that follows new output (AV-066), the
   queued messages and the follow-up box (which syncs the chat's draft),
-  with the review pane beside it (wide) or as a tab.
+  with the review pane beside it (wide) or as a tab. On wide layouts a
+  `ReviewPaneToggle` right of the header (or Cmd/Ctrl+Alt+B) opens and
+  closes the `CollapsibleReviewPane`; whether it is open is
+  `reviewPaneOpenProvider` (`review/review_pane_store.dart`), kept with
+  `PrefsStore` and closed by default (AV-003).
   `timeline_items.dart` memoizes each finished turn's rows and the rows
   of a whole `turns` list (the reducer keeps both objects while a turn
   streams), so a delta only rebuilds the active turn's rows;
@@ -358,7 +362,9 @@ Dart source); `bin/generate.dart` does the file I/O. See
   notifications…" while permission is refused.
 - `lib/src/prefs.dart`: `PrefsStore`, small non-secret settings in
   `shared_preferences` (memory in tests).
-- `lib/src/review/`: the "Files changed" pane (AV-100 to AV-103).
+- `lib/src/review/`: the "Files changed" pane (AV-100 to AV-103),
+  the wide layout's collapsible pane and its toggle, and
+  `review_pane_store.dart` (whether the pane is open, AV-003).
   `review_logic.dart` is pure (which changesets to offer, the URI for the
   chosen turn, counts); `changes_pane.dart` lists files with their change
   kind, counts and "reviewed" boxes and runs host operations.

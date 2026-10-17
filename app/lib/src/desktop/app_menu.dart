@@ -62,6 +62,7 @@ List<PlatformMenuItem> sessionMenuItems({
     PlatformMenuItemGroup(
       members: [item(AppCommand.stop), item(AppCommand.focusComposer)],
     ),
+    PlatformMenuItemGroup(members: [item(AppCommand.toggleReviewPane)]),
   ];
 }
 

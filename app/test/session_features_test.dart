@@ -10,6 +10,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shireitou/src/app.dart';
+import 'package:shireitou/src/prefs.dart';
+import 'package:shireitou/src/review/changes_pane.dart';
+import 'package:shireitou/src/review/review_logic.dart';
+import 'package:shireitou/src/session_detail/session_detail_view.dart';
 import 'package:shireitou/src/session_detail/code_highlight.dart';
 import 'package:shireitou/src/session_detail/timeline_parts.dart';
 
@@ -26,6 +30,7 @@ Future<FakeHostConnection> _pump(
   HostState state, {
   Size size = const Size(1400, 1000),
   bool settle = true,
+  PrefsStore? prefs,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -33,7 +38,10 @@ Future<FakeHostConnection> _pump(
   final connection = FakeHostConnection(state);
   await tester.pumpWidget(
     ProviderScope(
-      overrides: hostOverrides(connection: connection),
+      overrides: [
+        ...hostOverrides(connection: connection),
+        prefsStoreProvider.overrideWithValue(prefs ?? MemoryPrefsStore()),
+      ],
       child: const ShireitouApp(),
     ),
   );
@@ -617,6 +625,8 @@ void main() {
         },
       ),
     );
+    await tester.tap(find.byType(ReviewPaneToggle));
+    await tester.pumpAndSettle();
     expect(connection.subscribed, contains(_changeset));
     expect(find.text('Files changed'), findsOneWidget);
     expect(find.text('1 file · +3 −1'), findsOneWidget);
@@ -650,6 +660,72 @@ void main() {
       const ChangesetOperationTargetResource(
         resource: 'file:///src/app/README.md',
       ),
+    );
+  });
+
+  testWidgets('the wide review pane starts closed, toggles from its button '
+      'and shortcut, and is remembered', (tester) async {
+    reduceMotion(tester);
+    final prefs = MemoryPrefsStore();
+    final state = _state(
+      chat: _chatWith(const []),
+      sessionState: _session(
+        changesets: const [
+          Changeset(
+            label: 'Session changes',
+            uriTemplate: _changeset,
+            changeKind: 'session',
+          ),
+        ],
+      ),
+    );
+    await _pump(tester, state, prefs: prefs, settle: false);
+    expect(find.byType(ChangesPane), findsNothing);
+    final showTooltip = reviewToggleTooltip(
+      open: false,
+      shortcut: 'Ctrl+Alt+B',
+    );
+    expect(find.byTooltip(showTooltip), findsOneWidget);
+
+    await tester.tap(find.byTooltip(showTooltip));
+    // Reduced motion: open at once.
+    await tester.pump();
+    expect(find.byType(ChangesPane), findsOneWidget);
+    expect(
+      tester.getSize(find.byType(CollapsibleReviewPane)).width,
+      reviewPaneWidth + 1,
+    );
+    expect(prefs.values['review_pane_open'], 'true');
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyB);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pump();
+    expect(find.byType(ChangesPane), findsNothing);
+    expect(prefs.values['review_pane_open'], 'false');
+
+    // Opened again, it is open on the next start.
+    await tester.tap(find.byTooltip(showTooltip));
+    await tester.pump();
+    await tester.pumpWidget(const SizedBox());
+    await _pump(tester, state, prefs: prefs, settle: false);
+    expect(find.byType(ChangesPane), findsOneWidget);
+  });
+
+  testWidgets('the wide review pane slides open', (tester) async {
+    await _pump(tester, _state(chat: _chatWith(const [])));
+    await tester.tap(find.byType(ReviewPaneToggle));
+    await tester.pump();
+    await tester.pump(reviewPaneAnimation ~/ 2);
+    final width = tester.getSize(find.byType(CollapsibleReviewPane)).width;
+    expect(width, greaterThan(0));
+    expect(width, lessThan(reviewPaneWidth + 1));
+    await tester.pumpAndSettle();
+    expect(
+      tester.getSize(find.byType(CollapsibleReviewPane)).width,
+      reviewPaneWidth + 1,
     );
   });
 

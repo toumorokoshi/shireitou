@@ -21,6 +21,7 @@ import '../session_list/status_badges.dart';
 import '../shortcuts.dart';
 import '../channels.dart';
 import '../review/changes_pane.dart';
+import '../review/review_pane_store.dart';
 import '../review/review_logic.dart';
 import '../runs/compare_screen.dart';
 import '../runs/run_group_store.dart';
@@ -45,7 +46,8 @@ import 'tool_previews.dart';
 /// Shows [session]: subscribes to it and its default chat while visible and
 /// marks it read when opened (AV-023). Other chats of the session open
 /// from the chat switcher (AV-069). The "Files changed" review (AV-100)
-/// is a side pane when [reviewAsPane], else a tab.
+/// is a side pane when [reviewAsPane] (closed until the user opens it,
+/// AV-003), else a tab.
 class SessionDetailView extends ConsumerStatefulWidget {
   /// Creates a [SessionDetailView]. Give it a key per session.
   const SessionDetailView({
@@ -227,6 +229,10 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
         if (action != null) _dispatch(chatUri!, action);
       case AppCommand.focusComposer:
         _composerFocus.value++;
+      case AppCommand.toggleReviewPane:
+        if (widget.reviewAsPane) {
+          unawaited(ref.read(reviewPaneOpenProvider.notifier).toggle());
+        }
       case AppCommand.newSession ||
           AppCommand.searchSessions ||
           AppCommand.nextSession ||
@@ -585,20 +591,37 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
           showSessionInfo(context, session: widget.session, chat: chatUri),
     );
     if (widget.reviewAsPane) {
+      final open = ref.watch(reviewPaneOpenProvider);
       return Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                header,
+                Row(
+                  children: [
+                    Expanded(child: header),
+                    ReviewPaneToggle(
+                      open: open,
+                      changes: summary?.changes ?? chat?.changes,
+                      onToggle: () => unawaited(
+                        ref.read(reviewPaneOpenProvider.notifier).toggle(),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                ),
                 const Divider(height: 1),
                 Expanded(child: conversation),
               ],
             ),
           ),
-          const VerticalDivider(width: 1),
-          SizedBox(width: reviewPaneWidth, child: review),
+          CollapsibleReviewPane(
+            open: open,
+            width: reviewPaneWidth,
+            child: review,
+          ),
         ],
       );
     }

@@ -12,7 +12,9 @@ import 'package:url_launcher/url_launcher.dart';
 import '../channels.dart';
 import '../host_connection.dart';
 import '../session_detail/diff_view.dart';
+import '../session_detail/session_inputs.dart';
 import '../session_detail/tool_previews.dart';
+import '../shortcuts.dart';
 import 'review_logic.dart';
 
 /// The changes of [session] and its open [chat].
@@ -462,4 +464,96 @@ class _FollowUpDialog extends ConsumerWidget {
       ],
     );
   }
+}
+
+/// How long the review pane takes to open or close (AV-003).
+const reviewPaneAnimation = Duration(milliseconds: 200);
+
+/// The review pane beside the timeline on wide layouts (AV-003): [child]
+/// at [width] after a divider while [open], sliding open and shut (at once
+/// with reduced motion). Nothing is built while closed.
+class CollapsibleReviewPane extends StatelessWidget {
+  /// Creates the pane around [child].
+  const CollapsibleReviewPane({
+    super.key,
+    required this.open,
+    required this.width,
+    required this.child,
+  });
+
+  /// Whether the pane is open.
+  final bool open;
+
+  /// The open pane's width, without the divider.
+  final double width;
+
+  /// The pane's content.
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => TweenAnimationBuilder<double>(
+    tween: Tween(end: open ? 1 : 0),
+    duration: MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : reviewPaneAnimation,
+    curve: Curves.easeInOut,
+    builder: (context, shown, pane) => shown == 0
+        ? const SizedBox.shrink()
+        : ClipRect(
+            child: Align(
+              alignment: Alignment.centerLeft,
+              widthFactor: shown,
+              child: pane,
+            ),
+          ),
+    child: SizedBox(
+      width: width + 1,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const VerticalDivider(width: 1),
+          Expanded(child: child),
+        ],
+      ),
+    ),
+  );
+}
+
+/// Opens and closes the review pane (AV-003), labelled with the session's
+/// [changes] ("+3 −1 · 1 file") so the user sees there is something to
+/// review.
+class ReviewPaneToggle extends StatelessWidget {
+  /// Creates the toggle.
+  const ReviewPaneToggle({
+    super.key,
+    required this.open,
+    required this.changes,
+    required this.onToggle,
+  });
+
+  /// Whether the pane is open.
+  final bool open;
+
+  /// The session's change counts, if the host reports them.
+  final ChangesSummary? changes;
+
+  /// Opens or closes the pane.
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) => Tooltip(
+    message: reviewToggleTooltip(
+      open: open,
+      shortcut: shortcutLabel(AppCommand.toggleReviewPane),
+    ),
+    excludeFromSemantics: true,
+    child: TextButton.icon(
+      onPressed: onToggle,
+      icon: Icon(open ? Icons.chevron_right : Icons.rate_review_outlined),
+      label: Text(
+        changesLabel(changes) ?? 'Changes',
+        semanticsLabel: reviewToggleSemantics(open: open, changes: changes),
+      ),
+    ),
+  );
 }

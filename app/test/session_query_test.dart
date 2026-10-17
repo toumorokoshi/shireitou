@@ -167,6 +167,11 @@ void main() {
       expect(shortcutLabel(AppCommand.stop, apple: false), 'Ctrl+.');
       expect(shortcutLabel(AppCommand.nextSession, apple: false), 'Alt+↓');
       expect(shortcutLabel(AppCommand.previousSession, apple: true), '⌥↑');
+      expect(
+        shortcutLabel(AppCommand.toggleReviewPane, apple: false),
+        'Ctrl+Alt+B',
+      );
+      expect(shortcutLabel(AppCommand.toggleReviewPane, apple: true), '⌥⌘B');
     });
 
     test('the macOS Session menu lists every command with its key', () {
@@ -186,7 +191,7 @@ void main() {
         LogicalKeyboardKey.keyN,
       );
       items.last.onSelected!();
-      expect(sent, [AppCommand.focusComposer]);
+      expect(sent, [AppCommand.toggleReviewPane]);
       final disabled = flatten(
         sessionMenuItems(connected: false, onCommand: sent.add),
       );
