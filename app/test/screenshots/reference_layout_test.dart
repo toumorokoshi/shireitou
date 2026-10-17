@@ -48,7 +48,7 @@ Future<void> _loadFont(String path, List<String> families) async {
 }
 
 /// Loads the system text and monospace fonts under the names the theme
-/// asks for, and the Material icons from the Flutter SDK.
+/// asks for, the Material icons from the Flutter SDK and the codicons.
 Future<void> _loadFonts() async {
   await _loadFont('$_systemFonts/SFNS.ttf', [
     'CupertinoSystemText',
@@ -62,6 +62,13 @@ Future<void> _loadFonts() async {
     '$flutterRoot/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
     ['MaterialIcons'],
   );
+  // The codicons (AppIcons) come with the app's assets.
+  final codicons = await rootBundle.load(
+    'packages/vscode_codicons/assets/codicon.ttf',
+  );
+  await (FontLoader(
+    'packages/vscode_codicons/Codicon',
+  )..addFont(Future.value(codicons))).load();
 }
 
 String _ago(Duration elapsed) =>

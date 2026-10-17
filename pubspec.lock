@@ -1284,6 +1284,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "15.4.0"
+  vscode_codicons:
+    dependency: transitive
+    description:
+      name: vscode_codicons
+      sha256: "780a5d2510b4be58c00bdfecddd54533dcf9d6d0856815a7d7086a0ba0507f91"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.0.45"
   watcher:
     dependency: transitive
     description:

@@ -12,6 +12,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../auth/sign_in_dialog.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_icons.dart';
 import 'approval_bar.dart';
 import 'chat_commands.dart';
 import 'code_highlight.dart';
@@ -81,7 +82,7 @@ Widget buildTimelineItem(
       'Unsupported response part: $kind',
     ),
   },
-  TurnFooterItem(:final turn) => _Note(turnFooterText(turn)),
+  TurnFooterItem(:final turn) => _TurnFooter(turnFooterText(turn)),
 };
 
 /// The oldest row while the host holds older turns back (AV-068): it asks
@@ -332,7 +333,7 @@ class JumpToLatestButton extends StatelessWidget {
         foregroundColor: colors.mutedText,
         side: BorderSide(color: colors.hairline),
       ),
-      icon: const Icon(Icons.arrow_downward),
+      icon: const Icon(AppIcons.jumpToLatest),
     );
   }
 }
@@ -1119,4 +1120,25 @@ class _Note extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A finished turn's footer (AV-067): the end state, duration and tokens
+/// in the smallest muted text, so it reads as metadata under the reply
+/// rather than part of it (the reference UI has no footer at all).
+class _TurnFooter extends StatelessWidget {
+  const _TurnFooter(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 2, bottom: 4),
+    child: Text(
+      text,
+      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+        color: AppColors.of(context).mutedText,
+        fontWeight: FontWeight.w400,
+      ),
+    ),
+  );
 }

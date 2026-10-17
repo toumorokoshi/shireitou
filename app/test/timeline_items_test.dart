@@ -59,7 +59,7 @@ void main() {
     final chat = chatFixture();
     expect(
       turnFooterText(chat.turns.single),
-      'Done · 1.5 s · 1,200 in · 30 out · m1',
+      'Done · 2s · 1,200 in · 30 out · m1',
     );
     expect(sessionUsage(chat), (input: 1200, output: 30));
     expect(lastModelOf(chat), 'm1');

@@ -9,6 +9,7 @@ import '../composer/composer_labels.dart';
 import '../composer/config_fields.dart';
 import '../composer/config_form.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_icons.dart';
 
 /// The chips for the next message's model (`Message.model`) and its
 /// options (the model's `configSchema`, such as the thinking level), and
@@ -123,7 +124,7 @@ class MessageSettingsBar extends StatelessWidget {
         for (final field in sessionFields)
           pickerChip<Object>(
             label: field.title,
-            icon: field.id == 'mode' ? Icons.all_inclusive : Icons.tune,
+            icon: field.id == 'mode' ? AppIcons.mode : AppIcons.setting,
             value: sessionValues[field.id] ?? field.defaultValue,
             items: [for (final o in field.options) (o.value, o.label)],
             onChanged: onSessionSettingChanged == null
@@ -133,7 +134,7 @@ class MessageSettingsBar extends StatelessWidget {
         if (models.isNotEmpty)
           ComposerChip(
             key: const ValueKey('picker-Model'),
-            icon: Icons.auto_awesome_outlined,
+            icon: AppIcons.model,
             tooltip: 'Model',
             label: modelChipLabel(info, selected),
             menuChildren: [

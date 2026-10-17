@@ -603,7 +603,7 @@ String turnFooterText(Turn turn) {
       TurnState.error => 'Failed',
       TurnState.$unknown => 'Ended',
     },
-    if (turn.duration case final ms?) '${(ms / 1000).toStringAsFixed(1)} s',
+    if (turn.duration case final ms?) formatStepsDuration(ms),
     if (usage?.inputTokens case final tokens?) '${_grouped(tokens)} in',
     if (usage?.outputTokens case final tokens?) '${_grouped(tokens)} out',
     ?usage?.model,

@@ -45,7 +45,8 @@ logical pixels), because the reference was taken at 120% zoom; they are
 half the reference's size, pixel for pixel, so the two can be compared
 directly or cropped at the same coordinates. Widget tests draw text with
 a box font, so the test loads the macOS system fonts (`SFNS.ttf`,
-`SFNSMono.ttf`) and the Flutter SDK's Material icons; on other systems it
+`SFNSMono.ttf`), the Flutter SDK's Material icons and the codicons from
+the app's assets; on other systems it
 is skipped. The PNGs depend on the fonts installed, so they are not
 golden files and do not run in CI; the layout they show (row heights,
 the shared column, the hover card's position) is asserted in the widget

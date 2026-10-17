@@ -3,6 +3,7 @@
 library;
 
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter/gestures.dart';
@@ -54,18 +55,23 @@ import 'todo_widgets.dart';
 import 'tool_previews.dart';
 import 'turn_markers.dart';
 import 'turn_rail.dart';
+import '../theme/app_icons.dart';
+import '../pane_resize_handle.dart';
+import '../agent_names.dart';
 
 /// Shows [session]: subscribes to it and its default chat while visible and
 /// marks it read when opened (AV-023). Other chats of the session open
 /// from the chat switcher (AV-069). The "Files changed" review (AV-100)
 /// is a side pane when [reviewAsPane] (closed until the user opens it,
-/// AV-003), else a tab.
+/// AV-003), else a tab. On a phone's session page, [showBackButton] puts
+/// the back button in the session header, so the page has one bar.
 class SessionDetailView extends ConsumerStatefulWidget {
   /// Creates a [SessionDetailView]. Give it a key per session.
   const SessionDetailView({
     super.key,
     required this.session,
     this.reviewAsPane = false,
+    this.showBackButton = false,
   });
 
   /// The session's URI as the catalogue lists it.
@@ -73,6 +79,10 @@ class SessionDetailView extends ConsumerStatefulWidget {
 
   /// Whether the review sits beside the timeline (wide layouts).
   final bool reviewAsPane;
+
+  /// Whether the header starts with a back button: the view is a page of
+  /// its own (compact layouts) with no app bar above it.
+  final bool showBackButton;
 
   @override
   ConsumerState<SessionDetailView> createState() => _SessionDetailViewState();
@@ -82,9 +92,6 @@ class SessionDetailView extends ConsumerStatefulWidget {
 /// without the host removing its entry (the client's pending-action
 /// timeout, AHP-022).
 const answerConfirmTimeout = Duration(seconds: 30);
-
-/// Width of the review pane on wide layouts.
-const reviewPaneWidth = 380.0;
 
 class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
   late final HostConnection _connection;
@@ -419,11 +426,11 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
     // Model and mode pickers (AV-041): models of the session's agent, and
     // the session settings that may change mid-session.
     final provider = summary?.provider ?? sessionState?.provider;
-    final agent = ref.watch(
-      hostConnectionProvider(context.host).select(
-        (s) => s.root?.agents.where((a) => a.provider == provider).firstOrNull,
-      ),
+    final agents = ref.watch(
+      hostConnectionProvider(context.host)
+          .select((s) => s.root?.agents ?? const <AgentInfo>[]),
     );
+    final agent = agents.where((a) => a.provider == provider).firstOrNull;
     final models = agent?.models ?? const <SessionModelInfo>[];
     final folder = summary == null ? null : folderKeyOf(summary);
     final sessionFields = mutableSessionFields(sessionState?.config);
@@ -512,7 +519,9 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
                         focusRequests: _composerFocus,
                         working: chat.activeTurn != null,
                         hintText: composerPlaceholder(
-                          agent: agent?.displayName ?? provider,
+                          agent: provider == null
+                              ? null
+                              : agentDisplayName(provider, agents),
                           folder: folder == null ? null : folderLabelOf(folder),
                         ),
                         onStop: () {
@@ -594,6 +603,7 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
     );
     final pinned = ref.watch(pinnedSessionsProvider).contains(sessionRef);
     final header = _Header(
+      showBackButton: widget.showBackButton,
       pinned: pinned,
       onPin: (pin) => ref
           .read(pinnedSessionsProvider.notifier)
@@ -659,24 +669,43 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
     );
     if (widget.reviewAsPane) {
       final open = ref.watch(reviewPaneOpenProvider);
-      return Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                header,
-                Expanded(child: conversation),
-              ],
+      final reviewWidth = ref.watch(reviewPaneWidthProvider);
+      return LayoutBuilder(
+        builder: (context, constraints) => Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  header,
+                  Expanded(child: conversation),
+                ],
+              ),
             ),
-          ),
-          CollapsibleReviewPane(
-            open: open,
-            width: reviewPaneWidth,
-            child: review,
-          ),
-        ],
+            CollapsibleReviewPane(
+              open: open,
+              // The conversation keeps at least the pane's minimum width.
+              width: clampedPaneWidth(
+                reviewWidth,
+                available: constraints.maxWidth - minPaneWidth,
+              ),
+              handle: PaneResizeHandle(
+                label: 'Resize review pane',
+                // The pane is on the right, so dragging left widens it.
+                onDrag: (dx) =>
+                    ref.read(reviewPaneWidthProvider.notifier).resize(-dx),
+                onDragEnd: () => unawaited(
+                  ref.read(reviewPaneWidthProvider.notifier).save(),
+                ),
+                onReset: () => unawaited(
+                  ref.read(reviewPaneWidthProvider.notifier).reset(),
+                ),
+              ),
+              child: review,
+            ),
+          ],
+        ),
       );
     }
     if (!hasChanges || missing) {
@@ -717,6 +746,7 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
 /// menu with the details and actions (AV-060, AV-094).
 class _Header extends StatelessWidget {
   const _Header({
+    required this.showBackButton,
     required this.pinned,
     required this.onPin,
     required this.runLabel,
@@ -741,6 +771,9 @@ class _Header extends StatelessWidget {
     required this.onDetails,
     required this.onSshTerminal,
   });
+
+  /// Whether the title follows a back button ([SessionDetailView]).
+  final bool showBackButton;
 
   /// Whether the session is pinned to the top of the list (AV-028).
   final bool pinned;
@@ -878,9 +911,10 @@ class _Header extends StatelessWidget {
       color: AppColors.of(context).mutedText,
     );
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 8, 0),
+      padding: EdgeInsets.fromLTRB(showBackButton ? 4 : 20, 0, 8, 0),
       child: Row(
         children: [
+          if (showBackButton) const BackButton(),
           Expanded(
             child: EditableTitle(
               title: title,
@@ -911,7 +945,7 @@ class _Header extends StatelessWidget {
             menuChildren: [_details(context, detailsController)],
             builder: (context, details, _) => PopupMenuButton<VoidCallback>(
               tooltip: 'Session actions',
-              icon: const Icon(Icons.more_horiz, size: 18),
+              icon: const Icon(AppIcons.more, size: 18),
               onSelected: (action) => action(),
               itemBuilder: (context) => [
                 for (final line in sessionDetailLines(
@@ -1207,68 +1241,75 @@ class _TimelineState extends ConsumerState<_Timeline> {
     _scheduleCurrentTurn();
     // A reversed list keeps the newest row in view as it grows, and stays
     // put once the user scrolls up.
-    final list = Stack(
-      children: [
-        // Rows use plain Text (not SelectableText): the area makes them
-        // selectable, and on the web read-only text fields expose no text
-        // to screen readers (or browser tests).
-        SelectionArea(
-          child: SuperListView.builder(
-            controller: _scroll,
-            listController: _list,
-            reverse: true,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-            itemCount: rows.length,
-            findChildIndexCallback: (key) {
-              if (key is! ValueKey<String>) return null;
-              final index = rows.indexOfKey(key.value);
-              return index == null ? null : rows.length - 1 - index;
-            },
-            itemBuilder: (context, index) {
-              final item = rows[rows.length - 1 - index];
-              return Align(
-                key: ValueKey(item.key),
-                alignment: Alignment.topCenter,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: timelineMaxWidth),
-                  // Rows take the column's full width, as they did the
-                  // list's, so notes and bubbles keep their alignment.
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: buildTimelineItem(
-                      item,
-                      widget.onAction,
-                      onSignIn: widget.onSignIn,
-                      onOpenChat: widget.onOpenChat,
-                      onLoadOlder: widget.onLoadOlder,
-                      expandedSteps: _expandedSteps,
-                      onToggleSteps: (key) => setState(
-                        () => _expandedSteps.contains(key)
-                            ? _expandedSteps.remove(key)
-                            : _expandedSteps.add(key),
+    final list = LayoutBuilder(
+      builder: (context, constraints) => Stack(
+        children: [
+          // Rows use plain Text (not SelectableText): the area makes them
+          // selectable, and on the web read-only text fields expose no text
+          // to screen readers (or browser tests).
+          SelectionArea(
+            child: SuperListView.builder(
+              controller: _scroll,
+              listController: _list,
+              reverse: true,
+              padding: const EdgeInsets.symmetric(
+                horizontal: timelineSidePadding,
+                vertical: 8,
+              ),
+              itemCount: rows.length,
+              findChildIndexCallback: (key) {
+                if (key is! ValueKey<String>) return null;
+                final index = rows.indexOfKey(key.value);
+                return index == null ? null : rows.length - 1 - index;
+              },
+              itemBuilder: (context, index) {
+                final item = rows[rows.length - 1 - index];
+                return Align(
+                  key: ValueKey(item.key),
+                  alignment: Alignment.topCenter,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxWidth: timelineMaxWidth,
+                    ),
+                    // Rows take the column's full width, as they did the
+                    // list's, so notes and bubbles keep their alignment.
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: buildTimelineItem(
+                        item,
+                        widget.onAction,
+                        onSignIn: widget.onSignIn,
+                        onOpenChat: widget.onOpenChat,
+                        onLoadOlder: widget.onLoadOlder,
+                        expandedSteps: _expandedSteps,
+                        onToggleSteps: (key) => setState(
+                          () => _expandedSteps.contains(key)
+                              ? _expandedSteps.remove(key)
+                              : _expandedSteps.add(key),
+                        ),
                       ),
                     ),
                   ),
-                ),
-              );
-            },
-          ),
-        ),
-        if (_awayFromLatest)
-          Positioned(
-            right: 16,
-            bottom: 16,
-            child: JumpToLatestButton(
-              onPressed: () => _scroll.animateTo(
-                0,
-                duration: MediaQuery.disableAnimationsOf(context)
-                    ? const Duration(milliseconds: 1)
-                    : const Duration(milliseconds: 250),
-                curve: Curves.easeOut,
-              ),
+                );
+              },
             ),
           ),
-      ],
+          if (_awayFromLatest)
+            Positioned(
+              right: timelineEndInset(constraints.maxWidth),
+              bottom: 16,
+              child: JumpToLatestButton(
+                onPressed: () => _scroll.animateTo(
+                  0,
+                  duration: MediaQuery.disableAnimationsOf(context)
+                      ? const Duration(milliseconds: 1)
+                      : const Duration(milliseconds: 250),
+                  curve: Curves.easeOut,
+                ),
+              ),
+            ),
+        ],
+      ),
     );
     // One turn needs no rail.
     if (markers.length < 2 && widget.chat.turnsNextCursor == null) return list;
@@ -1357,6 +1398,18 @@ const composerMargin = EdgeInsets.fromLTRB(20, 8, 20, 20);
 /// messages and the composer share one centred column as in the
 /// reference.
 const timelineMaxWidth = composerMaxWidth - 40;
+
+/// The timeline list's padding on each side.
+const timelineSidePadding = 20.0;
+
+/// How far the timeline's centred column ends from the right of a pane
+/// [paneWidth] wide: the list's padding, plus half the room left over
+/// beside a column at [timelineMaxWidth]. The jump-to-latest button sits
+/// at this inset, so it lines up with the messages and the composer, as
+/// in the reference, rather than with the pane's corner.
+double timelineEndInset(double paneWidth) =>
+    timelineSidePadding +
+    math.max(0, paneWidth - 2 * timelineSidePadding - timelineMaxWidth) / 2;
 
 /// The follow-up box (AV-080, AV-096): one rounded box with the text at
 /// the top and, along its bottom, "+" (attachments, not supported yet),
@@ -1596,7 +1649,7 @@ class _FollowUpInputState extends State<FollowUpInput> {
                         tooltip: attachmentsUnsupportedLabel,
                         iconSize: 18,
                         visualDensity: VisualDensity.compact,
-                        icon: Icon(Icons.add),
+                        icon: Icon(AppIcons.add),
                         onPressed: null,
                       ),
                       Expanded(
@@ -1641,7 +1694,7 @@ class _FollowUpInputState extends State<FollowUpInput> {
         tooltip: 'Stop',
         iconSize: 18,
         visualDensity: VisualDensity.compact,
-        icon: const Icon(Icons.stop_rounded),
+        icon: const Icon(AppIcons.stop),
         onPressed: stop,
       );
     }
@@ -1653,14 +1706,14 @@ class _FollowUpInputState extends State<FollowUpInput> {
             tooltip: 'Send now',
             iconSize: 18,
             visualDensity: VisualDensity.compact,
-            icon: const Icon(Icons.bolt_outlined),
+            icon: const Icon(AppIcons.sendNow),
             onPressed: () => _send(steer: true),
           ),
         IconButton(
           tooltip: widget.sendTooltip ?? (widget.working ? 'Queue' : 'Send'),
           iconSize: 18,
           visualDensity: VisualDensity.compact,
-          icon: const Icon(Icons.arrow_upward),
+          icon: const Icon(AppIcons.send),
           onPressed: empty ? null : () => _send(steer: false),
         ),
       ],

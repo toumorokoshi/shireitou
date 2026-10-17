@@ -14,6 +14,7 @@ import 'package:shireitou/src/app.dart';
 import 'package:shireitou/src/prefs.dart';
 import 'package:shireitou/src/review/changes_pane.dart';
 import 'package:shireitou/src/review/review_logic.dart';
+import 'package:shireitou/src/review/review_pane_store.dart';
 import 'package:shireitou/src/session_detail/session_detail_view.dart';
 import 'package:shireitou/src/session_detail/code_highlight.dart';
 import 'package:shireitou/src/session_detail/timeline_parts.dart';
@@ -846,7 +847,7 @@ void main() {
     expect(find.byType(ChangesPane), findsOneWidget);
     expect(
       tester.getSize(find.byType(CollapsibleReviewPane)).width,
-      reviewPaneWidth + 1,
+      defaultReviewPaneWidth + 1,
     );
     expect(prefs.values['review_pane_open'], 'true');
 
@@ -874,11 +875,11 @@ void main() {
     await tester.pump(reviewPaneAnimation ~/ 2);
     final width = tester.getSize(find.byType(CollapsibleReviewPane)).width;
     expect(width, greaterThan(0));
-    expect(width, lessThan(reviewPaneWidth + 1));
+    expect(width, lessThan(defaultReviewPaneWidth + 1));
     await tester.pumpAndSettle();
     expect(
       tester.getSize(find.byType(CollapsibleReviewPane)).width,
-      reviewPaneWidth + 1,
+      defaultReviewPaneWidth + 1,
     );
   });
 

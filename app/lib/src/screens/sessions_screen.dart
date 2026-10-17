@@ -42,11 +42,10 @@ import '../review/review_pane_store.dart';
 import '../title_bar/session_history.dart';
 import '../theme/app_colors.dart';
 import '../title_bar/title_bar.dart';
+import '../pane_resize_handle.dart';
 import 'connect_screen.dart';
 import 'host_storage_banner.dart';
-
-/// Width of the session list pane on medium and wide layouts.
-const _listPaneWidth = 380.0;
+import '../theme/app_icons.dart';
 
 /// Full-screen session browser for the connected hosts: the sidebar
 /// header (AV-092) with filters, search and sort (AV-022, AV-026,
@@ -173,13 +172,18 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
         ?.showSnackBar(SnackBar(content: Text(message)));
   }
 
+  /// A session's page on compact layouts: the session header, with a
+  /// back button, is its only bar.
   Widget _detailPage(SessionRef session) => Scaffold(
-    appBar: AppBar(),
-    body: HostScope(
-      host: session.host,
-      child: SessionDetailView(
-        key: ValueKey(session),
-        session: session.session,
+    body: SafeArea(
+      bottom: false,
+      child: HostScope(
+        host: session.host,
+        child: SessionDetailView(
+          key: ValueKey(session),
+          session: session.session,
+          showBackButton: true,
+        ),
       ),
     ),
   );
@@ -446,6 +450,14 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
   @override
   Widget build(BuildContext context) {
     final hosts = ref.watch(hostInfosProvider);
+    // Each host's agents, so hover cards name the agent ("Pi", not "pi").
+    final agents = {
+      for (final h in hosts)
+        h.key: ref.watch(
+          hostConnectionProvider(h.key)
+              .select((s) => s.root?.agents ?? const <AgentInfo>[]),
+        ),
+    };
     // A host that went away clears the filter and the selection.
     if (_hostFilter case final filter?
         when !hosts.any((h) => h.key == filter)) {
@@ -542,6 +554,11 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
       body: LayoutBuilder(
         builder: (context, constraints) {
           final tier = _tier = layoutTierFor(constraints.maxWidth);
+          // The session keeps at least the sidebar's minimum width.
+          final sidebarWidth = clampedPaneWidth(
+            ref.watch(sidebarWidthProvider),
+            available: constraints.maxWidth - minPaneWidth,
+          );
           final list = Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -620,6 +637,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                   chats: chats,
                   folders: groups,
                   hostLabels: hostLabelsOf(hosts),
+                  agents: agents,
                   emptyText: onHost.isEmpty ? noSessionsText : noMatchText,
                   collapsed: {...ref.watch(collapsedNodesProvider)},
                   onToggle: (id) => ref
@@ -693,7 +711,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                           : 0,
                       draggable: drawsInWindowTitleBar,
                       actions: [
-                        if (tier == LayoutTier.wide && selected != null)
+                        if (tier == LayoutTier.wide)
                           ReviewPaneToggle(
                             open: ref.watch(reviewPaneOpenProvider),
                             changes: byRef[selected]?.changes,
@@ -709,35 +727,58 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                   ),
                 ),
                 Expanded(
-                  child: Row(
+                  child: Stack(
                     children: [
-                      if (!sidebarCollapsed) ...[
-                        SizedBox(
-                          width: _listPaneWidth,
-                          child: Material(
-                            color: AppColors.of(context).sidebarBackground,
-                            child: list,
+                      Row(
+                        children: [
+                          if (!sidebarCollapsed) ...[
+                            SizedBox(
+                              width: sidebarWidth,
+                              child: Material(
+                                color: AppColors.of(context).sidebarBackground,
+                                child: list,
+                              ),
+                            ),
+                            const VerticalDivider(width: 1),
+                          ],
+                          Expanded(
+                            child: selected == null
+                                ? switch (_draft) {
+                                    final draft? => _draftView(draft),
+                                    null => const Center(
+                                      child: Text('Select a session'),
+                                    ),
+                                  }
+                                : HostScope(
+                                    host: selected.host,
+                                    child: SessionDetailView(
+                                      key: ValueKey(selected),
+                                      session: selected.session,
+                                      reviewAsPane: tier == LayoutTier.wide,
+                                    ),
+                                  ),
+                          ),
+                        ],
+                      ),
+                      // Over the divider, half on each side of it.
+                      if (!sidebarCollapsed)
+                        Positioned(
+                          top: 0,
+                          bottom: 0,
+                          left: sidebarWidth - paneResizeHandleWidth / 2,
+                          child: PaneResizeHandle(
+                            label: 'Resize sidebar',
+                            onDrag: (dx) => ref
+                                .read(sidebarWidthProvider.notifier)
+                                .resize(dx),
+                            onDragEnd: () => unawaited(
+                              ref.read(sidebarWidthProvider.notifier).save(),
+                            ),
+                            onReset: () => unawaited(
+                              ref.read(sidebarWidthProvider.notifier).reset(),
+                            ),
                           ),
                         ),
-                        const VerticalDivider(width: 1),
-                      ],
-                      Expanded(
-                        child: selected == null
-                            ? switch (_draft) {
-                                final draft? => _draftView(draft),
-                                null => const Center(
-                                  child: Text('Select a session'),
-                                ),
-                              }
-                            : HostScope(
-                                host: selected.host,
-                                child: SessionDetailView(
-                                  key: ValueKey(selected),
-                                  session: selected.session,
-                                  reviewAsPane: tier == LayoutTier.wide,
-                                ),
-                              ),
-                      ),
                     ],
                   ),
                 ),
@@ -806,8 +847,38 @@ class _SidebarHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final muted = AppColors.of(context).mutedText;
     const compact = VisualDensity(horizontal: -4, vertical: -4);
+    // Small icon buttons, as in the reference, so the header fits the
+    // narrowest sidebar (minPaneWidth).
+    return IconButtonTheme(
+      data: IconButtonThemeData(
+        style: (theme.iconButtonTheme.style ?? const ButtonStyle()).merge(
+          IconButton.styleFrom(
+            minimumSize: const Size(30, 30),
+            padding: const EdgeInsets.all(6),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) => _row(
+          context,
+          compact: compact,
+          // The key cap is left out of a narrow sidebar; the tooltip
+          // still names the shortcut.
+          showShortcut: constraints.maxWidth >= 300,
+        ),
+      ),
+    );
+  }
+
+  Widget _row(
+    BuildContext context, {
+    required VisualDensity compact,
+    required bool showShortcut,
+  }) {
+    final theme = Theme.of(context);
+    final muted = AppColors.of(context).mutedText;
     return Padding(
       padding: const EdgeInsetsDirectional.fromSTEB(12, 0, 4, 0),
       child: Row(
@@ -847,26 +918,28 @@ class _SidebarHeader extends StatelessWidget {
                       'New',
                       style: TextStyle(fontWeight: FontWeight.normal),
                     ),
-                    const SizedBox(width: 6),
                     // The shortcut as a key cap, as in the reference.
-                    DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: AppColors.of(context).bubbleFill,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 4,
-                          vertical: 1,
+                    if (showShortcut) ...[
+                      const SizedBox(width: 6),
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: AppColors.of(context).bubbleFill,
+                          borderRadius: BorderRadius.circular(4),
                         ),
-                        child: Text(
-                          shortcutLabel(AppCommand.newSession),
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: muted,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 1,
+                          ),
+                          child: Text(
+                            shortcutLabel(AppCommand.newSession),
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: muted,
+                            ),
                           ),
                         ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
@@ -876,8 +949,8 @@ class _SidebarHeader extends StatelessWidget {
             tooltip: 'Filter and sort',
             icon: Icon(
               filter == SessionFilter.active
-                  ? Icons.filter_alt_outlined
-                  : Icons.filter_alt,
+                  ? AppIcons.filter
+                  : AppIcons.filterActive,
               size: 18,
             ),
             onSelected: (choice) => switch (choice) {
@@ -908,7 +981,7 @@ class _SidebarHeader extends StatelessWidget {
           IconButton(
             tooltip:
                 'Search sessions (${shortcutLabel(AppCommand.searchSessions)})',
-            icon: const Icon(Icons.search, size: 18),
+            icon: const Icon(AppIcons.search, size: 18),
             onPressed: onSearch,
           ),
           menu,
@@ -1060,7 +1133,7 @@ class _HostsMenu extends StatelessWidget {
         icon: Badge(
           isLabelVisible: notConnected,
           smallSize: 6,
-          child: const Icon(Icons.more_horiz, size: 18),
+          child: const Icon(AppIcons.more, size: 18),
         ),
         onPressed: () =>
             controller.isOpen ? controller.close() : controller.open(),
@@ -1102,14 +1175,14 @@ class _SearchField extends StatelessWidget {
         onChanged: (_) => onChanged(),
         decoration: InputDecoration(
           isDense: true,
-          prefixIcon: const Icon(Icons.search, size: 18),
+          prefixIcon: const Icon(AppIcons.search, size: 18),
           hintText:
               'Search (${shortcutLabel(AppCommand.searchSessions)}); '
               'agent: status: repo: host:',
           border: const OutlineInputBorder(),
           suffixIcon: IconButton(
             tooltip: 'Close search',
-            icon: const Icon(Icons.close, size: 18),
+            icon: const Icon(AppIcons.close, size: 18),
             onPressed: onClose,
           ),
         ),
@@ -1162,7 +1235,7 @@ class _SelectionBar extends StatelessWidget {
         ),
         IconButton(
           tooltip: 'Done selecting',
-          icon: const Icon(Icons.close),
+          icon: const Icon(AppIcons.close),
           onPressed: onDone,
         ),
       ],
@@ -1203,7 +1276,7 @@ class _DraftRow extends StatelessWidget {
     onTap: onOpen,
     trailing: IconButton(
       tooltip: 'Discard the draft',
-      icon: const Icon(Icons.close),
+      icon: const Icon(AppIcons.close),
       onPressed: onDiscard,
     ),
   );

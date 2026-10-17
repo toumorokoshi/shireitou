@@ -14,6 +14,8 @@ import 'folder_grouping.dart';
 import 'relative_time.dart';
 import 'session_tree.dart';
 import 'status_badges.dart';
+import '../theme/app_icons.dart';
+import '../agent_names.dart';
 
 /// What a session row's menu, hover buttons, swipe and multi-select can
 /// do (AV-024, AV-028, AV-029). Each callback gets the session.
@@ -78,6 +80,7 @@ class SessionListView extends StatelessWidget {
     this.chats = const [],
     this.folders = const [],
     this.hostLabels = const {},
+    this.agents = const {},
     this.collapsed = const {},
     this.onToggle,
     this.selected,
@@ -105,6 +108,10 @@ class SessionListView extends StatelessWidget {
   /// The labels of the hosts by key when several are open
   /// ([hostLabelsOf]), shown on rows and folder headers.
   final Map<String, String> hostLabels;
+
+  /// The agents of each host by key, which name a session's agent on its
+  /// hover card ([agentDisplayName]).
+  final Map<String, List<AgentInfo>> agents;
 
   /// Ids of the collapsed sections and folders ([sidebarRows]).
   final Set<String> collapsed;
@@ -151,52 +158,52 @@ class SessionListView extends StatelessWidget {
   /// [denseSessionHeight]) rather than touch.
   final bool dense;
 
-  Widget _row(SidebarRow row, DateTime clock, Set<SessionRef> pins) =>
-      switch (row) {
-        SectionRow(:final id, :final collapsed, :final hasAttention) =>
-          _SectionHeader(
-            key: ValueKey(('section', id)),
-            icon: id == pinnedNodeId
-                ? Icons.push_pin_outlined
-                : Icons.chat_bubble_outline,
-            label: id == pinnedNodeId ? 'Pinned' : 'Chats',
-            attention: hasAttention,
-            collapsed: collapsed,
-            dense: dense,
-            onToggle: onToggle == null ? null : () => onToggle!(id),
-          ),
-        FolderRow(:final group, :final collapsed, :final hostLabel) =>
-          _FolderHeader(
-            key: ValueKey(('folder', group.id)),
-            group: group,
-            hostLabel: hostLabel,
-            collapsed: collapsed,
-            dense: dense,
-            onToggle: onToggle == null ? null : () => onToggle!(group.id),
-            onNewSession: onNewSession == null
-                ? null
-                : () => onNewSession!(group),
-            index: folders.indexOf(group),
-            count: folders.length,
-            onMove: onMoveFolder == null
-                ? null
-                : (from, to) => onMoveFolder!(folders, from, to),
-          ),
-        SessionItem(:final session, :final ref, :final place) => _SessionRow(
-          key: ValueKey(('session', ref)),
-          session: session,
-          ref: ref,
-          place: place,
-          now: clock,
-          dense: dense,
-          selected: selected == ref,
-          checked: selection?.contains(ref),
-          pinned: pins.contains(ref),
-          actions: actions,
-          onOpen: onSelect,
-          runLabel: runLabels[ref],
-        ),
-      };
+  Widget _row(
+    SidebarRow row,
+    DateTime clock,
+    Set<SessionRef> pins,
+  ) => switch (row) {
+    SectionRow(:final id, :final collapsed, :final hasAttention) =>
+      _SectionHeader(
+        key: ValueKey(('section', id)),
+        icon: id == pinnedNodeId ? AppIcons.pin : AppIcons.chats,
+        label: id == pinnedNodeId ? 'Pinned' : 'Chats',
+        attention: hasAttention,
+        collapsed: collapsed,
+        dense: dense,
+        onToggle: onToggle == null ? null : () => onToggle!(id),
+      ),
+    FolderRow(:final group, :final collapsed, :final hostLabel) =>
+      _FolderHeader(
+        key: ValueKey(('folder', group.id)),
+        group: group,
+        hostLabel: hostLabel,
+        collapsed: collapsed,
+        dense: dense,
+        onToggle: onToggle == null ? null : () => onToggle!(group.id),
+        onNewSession: onNewSession == null ? null : () => onNewSession!(group),
+        index: folders.indexOf(group),
+        count: folders.length,
+        onMove: onMoveFolder == null
+            ? null
+            : (from, to) => onMoveFolder!(folders, from, to),
+      ),
+    SessionItem(:final session, :final ref, :final place) => _SessionRow(
+      key: ValueKey(('session', ref)),
+      session: session,
+      ref: ref,
+      place: place,
+      now: clock,
+      dense: dense,
+      selected: selected == ref,
+      checked: selection?.contains(ref),
+      pinned: pins.contains(ref),
+      actions: actions,
+      onOpen: onSelect,
+      runLabel: runLabels[ref],
+      agent: agentDisplayName(session.provider, agents[ref.host] ?? const []),
+    ),
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -540,7 +547,7 @@ class _SectionHeader extends StatelessWidget {
           ],
           if (attention) const _AttentionDot(),
           if (collapsed)
-            Icon(Icons.chevron_right, size: _iconSize(dense), color: muted),
+            Icon(AppIcons.expand, size: _iconSize(dense), color: muted),
         ],
       ),
       trailing: actions.isEmpty
@@ -646,7 +653,7 @@ class _FolderHeader extends StatelessWidget {
     // Touch layouts have no hover, so their "+" always shows.
     final showActions = interactive && (active || !dense);
     return _SectionHeader(
-      icon: Icons.folder_outlined,
+      icon: AppIcons.folder,
       label: workspaceLabel(group.label, group.project),
       detail: hostLabel,
       tooltip: folderDetails(group),
@@ -660,7 +667,7 @@ class _FolderHeader extends StatelessWidget {
         if (showActions && onNewSession != null)
           _RowButton(
             tooltip: 'New session in ${group.label}',
-            icon: Icons.add,
+            icon: AppIcons.add,
             dense: dense,
             onPressed: onNewSession,
           ),
@@ -668,7 +675,7 @@ class _FolderHeader extends StatelessWidget {
           Builder(
             builder: (context) => _RowButton(
               tooltip: 'Move ${group.label}',
-              icon: Icons.drag_indicator,
+              icon: AppIcons.drag,
               dense: dense,
               onPressed: () {
                 final box = context.findRenderObject()! as RenderBox;
@@ -768,9 +775,13 @@ class _SessionRow extends StatelessWidget {
     required this.actions,
     required this.onOpen,
     this.runLabel,
+    this.agent,
   });
 
   final SessionSummary session;
+
+  /// The agent's name for the hover card ([agentDisplayName]).
+  final String? agent;
 
   /// Where the session lives ([sessionPlace]).
   final String place;
@@ -837,13 +848,13 @@ class _SessionRow extends StatelessWidget {
     if (actions.onPin case final onPin?)
       _RowButton(
         tooltip: pinLabel(pinned: pinned),
-        icon: pinned ? Icons.push_pin : Icons.push_pin_outlined,
+        icon: pinned ? AppIcons.unpin : AppIcons.pin,
         dense: dense,
         onPressed: () => onPin(ref, !pinned),
       ),
     _RowButton(
       tooltip: _archived ? 'Unarchive' : markDoneLabel,
-      icon: _archived ? Icons.unarchive_outlined : Icons.check,
+      icon: _archived ? AppIcons.unarchive : AppIcons.markDone,
       dense: dense,
       onPressed: switch ((_archived, actions.onMarkDone)) {
         (false, final onMarkDone?) => () => onMarkDone(ref),
@@ -859,6 +870,7 @@ class _SessionRow extends StatelessWidget {
       session: session,
       now: now,
       runLabel: runLabel,
+      agent: agent,
       place: place,
       dense: dense,
       selected: selected || (checked ?? false),
@@ -921,7 +933,7 @@ class _SessionRow extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  _archived ? Icons.unarchive_outlined : Icons.archive_outlined,
+                  _archived ? AppIcons.unarchive : AppIcons.archive,
                   color: scheme.onSecondaryContainer,
                 ),
                 const SizedBox(width: 8),
@@ -961,17 +973,22 @@ String folderDetails(FolderGroup group) => [
 ].join(' · ');
 
 /// The text after the title on a session's hover card (AV-093),
-/// " · agent · workspace" (the workspace is the project's name, else the
+/// " · agent · workspace" (the agent is [agent], its display name, else
+/// the provider id; the workspace is the project's name, else the
 /// folder's), and the folder's full path for the line under it (null
 /// with no folder).
-({String heading, String? path}) hoverCardOf(SessionSummary summary) {
+({String heading, String? path}) hoverCardOf(
+  SessionSummary summary, {
+  String? agent,
+}) {
   final key = folderKeyOf(summary);
   final workspace =
       projectNameOf(summary) ?? (key == null ? null : folderLabelOf(key));
   return (
     heading: [
       '',
-      if (summary.provider.isNotEmpty) summary.provider,
+      if ((agent ?? summary.provider) case final name when name.isNotEmpty)
+        name,
       ?workspace,
     ].join(' · '),
     path: key,
@@ -1009,6 +1026,7 @@ class SessionTile extends StatelessWidget {
     this.leading,
     this.trailing = const [],
     this.runLabel,
+    this.agent,
     this.dense = true,
   });
 
@@ -1022,6 +1040,10 @@ class SessionTile extends StatelessWidget {
   /// "Run 2 of 3" when the session is one of several parallel runs
   /// (AV-045).
   final String? runLabel;
+
+  /// The agent's name for the hover card ([agentDisplayName]); the
+  /// provider id when null.
+  final String? agent;
 
   /// Clock for the relative modified time.
   final DateTime now;
@@ -1056,7 +1078,7 @@ class SessionTile extends StatelessWidget {
     final status = session.status;
     final statusLabel = [for (final badge in badgesFor(status)) badge.label]
         .join(', ');
-    final card = hoverCardOf(session);
+    final card = hoverCardOf(session, agent: agent);
     final detailStyle = _detailStyle(context, dense);
     final content = Column(
       mainAxisSize: MainAxisSize.min,
@@ -1075,7 +1097,7 @@ class SessionTile extends StatelessWidget {
         Row(
           children: [
             if (folderKeyOf(session) != null) ...[
-              Icon(Icons.folder_outlined, size: dense ? 12 : 14, color: muted),
+              Icon(AppIcons.folder, size: dense ? 12 : 14, color: muted),
               const SizedBox(width: 4),
             ],
             Flexible(
@@ -1148,7 +1170,7 @@ class SessionTile extends StatelessWidget {
               alignment: PlaceholderAlignment.middle,
               child: Padding(
                 padding: const EdgeInsetsDirectional.only(top: 6, end: 6),
-                child: Icon(Icons.folder_outlined, size: 14, color: muted),
+                child: Icon(AppIcons.folder, size: 14, color: muted),
               ),
             ),
             TextSpan(text: 'Workspace · $path', style: detailStyle),

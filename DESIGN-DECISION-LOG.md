@@ -1,5 +1,68 @@
 # Design Decision Log
 
+## 2026-10-17: Resizable panes, codicons and the reference's remaining differences (AV-005, AV-067, AV-090 to AV-096)
+
+The screenshots against the reference left a list of differences in
+GAPS.md: a fixed 380 px sidebar, the agent's provider id on the hover
+card, a "Done · 107.0 s" footer, heavy Material icons, two bars on a
+phone's session page, a jump button in the pane's corner, and a review
+toggle that did not look like the reference's.
+
+- **Panes resize by dragging their edge (AV-005).** A 7 px strip over
+  the one-pixel divider (`PaneResizeHandle`) with a resize-column cursor;
+  a double-click resets it. Widths are clamped to 240–600 px and to the
+  room left beside the pane (`clampedPaneWidth`), so a narrow window
+  keeps space for the session. `StoredWidth` (`prefs.dart`) keeps the
+  width in `PrefsStore` and writes it when the drag ends, not on every
+  pointer move. The sidebar defaults to 400 px, as asked; measured in the
+  screenshots' coordinates the reference's sidebar is about 486 px, so
+  that is the value to use if the default should match the PNG. The
+  review pane got the same handle (default 380 px). The drag counts from
+  pointer down (`DragStartBehavior.down`), so the edge follows the
+  pointer exactly. At the 240 px minimum the sidebar header drops the
+  "⌘N" key cap (still in the tooltip) and uses 30 px icon buttons, as the
+  reference does, so it does not overflow.
+- **Agent names come from one pure helper.** `agentDisplayName` picks
+  the host's `AgentInfo.displayName`, else the provider id; the hover
+  card (the sessions screen passes each host's agents to the list) and
+  both composers' placeholders use it.
+- **The turn footer stays, quieter.** AV-067 asks for tokens per turn,
+  so the footer remains on every finished turn, in `labelSmall` at
+  regular weight in the muted colour, with the steps line's duration
+  format ("1m 47s", `formatStepsDuration`). Showing it only on hover was
+  rejected: touch screens have no hover, and screen readers would lose
+  it.
+- **Icons are VS Code's codicons, via `vscode_codicons`.** Candidates:
+  `codicon` (flutter/devtools' third-party package; MIT code and
+  CC-BY-4.0 font, but last published December 2024 with an older
+  codicon set missing `layout-sidebar-right`, `sparkle` and
+  `bell-slash`), `vscode_codicons` 0.0.45 (generated from the current
+  `@vscode/codicons` npm package, published July 2026 and updated with
+  each codicons release, null safe, 155 pub points, CC-BY-4.0 like
+  Microsoft's font, but one maintainer and few likes) and
+  `lucide_icons_flutter` (popular, MIT, but not the reference's icons).
+  `vscode_codicons` was chosen because it is the reference's own icon
+  set at its current version; it is a font and a generated table of
+  constants, so it is cheap to replace or vendor if it stops being
+  updated. Flutter's licence registry shows its CC-BY-4.0 notice. Every
+  chrome icon is named in `AppIcons` (`theme/app_icons.dart`), so the set
+  changes in one file. Menus' leading icons, status dots and timeline
+  cards keep Material icons for now.
+- **One bar on a phone's session page.** The pushed page has no
+  `AppBar`; `SessionDetailView.showBackButton` puts a `BackButton` at the
+  start of the session header (back, title, "…"). `BackButton` is kept,
+  rather than a codicon, so the platform's back icon and
+  `tester.pageBack` still apply. The draft page keeps its app bar: it
+  has no header of its own.
+- **The jump button lines up with the column.** It sits at
+  `timelineEndInset(width)` from the pane's right: the list's padding
+  plus half the room beside the centred column, so its edge meets the
+  messages' and the composer's.
+- **Title bar right side:** the review toggle uses `layout-sidebar-right`
+  (`-off` while closed) and shows on wide layouts with or without an
+  open session, next to the bell, as in the reference. Its menus' icons
+  are 18 px like its buttons.
+
 ## 2026-10-17: Screenshots of the app against the reference UI, and the fixes they showed (AV-090 to AV-096)
 
 The restyle to the reference UI (AV-090 to AV-096) had been built and

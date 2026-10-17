@@ -27,6 +27,8 @@ import 'config_fields.dart';
 import 'config_form.dart';
 import 'directory_browser.dart';
 import 'new_session_draft.dart';
+import '../theme/app_icons.dart';
+import '../agent_names.dart';
 
 /// The draft's title, in its header and in the session list.
 const newSessionTitle = 'New session';
@@ -469,7 +471,7 @@ class _NewSessionViewState extends ConsumerState<NewSessionView> {
               if (hosts.length > 1)
                 pickerChip<String>(
                   label: 'Host',
-                  icon: Icons.dns_outlined,
+                  icon: AppIcons.host,
                   value: host,
                   items: [for (final h in hosts) (h.key, h.label)],
                   onChanged: (host) {
@@ -479,7 +481,7 @@ class _NewSessionViewState extends ConsumerState<NewSessionView> {
                 ),
               pickerChip<String>(
                 label: 'Agent',
-                icon: Icons.smart_toy_outlined,
+                icon: AppIcons.agent,
                 value: agent?.provider,
                 items: [for (final a in agents) (a.provider, a.displayName)],
                 onChanged: _selectAgent,
@@ -502,7 +504,7 @@ class _NewSessionViewState extends ConsumerState<NewSessionView> {
                             color: muted,
                           ),
                           prefixIcon: Icon(
-                            Icons.folder_outlined,
+                            AppIcons.folder,
                             size: 14,
                             color: muted,
                           ),
@@ -518,7 +520,7 @@ class _NewSessionViewState extends ConsumerState<NewSessionView> {
                     iconSize: 16,
                     visualDensity: VisualDensity.compact,
                     color: muted,
-                    icon: const Icon(Icons.folder_open),
+                    icon: const Icon(AppIcons.folderOpen),
                     onPressed: host == null ? null : _browse,
                   ),
                   if (recent.isNotEmpty)
@@ -526,7 +528,7 @@ class _NewSessionViewState extends ConsumerState<NewSessionView> {
                       tooltip: 'Recent folders',
                       iconSize: 16,
                       iconColor: muted,
-                      icon: const Icon(Icons.history),
+                      icon: const Icon(AppIcons.history),
                       onSelected: (folder) => _directory.text = folder,
                       itemBuilder: (_) => [
                         for (final folder in recent)
@@ -583,7 +585,9 @@ class _NewSessionViewState extends ConsumerState<NewSessionView> {
             focusRequests: _focusRequests,
             working: false,
             hintText: composerPlaceholder(
-              agent: agent?.displayName,
+              agent: agent == null
+                  ? null
+                  : agentDisplayName(agent.provider, agents),
               folder: switch (_directory.text.trim()) {
                 '' => null,
                 final folder => folderLabelOf(normalizeFolderKey(folder)),

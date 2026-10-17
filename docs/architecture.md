@@ -270,7 +270,10 @@ Dart source); `bin/generate.dart` does the file I/O. See
   the system, titled with the attention count (`windowTitle`, AV-120).
   Shows the connect screen until connected, and restores the hosts that
   were open.
-- `lib/src/theme/`: the light and dark themes (AV-090). `app_theme.dart`
+- `lib/src/theme/`: the light and dark themes (AV-090) and the chrome's
+  icons: `app_icons.dart` (`AppIcons`) names the title bar, sidebar,
+  session header and composer icons, VS Code's codicons from
+  `vscode_codicons`, so the icon set changes in one place. `app_theme.dart`
   builds them (`buildTheme`: the reference's greys in the `ColorScheme`,
   no elevation or `surfaceTint`, hairline borders, 6 px radii, and on
   desktop `VisualDensity.compact` and 13 px body text, in the platform's
@@ -290,9 +293,16 @@ Dart source); `bin/generate.dart` does the file I/O. See
   the tokens of both themes (4.5:1 for text, 3:1 for status dots).
 - `lib/src/screens/`: the connect screen and the sessions screen. The
   sessions screen picks a layout tier with `layoutTierFor(width)`:
-  compact (< 700 dp) pushes the session onto a new page under a small
-  app bar, medium shows the title bar over list plus detail, wide
-  (≥ 1200 dp) adds a review pane.
+  compact (< 700 dp) pushes the session onto a page of its own whose
+  only bar is the session header with a back button
+  (`SessionDetailView.showBackButton`), medium shows the title bar over
+  list plus detail, wide (≥ 1200 dp) adds a review pane. The sidebar and
+  the review pane resize by dragging their edge (AV-005):
+  `pane_resize_handle.dart` is the strip over the divider,
+  `clampedPaneWidth` in `layout.dart` keeps a width within 240–600 px and
+  the room left, and `StoredWidth` in `prefs.dart` keeps
+  `sidebarWidthProvider` (`session_list/sidebar_store.dart`) and
+  `reviewPaneWidthProvider` (`review/review_pane_store.dart`).
 - `lib/src/title_bar/`: the title bar (AV-091). `title_bar.dart` is the
   `TitleBar` widget (callbacks only, no state), `workspaceTitle` ("folder
   [repo]", built with `workspaceLabel`) and `sidebarCollapsedProvider`
@@ -467,10 +477,15 @@ Dart source); `bin/generate.dart` does the file I/O. See
   session list. `notification_menu.dart` is the bell menu, with "Allow
   notifications…" while permission is refused.
 - `lib/src/prefs.dart`: `PrefsStore`, small non-secret settings in
-  `shared_preferences` (memory in tests).
+  `shared_preferences` (memory in tests), with `StoredFlag` for on/off
+  settings and `StoredWidth` for pane widths.
+- `lib/src/agent_names.dart` (pure): `agentDisplayName` names an agent by
+  the host's `AgentInfo.displayName` ("Pi"), else its provider id; the
+  hover card and the composer's placeholder use it.
 - `lib/src/review/`: the "Files changed" pane (AV-100 to AV-103),
   the wide layout's collapsible pane and its toggle, and
-  `review_pane_store.dart` (whether the pane is open, AV-003).
+  `review_pane_store.dart` (whether the pane is open, AV-003, and its
+  width, AV-005).
   `review_logic.dart` is pure (which changesets to offer, the URI for the
   chosen turn, counts); `changes_pane.dart` lists files with their change
   kind, counts and "reviewed" boxes and runs host operations.

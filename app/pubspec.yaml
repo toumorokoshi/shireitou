@@ -28,6 +28,7 @@ dependencies:
   super_sliver_list: ^0.4.1
   url_launcher: ^6.3.3
   uuid: ^4.6.0
+  vscode_codicons: ^0.0.45
   web: ^1.1.1
   window_manager: ^0.5.2
   xterm: ^4.0.0

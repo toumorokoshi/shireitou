@@ -274,8 +274,22 @@ void main() {
   });
 
   testWidgets('hovering a row shows "Mark as done", with Undo, and then '
-      'its card', (tester) async {
-    final connection = await _pump(tester, _connected());
+      'its card, which names the agent by its display name', (tester) async {
+    final connection = await _pump(
+      tester,
+      _connected().copyWith(
+        root: const RootState(
+          agents: [
+            AgentInfo(
+              provider: 'pi',
+              displayName: 'Pi',
+              description: 'pi',
+              models: [],
+            ),
+          ],
+        ),
+      ),
+    );
     JsonMap last(String channel) =>
         connection.dispatched.lastWhere((d) => d.$1 == channel).$2;
     expect(find.byTooltip(markDoneLabel), findsNothing);
@@ -295,7 +309,7 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.textContaining('Explain · pi · fix-login', findRichText: true),
+      find.textContaining('Explain · Pi · fix-login', findRichText: true),
       findsOneWidget,
     );
     // The card opens past the row's end, clear of its buttons.

@@ -51,23 +51,21 @@ AppImage and the release workflow (see
 
 - **Reference UI, remaining differences** (compared with
   `just screenshots`, see [docs/testing.md](docs/testing.md)): the
-  sidebar is a fixed 380 px (the reference's is about 486 px at 100%
-  zoom and resizable), so titles truncate sooner. Each finished turn
-  keeps its "Done · 107.0 s · tokens" footer (AV-067 asks for tokens per
-  turn), which the reference does not have. The hover card names the
-  agent by its provider id ("pi"), not its display name ("Pi"), since
-  rows do not know the host's agents. The session header shows the
-  session title, where the reference shows the current turn's message
-  with a bullet. Icons are Material icons, heavier than the reference's
-  thin line icons (the filter funnel, pin and "…" most visibly), and the
-  "Agent" mode chip uses "∞". The title bar's right side has the review
-  pane toggle and the notifications bell, not the reference's layout and
-  account icons. On a phone the session page has a back-only app bar
-  above the session header (two bars), and the turn rail is always shown
-  there over the list's end padding. The jump-to-latest button sits at
-  the pane's bottom-right corner rather than at the column's edge. The
-  screenshots are checked by eye; there are no golden files, because the
-  PNGs depend on the macOS fonts.
+  sidebar opens at 400 px and can be dragged wider; in the screenshots'
+  coordinates (the reference's 120% zoom already applied) the
+  reference's sidebar measures about 486 px, so titles still truncate a
+  little sooner until it is widened (`defaultSidebarWidth`). Each
+  finished turn keeps a small muted "Done · 1m 47s · tokens" footer
+  (AV-067), which the reference does not have. The session header shows
+  the session title, where the reference shows the current turn's
+  message (intended). Codicons (`AppIcons`) cover the title bar, sidebar,
+  session header and composer; menus' leading icons, the status dots,
+  the timeline's cards, the review pane's actions and the phone page's
+  back button are still Material icons. The title bar has the review
+  pane toggle and the bell, not the reference's remote and account
+  icons. On a phone the turn rail is always shown over the list's end
+  padding. The screenshots are checked by eye; there are no golden
+  files, because the PNGs depend on the macOS fonts.
 - **Session header and composer (AV-094, AV-096), remaining details:**
   the "+" button is disabled until attachments can be picked (AV-042).
   The "Details" popover (live, from the header's "…" menu) and the
@@ -78,7 +76,8 @@ AppImage and the release workflow (see
   known for it). The model chip's "key option" is the first choice
   option that is not the reasoning level, which may not be the one a
   host considers most meaningful (AHP has no such hint). Only the
-  `mode` setting gets the "∞" icon; other settings get a generic one.
+  `mode` setting gets the agent icon (codicon `agent`); other settings get
+  a generic one (`settings`).
   Chips scroll sideways in a narrow pane rather than wrapping. The
   new-session draft's folder is a borderless text field with Browse
   and recent-folder buttons beside the host and agent chips, not a
@@ -250,8 +249,9 @@ AppImage and the release workflow (see
   diff comments, AV-104); a non-external operation follow-up is shown as
   plain text. Side-by-side diffs appear from 900 dp in the full diff page
   only. On wide layouts the pane opens and closes (one choice for all
-  sessions, remembered on the device) but cannot be resized (AV-005),
-  and the left sidebar does not collapse yet. The header's details
+  sessions, remembered on the device) and resizes by dragging its edge
+  (AV-005); widths are changed by pointer only (no keyboard or screen
+  reader action, and no menu item). The header's details
   still list the change counts, which the pane's toggle also shows.
 - **Todo lists and plans (AV-070, AV-046):** todo tools are recognized
   by name (`TodoWrite`, `todo_write`, `update_todo`, `manage_todo_list`,

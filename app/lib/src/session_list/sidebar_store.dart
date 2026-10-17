@@ -1,10 +1,11 @@
-/// The sidebar's folder order and collapsed sections, kept
+/// The sidebar's folder order, collapsed sections and width, kept
 /// on this device with [prefsStoreProvider].
 library;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../layout.dart';
 import '../prefs.dart';
 import 'folder_order.dart';
 
@@ -52,3 +53,8 @@ class StoredIds extends Notifier<List<String>> {
     await ref.read(prefsStoreProvider).write(key, encodeIds(ids));
   }
 }
+
+/// The sidebar's width, which the user sets by dragging its edge (AV-005).
+final sidebarWidthProvider = NotifierProvider<StoredWidth, double>(
+  () => StoredWidth('sidebar_width', defaultSidebarWidth),
+);

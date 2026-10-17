@@ -16,6 +16,7 @@ import '../session_detail/session_inputs.dart';
 import '../session_detail/tool_previews.dart';
 import '../shortcuts.dart';
 import 'review_logic.dart';
+import '../theme/app_icons.dart';
 
 /// The changes of [session] and its open [chat].
 class ChangesPane extends ConsumerStatefulWidget {
@@ -479,6 +480,7 @@ class CollapsibleReviewPane extends StatelessWidget {
     required this.open,
     required this.width,
     required this.child,
+    this.handle,
   });
 
   /// Whether the pane is open.
@@ -489,6 +491,10 @@ class CollapsibleReviewPane extends StatelessWidget {
 
   /// The pane's content.
   final Widget child;
+
+  /// A [PaneResizeHandle] laid over the divider, so the pane can be
+  /// resized (AV-005).
+  final Widget? handle;
 
   @override
   Widget build(BuildContext context) => TweenAnimationBuilder<double>(
@@ -508,11 +514,17 @@ class CollapsibleReviewPane extends StatelessWidget {
           ),
     child: SizedBox(
       width: width + 1,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: Stack(
         children: [
-          const VerticalDivider(width: 1),
-          Expanded(child: child),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const VerticalDivider(width: 1),
+              Expanded(child: child),
+            ],
+          ),
+          if (handle case final handle?)
+            Positioned(top: 0, bottom: 0, left: 0, child: handle),
         ],
       ),
     ),
@@ -567,7 +579,7 @@ class ReviewPaneToggle extends StatelessWidget {
           textColor: Theme.of(context).colorScheme.onPrimary,
           label: files > 0 ? Text('$files') : null,
           smallSize: 6,
-          child: const Icon(Icons.rate_review_outlined),
+          child: Icon(open ? AppIcons.reviewPane : AppIcons.reviewPaneOff),
         ),
       ),
     );

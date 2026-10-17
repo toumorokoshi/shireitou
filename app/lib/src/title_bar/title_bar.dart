@@ -12,6 +12,7 @@ import 'package:window_manager/window_manager.dart';
 import '../prefs.dart';
 import '../session_list/folder_grouping.dart';
 import '../theme/app_theme.dart';
+import '../theme/app_icons.dart';
 
 /// The bar's height. On macOS it matches the window's compact toolbar
 /// (`macos/Runner/MainFlutterWindow.swift`), so the traffic lights sit
@@ -103,17 +104,19 @@ class TitleBar extends StatelessWidget {
         if (onToggleSidebar case final toggle?)
           IconButton(
             tooltip: sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar',
-            icon: const Icon(Icons.view_sidebar_outlined),
+            icon: Icon(
+              sidebarCollapsed ? AppIcons.sidebarOff : AppIcons.sidebar,
+            ),
             onPressed: toggle,
           ),
         IconButton(
           tooltip: 'Back',
-          icon: const Icon(Icons.arrow_back),
+          icon: const Icon(AppIcons.back),
           onPressed: onBack,
         ),
         IconButton(
           tooltip: 'Forward',
-          icon: const Icon(Icons.arrow_forward),
+          icon: const Icon(AppIcons.forward),
           onPressed: onForward,
         ),
         const SizedBox(width: 8),
@@ -145,24 +148,28 @@ class TitleBar extends StatelessWidget {
           foregroundColor: colors.mutedText,
         ),
       ),
-      child: Container(
-        height: titleBarHeight,
-        decoration: BoxDecoration(
-          color: colors.titleBarBackground,
-          border: Border(bottom: BorderSide(color: colors.hairline)),
+      // Menus in the bar (notifications) match its icon buttons.
+      child: PopupMenuTheme(
+        data: PopupMenuTheme.of(context).copyWith(iconSize: 18),
+        child: Container(
+          height: titleBarHeight,
+          decoration: BoxDecoration(
+            color: colors.titleBarBackground,
+            border: Border(bottom: BorderSide(color: colors.hairline)),
+          ),
+          child: draggable
+              ? Stack(
+                  children: [
+                    // Under the row, so its buttons get clicks without
+                    // waiting for the double-click to time out.
+                    const Positioned.fill(
+                      child: DragToMoveArea(child: SizedBox.expand()),
+                    ),
+                    bar,
+                  ],
+                )
+              : bar,
         ),
-        child: draggable
-            ? Stack(
-                children: [
-                  // Under the row, so its buttons get clicks without
-                  // waiting for the double-click to time out.
-                  const Positioned.fill(
-                    child: DragToMoveArea(child: SizedBox.expand()),
-                  ),
-                  bar,
-                ],
-              )
-            : bar,
       ),
     );
   }
@@ -207,7 +214,7 @@ class _CentreBox extends StatelessWidget {
             child: Row(
               children: [
                 Icon(
-                  isWorkspace ? Icons.folder_outlined : Icons.search,
+                  isWorkspace ? AppIcons.folder : AppIcons.search,
                   size: 14,
                   color: colors.mutedText,
                 ),

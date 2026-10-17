@@ -1,10 +1,12 @@
 /// Small, non-secret app settings kept on this device (notification
-/// settings, run groups, pane visibility), behind an interface tests replace.
+/// settings, run groups, pane visibility and widths), behind an interface tests replace.
 library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'layout.dart';
 
 final _log = Logger('prefs');
 
@@ -98,5 +100,51 @@ class StoredFlag extends Notifier<bool> {
   Future<void> toggle() async {
     await _loading;
     await set(!state);
+  }
+}
+
+/// A pane's width (AV-005) kept with [prefsStoreProvider] under [key];
+/// [defaultWidth] until it loads, when unset and after [reset]. Widths are
+/// kept within [clampedPaneWidth].
+class StoredWidth extends Notifier<double> {
+  /// Creates the width stored under [key].
+  StoredWidth(this.key, this.defaultWidth);
+
+  /// The [PrefsStore] key.
+  final String key;
+
+  /// The width when none is saved.
+  final double defaultWidth;
+
+  Future<void>? _loading;
+
+  @override
+  double build() {
+    _loading = _load();
+    return defaultWidth;
+  }
+
+  Future<void> _load() async {
+    final saved = double.tryParse(
+      await ref.read(prefsStoreProvider).read(key) ?? '',
+    );
+    if (saved != null) state = clampedPaneWidth(saved);
+  }
+
+  /// Widens it by [delta] (narrows it when negative) without saving, so a
+  /// drag does not write on every pointer move; [save] when it ends.
+  void resize(double delta) => state = clampedPaneWidth(state + delta);
+
+  /// Saves the current width.
+  Future<void> save() async {
+    await _loading;
+    await ref.read(prefsStoreProvider).write(key, '$state');
+  }
+
+  /// Goes back to [defaultWidth] and saves it.
+  Future<void> reset() async {
+    await _loading;
+    state = defaultWidth;
+    await save();
   }
 }

@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'attention_events.dart';
 import 'notifications.dart';
+import '../theme/app_icons.dart';
 
 /// Turns notifications for each [AttentionKind] on or off, and asks for
 /// permission again when it was not granted.
@@ -22,11 +23,7 @@ class NotificationsMenu extends ConsumerWidget {
     final anyOn = !blocked && AttentionKind.values.any(settings.enabled);
     return PopupMenuButton<AttentionKind>(
       tooltip: 'Notifications',
-      icon: Icon(
-        anyOn
-            ? Icons.notifications_active_outlined
-            : Icons.notifications_off_outlined,
-      ),
+      icon: Icon(anyOn ? AppIcons.notifications : AppIcons.notificationsOff),
       onSelected: (kind) => unawaited(
         ref
             .read(notificationSettingsProvider.notifier)
