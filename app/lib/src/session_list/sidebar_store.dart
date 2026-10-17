@@ -1,4 +1,4 @@
-/// The sidebar tree's folder order and collapsed hosts and folders, kept
+/// The sidebar's folder order and collapsed sections, kept
 /// on this device with [prefsStoreProvider].
 library;
 
@@ -14,7 +14,7 @@ final folderOrderProvider = NotifierProvider<StoredIds, List<String>>(
   () => StoredIds('folder_order'),
 );
 
-/// The ids of the collapsed hosts and folders in the sidebar tree
+/// The ids of the collapsed sections and folders in the sidebar
 /// ([sidebarRows]).
 final collapsedNodesProvider = NotifierProvider<StoredIds, List<String>>(
   () => StoredIds('sidebar_collapsed'),

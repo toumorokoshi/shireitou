@@ -25,19 +25,20 @@ const appName = 'shireitou';
 const trafficLightsWidth = 76.0;
 
 /// Whether the sidebar is collapsed on medium and wide layouts, kept on
-/// this device.
+/// this device under its own key: `sidebar_collapsed` holds the collapsed
+/// sections (`collapsedNodesProvider`), and sharing it erased one with
+/// the other.
 final sidebarCollapsedProvider = NotifierProvider<StoredFlag, bool>(
-  () => StoredFlag('sidebar_collapsed'),
+  () => StoredFlag('sidebar_hidden'),
 );
 
 /// The workspace of [summary] as "folder [repo]" (only "folder" when the
 /// host names no project), or null when it has no working directory.
 String? workspaceTitle(SessionSummary? summary) {
   final key = summary == null ? null : folderKeyOf(summary);
-  if (key == null) return null;
-  final repo = summary?.project?.displayName ?? '';
-  final folder = folderLabelOf(key);
-  return repo.isEmpty ? folder : '$folder [$repo]';
+  return key == null
+      ? null
+      : workspaceLabel(folderLabelOf(key), projectNameOf(summary!));
 }
 
 /// The title bar. Callbacks that are null hide or disable their button.

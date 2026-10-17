@@ -11,6 +11,8 @@ import 'package:shireitou/src/hosts/saved_hosts.dart';
 import 'package:shireitou/src/review/changes_pane.dart';
 import 'package:shireitou/src/session_detail/session_detail_view.dart';
 import 'package:shireitou/src/session_detail/session_status_widgets.dart';
+import 'package:shireitou/src/session_list/session_list_view.dart';
+import 'package:shireitou/src/theme/app_colors.dart';
 
 import 'fake_connection.dart';
 import 'fixtures.dart';
@@ -129,8 +131,18 @@ void main() {
     await _pump(tester, connected(), const Size(1400, 900));
     expect(find.text('app'), findsOneWidget);
     expect(find.text('fix-login'), findsOneWidget);
-    expect(find.text('Needs input'), findsOneWidget);
-    expect(find.text('Unread'), findsOneWidget);
+    // Rows show a status dot, not badge chips; the folder an attention
+    // dot, not counts.
+    Finder dot(String label) =>
+        find.byWidgetPredicate((w) => w is Icon && w.semanticLabel == label);
+    expect(dot('Needs input, Unread'), findsOneWidget);
+    expect(
+      tester.widget<Icon>(dot('Needs input, Unread')).color,
+      AppColors.of(tester.element(dot('Idle'))).statusColors.attention,
+    );
+    expect(dot('Idle'), findsOneWidget);
+    expect(dot(attentionDotLabel), findsOneWidget);
+    expect(find.byType(StatusBadgeChip), findsNothing);
     expect(find.text('Select a session'), findsOneWidget);
   });
 
@@ -139,8 +151,7 @@ void main() {
   ) async {
     await _pump(tester, connected(), const Size(1400, 900));
     expect(find.text('Old'), findsNothing);
-    await tester.tap(find.text('Archived'));
-    await tester.pumpAndSettle();
+    await pickFilter(tester, 'Archived');
     expect(find.text('Old'), findsOneWidget);
     expect(find.text('Explain'), findsNothing);
   });

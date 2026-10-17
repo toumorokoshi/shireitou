@@ -1,7 +1,11 @@
 /// Status badges derived from the `SessionStatus` bitset (AV-021).
 library;
 
+import 'dart:ui' show Color;
+
 import 'package:ahp_client/ahp_client.dart';
+
+import '../theme/app_colors.dart';
 
 /// A badge shown on a session row.
 enum SessionBadge {
@@ -43,3 +47,27 @@ List<SessionBadge> badgesFor(SessionStatus status) => [
 /// Whether a session needs attention: input needed, error, or unread.
 bool needsAttention(SessionStatus status) =>
     status.isInputNeeded || status.isError || !status.isReadFlag;
+
+/// The one status a session row's dot shows (AV-093): needs input, then
+/// working, then error (as in [badgesFor]), then unread, else idle.
+/// Checks are bitwise, never equality.
+SessionBadge dotBadgeFor(SessionStatus status) => switch (badgesFor(status)) {
+  [SessionBadge.idle, SessionBadge.unread] => SessionBadge.unread,
+  [final activity, ...] => activity,
+  [] => SessionBadge.idle,
+};
+
+/// The colour of a status dot for [badge]: the theme's [colors] (AV-090)
+/// for working, needs input, error and idle, and [unread] (the text
+/// colour, brighter than idle) for unread.
+Color statusDotColor(
+  SessionBadge badge,
+  StatusColors colors, {
+  required Color unread,
+}) => switch (badge) {
+  SessionBadge.working => colors.running,
+  SessionBadge.needsInput => colors.attention,
+  SessionBadge.error => colors.error,
+  SessionBadge.unread => unread,
+  SessionBadge.idle => colors.idle,
+};

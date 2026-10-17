@@ -35,7 +35,7 @@ test("a session, shortcuts, OAuth sign-in and a reconnect", async ({ page, conte
 	await page.keyboard.type("long");
 	await expect(page.getByRole("button", { name: /^Long session/ })).toBeVisible();
 	await expect(list).toHaveCount(0);
-	await page.getByRole("button", { name: "Clear search" }).click();
+	await page.getByRole("button", { name: "Close search" }).click();
 	await expect(list.first()).toBeVisible();
 
 	// Alt+↓ opens the next session.

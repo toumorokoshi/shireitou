@@ -7,9 +7,9 @@ with a UX modeled on the GitHub Agents view and Cursor's Agents Window.
 
 > Status: usable for chat and review, on the web and as macOS and Linux
 > desktop apps. The app connects to several hosts at once (remembering
-> recent hosts), lists their sessions in one inbox grouped by host and
-> working directory (with repository and branch when the host reports
-> them), opens a session's
+> recent hosts), lists their sessions in one inbox of Pinned, Chats and
+> one section per working directory (with the repository when the host
+> reports it, and the host's name on rows when several are open), opens a session's
 > history (paging older turns in when the host windows it, with a rail
 > of turn markers to jump between turns), streams
 > replies with highlighted code, folds each turn's tool calls into one
@@ -26,7 +26,9 @@ with a UX modeled on the GitHub Agents view and Cursor's Agents Window.
 > in the session pane (host, agent,
 > model and its options such as the thinking level, a folder browsed on
 > the host, and the agent's settings such as the mode). The inbox has
-> filters, search, sort, a "Pinned" section at the top, rename, archive
+> filters, search and sort in its header, a "Pinned" section at the top,
+> two-line rows with a status dot, pin and "mark as done" on hover and a
+> hover card, rename, archive
 > and mark read from a row's menu, a
 > swipe or multi-select, folders reordered by drag and drop (the order
 > and collapsed folders remembered), and the attention count in the window title; keyboard
@@ -156,13 +158,16 @@ just run chrome 'ws://127.0.0.1:63877?tkn=...'   # prefill the host URL
    running turn, Shift+Enter adds a newline, and **Stop** cancels the turn.
 
    Shortcuts (Cmd on macOS, Ctrl elsewhere): Cmd/Ctrl+N new session,
-   Cmd/Ctrl+K search sessions (with `agent:`, `status:`, `repo:` and
+   Cmd/Ctrl+K show and focus the search field (with `agent:`, `status:`, `repo:` and
    `host:` qualifiers), Alt+↓/↑ next and previous session, Cmd/Ctrl+.
    stop, Cmd/Ctrl+L focus the follow-up box, Cmd/Ctrl+Alt+B open or close
    the review pane (wide windows; it starts closed), Cmd/Ctrl+Alt+↑/↓
    previous and next turn in the open chat. Right-click or
    long-press a session to rename it, archive it, mark it read or unread,
-   or select several; swipe it left to archive it. Click a session's
+   or select several; swipe it left to archive it, or hover it and click
+   the check to mark it done. The filter icon above the list picks the
+   filter and sort; the "…" menu holds Select, Add host…, Disconnect and
+   each host's status, Retry and SSH terminal. Click a session's
    title in its header to rename it.
 
 `just test-integration` launches pi-agent-host-protocol from

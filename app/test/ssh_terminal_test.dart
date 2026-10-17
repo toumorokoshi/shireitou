@@ -226,7 +226,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('test host actions'));
+    await tester.tap(find.byTooltip('More actions'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('test host · Connected'));
     await tester.pumpAndSettle();
     await tester.tap(find.text(openSshTerminalLabel));
     await tester.pumpAndSettle();

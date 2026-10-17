@@ -1,5 +1,60 @@
 # Design Decision Log
 
+## 2026-10-16: Hosts are no longer a level of the sidebar (AV-092, AV-093)
+
+The user decided the sidebar should follow the reference UI
+([design/reference/agents-window.md](design/reference/agents-window.md)):
+sections for Pinned, Chats and each workspace, with the host shown on
+rows rather than as a tree level.
+
+- **Merge every host into the same sections.** The host tree made a
+  user with one or two hosts expand a host to reach a workspace, and
+  repeated the host's name on every level. Sessions of all open hosts
+  now fill the same Pinned, Chats (no working directory) and folder
+  sections. Folders stay keyed by host and exact working directory
+  (AV-025), so the same path on two hosts is two sections; their
+  headers and rows show the host's label only when more than one host
+  is open (`hostLabelsOf`).
+- **Host status and actions move to the "…" menu.** Each open host gets
+  a submenu labelled with its status or error, holding Retry and Remove
+  (when not connected), "Open SSH terminal" and "SSH settings…", so
+  every action of the old host row stays reachable. A failed host puts a
+  dot on the "…" icon, since its row no longer shows it.
+- **Narrowing to one host is kept, in the "…" menu** ("Show only this
+  host"). The `host:` search qualifier and the host labels cover most
+  uses, but narrowing also picks the host for "New session" and
+  "Disconnect", so dropping it would have lost those.
+- **Folder order is global.** With no host level, folders are dragged
+  across hosts. `folder_order` already stores `'host|path'` ids, and the
+  per-host orders were saved into one list, so the stored list is read
+  as one global order with no migration: each host's placed folders keep
+  their relative order.
+- **Header icons replace the chips and the search box.** The filter icon
+  opens one menu of filters and sorts (the attention count moves to its
+  "Needs attention" item; the window title keeps it too, AV-120). The
+  search field shows from the search icon or Cmd/Ctrl+K and hides again
+  when closed. "New session" and "Disconnect" left the title bar
+  (AV-091) for the header, so they are not shown twice.
+- **One status dot per row.** `dotBadgeFor` reuses `badgesFor`'s order
+  (needs input, working, error), then unread, else idle;
+  `statusDotColor` maps it onto the theme's status tokens (AV-090), with
+  the text colour for unread, which has no token. The sidebar's other
+  colours come from `AppColors` too, so it has no hard-coded colours.
+- **The sidebar flag gets its own key.** The title bar's sidebar toggle
+  (AV-091) saved its flag under `sidebar_collapsed`, the key of the
+  collapsed sections, so each erased the other; the flag moves to
+  `sidebar_hidden`. A toggle saved before reads as shown once.
+  The title stays in regular weight; screen readers hear the status
+  after the title, so rows are still named by their title first.
+- **"Mark as done" is archive, with Undo.** The hover icon archives
+  (AV-024) and shows a snackbar with Undo; the row menu and swipe do not,
+  so their snackbars do not queue ahead of a rejected action's message.
+- **The hover card is a `Tooltip` with a rich message** that waits
+  500 ms and never triggers on touch, as a long press opens the row menu
+  and drags folders.
+- **Relative times read like the reference** ("10 hrs ago", "1 wk ago")
+  instead of "10h".
+
 ## 2026-10-16: Reference theme and title bar (AV-090, AV-091)
 
 - **Colours sampled from the screenshot.** The dark theme's greys come

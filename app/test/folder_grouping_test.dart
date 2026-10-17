@@ -138,4 +138,14 @@ void main() {
       expect(recentFolders(sessions, 'a'), ['/y', '/x']);
     });
   });
+
+  test('workspaceLabel writes "folder [project]" from the host\'s project', () {
+    final group = groupSessionsByFolder([
+      session('1', directory: 'file:///src/cruise-4', project: 'cruise'),
+    ]).single;
+    expect(group.project, 'cruise');
+    expect(workspaceLabel(group.label, group.project), 'cruise-4 [cruise]');
+    expect(projectNameOf(session('2')), isNull);
+    expect(workspaceLabel('app', null), 'app');
+  });
 }

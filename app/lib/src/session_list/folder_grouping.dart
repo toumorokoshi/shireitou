@@ -24,6 +24,7 @@ class FolderGroup {
     this.host = '',
     this.repo,
     this.branch,
+    this.project,
   });
 
   /// The host key the folder is on (AV-012); empty for a single host.
@@ -44,6 +45,11 @@ class FolderGroup {
 
   /// The checked-out branch when the host reports one.
   final String? branch;
+
+  /// The name of the folder's project when the host reports one
+  /// ([projectNameOf]), shown in brackets after [label]
+  /// ([workspaceLabel]).
+  final String? project;
 
   /// Sessions in this folder, most recently modified first.
   final List<SessionSummary> sessions;
@@ -109,6 +115,18 @@ const gitMetaKey = 'git';
   );
 }
 
+/// The name of [summary]'s project (`SessionSummary.project`'s
+/// `displayName`), or null when the host reports none.
+String? projectNameOf(SessionSummary summary) => switch (summary.project) {
+  ProjectInfo(:final displayName) when displayName.isNotEmpty => displayName,
+  _ => null,
+};
+
+/// A workspace's label as the reference UI writes it, "folder [project]"
+/// (AV-092), or just [folder] when there is no [project].
+String workspaceLabel(String folder, String? project) =>
+    project == null ? folder : '$folder [$project]';
+
 int _byModifiedDesc(SessionSummary a, SessionSummary b) =>
     b.modifiedAt.compareTo(a.modifiedAt);
 
@@ -153,6 +171,7 @@ List<FolderGroup> groupHostSessions(
           sessions: sorted,
           repo: repo,
           branch: branch,
+          project: projectNameOf(latest.first),
         );
       }(),
   ];

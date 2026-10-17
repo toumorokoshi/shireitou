@@ -1,6 +1,6 @@
 /// The order of the sidebar's workspace folders that the user dragged into
-/// place, and the storage format of that order and of the collapsed hosts
-/// and folders.
+/// place, and the storage format of that order and of the collapsed
+/// sections.
 ///
 /// See `specs/agents-view.md`, "Sidebar tree".
 library;
@@ -25,12 +25,13 @@ List<FolderGroup> orderFolders(List<FolderGroup> groups, List<String> order) {
   ];
 }
 
-/// [order] after moving `folders[from]` to index [to] of [folders], one
-/// host's folders as shown ([orderFolders]).
+/// [order] after moving `folders[from]` to index [to] of [folders], the
+/// shown folders of every host ([orderFolders]); folders are ordered
+/// across hosts, as hosts are not a level of the sidebar (AV-092).
 ///
 /// Every folder in [folders] is placed, so the shown order is kept, and
 /// the move only swaps places among them: the ids of folders that are not
-/// shown (other hosts, filtered out) keep their places. [order] is
+/// shown (filtered out, or on a closed host) keep their places. [order] is
 /// returned unchanged when [from] or [to] is out of range or they are
 /// equal.
 List<String> movedFolder(

@@ -28,7 +28,6 @@ import 'package:integration_test/integration_test.dart';
 import 'package:shireitou/src/session_detail/code_highlight.dart';
 import 'package:shireitou/src/session_detail/session_detail_view.dart';
 import 'package:shireitou/src/session_detail/session_status_widgets.dart';
-import 'package:shireitou/src/session_list/session_list_view.dart';
 import 'package:shireitou/src/shortcuts.dart';
 
 import 'harness.dart';
@@ -459,20 +458,18 @@ void main() {
     final url = (await tester.runAsync(second.start))!;
     addTearDown(() => tester.runAsync(second.close));
 
-    // Folder labels carry the branch the host reports in `_meta.git`.
-    expect(find.textContaining('⎇ main'), findsWidgets);
-
-    // Add the second host from the end of the sidebar.
-    await tester.scrollUntilVisible(
-      find.text('Add host…'),
-      100,
-      scrollable: find.descendant(
-        of: find.byType(SessionListView),
-        matching: find.byType(Scrollable),
+    // Folders are labelled "folder [repo]", and their tooltips carry the
+    // branch the host reports in `_meta.git`.
+    expect(find.text('workspace [workspace]'), findsWidgets);
+    expect(
+      find.byWidgetPredicate(
+        (w) => w is Tooltip && (w.message ?? '').contains('⎇ main'),
       ),
+      findsWidgets,
     );
-    await tester.tap(find.text('Add host…'));
-    await h.settle();
+
+    // Add the second host from the sidebar's "…" menu.
+    await h.pickMore('Add host…');
     await tester.enterText(
       find.widgetWithText(TextField, 'Host URL'),
       url.toString(),
@@ -483,17 +480,25 @@ void main() {
     await h.settle();
     expect(find.text('Scripted session'), findsOneWidget);
     expect(find.text('All hosts'), findsOneWidget);
-    // The second host is a node of the sidebar tree.
-    expect(find.text('second-host'), findsOneWidget);
+    // The second host's folder is a section of its own, naming the host.
+    expect(find.text('second-host'), findsWidgets);
 
-    // Tapping the host narrows the list to it.
-    await h.tapVisible(find.text('second-host'));
+    // The "…" menu narrows the list to the host.
+    await h.pickMore('second-host · Connected');
+    await h.tapVisible(find.text('Show only this host'));
     await h.settle();
     expect(find.text('Scripted session'), findsNothing);
     expect(find.text('Other Scripted session'), findsOneWidget);
 
-    // Start a session on the second host from its folder's "+" button.
+    // Start a session on the second host from its folder's "+" button,
+    // shown on hover.
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(
+      location: tester.getCenter(find.text('workspace [workspace]').first),
+    );
+    await h.settle();
     await tester.tap(find.byTooltip('New session in workspace'));
+    await mouse.removePointer();
     await h.waitFor(find.byTooltip('Mode'));
     expect(find.text('second-host'), findsWidgets);
     await h.pick(find.text('Host default model'), 'Scripted');
@@ -570,12 +575,13 @@ void main() {
     // Search (AV-027) and the search shortcut (AV-140).
     debugPrint('fake host flows: search');
     await h.shortcut(AppCommand.searchSessions);
+    await h.settle();
     expect(tester.widget<TextField>(search).focusNode!.hasFocus, isTrue);
     await tester.enterText(search, 'long');
     await h.settle();
     expect(find.text('Long session'), findsOneWidget);
     expect(find.text('Scripted session'), findsNothing);
-    await tester.tap(find.byTooltip('Clear search'));
+    await tester.tap(find.byTooltip('Close search'));
     await h.settle();
 
     // Archive from the row menu; the Archived filter shows it, and a
@@ -585,19 +591,18 @@ void main() {
     await h.settle();
     await tester.tap(find.text('Archive'));
     await h.waitForNone(find.text('Long session'));
-    await tester.tap(find.widgetWithText(ChoiceChip, 'Archived'));
+    await h.pickFilter('Archived');
     await h.waitFor(find.text('Long session'));
     await tester.drag(find.text('Long session'), const Offset(-600, 0));
     await h.waitForNone(find.text('Long session'));
     expect(host.session(longSession)!.status.isArchivedFlag, isFalse);
-    await tester.tap(find.widgetWithText(ChoiceChip, 'Done'));
+    await h.pickFilter('Done');
     await h.waitFor(find.text('Long session'));
 
     // Multi-select marks both sessions unread, which the attention count
     // and the title show (AV-029, AV-120).
     debugPrint('fake host flows: multi-select');
-    await tester.tap(find.widgetWithText(ChoiceChip, 'Active'));
-    await h.settle();
+    await h.pickFilter('Active');
     await tester.longPress(find.text('Long session'));
     await h.settle();
     await tester.tap(find.text('Select'));
@@ -606,17 +611,13 @@ void main() {
     await h.settle();
     expect(find.text('2 selected'), findsOneWidget);
     await tester.tap(find.text('Mark unread'));
-    await h.waitFor(find.text('Needs attention (2)'));
-    expect(
-      tester.widget<MaterialApp>(find.byType(MaterialApp)).title,
-      '(2) shireitou',
-    );
+    await h.waitForTitle('(2) shireitou');
 
     // Next session opens the first row, which is marked read again.
     debugPrint('fake host flows: next session');
     await h.shortcut(AppCommand.nextSession);
     await h.waitFor(find.byType(SessionDetailView));
-    await h.waitFor(find.text('Needs attention (1)'));
+    await h.waitForTitle('(1) shireitou');
     if (find.text('No messages yet. Say something.').evaluate().isEmpty) {
       await tester.tap(find.text('Scripted session').first);
       await h.waitFor(find.text('No messages yet. Say something.'));

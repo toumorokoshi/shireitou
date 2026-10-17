@@ -53,10 +53,6 @@ AppImage and the release workflow (see
   UI** in [design/reference/agents-window.md](design/reference/agents-window.md)
   (AV-090 to AV-096). Do these before the items below.
 
-  - **Sidebar (AV-092, AV-093):** the "Sessions" header with icon
-    buttons; Pinned, Chats and per-directory workspace sections instead
-    of the host tree; two-line rows with a status dot, hover pin and
-    mark-done icons, and a hover card.
   - **Session header (AV-094):** a title-only header with a "…" menu.
   - **Composer (AV-096):** the rounded box with chips along its bottom,
     for follow-ups and new sessions alike.
@@ -64,17 +60,16 @@ AppImage and the release workflow (see
 - **Theme and title bar (AV-090, AV-091), remaining details:** the
   theme's tokens are in `app/lib/src/theme/` (`AppColors.of(context)`;
   see [docs/architecture.md](docs/architecture.md)); hard-coded colours
-  remain in the diff view, the terminal preview and the sidebar's
-  connection dot, for the sidebar and timeline restyles (AV-092 to
-  AV-095) to move onto the tokens. The font is the platform's system
+  remain in the diff view and the terminal preview, for the timeline
+  restyle (AV-095) to move onto the tokens. The font is the platform's system
   font (no Inter asset). On macOS the bar keeps the traffic lights'
   space in full screen too (where they are hidden), a double-click
   always zooms (the system's "double-click a window's title bar"
   setting is not read), and the traffic lights' placement is not
   checked by a test (CI cannot see native window chrome). New session
-  and Disconnect are also in the title bar's right side ("+" and "…")
-  until the sidebar header's "New" and "…" menu (AV-092) hold them;
-  then the bar's copies can go. Back and forward have no shortcut and
+  and Disconnect moved from the title bar to the sidebar header's "New"
+  and "…" menu (AV-092); the bar's search button and the header's
+  search icon both open the search field. Back and forward have no shortcut and
   forget the history on restart; the compact layout has no back and
   forward (the system back button pops the session page).
 - **Timeline look (AV-095), remaining details:** the steps line shows
@@ -366,31 +361,40 @@ AppImage and the release workflow (see
     the app. There is
     no shortcut help overlay (the spec has none); tooltips and the
     search hint name the keys, and macOS lists them in the menu.
-- **Sidebar tree (AV-012, AV-025):** folder order and collapsed hosts
-  and folders are kept per device, not synced. Their stored ids are
-  never pruned: a folder whose sessions are all gone (or a host removed)
-  keeps its id, since a host that is not open, or sessions not loaded
-  yet, cannot be told from a deleted folder; the lists only grow by
-  folders the user moved or collapsed. Dragging a folder does not
-  scroll the list near its edges, so a long list needs "Move up" and
-  "Move down" or a shorter drag; a folder dropped on a session row (not
-  a folder row) does not move. Keyboard users reach "Move up" and "Move
-  down" through the handle that shows when the folder row has focus on
-  medium and wide layouts; on compact layouts only touch (long press)
-  and screen reader actions move folders. Hosts cannot be reordered. Only the open hosts are in the tree; remembered hosts that
-  are not open are listed under Recent hosts on the "Add host…" page.
-  Folders do not narrow the list (collapsing the others or the `repo:`
-  qualifier does). The tree's top level replaces grouping by host; the
-  other alternative grouping of AV-031, by time, is not built. Thin rows
-  are chosen by layout width (medium and wide), not by input device, so
-  a touch screen at desktop width gets the 28 to 32 px rows.
+- **Sidebar (AV-012, AV-025, AV-092, AV-093):** folder order and
+  collapsed sections are kept per device, not synced. Their stored ids
+  are never pruned: a folder whose sessions are all gone (or a host
+  removed) keeps its id, since a host that is not open, or sessions not
+  loaded yet, cannot be told from a deleted folder; host ids collapsed
+  before hosts stopped being a level (2026-10-16) also stay. Dragging a
+  folder does not scroll the list near its edges, so a long list needs
+  "Move up" and "Move down" or a shorter drag; a folder dropped on a
+  session row (not a folder header) does not move. Keyboard users reach
+  "Move up" and "Move down" through the handle that shows when the
+  folder header has focus on medium and wide layouts; on compact layouts
+  only touch (long press) and screen reader actions move folders. The
+  Pinned and Chats sections cannot be moved. Only the open hosts' sessions
+  are listed; remembered hosts that are not open are listed under Recent
+  hosts on the "Add host…" page. Folders do not narrow the list
+  (collapsing the others or the `repo:` qualifier does). The other
+  alternative grouping of AV-031, by time, is not built. Pointer-sized
+  rows are chosen by layout width (medium and wide), not by input device,
+  so a touch screen at desktop width gets the 28 and 44 px rows, and its
+  rows show the pin and "Mark as done" icons only while focused (no
+  hover). The hover card is a tooltip: it cannot be clicked (the path is
+  not a link) and does not show on touch. The colours come from the
+  AV-090 tokens (`AppColors`); unread has no status token, so its dot
+  uses the text colour (`colorScheme.onSurface`), and the dot colours
+  were not checked for contrast on both themes. The reference's
+  "Automations", "+N more" and "Customizations" footer are not built,
+  by decision.
 - **Hosts (AV-010 to AV-012):** the open hosts' keys are saved with the
   remembered hosts, so a host is only reopened after a restart when it is
   remembered (it connected once and secure storage works); with a locked
   keyring nothing is restored. A host that never connected is dropped
   when its connect fails (its error shows on the connect page); a
-  remembered one stays open, failed, with Retry and Remove on its row in
-  the sidebar tree. Secure storage per platform:
+  remembered one stays open, failed, with Retry and Remove in its
+  submenu of the sidebar's "…" menu (whose icon has a dot meanwhile). Secure storage per platform:
   - Web: encrypted local storage; verified.
   - Linux: libsecret; verified by the desktop smoke test with a fresh
     gnome-keyring. A locked keyring (`KeyringLocked`) or no Secret Service

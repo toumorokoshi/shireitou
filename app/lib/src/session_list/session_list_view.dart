@@ -1,4 +1,5 @@
-/// The session list (inbox) grouped into working-directory folders.
+/// The session list (inbox): the sidebar's sections and session rows
+/// (AV-092, AV-093).
 library;
 
 import 'package:ahp_client/ahp_client.dart';
@@ -6,13 +7,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 
 import '../hosts/open_hosts.dart';
+import '../theme/app_colors.dart';
 import 'folder_grouping.dart';
 import 'relative_time.dart';
 import 'session_tree.dart';
 import 'status_badges.dart';
 
-/// What a session row's menu, swipe and multi-select can do (AV-024,
-/// AV-028, AV-029). Each callback gets the session.
+/// What a session row's menu, hover buttons, swipe and multi-select can
+/// do (AV-024, AV-028, AV-029). Each callback gets the session.
 @immutable
 class SessionRowActions {
   /// Creates the row actions.
@@ -23,10 +25,15 @@ class SessionRowActions {
     this.onPin,
     this.onCompare,
     this.onRename,
+    this.onMarkDone,
   });
 
   /// Archives the session (true) or unarchives it (false).
   final void Function(SessionRef session, bool archived) onArchive;
+
+  /// Archives the session from the "Mark as done" hover button (AV-093),
+  /// where the caller can offer Undo; [onArchive] when null.
+  final ValueChanged<SessionRef>? onMarkDone;
 
   /// Marks the session read (true) or unread (false).
   final void Function(SessionRef session, bool read) onMarkRead;
@@ -48,52 +55,60 @@ class SessionRowActions {
   final ValueChanged<SessionRef>? onRename;
 }
 
-/// Shows the sidebar: the [pinned] sessions in a "Pinned" section at the
-/// top (AV-028), then the [tree] (AV-012, AV-025): each host with its status,
-/// Retry and Remove when it is not connected, then its workspace folders
-/// and their session rows, and "Add host…" last. Hosts and folders
-/// collapse; tapping a host narrows the list to it (or back to every
-/// host). Rows have a menu (right-click or long-press) to rename, archive,
-/// mark read or unread, pin or unpin, and select; swiping a row to the left
-/// archives (or unarchives) it. While [selection] is set, rows show
-/// checkboxes and tapping toggles them. [dense] rows are thin, for
-/// pointers; otherwise rows keep touch-sized targets. Folders are
-/// dragged within their host to reorder them ([onMoveFolder]).
+/// Shows the sidebar's sections ([sidebarRows], AV-092): the [pinned]
+/// sessions (AV-028), the [chats] (no working directory), then the
+/// [folders] (AV-025), each a header of an icon, its name and an
+/// attention dot, collapsed by a tap, followed by its session rows
+/// (AV-093). Folders are dragged onto each other to reorder them
+/// ([onMoveFolder]) and have a "+" on hover for a new session there.
+/// Rows have a menu (right-click or long-press) to rename, archive, mark
+/// read or unread, pin or unpin, and select; pin and "Mark as done" on
+/// hover; and swiping a row to the left archives (or unarchives) it.
+/// While [selection] is set, rows show checkboxes and tapping toggles
+/// them. [dense] rows are sized for pointers; otherwise rows keep
+/// touch-sized targets.
 class SessionListView extends StatelessWidget {
   /// Creates a [SessionListView].
   const SessionListView({
     super.key,
-    required this.tree,
     required this.onSelect,
+    this.pinned = const [],
+    this.chats = const [],
+    this.folders = const [],
+    this.hostLabels = const {},
     this.collapsed = const {},
     this.onToggle,
     this.selected,
-    this.selectedHost,
-    this.onSelectHost,
-    this.onAddHost,
-    this.onRetry,
-    this.onRemove,
-    this.onSshTerminal,
-    this.onSshSettings,
     this.onNewSession,
     this.onMoveFolder,
     this.now,
     this.actions,
     this.selection,
     this.runLabels = const {},
-    this.pinned = const [],
+    this.emptyText = noSessionsText,
     this.dense = true,
   });
 
-  /// The hosts with their folders, already grouped and sorted.
-  final List<HostNode> tree;
+  /// The pinned sessions (AV-028), in the order shown in the "Pinned"
+  /// section; not shown in their folders.
+  final List<HostSession> pinned;
 
-  /// Ids of the collapsed "Pinned" section, hosts and folders
-  /// ([sidebarRows]).
+  /// The sessions with no working directory ([chatSessions]), in the
+  /// "Chats" section.
+  final List<HostSession> chats;
+
+  /// The workspace folders, already grouped, sorted and ordered.
+  final List<FolderGroup> folders;
+
+  /// The labels of the hosts by key when several are open
+  /// ([hostLabelsOf]), shown on rows and folder headers.
+  final Map<String, String> hostLabels;
+
+  /// Ids of the collapsed sections and folders ([sidebarRows]).
   final Set<String> collapsed;
 
-  /// Collapses or expands the "Pinned" section, host or folder with an
-  /// id; they do not collapse when null.
+  /// Collapses or expands the section or folder with an id; they do not
+  /// collapse when null.
   final ValueChanged<String>? onToggle;
 
   /// The selected session, highlighted in the list.
@@ -102,47 +117,22 @@ class SessionListView extends StatelessWidget {
   /// Called with a session when its row is tapped.
   final ValueChanged<SessionRef> onSelect;
 
-  /// The host the list is narrowed to, highlighted; null for every host.
-  final String? selectedHost;
-
-  /// Narrows the list to a host, or to every host (null); host rows do
-  /// nothing on tap when null.
-  final ValueChanged<String?>? onSelectHost;
-
-  /// Opens the page that connects another host; no "Add host…" row when
-  /// null.
-  final VoidCallback? onAddHost;
-
-  /// Connects a failed host again, by key.
-  final ValueChanged<String>? onRetry;
-
-  /// Closes a host that is not connected, by key.
-  final ValueChanged<String>? onRemove;
-
-  /// Opens an SSH terminal to a host, by key (AV-014): "Open SSH
-  /// terminal" in the host's menu; no menu item when null.
-  final ValueChanged<String>? onSshTerminal;
-
-  /// Edits a host's SSH settings, by key: "SSH settings…" in the host's
-  /// menu; no menu item when null.
-  final ValueChanged<String>? onSshSettings;
-
   /// Starts a session in a folder (the header's "+" button); no button
   /// when null.
   final ValueChanged<FolderGroup>? onNewSession;
 
-  /// Moves `folders[from]` to index `to` of `folders`, one host's folders
-  /// in list order: a folder row dragged onto another of its host (from
-  /// the row with a pointer, after a long press on touch), or "Move up"
-  /// and "Move down" in its menu and screen reader actions. Folders do
-  /// not move when null.
+  /// Moves `folders[from]` to index `to` of `folders`, the shown folders
+  /// of every host in list order: a folder header dragged onto another
+  /// (from the row with a pointer, after a long press on touch), or
+  /// "Move up" and "Move down" in its menu and screen reader actions.
+  /// Folders do not move when null.
   final void Function(List<FolderGroup> folders, int from, int to)?
   onMoveFolder;
 
   /// Clock for relative times; defaults to `DateTime.now()`.
   final DateTime? now;
 
-  /// Row menu, swipe and multi-select; none when null.
+  /// Row menu, hover buttons, swipe and multi-select; none when null.
   final SessionRowActions? actions;
 
   /// The sessions picked for a bulk action, or null when not selecting.
@@ -152,151 +142,164 @@ class SessionListView extends StatelessWidget {
   /// AV-045), by session.
   final Map<SessionRef, String> runLabels;
 
-  /// The pinned sessions (AV-028), in the order shown in the "Pinned"
-  /// section; not shown in their folders.
-  final List<HostSession> pinned;
+  /// Shown when there are no rows ([noSessionsText] or [noMatchText]).
+  final String emptyText;
 
-  /// Whether rows are thin ([denseHeaderHeight], [denseSessionHeight])
-  /// rather than [kMinInteractiveDimension] high.
+  /// Whether rows are sized for pointers ([denseHeaderHeight],
+  /// [denseSessionHeight]) rather than touch.
   final bool dense;
 
-  Widget _row(
-    BuildContext context,
-    SidebarRow row,
-    DateTime clock,
-    Map<String, List<FolderGroup>> folders,
-  ) => switch (row) {
-    HostRow(:final node, :final collapsed) => _HostHeader(
-      key: ValueKey(('host', node.host.key)),
-      node: node,
-      collapsed: collapsed,
-      dense: dense,
-      selected: selectedHost == node.host.key,
-      onTap: onSelectHost == null
-          ? null
-          : () => onSelectHost!(
-              selectedHost == node.host.key ? null : node.host.key,
-            ),
-      onToggle: onToggle == null ? null : () => onToggle!(hostNodeId(node)),
-      onRetry: onRetry == null ? null : () => onRetry!(node.host.key),
-      onRemove: onRemove == null ? null : () => onRemove!(node.host.key),
-      onSshTerminal: onSshTerminal == null
-          ? null
-          : () => onSshTerminal!(node.host.key),
-      onSshSettings: onSshSettings == null
-          ? null
-          : () => onSshSettings!(node.host.key),
-    ),
-    FolderRow(:final group, :final collapsed) => _FolderHeader(
-      key: ValueKey(('folder', group.id)),
-      group: group,
-      collapsed: collapsed,
-      dense: dense,
-      onToggle: onToggle == null ? null : () => onToggle!(group.id),
-      onNewSession: onNewSession == null ? null : () => onNewSession!(group),
-      index: folders[group.host]!.indexOf(group),
-      count: folders[group.host]!.length,
-      onMove: onMoveFolder == null
-          ? null
-          : (from, to) => onMoveFolder!(folders[group.host]!, from, to),
-    ),
-    PinnedRow(:final sessions, :final collapsed, :final attentionCount) =>
-      _PinnedHeader(
-        key: const ValueKey('pinned'),
-        count: sessions.length,
-        attention: attentionCount,
-        collapsed: collapsed,
-        dense: dense,
-        onToggle: onToggle == null ? null : () => onToggle!(pinnedNodeId),
-      ),
-    EmptyRow(:final host, :final text) => Padding(
-      key: ValueKey(('empty', host)),
-      padding: EdgeInsetsDirectional.fromSTEB(
-        _indent(1),
-        dense ? 6 : 12,
-        8,
-        dense ? 6 : 12,
-      ),
-      child: Text(
-        text,
-        style: Theme.of(context).textTheme.bodySmall
-            ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
-      ),
-    ),
-    SessionItem(:final session, :final ref, :final place) => _SessionRow(
-      key: ValueKey(('session', ref)),
-      session: session,
-      ref: ref,
-      place: place,
-      now: clock,
-      dense: dense,
-      selected: selected == ref,
-      checked: selection?.contains(ref),
-      pinned: place != null,
-      actions: actions,
-      onOpen: onSelect,
-      runLabel: runLabels[ref],
-    ),
-  };
+  Widget _row(SidebarRow row, DateTime clock, Set<SessionRef> pins) =>
+      switch (row) {
+        SectionRow(:final id, :final collapsed, :final hasAttention) =>
+          _SectionHeader(
+            key: ValueKey(('section', id)),
+            icon: id == pinnedNodeId
+                ? Icons.push_pin_outlined
+                : Icons.chat_bubble_outline,
+            label: id == pinnedNodeId ? 'Pinned' : 'Chats',
+            attention: hasAttention,
+            collapsed: collapsed,
+            dense: dense,
+            onToggle: onToggle == null ? null : () => onToggle!(id),
+          ),
+        FolderRow(:final group, :final collapsed, :final hostLabel) =>
+          _FolderHeader(
+            key: ValueKey(('folder', group.id)),
+            group: group,
+            hostLabel: hostLabel,
+            collapsed: collapsed,
+            dense: dense,
+            onToggle: onToggle == null ? null : () => onToggle!(group.id),
+            onNewSession: onNewSession == null
+                ? null
+                : () => onNewSession!(group),
+            index: folders.indexOf(group),
+            count: folders.length,
+            onMove: onMoveFolder == null
+                ? null
+                : (from, to) => onMoveFolder!(folders, from, to),
+          ),
+        SessionItem(:final session, :final ref, :final place) => _SessionRow(
+          key: ValueKey(('session', ref)),
+          session: session,
+          ref: ref,
+          place: place,
+          now: clock,
+          dense: dense,
+          selected: selected == ref,
+          checked: selection?.contains(ref),
+          pinned: pins.contains(ref),
+          actions: actions,
+          onOpen: onSelect,
+          runLabel: runLabels[ref],
+        ),
+      };
 
   @override
   Widget build(BuildContext context) {
     final clock = now ?? DateTime.now();
-    final rows = sidebarRows(tree, collapsed, pinned: pinned);
-    final folders = {for (final node in tree) node.host.key: node.folders};
-    final addHost = onAddHost;
+    final rows = sidebarRows(
+      collapsed: collapsed,
+      pinned: pinned,
+      chats: chats,
+      folders: folders,
+      hostLabels: hostLabels,
+    );
+    if (rows.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.all(16),
+        child: Text(
+          emptyText,
+          style: Theme.of(context).textTheme.bodySmall
+              ?.copyWith(color: AppColors.of(context).mutedText),
+        ),
+      );
+    }
+    final pins = {for (final s in pinned) s.ref};
     return ListView.builder(
-      itemCount: rows.length + (addHost == null ? 0 : 1),
-      itemBuilder: (context, index) => index < rows.length
-          ? _row(context, rows[index], clock, folders)
-          : _TreeRow(
-              key: const ValueKey('add-host'),
-              depth: 0,
-              height: dense ? denseHeaderHeight : kMinInteractiveDimension,
-              onTap: addHost,
-              leading: Icon(Icons.add_link, size: _iconSize(dense)),
-              title: Text('Add host…', style: _titleStyle(context, dense)),
-            ),
+      padding: const EdgeInsets.only(bottom: 8),
+      itemCount: rows.length,
+      itemBuilder: (context, index) => _row(rows[index], clock, pins),
     );
   }
 }
 
-/// Height of a host or folder row in a dense sidebar.
+/// Height of a section or folder header in a dense sidebar.
 const denseHeaderHeight = 28.0;
 
-/// Height of a session row in a dense sidebar.
-const denseSessionHeight = 32.0;
+/// Height of a two-line session row in a dense sidebar (AV-093).
+const denseSessionHeight = 44.0;
 
-/// Start padding of a row at tree [depth] (0 hosts and the "Pinned"
-/// section, 1 folders and pinned sessions, 2 sessions in folders).
-double _indent(int depth) => 8.0 + 14.0 * depth;
+/// Height of a two-line session row on touch layouts.
+const touchSessionHeight = 52.0;
+
+/// How long the pointer rests on a session row before its card shows.
+const hoverCardDelay = Duration(milliseconds: 500);
+
+/// Start padding of a row at [depth] (0 section headers, 1 sessions).
+double _indent(int depth) => 8.0 + 8.0 * depth;
 
 double _iconSize(bool dense) => dense ? 16 : 20;
 
-TextStyle? _titleStyle(BuildContext context, bool dense) =>
-    Theme.of(context).textTheme.bodyMedium
-        ?.copyWith(fontSize: dense ? 13 : 14, height: 1.2);
+TextStyle? _titleStyle(BuildContext context, bool dense) => Theme.of(context)
+    .textTheme
+    .bodyMedium
+    ?.copyWith(
+      fontSize: dense ? 13 : 14,
+      height: 1.25,
+      fontWeight: FontWeight.normal,
+    );
 
 TextStyle? _detailStyle(BuildContext context, bool dense) =>
     (dense
             ? Theme.of(context).textTheme.labelSmall
             : Theme.of(context).textTheme.bodySmall)
         ?.copyWith(
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
-          height: 1.2,
+          color: AppColors.of(context).mutedText,
+          fontWeight: FontWeight.normal,
+          height: 1.25,
         );
+
+/// Tracks whether the pointer is over the row or focus is inside it, so
+/// a row shows its hover buttons to the mouse and the keyboard alike.
+class _HoverRegion extends StatefulWidget {
+  const _HoverRegion({required this.builder});
+
+  /// Builds the row; `active` is true while hovered or focused.
+  final Widget Function(BuildContext context, bool active) builder;
+
+  @override
+  State<_HoverRegion> createState() => _HoverRegionState();
+}
+
+class _HoverRegionState extends State<_HoverRegion> {
+  bool _hovered = false;
+  bool _focused = false;
+
+  @override
+  Widget build(BuildContext context) => Focus(
+    canRequestFocus: false,
+    skipTraversal: true,
+    onFocusChange: (focused) => setState(() => _focused = focused),
+    child: MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: widget.builder(context, _hovered || _focused),
+    ),
+  );
+}
 
 /// One sidebar row: [leading], [title] (with [subtitle] under it) and
 /// [trailing] in a row at least [height] high, indented by [depth], with
-/// button semantics when [onTap] is set (as a [ListTile] has).
+/// button semantics when [onTap] is set (as a [ListTile] has). A
+/// [selected] row has a subtle rounded fill.
 class _TreeRow extends StatelessWidget {
   const _TreeRow({
-    super.key,
     required this.depth,
     required this.height,
     required this.title,
     this.leading,
-    this.subtitle,
     this.trailing,
     this.onTap,
     this.selected = false,
@@ -305,7 +308,7 @@ class _TreeRow extends StatelessWidget {
     this.semanticsActions,
   });
 
-  /// Tree depth ([_indent]).
+  /// Indent level ([_indent]).
   final int depth;
 
   /// Minimum row height.
@@ -314,11 +317,8 @@ class _TreeRow extends StatelessWidget {
   /// Shown first.
   final Widget? leading;
 
-  /// The main line.
+  /// The row's text.
   final Widget title;
-
-  /// The line under [title], if any.
-  final Widget? subtitle;
 
   /// Shown at the end.
   final Widget? trailing;
@@ -342,46 +342,47 @@ class _TreeRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final subtitle = this.subtitle;
-    return Material(
-      color: selected ? scheme.secondaryContainer : Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        mouseCursor: mouseCursor,
-        child: Semantics(
-          button: onTap != null,
-          selected: selected,
-          expanded: expanded,
-          customSemanticsActions: {
-            for (final MapEntry(key: label, value: action)
-                in (semanticsActions ?? const {}).entries)
-              CustomSemanticsAction(label: label): action,
-          },
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: height),
-            child: Padding(
-              padding: EdgeInsetsDirectional.only(
-                start: _indent(depth),
-                end: 4,
-              ),
-              child: Row(
-                children: [
-                  if (leading case final leading?) ...[
-                    leading,
-                    const SizedBox(width: 6),
+    final colors = AppColors.of(context);
+    final shape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(6),
+    );
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Material(
+        color: selected ? colors.selectedFill : Colors.transparent,
+        shape: shape,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          mouseCursor: mouseCursor,
+          customBorder: shape,
+          hoverColor: colors.hoverFill,
+          child: Semantics(
+            button: onTap != null,
+            selected: selected,
+            expanded: expanded,
+            customSemanticsActions: {
+              for (final MapEntry(key: label, value: action)
+                  in (semanticsActions ?? const {}).entries)
+                CustomSemanticsAction(label: label): action,
+            },
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: height),
+              child: Padding(
+                padding: EdgeInsetsDirectional.only(
+                  start: _indent(depth),
+                  end: 4,
+                ),
+                child: Row(
+                  children: [
+                    if (leading case final leading?) ...[
+                      leading,
+                      const SizedBox(width: 8),
+                    ],
+                    Expanded(child: title),
+                    ?trailing,
                   ],
-                  Expanded(
-                    child: subtitle == null
-                        ? title
-                        : Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [title, subtitle],
-                          ),
-                  ),
-                  ?trailing,
-                ],
+                ),
               ),
             ),
           ),
@@ -419,188 +420,152 @@ class _RowButton extends StatelessWidget {
   );
 }
 
-/// A host's row: collapse toggle, status dot, label, status when not
-/// connected, session and attention counts, Retry and Remove for a
-/// host that is not connected (AV-010 to AV-012), and a menu with the
-/// SSH terminal (AV-014).
-class _HostHeader extends StatelessWidget {
-  const _HostHeader({
+/// The label of a section's attention dot, for screen readers.
+const attentionDotLabel = 'Needs attention';
+
+/// A small dot after a section's name when one of its sessions needs
+/// attention (AV-092); headers show no counts.
+class _AttentionDot extends StatelessWidget {
+  const _AttentionDot();
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsetsDirectional.only(start: 6),
+    child: Icon(
+      Icons.circle,
+      size: 6,
+      color: AppColors.of(context).statusColors.attention,
+      semanticLabel: attentionDotLabel,
+    ),
+  );
+}
+
+/// A section's header (AV-092): [icon], [label] (and [detail] after it,
+/// muted), an attention dot, a chevron while collapsed, and [actions] at
+/// the end. Tapping it collapses or expands the section.
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({
     super.key,
-    required this.node,
+    required this.icon,
+    required this.label,
+    required this.attention,
     required this.collapsed,
     required this.dense,
-    required this.selected,
-    this.onTap,
+    this.detail,
+    this.tooltip,
     this.onToggle,
-    this.onRetry,
-    this.onRemove,
-    this.onSshTerminal,
-    this.onSshSettings,
+    this.actions = const [],
+    this.mouseCursor,
+    this.semanticsActions,
   });
 
-  final HostNode node;
+  /// Shown before [label].
+  final IconData icon;
+
+  /// The section's name.
+  final String label;
+
+  /// Shown after [label] in the detail style (the folder's host).
+  final String? detail;
+
+  /// Shown when the pointer rests on the name (a folder's path).
+  final String? tooltip;
+
+  /// Whether a session in the section needs attention.
+  final bool attention;
+
+  /// Whether the section's sessions are hidden.
   final bool collapsed;
+
+  /// Whether the row is sized for pointers ([denseHeaderHeight]).
   final bool dense;
-  final bool selected;
-  final VoidCallback? onTap;
+
+  /// Collapses or expands the section; it does not collapse when null.
   final VoidCallback? onToggle;
-  final VoidCallback? onRetry;
-  final VoidCallback? onRemove;
-  final VoidCallback? onSshTerminal;
-  final VoidCallback? onSshSettings;
+
+  /// Buttons at the end of the row.
+  final List<Widget> actions;
+
+  /// The cursor over the row ([_TreeRow.mouseCursor]).
+  final MouseCursor? mouseCursor;
+
+  /// Screen reader actions on the row, by label.
+  final Map<String, VoidCallback>? semanticsActions;
 
   @override
   Widget build(BuildContext context) {
-    final host = node.host;
-    final onSshTerminal = this.onSshTerminal;
-    final onSshSettings = this.onSshSettings;
-    final scheme = Theme.of(context).colorScheme;
-    final idle =
-        host.status == ConnectionStatus.failed ||
-        host.status == ConnectionStatus.disconnected;
-    final onToggle = this.onToggle;
+    final muted = AppColors.of(context).mutedText;
+    final detail = this.detail;
+    final tooltip = this.tooltip;
+    final name = Text(
+      label,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: _titleStyle(context, dense)?.copyWith(color: muted),
+    );
     return _TreeRow(
       depth: 0,
       height: dense ? denseHeaderHeight : kMinInteractiveDimension,
-      selected: selected,
-      onTap: onTap,
-      leading: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (onToggle != null)
-            _RowButton(
-              tooltip: '${collapsed ? 'Expand' : 'Collapse'} ${host.label}',
-              icon: collapsed ? Icons.chevron_right : Icons.expand_more,
-              dense: dense,
-              onPressed: onToggle,
-            ),
-          const SizedBox(width: 2),
-          Icon(
-            Icons.circle,
-            size: 10,
-            // Other states are spelled out beside the label.
-            semanticLabel: host.status == ConnectionStatus.connected
-                ? hostStatusText(host)
-                : null,
-            color: switch (host.status) {
-              ConnectionStatus.connected => Colors.green,
-              ConnectionStatus.failed => scheme.error,
-              _ => scheme.outline,
-            },
-          ),
-        ],
-      ),
+      onTap: onToggle,
+      expanded: onToggle == null ? null : !collapsed,
+      mouseCursor: mouseCursor,
+      semanticsActions: semanticsActions,
+      leading: Icon(icon, size: _iconSize(dense), color: muted),
       title: Row(
         children: [
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 200),
-            child: Text(
-              host.label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: _titleStyle(
-                context,
-                dense,
-              )?.copyWith(fontWeight: FontWeight.w600),
-            ),
-          ),
-          if (host.status != ConnectionStatus.connected) ...[
-            const SizedBox(width: 6),
-            Expanded(
-              child: Tooltip(
-                excludeFromSemantics: true,
-                message: hostStatusText(host),
-                child: Text(
-                  hostStatusText(host),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: _detailStyle(context, dense)?.copyWith(
-                    color: host.status == ConnectionStatus.failed
-                        ? scheme.error
-                        : null,
+          Flexible(
+            child: tooltip == null || tooltip.isEmpty
+                ? name
+                : Tooltip(
+                    excludeFromSemantics: true,
+                    // A long press drags the folder on touch layouts.
+                    triggerMode: TooltipTriggerMode.manual,
+                    message: tooltip,
+                    child: name,
                   ),
-                ),
+          ),
+          if (detail != null) ...[
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                detail,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: _detailStyle(context, dense),
               ),
             ),
           ],
+          if (attention) const _AttentionDot(),
+          if (collapsed)
+            Icon(Icons.chevron_right, size: _iconSize(dense), color: muted),
         ],
       ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (host.live)
-            _Counts(
-              count: node.sessionCount,
-              attention: node.attentionCount,
-              dense: dense,
-            ),
-          if (idle && onRetry != null)
-            _RowButton(
-              tooltip: 'Retry ${host.label}',
-              icon: Icons.refresh,
-              dense: dense,
-              onPressed: onRetry!,
-            ),
-          if (idle && onRemove != null)
-            _RowButton(
-              tooltip: 'Remove ${host.label}',
-              icon: Icons.close,
-              dense: dense,
-              onPressed: onRemove!,
-            ),
-          if (onSshTerminal != null || onSshSettings != null)
-            PopupMenuButton<VoidCallback>(
-              tooltip: '${host.label} actions',
-              icon: Icon(Icons.more_vert, size: _iconSize(dense)),
-              padding: dense ? EdgeInsets.zero : const EdgeInsets.all(8),
-              constraints: const BoxConstraints(minWidth: 200),
-              style: dense
-                  ? IconButton.styleFrom(
-                      minimumSize: const Size(24, 24),
-                      fixedSize: const Size(24, 24),
-                    )
-                  : null,
-              onSelected: (action) => action(),
-              itemBuilder: (_) => [
-                if (onSshTerminal != null)
-                  PopupMenuItem(
-                    value: onSshTerminal,
-                    child: const Text('Open SSH terminal'),
-                  ),
-                if (onSshSettings != null)
-                  PopupMenuItem(
-                    value: onSshSettings,
-                    child: const Text('SSH settings…'),
-                  ),
-              ],
-            ),
-        ],
-      ),
+      trailing: actions.isEmpty
+          ? null
+          : Row(mainAxisSize: MainAxisSize.min, children: actions),
     );
   }
 }
 
-/// The folder a folder row drag carries: its host and its index among the
-/// host's folders.
+/// The folder a folder header drag carries: its index among the shown
+/// folders.
 @immutable
 class _DraggedFolder {
-  const _DraggedFolder(this.host, this.index);
+  const _DraggedFolder(this.index);
 
-  /// The host key of the folder.
-  final String host;
-
-  /// The folder's index among its host's folders.
+  /// The folder's index among the shown folders.
   final int index;
 }
 
-/// A workspace folder's row (AV-025): collapse marker, name, details
-/// ([folderDetails]), counts and the "+" button. With [onMove] it is
-/// dragged onto another folder row of its host to take that folder's
-/// place (from the row in a [dense] sidebar, with a grab cursor and a
-/// handle on hover or focus; after a long press otherwise), and its
-/// menu (right-click, the handle) and screen reader actions move it up
-/// or down.
-class _FolderHeader extends StatefulWidget {
+/// A workspace folder's header (AV-025, AV-092): a folder icon,
+/// "folder [project]" ([workspaceLabel]), its host when several are
+/// open, the attention dot, and the "+" button (on hover with a pointer).
+/// With [onMove] it is dragged onto another folder header to take that
+/// folder's place (from the row in a [dense] sidebar, with a grab cursor
+/// and a handle on hover or focus; after a long press otherwise), and
+/// its menu (right-click, the handle) and screen reader actions move it
+/// up or down.
+class _FolderHeader extends StatelessWidget {
   const _FolderHeader({
     super.key,
     required this.group,
@@ -608,46 +573,52 @@ class _FolderHeader extends StatefulWidget {
     required this.dense,
     required this.index,
     required this.count,
+    this.hostLabel,
     this.onToggle,
     this.onNewSession,
     this.onMove,
   });
 
+  /// The folder and its sessions.
   final FolderGroup group;
+
+  /// The folder's host when several hosts are open.
+  final String? hostLabel;
+
+  /// Whether the folder's sessions are hidden.
   final bool collapsed;
+
+  /// Whether the row is sized for pointers.
   final bool dense;
 
-  /// The folder's index among its host's [count] folders.
+  /// The folder's index among the [count] shown folders.
   final int index;
+
+  /// Number of shown folders.
   final int count;
+
+  /// Collapses or expands the folder.
   final VoidCallback? onToggle;
+
+  /// Starts a session in the folder (the "+" button).
   final VoidCallback? onNewSession;
 
-  /// Moves the folder at the first index among its host's folders to the
+  /// Moves the folder at the first index among the shown folders to the
   /// second.
   final void Function(int from, int to)? onMove;
 
-  @override
-  State<_FolderHeader> createState() => _FolderHeaderState();
-}
-
-class _FolderHeaderState extends State<_FolderHeader> {
-  bool _hovered = false;
-  bool _focused = false;
-
   /// "Move up" and "Move down", where the folder can move that way.
   Map<String, VoidCallback> get _moves {
-    final onMove = widget.onMove;
-    final index = widget.index;
+    final onMove = this.onMove;
     return {
       if (onMove != null && index > 0)
         'Move up': () => onMove(index, index - 1),
-      if (onMove != null && index < widget.count - 1)
+      if (onMove != null && index < count - 1)
         'Move down': () => onMove(index, index + 1),
     };
   }
 
-  Future<void> _showMenu(Offset position) async {
+  Future<void> _showMenu(BuildContext context, Offset position) async {
     final moves = _moves;
     if (moves.isEmpty) return;
     final overlay =
@@ -666,114 +637,61 @@ class _FolderHeaderState extends State<_FolderHeader> {
     action?.call();
   }
 
-  Widget _row(BuildContext context, {required bool interactive}) {
-    final group = widget.group;
-    final dense = widget.dense;
-    final collapsed = widget.collapsed;
-    final details = folderDetails(group);
-    final onNewSession = widget.onNewSession;
+  Widget _row({required bool interactive, bool active = false}) {
+    final onNewSession = this.onNewSession;
     final movable = interactive && _moves.isNotEmpty;
-    return _TreeRow(
-      depth: 1,
-      height: dense ? denseHeaderHeight : kMinInteractiveDimension,
-      onTap: interactive ? widget.onToggle : null,
+    // Touch layouts have no hover, so their "+" always shows.
+    final showActions = interactive && (active || !dense);
+    return _SectionHeader(
+      icon: Icons.folder_outlined,
+      label: workspaceLabel(group.label, group.project),
+      detail: hostLabel,
+      tooltip: folderDetails(group),
+      attention: group.attentionCount > 0,
+      collapsed: collapsed,
+      dense: dense,
+      onToggle: interactive ? onToggle : null,
       mouseCursor: movable && dense ? SystemMouseCursors.grab : null,
       semanticsActions: movable ? _moves : null,
-      expanded: widget.onToggle == null ? null : !collapsed,
-      leading: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            collapsed ? Icons.chevron_right : Icons.expand_more,
-            size: _iconSize(dense),
-          ),
-          Icon(Icons.folder_outlined, size: _iconSize(dense)),
-        ],
-      ),
-      title: Row(
-        children: [
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 160),
-            child: Text(
-              group.label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: _titleStyle(
-                context,
-                dense,
-              )?.copyWith(fontWeight: FontWeight.w500),
-            ),
-          ),
-          if (details.isNotEmpty) ...[
-            const SizedBox(width: 6),
-            Expanded(
-              child: Tooltip(
-                excludeFromSemantics: true,
-                message: details,
-                child: Text(
-                  details,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: _detailStyle(context, dense),
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _Counts(
-            count: group.sessions.length,
-            attention: group.attentionCount,
+      actions: [
+        if (showActions && onNewSession != null)
+          _RowButton(
+            tooltip: 'New session in ${group.label}',
+            icon: Icons.add,
             dense: dense,
+            onPressed: onNewSession,
           ),
-          if (interactive && onNewSession != null)
-            _RowButton(
-              tooltip: 'New session in ${group.label}',
-              icon: Icons.add,
+        if (movable && dense && active)
+          Builder(
+            builder: (context) => _RowButton(
+              tooltip: 'Move ${group.label}',
+              icon: Icons.drag_indicator,
               dense: dense,
-              onPressed: onNewSession,
+              onPressed: () {
+                final box = context.findRenderObject()! as RenderBox;
+                _showMenu(
+                  context,
+                  box.localToGlobal(box.size.bottomLeft(Offset.zero)),
+                );
+              },
             ),
-          if (movable && dense && (_hovered || _focused))
-            Builder(
-              builder: (context) => _RowButton(
-                tooltip: 'Move ${group.label}',
-                icon: Icons.drag_indicator,
-                dense: dense,
-                onPressed: () {
-                  final box = context.findRenderObject()! as RenderBox;
-                  _showMenu(
-                    box.localToGlobal(box.size.bottomLeft(Offset.zero)),
-                  );
-                },
-              ),
-            ),
-        ],
-      ),
+          ),
+      ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final onMove = widget.onMove;
-    final row = _row(context, interactive: true);
-    if (onMove == null || widget.count < 2) return row;
-    final data = _DraggedFolder(widget.group.host, widget.index);
-    final dimmed = Opacity(opacity: 0.4, child: row);
+    final onMove = this.onMove;
+    final hoverable = _HoverRegion(
+      builder: (_, active) => _row(interactive: true, active: active),
+    );
+    if (onMove == null || count < 2) return hoverable;
+    final data = _DraggedFolder(index);
+    final dimmed = Opacity(opacity: 0.4, child: _row(interactive: false));
     final interactiveRow = GestureDetector(
-      onSecondaryTapUp: (details) => _showMenu(details.globalPosition),
-      child: Focus(
-        canRequestFocus: false,
-        skipTraversal: true,
-        onFocusChange: (focused) => setState(() => _focused = focused),
-        child: MouseRegion(
-          onEnter: (_) => setState(() => _hovered = true),
-          onExit: (_) => setState(() => _hovered = false),
-          child: row,
-        ),
-      ),
+      onSecondaryTapUp: (details) => _showMenu(context, details.globalPosition),
+      child: hoverable,
     );
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -781,10 +699,10 @@ class _FolderHeaderState extends State<_FolderHeader> {
           elevation: 4,
           child: SizedBox(
             width: constraints.maxWidth,
-            child: _row(context, interactive: false),
+            child: _row(interactive: false),
           ),
         );
-        final draggable = widget.dense
+        final draggable = dense
             ? Draggable<_DraggedFolder>(
                 data: data,
                 feedback: feedback,
@@ -798,11 +716,8 @@ class _FolderHeaderState extends State<_FolderHeader> {
                 child: interactiveRow,
               );
         return DragTarget<_DraggedFolder>(
-          onWillAcceptWithDetails: (details) =>
-              details.data.host == widget.group.host &&
-              details.data.index != widget.index,
-          onAcceptWithDetails: (details) =>
-              onMove(details.data.index, widget.index),
+          onWillAcceptWithDetails: (details) => details.data.index != index,
+          onAcceptWithDetails: (details) => onMove(details.data.index, index),
           builder: (context, candidates, _) {
             final from = candidates.firstOrNull?.index;
             // The dragged folder takes this one's place: above it when it
@@ -816,7 +731,7 @@ class _FolderHeaderState extends State<_FolderHeader> {
               decoration: BoxDecoration(
                 border: from == null
                     ? null
-                    : from > widget.index
+                    : from > index
                     ? Border(top: side)
                     : Border(bottom: side),
               ),
@@ -829,12 +744,14 @@ class _FolderHeaderState extends State<_FolderHeader> {
   }
 }
 
-/// A [SessionTile] with the row menu, swipe to archive and multi-select.
+/// A [SessionTile] with the row menu, hover buttons (pin and "Mark as
+/// done"), swipe to archive and multi-select.
 class _SessionRow extends StatelessWidget {
   const _SessionRow({
     super.key,
     required this.session,
     required this.ref,
+    required this.place,
     required this.now,
     required this.dense,
     required this.selected,
@@ -842,14 +759,13 @@ class _SessionRow extends StatelessWidget {
     required this.pinned,
     required this.actions,
     required this.onOpen,
-    this.place,
     this.runLabel,
   });
 
   final SessionSummary session;
 
-  /// Where a pinned session lives ([pinnedPlace]); null in its folder.
-  final String? place;
+  /// Where the session lives ([sessionPlace]).
+  final String place;
   final String? runLabel;
   final SessionRef ref;
   final DateTime now;
@@ -908,17 +824,34 @@ class _SessionRow extends StatelessWidget {
     action?.call();
   }
 
-  @override
-  Widget build(BuildContext context) {
+  /// Pin and "Mark as done" (or "Unarchive"), shown on hover (AV-093).
+  List<Widget> _hoverButtons(SessionRowActions actions) => [
+    if (actions.onPin case final onPin?)
+      _RowButton(
+        tooltip: pinLabel(pinned: pinned),
+        icon: pinned ? Icons.push_pin : Icons.push_pin_outlined,
+        dense: dense,
+        onPressed: () => onPin(ref, !pinned),
+      ),
+    _RowButton(
+      tooltip: _archived ? 'Unarchive' : markDoneLabel,
+      icon: _archived ? Icons.unarchive_outlined : Icons.check,
+      dense: dense,
+      onPressed: switch ((_archived, actions.onMarkDone)) {
+        (false, final onMarkDone?) => () => onMarkDone(ref),
+        _ => () => actions.onArchive(ref, !_archived),
+      },
+    ),
+  ];
+
+  Widget _tile({bool active = false}) {
     final actions = this.actions;
     final checked = this.checked;
-    final tile = SessionTile(
+    return SessionTile(
       session: session,
       now: now,
       runLabel: runLabel,
       place: place,
-      depth: place == null ? 2 : 1,
-      pinned: pinned,
       dense: dense,
       selected: selected || (checked ?? false),
       leading: checked == null
@@ -931,9 +864,19 @@ class _SessionRow extends StatelessWidget {
                   : null,
               onChanged: (_) => actions?.onSelect(ref),
             ),
+      // Touch layouts have no hover; they swipe and long-press instead.
+      trailing: actions != null && checked == null && active && dense
+          ? _hoverButtons(actions)
+          : const [],
       onTap: checked == null ? () => onOpen(ref) : () => actions?.onSelect(ref),
     );
-    if (actions == null) return tile;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final actions = this.actions;
+    final checked = this.checked;
+    if (actions == null) return _tile();
     final archiveLabel = _archived ? 'Unarchive' : 'Archive';
     final row = Semantics(
       customSemanticsActions: {
@@ -952,7 +895,7 @@ class _SessionRow extends StatelessWidget {
             _showMenu(context, details.globalPosition),
         onLongPressStart: (details) =>
             _showMenu(context, details.globalPosition),
-        child: tile,
+        child: _HoverRegion(builder: (_, active) => _tile(active: active)),
       ),
     );
     if (checked != null) return row;
@@ -994,107 +937,43 @@ class _SessionRow extends StatelessWidget {
   }
 }
 
-/// The "Pinned" section's row (AV-028): collapse marker, pin icon,
-/// "Pinned", and the session and attention counts. Tapping it collapses
-/// or expands the section.
-class _PinnedHeader extends StatelessWidget {
-  const _PinnedHeader({
-    super.key,
-    required this.count,
-    required this.attention,
-    required this.collapsed,
-    required this.dense,
-    this.onToggle,
-  });
-
-  /// Number of pinned sessions shown.
-  final int count;
-
-  /// Number of them that need attention.
-  final int attention;
-
-  /// Whether the pinned sessions are hidden.
-  final bool collapsed;
-
-  /// Whether the row is thin ([denseHeaderHeight]).
-  final bool dense;
-
-  /// Collapses or expands the section; it does not collapse when null.
-  final VoidCallback? onToggle;
-
-  @override
-  Widget build(BuildContext context) => _TreeRow(
-    depth: 0,
-    height: dense ? denseHeaderHeight : kMinInteractiveDimension,
-    onTap: onToggle,
-    expanded: onToggle == null ? null : !collapsed,
-    leading: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          collapsed ? Icons.chevron_right : Icons.expand_more,
-          size: _iconSize(dense),
-        ),
-        Icon(Icons.push_pin_outlined, size: _iconSize(dense)),
-      ],
-    ),
-    title: Text(
-      'Pinned',
-      maxLines: 1,
-      style: _titleStyle(context, dense)?.copyWith(fontWeight: FontWeight.w600),
-    ),
-    trailing: _Counts(count: count, attention: attention, dense: dense),
-  );
-}
+/// The tooltip of the hover button that archives a session (AV-093).
+const markDoneLabel = 'Mark as done';
 
 /// The pin action's label for a session that is [pinned] or not
 /// (AV-028).
 String pinLabel({required bool pinned}) => pinned ? 'Unpin' : 'Pin to top';
 
-/// The line beside a folder's name: its repository and branch when the
-/// host reports them, and its full path. The host is the folder's parent
-/// in the sidebar tree, so it is not repeated.
+/// A folder's repository and branch when the host reports them, and its
+/// full path, shown when the pointer rests on its header.
 String folderDetails(FolderGroup group) => [
   ?group.repo,
   if (group.branch case final branch?) '⎇ $branch',
   if (group.path.isNotEmpty) group.path,
 ].join(' · ');
 
-/// A session [count] and, when [attention] is above zero, a badge with
-/// the number that need attention.
-class _Counts extends StatelessWidget {
-  const _Counts({
-    required this.count,
-    required this.attention,
-    required this.dense,
-  });
-
-  final int count;
-  final int attention;
-  final bool dense;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsetsDirectional.only(start: 4, end: 4),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text('$count', style: _detailStyle(context, dense)),
-        if (attention > 0) ...[
-          const SizedBox(width: 8),
-          Badge(
-            label: Text('$attention'),
-            child: Icon(Icons.notifications_outlined, size: _iconSize(dense)),
-          ),
-        ],
-      ],
-    ),
+/// The text after the title on a session's hover card (AV-093),
+/// " · agent · workspace" (the workspace is the project's name, else the
+/// folder's), and the folder's full path for the line under it (null
+/// with no folder).
+({String heading, String? path}) hoverCardOf(SessionSummary summary) {
+  final key = folderKeyOf(summary);
+  final workspace =
+      projectNameOf(summary) ?? (key == null ? null : folderLabelOf(key));
+  return (
+    heading: [
+      '',
+      if (summary.provider.isNotEmpty) summary.provider,
+      ?workspace,
+    ].join(' · '),
+    path: key,
   );
 }
 
-/// One session row: title, then provider, modified time, change stats
-/// and activity on a smaller second line, and status badges (AV-020,
-/// AV-021).
+/// One session row (AV-093): a status dot ([dotBadgeFor]) and the
+/// title, then a folder icon, [place] and the relative modified time on a
+/// smaller second line. A longer hover shows a card with the agent and
+/// the full path ([hoverCardOf]).
 class SessionTile extends StatelessWidget {
   /// Creates a [SessionTile].
   const SessionTile({
@@ -1102,33 +981,24 @@ class SessionTile extends StatelessWidget {
     required this.session,
     required this.now,
     required this.onTap,
+    this.place = '',
     this.selected = false,
     this.leading,
+    this.trailing = const [],
     this.runLabel,
-    this.place,
-    this.pinned = false,
-    this.depth = 2,
     this.dense = true,
   });
 
   /// The session to show.
   final SessionSummary session;
 
-  /// Where the session lives (host and folder, [pinnedPlace]), shown
-  /// first on the second line of a row in the "Pinned" section.
-  final String? place;
-
-  /// Tree depth of the row ([_indent]): 2 in a folder, 1 in the "Pinned"
-  /// section.
-  final int depth;
+  /// Where the session lives ([sessionPlace]): its workspace and, with
+  /// several hosts, its host.
+  final String place;
 
   /// "Run 2 of 3" when the session is one of several parallel runs
   /// (AV-045).
   final String? runLabel;
-
-  /// Whether the session is pinned (AV-028); a pin marker is shown
-  /// before the title.
-  final bool pinned;
 
   /// Clock for the relative modified time.
   final DateTime now;
@@ -1139,69 +1009,127 @@ class SessionTile extends StatelessWidget {
   /// Whether the row is highlighted.
   final bool selected;
 
-  /// Shown before the title (the multi-select checkbox).
+  /// Shown in place of the status dot (the multi-select checkbox).
   final Widget? leading;
 
-  /// Whether the row is thin ([denseSessionHeight]) rather than touch
-  /// sized.
+  /// Buttons at the end of the row (pin and "Mark as done" on hover).
+  final List<Widget> trailing;
+
+  /// Whether the row is sized for pointers ([denseSessionHeight]) rather
+  /// than touch ([touchSessionHeight]).
   final bool dense;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = AppColors.of(context);
+    final muted = colors.mutedText;
     final modified = DateTime.tryParse(session.modifiedAt);
-    final changes = session.changes;
     final details = [
-      ?place,
+      if (place.isNotEmpty) place,
       ?runLabel,
-      session.provider,
       if (modified != null) formatRelativeTime(modified, now),
-      if (changes != null)
-        '+${changes.additions ?? 0} −${changes.deletions ?? 0}'
-            '${changes.files == null ? '' : ' (${changes.files} files)'}',
-      ?session.activity,
-    ];
-    final badges = badgesFor(session.status);
+    ].join(' · ');
+    final status = session.status;
+    final statusLabel = [for (final badge in badgesFor(status)) badge.label]
+        .join(', ');
+    final card = hoverCardOf(session);
+    final detailStyle = _detailStyle(context, dense);
+    final content = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          session.title,
+          // The status follows the title for screen readers, which name
+          // the row by its title first.
+          semanticsLabel: '${session.title}, $statusLabel',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: _titleStyle(context, dense),
+        ),
+        const SizedBox(height: 2),
+        Row(
+          children: [
+            if (folderKeyOf(session) != null) ...[
+              Icon(Icons.folder_outlined, size: dense ? 12 : 14, color: muted),
+              const SizedBox(width: 4),
+            ],
+            Flexible(
+              child: Text(
+                details,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: detailStyle,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
     return _TreeRow(
-      depth: depth,
-      height: dense ? denseSessionHeight : kMinInteractiveDimension,
+      depth: 1,
+      height: dense ? denseSessionHeight : touchSessionHeight,
       selected: selected,
       onTap: onTap,
-      leading: leading,
-      title: Row(
-        children: [
-          if (pinned) ...[
-            Icon(
-              Icons.push_pin,
-              size: dense ? 12 : 14,
-              semanticLabel: 'Pinned',
-            ),
-            const SizedBox(width: 4),
-          ],
-          Flexible(
-            child: Text(
-              session.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: _titleStyle(context, dense)?.copyWith(
-                fontWeight: session.status.isReadFlag ? null : FontWeight.bold,
+      leading:
+          leading ??
+          ExcludeSemantics(
+            child: SizedBox(
+              width: 12,
+              child: Icon(
+                Icons.circle,
+                size: 7,
+                color: statusDotColor(
+                  dotBadgeFor(status),
+                  colors.statusColors,
+                  unread: theme.colorScheme.onSurface,
+                ),
+                semanticLabel: statusLabel,
               ),
             ),
           ),
-        ],
-      ),
-      subtitle: Text(
-        details.join(' · '),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: _detailStyle(context, dense),
-      ),
-      trailing: Padding(
-        padding: const EdgeInsetsDirectional.only(start: 4, end: 4),
-        child: Wrap(
-          spacing: 4,
-          children: [for (final badge in badges) StatusBadgeChip(badge: badge)],
+      // The card shows only for a resting pointer: touch long-presses
+      // open the row menu.
+      title: Tooltip(
+        excludeFromSemantics: true,
+        waitDuration: hoverCardDelay,
+        triggerMode: TooltipTriggerMode.manual,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        constraints: const BoxConstraints(maxWidth: 420),
+        decoration: BoxDecoration(
+          color: colors.raisedSurface,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: colors.hairline),
         ),
+        richMessage: TextSpan(
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurface,
+          ),
+          children: [
+            TextSpan(
+              text: session.title,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            TextSpan(text: card.heading, style: detailStyle),
+            if (card.path case final path?) ...[
+              const TextSpan(text: '\n'),
+              WidgetSpan(
+                alignment: PlaceholderAlignment.middle,
+                child: Padding(
+                  padding: const EdgeInsetsDirectional.only(top: 6, end: 6),
+                  child: Icon(Icons.folder_outlined, size: 14, color: muted),
+                ),
+              ),
+              TextSpan(text: 'Workspace · $path', style: detailStyle),
+            ],
+          ],
+        ),
+        child: content,
       ),
+      trailing: trailing.isEmpty
+          ? null
+          : Row(mainAxisSize: MainAxisSize.min, children: trailing),
     );
   }
 }

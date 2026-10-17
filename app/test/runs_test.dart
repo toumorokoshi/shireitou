@@ -195,8 +195,8 @@ void main() {
       ('pi:/2', 'Pi · Smart'),
     ]);
     // The list labels both runs; the first one is open.
-    expect(find.textContaining('Run 1 of 2 · pi'), findsOneWidget);
-    expect(find.textContaining('Run 2 of 2 · pi'), findsOneWidget);
+    expect(find.textContaining('Run 1 of 2 · '), findsOneWidget);
+    expect(find.textContaining('Run 2 of 2 · '), findsOneWidget);
     expect(find.widgetWithText(ActionChip, 'Run 1 of 2'), findsOneWidget);
   });
 

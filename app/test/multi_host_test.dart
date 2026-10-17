@@ -4,6 +4,7 @@
 library;
 
 import 'package:ahp_client/ahp_client.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -13,6 +14,7 @@ import 'package:shireitou/src/composer/new_session_view.dart';
 import 'package:shireitou/src/hosts/host_store.dart';
 import 'package:shireitou/src/hosts/saved_hosts.dart';
 import 'package:shireitou/src/session_list/session_list_view.dart';
+import 'package:shireitou/src/title_bar/title_bar.dart';
 
 import 'fake_connection.dart';
 import 'fixtures.dart';
@@ -99,35 +101,21 @@ Future<(FakeHostConnection, FakeHostConnection)> _pump(
 void main() {
   setUp(() => FlutterSecureStorage.setMockInitialValues({}));
 
-  testWidgets('every host is a node of the sidebar tree with its folders, '
-      'and tapping a host narrows the list', (tester) async {
+  testWidgets('every host\'s sessions merge into folder sections that name '
+      'their host, and the "…" menu narrows the list', (tester) async {
     await _pump(tester);
     expect(find.text('All hosts'), findsOneWidget);
     expect(find.text('Fix login'), findsOneWidget);
     expect(find.text('Deploy'), findsOneWidget);
-    // The same path on two hosts is two folders, each under its host.
+    // The same path on two hosts is two folders, each naming its host;
+    // hosts are not rows of their own.
+    expect(find.text('app'), findsNWidgets(2));
     expect(find.text('test host'), findsOneWidget);
     expect(find.text('build box'), findsOneWidget);
-    expect(find.text('app'), findsNWidgets(2));
-    expect(find.text('/src/app'), findsNWidgets(2));
-    expect(
-      find.byWidgetPredicate(
-        (w) => w is Icon && w.semanticLabel == 'Connected',
-      ),
-      findsNWidgets(2),
-    );
+    expect(find.textContaining('app · build box · '), findsOneWidget);
+    expect(find.byTooltip('Collapse build box'), findsNothing);
 
-    // Collapsing a host hides its folders; expanding shows them again.
-    await tester.tap(find.byTooltip('Collapse build box'));
-    await tester.pumpAndSettle();
-    expect(find.text('Deploy'), findsNothing);
-    expect(find.text('app'), findsOneWidget);
-    await tester.tap(find.byTooltip('Expand build box'));
-    await tester.pumpAndSettle();
-    expect(find.text('Deploy'), findsOneWidget);
-
-    // Collapsing a folder hides its sessions (the build box is listed
-    // first, as it was opened first).
+    // Collapsing the first folder (the build box's) hides its sessions.
     await tester.tap(find.text('app').first);
     await tester.pumpAndSettle();
     expect(find.text('Deploy'), findsNothing);
@@ -135,19 +123,17 @@ void main() {
     await tester.tap(find.text('app').first);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('build box'));
+    // Each host's status is in the "…" menu, which narrows the list.
+    await tester.tap(find.byTooltip('More actions'));
+    await tester.pumpAndSettle();
+    expect(find.text('test host · Connected'), findsOneWidget);
+    await tester.tap(find.text('build box · Connected'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Show only this host'));
     await tester.pumpAndSettle();
     expect(find.text('Deploy'), findsOneWidget);
     expect(find.text('Fix login'), findsNothing);
-    // The other host stays listed, without its folders.
-    expect(find.text('test host'), findsOneWidget);
-    expect(find.text('/src/app'), findsOneWidget);
-    expect(find.text('build box'), findsNWidgets(2));
-    await tester.tap(find.byTooltip('More'));
-    await tester.pumpAndSettle();
-    expect(find.text('Disconnect build box'), findsOneWidget);
-    await tester.tapAt(Offset.zero);
-    await tester.pumpAndSettle();
+    expect(find.widgetWithText(TitleBar, 'build box'), findsOneWidget);
 
     // Opening a session shows it from its own host.
     await tester.tap(find.text('Deploy'));
@@ -155,19 +141,38 @@ void main() {
     expect(find.textContaining('Queue a follow-up'), findsOneWidget);
 
     // Disconnecting the host leaves the other one.
-    await tester.tap(find.byTooltip('More'));
+    await tester.tap(find.byTooltip('More actions'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Disconnect build box'));
     await tester.pumpAndSettle();
     expect(find.text('Fix login'), findsOneWidget);
     expect(find.text('Deploy'), findsNothing);
-    expect(find.text('test host'), findsNWidgets(2));
+    expect(find.widgetWithText(TitleBar, 'test host'), findsOneWidget);
+    // With one host, rows and folders do not name it.
+    expect(find.textContaining('· test host'), findsNothing);
+  });
+
+  testWidgets('folders are reordered across hosts', (tester) async {
+    await _pump(tester);
+    double top(String text) =>
+        tester.getTopLeft(find.textContaining(text).first).dy;
+    final before = top('Deploy') < top('Fix login');
+    await tester.tap(
+      find.text(before ? 'build box' : 'test host'),
+      buttons: kSecondaryButton,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Move down'));
+    await tester.pumpAndSettle();
+    expect(top('Deploy') < top('Fix login'), !before);
   });
 
   testWidgets('"Add host…" connects another host from a pushed page', (
     tester,
   ) async {
     await _pump(tester);
+    await tester.tap(find.byTooltip('More actions'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Add host…'));
     await tester.pumpAndSettle();
     expect(find.text('Connect to another host'), findsOneWidget);
@@ -181,12 +186,12 @@ void main() {
   ) async {
     await _pump(tester);
     expect(
-      tester.getSize(find.byKey(const ValueKey('add-host'))).height,
+      tester.getSize(find.widgetWithText(InkWell, 'app').first).height,
       denseHeaderHeight,
     );
     expect(
       tester.getSize(find.widgetWithText(InkWell, 'Deploy')).height,
-      lessThanOrEqualTo(denseSessionHeight),
+      denseSessionHeight,
     );
 
     tester.view.physicalSize = const Size(400, 800);
@@ -194,8 +199,8 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpAndSettle();
     expect(
-      tester.getSize(find.byKey(const ValueKey('add-host'))).height,
-      kMinInteractiveDimension,
+      tester.getSize(find.widgetWithText(InkWell, 'app').first).height,
+      greaterThanOrEqualTo(kMinInteractiveDimension),
     );
     expect(
       tester.getSize(find.widgetWithText(InkWell, 'Deploy')).height,
@@ -215,8 +220,12 @@ void main() {
       )
       ..folders['/src/app'] = ['lib', 'test']
       ..folders['/src/app/lib'] = [];
-    // The build box's folder is listed first (its session is newer).
-    await tester.tap(find.byTooltip('New session in app').first);
+    // The build box's folder is listed first; its "+" shows on hover.
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: tester.getCenter(find.text('app').first));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('New session in app'));
+    await mouse.removePointer();
     await tester.pumpAndSettle();
     expect(find.byTooltip('Host'), findsOneWidget);
     expect(

@@ -32,7 +32,7 @@ const _longTimeout = Duration(seconds: 60);
 /// The app connected to [url] (a fresh pi), on its empty session list.
 Future<AppHarness> _connect(WidgetTester tester, Uri url) async {
   final h = await AppHarness.launch(tester);
-  await h.connect(url, find.text('No sessions on this host yet.'));
+  await h.connect(url, find.text('No sessions yet.'));
   return h;
 }
 
@@ -140,6 +140,7 @@ void main() {
 
       debugPrint('pi host flows: search');
       await h.shortcut(AppCommand.searchSessions);
+      await h.settle();
       final search = find.byWidgetPredicate(
         (w) =>
             w is TextField &&
@@ -149,7 +150,7 @@ void main() {
       await h.waitForNone(_inList('hello pi'));
       await tester.enterText(search, 'hello');
       await h.waitFor(_inList('hello pi'));
-      await tester.tap(find.byTooltip('Clear search'));
+      await tester.tap(find.byTooltip('Close search'));
       await h.settle();
 
       debugPrint('pi host flows: archive and filters');
@@ -161,7 +162,7 @@ void main() {
         'pi to archive the session',
         () => observer.state.sessions[session]!.status.isArchivedFlag,
       );
-      await tester.tap(find.widgetWithText(ChoiceChip, 'Archived'));
+      await h.pickFilter('Archived');
       await h.waitFor(_inList('hello pi'));
       await tester.drag(_inList('hello pi'), const Offset(-600, 0));
       await h.waitForNone(_inList('hello pi'));
@@ -169,7 +170,7 @@ void main() {
         'pi to unarchive the session',
         () => !observer.state.sessions[session]!.status.isArchivedFlag,
       );
-      await tester.tap(find.widgetWithText(ChoiceChip, 'All'));
+      await h.pickFilter('All');
       await h.waitFor(_inList('hello pi'));
     },
     skip: skip != null,

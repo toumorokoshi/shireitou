@@ -1,5 +1,6 @@
-/// The session list's Done filter, search and sort, row menu, swipe and
-/// multi-select (AV-022 to AV-029), the attention count (AV-120), the
+/// The session list's Done filter, search and sort, row menu, hover
+/// buttons and card, swipe and multi-select (AV-022 to AV-029, AV-092,
+/// AV-093), the attention count (AV-120), the
 /// keyboard shortcuts (AV-140), the "Waiting for you" panel's answered
 /// entries, client tool executions, and restoring open hosts.
 library;
@@ -19,6 +20,7 @@ import 'package:shireitou/src/hosts/open_hosts.dart';
 import 'package:shireitou/src/hosts/saved_hosts.dart';
 import 'package:shireitou/src/session_detail/session_detail_view.dart';
 import 'package:shireitou/src/session_detail/session_status_widgets.dart';
+import 'package:shireitou/src/session_list/session_list_view.dart';
 
 import 'fake_connection.dart';
 import 'fixtures.dart';
@@ -94,19 +96,30 @@ void main() {
     tester,
   ) async {
     await _pump(tester, _connected());
-    expect(find.text('Needs attention (1)'), findsOneWidget);
     expect(
       tester.widget<MaterialApp>(find.byType(MaterialApp)).title,
       '(1) shireitou',
     );
-
+    // The filter menu checks the current filter and counts attention.
+    await tester.tap(find.byTooltip('Filter and sort'));
+    await tester.pumpAndSettle();
+    expect(find.text('Needs attention (1)'), findsOneWidget);
+    expect(
+      tester
+          .widget<CheckedPopupMenuItem<Object>>(
+            find.widgetWithText(CheckedPopupMenuItem<Object>, 'Active'),
+          )
+          .checked,
+      isTrue,
+    );
     await tester.tap(find.text('Done'));
     await tester.pumpAndSettle();
     expect(find.text('Explain'), findsOneWidget);
     expect(find.text('Fix login'), findsNothing);
 
-    await tester.tap(find.text('All'));
-    await tester.pumpAndSettle();
+    await pickFilter(tester, 'All');
+    expect(_search, findsNothing);
+    await openSearch(tester);
     await tester.enterText(_search, 'fix');
     await tester.pumpAndSettle();
     expect(find.text('Fix login'), findsOneWidget);
@@ -118,9 +131,10 @@ void main() {
     await tester.enterText(_search, 'nothing like this');
     await tester.pumpAndSettle();
     expect(find.text('No sessions match.'), findsOneWidget);
-    await tester.tap(find.byTooltip('Clear search'));
+    await tester.tap(find.byTooltip('Close search'));
     await tester.pumpAndSettle();
     expect(find.text('Fix login'), findsOneWidget);
+    expect(_search, findsNothing);
   });
 
   testWidgets('sorting reorders the sessions of a folder', (tester) async {
@@ -146,15 +160,9 @@ void main() {
     );
     double top(String text) => tester.getTopLeft(find.text(text)).dy;
     expect(top('Newer one'), lessThan(top('Older one')));
-    await tester.tap(find.byTooltip('Sort: Most recent'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Oldest'));
-    await tester.pumpAndSettle();
+    await pickFilter(tester, 'Oldest');
     expect(top('Older one'), lessThan(top('Newer one')));
-    await tester.tap(find.byTooltip('Sort: Oldest'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Needs attention first'));
-    await tester.pumpAndSettle();
+    await pickFilter(tester, 'Needs attention first');
     expect(top('Older one'), lessThan(top('Newer one')));
   });
 
@@ -225,6 +233,79 @@ void main() {
     expect(find.byType(Checkbox), findsNothing);
     // Picking a session no longer opens it.
     expect(find.text('Select a session'), findsOneWidget);
+  });
+
+  testWidgets('sessions with no folder are listed under Chats, above the '
+      'folders', (tester) async {
+    await _pump(
+      tester,
+      _connected(
+        list: [
+          session('1', directory: 'file:///src/app', title: 'In a folder'),
+          session('2', title: 'A chat'),
+        ],
+      ),
+    );
+    double top(String text) => tester.getTopLeft(find.text(text)).dy;
+    expect(top('Chats'), lessThan(top('A chat')));
+    expect(top('A chat'), lessThan(top('app')));
+    expect(top('app'), lessThan(top('In a folder')));
+    await tester.tap(find.text('Chats'));
+    await tester.pumpAndSettle();
+    expect(find.text('A chat'), findsNothing);
+  });
+
+  testWidgets('hovering a row shows "Mark as done", with Undo, and then '
+      'its card', (tester) async {
+    final connection = await _pump(tester, _connected());
+    JsonMap last(String channel) =>
+        connection.dispatched.lastWhere((d) => d.$1 == channel).$2;
+    expect(find.byTooltip(markDoneLabel), findsNothing);
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: tester.getCenter(find.text('Explain')));
+    await tester.pump();
+    expect(find.byTooltip('Pin to top'), findsOneWidget);
+    // The card shows after the pointer rests on the row.
+    await tester.pump(hoverCardDelay + const Duration(milliseconds: 100));
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining(
+        'Workspace · /src/app-worktrees/fix-login',
+        findRichText: true,
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Explain · pi · fix-login', findRichText: true),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byTooltip(markDoneLabel));
+    await tester.pumpAndSettle();
+    expect(last('pi:/2'), {
+      'type': 'session/isArchivedChanged',
+      'isArchived': true,
+    });
+    await tester.tap(find.text('Undo'));
+    await tester.pumpAndSettle();
+    expect(last('pi:/2'), {
+      'type': 'session/isArchivedChanged',
+      'isArchived': false,
+    });
+    await mouse.removePointer();
+  });
+
+  testWidgets('"Select" in the "…" menu starts multi-select', (tester) async {
+    await _pump(tester, _connected());
+    await tester.tap(find.byTooltip('More actions'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Select'));
+    await tester.pumpAndSettle();
+    expect(find.text('0 selected'), findsOneWidget);
+    await tester.tap(find.text('Select all'));
+    await tester.pumpAndSettle();
+    expect(find.text('2 selected'), findsOneWidget);
   });
 
   testWidgets('keyboard shortcuts search, step through sessions, focus the '
@@ -466,12 +547,25 @@ void main() {
         other.key,
       ]);
 
-      expect(find.text('Connection refused'), findsOneWidget);
-      await tester.tap(find.byTooltip('Retry build box'));
+      // The "…" menu has a dot while a host is not connected, and lists
+      // the host's error with Retry and Remove.
+      await tester.tap(
+        find.byTooltip('More actions (a host is not connected)'),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('build box · Connection refused'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Retry build box'));
       await tester.pumpAndSettle();
       expect(connections[other.key]!.connected, [other.url, other.url]);
 
-      await tester.tap(find.byTooltip('Remove build box'));
+      await tester.tap(
+        find.byTooltip('More actions (a host is not connected)'),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('build box · Connection refused'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Remove build box'));
       await tester.pumpAndSettle();
       expect(container.read(openHostsProvider).map((h) => h.key), [
         testHost.key,

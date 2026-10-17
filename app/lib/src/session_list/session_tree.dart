@@ -1,6 +1,8 @@
-/// The sidebar tree (AV-012, AV-025, AV-028): the "Pinned" section, then
-/// every open host, its workspace folders under it and each folder's
-/// sessions, flattened into rows for a lazily built list.
+/// The sidebar's sections (AV-012, AV-025, AV-028, AV-092): "Pinned",
+/// "Chats" (sessions with no working directory), then one section per
+/// workspace folder, each with its sessions, flattened into rows for a
+/// lazily built list. Hosts are not a level: every open host's sessions
+/// are merged into these sections.
 ///
 /// See `specs/agents-view.md`, "Sidebar tree".
 library;
@@ -9,129 +11,67 @@ import 'package:ahp_client/ahp_client.dart';
 
 import '../hosts/open_hosts.dart';
 import 'folder_grouping.dart';
+import 'session_query.dart';
 import 'status_badges.dart';
 
-/// Shown under a host that has no sessions.
-const noSessionsText = 'No sessions on this host yet.';
+/// Shown in place of the sections when no host has sessions.
+const noSessionsText = 'No sessions yet.';
 
-/// Shown under a host whose sessions are all filtered out.
+/// Shown in place of the sections when every session is filtered out.
 const noMatchText = 'No sessions match.';
 
-/// The id of the "Pinned" section in the collapsed set. Host keys are
-/// URLs and folder ids contain `|`, so it cannot clash with them.
+/// The id of the "Pinned" section in the collapsed set. Folder ids
+/// contain `|`, so it cannot clash with them.
 const pinnedNodeId = 'pinned';
 
-/// One host in the sidebar with its folders.
-class HostNode {
-  /// Creates a [HostNode].
-  const HostNode({required this.host, required this.folders, this.emptyText});
+/// The id of the "Chats" section in the collapsed set.
+const chatsNodeId = 'chats';
 
-  /// The open host.
-  final HostInfo host;
-
-  /// The host's folders, in list order.
-  final List<FolderGroup> folders;
-
-  /// Shown under the host in place of folders ([noSessionsText] or
-  /// [noMatchText]); null shows nothing.
-  final String? emptyText;
-
-  /// Number of sessions in [folders].
-  int get sessionCount =>
-      folders.fold(0, (count, folder) => count + folder.sessions.length);
-
-  /// Number of sessions in [folders] that need attention.
-  int get attentionCount =>
-      folders.fold(0, (count, folder) => count + folder.attentionCount);
-}
-
-/// The sidebar tree: one node per host in [hosts] (in their order), each
-/// holding its folders from [groups] (in their order, so a different
-/// folder order only needs [groups] ordered first).
-///
-/// A live host with no folders gets an [HostNode.emptyText]:
-/// [noMatchText] when it is in [hostsWithSessions] (its sessions are
-/// filtered out), else [noSessionsText]. Hosts other than [hostFilter]
-/// (when set), hosts that are not live and hosts in [hostsWithPinned]
-/// (their sessions are listed in the "Pinned" section) get none.
-List<HostNode> sessionTree(
-  List<HostInfo> hosts,
-  List<FolderGroup> groups, {
-  Set<String> hostsWithSessions = const {},
-  Set<String> hostsWithPinned = const {},
-  String? hostFilter,
-}) => [
-  for (final host in hosts)
-    () {
-      final folders = [
-        for (final g in groups)
-          if (g.host == host.key) g,
-      ];
-      final listed =
-          host.live &&
-          (hostFilter == null || hostFilter == host.key) &&
-          !hostsWithPinned.contains(host.key);
-      return HostNode(
-        host: host,
-        folders: folders,
-        emptyText: !listed || folders.isNotEmpty
-            ? null
-            : hostsWithSessions.contains(host.key)
-            ? noMatchText
-            : noSessionsText,
-      );
-    }(),
-];
-
-/// One row of the flattened sidebar tree.
+/// One row of the flattened sidebar.
 sealed class SidebarRow {
   const SidebarRow();
 }
 
-/// A host's row.
-final class HostRow extends SidebarRow {
-  /// Creates a [HostRow].
-  const HostRow(this.node, {required this.collapsed});
+/// The header of the "Pinned" (AV-028) or "Chats" section, which list
+/// sessions of every host without grouping them by folder.
+final class SectionRow extends SidebarRow {
+  /// Creates a [SectionRow].
+  const SectionRow(this.id, this.sessions, {required this.collapsed});
 
-  /// The host and its folders.
-  final HostNode node;
+  /// [pinnedNodeId] or [chatsNodeId].
+  final String id;
 
-  /// Whether the host's folders are hidden.
-  final bool collapsed;
-}
-
-/// The "Pinned" section's row (AV-028).
-final class PinnedRow extends SidebarRow {
-  /// Creates a [PinnedRow].
-  const PinnedRow(this.sessions, {required this.collapsed});
-
-  /// The pinned sessions, in the order they were pinned.
+  /// The section's sessions, in the order shown.
   final List<HostSession> sessions;
 
-  /// Whether the pinned sessions are hidden.
+  /// Whether the sessions are hidden.
   final bool collapsed;
 
-  /// Number of pinned sessions that need attention.
-  int get attentionCount =>
-      sessions.where((s) => needsAttention(s.summary.status)).length;
+  /// Whether any of the sessions needs attention ([needsAttention]).
+  bool get hasAttention =>
+      sessions.any((s) => needsAttention(s.summary.status));
 }
 
-/// A workspace folder's row.
+/// A workspace folder's header (AV-025).
 final class FolderRow extends SidebarRow {
   /// Creates a [FolderRow].
-  const FolderRow(this.group, {required this.collapsed});
+  const FolderRow(this.group, {required this.collapsed, this.hostLabel});
 
   /// The folder and its sessions.
   final FolderGroup group;
 
   /// Whether the folder's sessions are hidden.
   final bool collapsed;
+
+  /// The label of the folder's host when several hosts are open; null
+  /// otherwise.
+  final String? hostLabel;
 }
 
-/// A session's row, in a folder or in the "Pinned" section.
+/// A session's row, in any section.
 final class SessionItem extends SidebarRow {
   /// Creates a [SessionItem].
-  const SessionItem(this.host, this.session, {this.place});
+  const SessionItem(this.host, this.session, {required this.place});
 
   /// The host key the session is on.
   final String host;
@@ -139,75 +79,69 @@ final class SessionItem extends SidebarRow {
   /// The session.
   final SessionSummary session;
 
-  /// Where the session lives ([pinnedPlace]) for a row in the "Pinned"
-  /// section; null for a row in its folder.
-  final String? place;
+  /// Where the session lives ([sessionPlace]), shown on its second line.
+  final String place;
 
   /// The session's reference.
   SessionRef get ref => (host: host, session: session.resource);
 }
 
-/// The text under a host with no folders ([HostNode.emptyText]).
-final class EmptyRow extends SidebarRow {
-  /// Creates an [EmptyRow].
-  const EmptyRow(this.host, this.text);
+/// The sessions of [sessions] with no working directory or project (the
+/// "Chats" section), ordered by [sort].
+List<HostSession> chatSessions(
+  Iterable<HostSession> sessions, {
+  SessionSort sort = SessionSort.recent,
+}) => [
+  for (final s in sessions)
+    if (folderKeyOf(s.summary) == null) s,
+]..sort((a, b) => compareSessions(sort, a.summary, b.summary));
 
-  /// The host key.
-  final String host;
-
-  /// The text to show.
-  final String text;
-}
-
-/// The id of a host's node in the collapsed set: its key.
-String hostNodeId(HostNode node) => node.host.key;
-
-/// The label of a pinned session's row that tells where it lives: its
-/// host's [hostLabel] (when given) and its folder's name.
-String pinnedPlace(HostSession session, {String? hostLabel}) => [
+/// Where a session lives, for its row's second line: its workspace
+/// ([workspaceLabel]) and [hostLabel] (when given), joined by " · ".
+/// Empty for a session with no folder and no [hostLabel].
+String sessionPlace(SessionSummary summary, {String? hostLabel}) => [
+  if (folderKeyOf(summary) case final key?)
+    workspaceLabel(folderLabelOf(key), projectNameOf(summary)),
   ?hostLabel,
-  switch (folderKeyOf(session.summary)) {
-    final key? => folderLabelOf(key),
-    null => noFolderLabel,
-  },
 ].join(' · ');
 
-/// [pinned] as the "Pinned" section (none when it is empty), then [tree]
-/// as rows, skipping the children of the section, hosts and folders
-/// whose ids ([pinnedNodeId], [hostNodeId], [FolderGroup.id]) are in
-/// [collapsed]. Pinned rows name their host only when [tree] has more
-/// than one.
-List<SidebarRow> sidebarRows(
-  List<HostNode> tree,
-  Set<String> collapsed, {
+/// The labels of [hosts] by key when there is more than one host, so
+/// rows and folders name their host; empty otherwise.
+Map<String, String> hostLabelsOf(List<HostInfo> hosts) => {
+  if (hosts.length > 1)
+    for (final h in hosts) h.key: h.label,
+};
+
+/// The sidebar's rows: [pinned] as the "Pinned" section and [chats] as
+/// the "Chats" section (each left out when empty), then each of
+/// [folders] in order. The sessions of a section or folder whose id
+/// ([pinnedNodeId], [chatsNodeId], [FolderGroup.id]) is in [collapsed]
+/// are skipped. [hostLabels] ([hostLabelsOf]) name the host of rows and
+/// folders.
+List<SidebarRow> sidebarRows({
+  required Set<String> collapsed,
   List<HostSession> pinned = const [],
+  List<HostSession> chats = const [],
+  List<FolderGroup> folders = const [],
+  Map<String, String> hostLabels = const {},
 }) {
-  final hostLabels = {
-    if (tree.length > 1)
-      for (final node in tree) node.host.key: node.host.label,
-  };
+  SessionItem item(String host, SessionSummary s) =>
+      SessionItem(host, s, place: sessionPlace(s, hostLabel: hostLabels[host]));
   return [
-    if (pinned.isNotEmpty) ...[
-      PinnedRow(pinned, collapsed: collapsed.contains(pinnedNodeId)),
-      if (!collapsed.contains(pinnedNodeId))
-        for (final s in pinned)
-          SessionItem(
-            s.host,
-            s.summary,
-            place: pinnedPlace(s, hostLabel: hostLabels[s.host]),
-          ),
-    ],
-    for (final node in tree) ...[
-      HostRow(node, collapsed: collapsed.contains(hostNodeId(node))),
-      if (!collapsed.contains(hostNodeId(node))) ...[
-        if (node.emptyText case final text?) EmptyRow(node.host.key, text),
-        for (final group in node.folders) ...[
-          FolderRow(group, collapsed: collapsed.contains(group.id)),
-          if (!collapsed.contains(group.id))
-            for (final session in group.sessions)
-              SessionItem(group.host, session),
-        ],
+    for (final (id, sessions) in [(pinnedNodeId, pinned), (chatsNodeId, chats)])
+      if (sessions.isNotEmpty) ...[
+        SectionRow(id, sessions, collapsed: collapsed.contains(id)),
+        if (!collapsed.contains(id))
+          for (final s in sessions) item(s.host, s.summary),
       ],
+    for (final group in folders) ...[
+      FolderRow(
+        group,
+        collapsed: collapsed.contains(group.id),
+        hostLabel: hostLabels[group.host],
+      ),
+      if (!collapsed.contains(group.id))
+        for (final s in group.sessions) item(group.host, s),
     ],
   ];
 }
@@ -216,16 +150,18 @@ List<SidebarRow> sidebarRows(
 Set<String> toggledNode(Set<String> collapsed, String id) =>
     collapsed.contains(id) ? ({...collapsed}..remove(id)) : {...collapsed, id};
 
-/// [collapsed] without the "Pinned" section when [session] is in
-/// [pinned], else without the host and the folder of [session] in
+/// [collapsed] without the section that lists [session]: "Pinned" when
+/// it is in [pinned], "Chats" when it is in [chats], else its folder in
 /// [groups], so the session's row is shown.
 Set<String> revealSession(
   Set<String> collapsed,
   List<FolderGroup> groups,
   SessionRef session, {
   Iterable<SessionRef> pinned = const [],
+  Iterable<SessionRef> chats = const [],
 }) {
   if (pinned.contains(session)) return collapsed.difference({pinnedNodeId});
+  if (chats.contains(session)) return collapsed.difference({chatsNodeId});
   final folder = groups
       .where(
         (g) =>
@@ -233,7 +169,7 @@ Set<String> revealSession(
             g.sessions.any((s) => s.resource == session.session),
       )
       .firstOrNull;
-  return collapsed.difference({session.host, ?folder?.id});
+  return collapsed.difference({?folder?.id});
 }
 
 /// The app bar title for [hosts] when the list is narrowed to

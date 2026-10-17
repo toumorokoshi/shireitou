@@ -134,7 +134,6 @@ void main() {
     final prefs = await _pump(tester);
     double top(Finder finder) => tester.getTopLeft(finder).dy;
     expect(find.text('Pinned'), findsNothing);
-    expect(find.byIcon(Icons.push_pin), findsNothing);
 
     await tester.tap(find.text('Older one'), buttons: kSecondaryButton);
     await tester.pumpAndSettle();
@@ -145,8 +144,6 @@ void main() {
     expect(top(find.text('Older one')), lessThan(top(find.text('other'))));
     expect(top(find.text('Older one')), lessThan(top(find.text('app'))));
     expect(find.text('Older one'), findsOneWidget);
-    expect(find.textContaining('app · pi'), findsOneWidget);
-    expect(find.byIcon(Icons.push_pin), findsOneWidget);
     expect(decodePinned(prefs.values['pinned_sessions']), {
       (host: testHost.key, session: 'pi:/a'),
     });
@@ -161,6 +158,15 @@ void main() {
       lessThan(top(find.text('Older one'))),
     );
     expect(decodePinned(prefs.values['pinned_sessions']), isEmpty);
+
+    // The pin icon on hover pins it again.
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: tester.getCenter(find.text('Older one')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Pin to top'));
+    await tester.pumpAndSettle();
+    expect(top(find.text('Pinned')), lessThan(top(find.text('Older one'))));
+    await mouse.removePointer();
   });
 
   testWidgets('the Pinned section collapses, follows the search, and comes '
@@ -190,6 +196,7 @@ void main() {
     );
     expect(decodeIds(prefs.values['sidebar_collapsed']), isEmpty);
 
+    await openSearch(tester);
     await tester.enterText(
       find.byWidgetPredicate(
         (w) =>

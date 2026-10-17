@@ -204,10 +204,11 @@ Dart source); `bin/generate.dart` does the file I/O. See
   `HostSession`s). `OpenHosts` saves the open hosts' keys
   (`HostStore.saveOpenHosts`) and `restore()` (called by `HomeScreen` on
   start) reconnects them; a remembered host whose connect fails stays
-  open, failed, with Retry and Remove on its sidebar row (and its error
+  open, failed, with Retry and Remove in its submenu of the sidebar's
+  "…" menu (and its error
   under Recent hosts on the connect screen), while a host that never
   connected is dropped again. The connect screen prefills the most recent
-  host and lists the rest; "Add host…" at the end of the sidebar pushes it
+  host and lists the rest; "Add host…" in the sidebar's "…" menu pushes it
   again.
 - `lib/src/auth/`: sign-in (AHP-060 to AHP-062). `sign_in_dialog.dart`
   is the dialog ("Sign in with browser" when the resource names an
@@ -282,8 +283,9 @@ Dart source); `bin/generate.dart` does the file I/O. See
   (≥ 1200 dp) adds a review pane.
 - `lib/src/title_bar/`: the title bar (AV-091). `title_bar.dart` is the
   `TitleBar` widget (callbacks only, no state), `workspaceTitle` ("folder
-  [repo]") and `sidebarCollapsedProvider` (a `StoredFlag` from
-  `prefs.dart`, as `reviewPaneOpenProvider` is);
+  [repo]", built with `workspaceLabel`) and `sidebarCollapsedProvider`
+  (a `StoredFlag` from `prefs.dart` under `sidebar_hidden`, as
+  `reviewPaneOpenProvider` is);
   `session_history.dart` is the back and forward history as pure
   functions over a list of `SessionRef`s and an index. The sessions
   screen keeps the history and passes the bar its actions, including the
@@ -300,25 +302,32 @@ Dart source); `bin/generate.dart` does the file I/O. See
   `splitPinned`, which takes the shown pinned sessions out in pin order,
   AV-028), and `formatRelativeTime`. `pinned_store.dart` keeps the pinned
   sessions (by host and session) on this device with `PrefsStore`.
-  `session_tree.dart` builds the sidebar tree: `sessionTree` puts each
-  open host's folders under it, `sidebarRows` flattens the "Pinned"
-  section (its sessions labeled by `pinnedPlace`) and the tree into
-  pinned, host, folder, session and empty rows while skipping collapsed
-  nodes, and `revealSession` expands the ones holding an opened
-  session. `folder_order.dart` orders folders by the user's order
-  (`orderFolders`) and moves one (`movedFolder`); `sidebar_store.dart`
-  keeps that order and the collapsed hosts and folders on this device
-  with `PrefsStore`. `session_list_view.dart` renders the rows lazily (thin rows
-  on medium and wide layouts, touch-sized ones on compact layouts);
-  host rows show the status with Retry and Remove, folder rows drag
-  onto other folder rows of their host to reorder them (and move up or
-  down from a menu and screen reader actions), and each session row has a menu
+  `session_tree.dart` builds the sidebar's sections (AV-092; hosts are
+  not a level): `chatSessions` picks the sessions with no folder,
+  `sessionPlace` and `hostLabelsOf` label rows with their workspace
+  ("folder [project]", `workspaceLabel` in `folder_grouping.dart`) and
+  host, `sidebarRows` flattens the "Pinned" and "Chats" sections and the
+  folders into section, folder and session rows while skipping collapsed
+  ones, and `revealSession` expands the one holding an opened session.
+  `status_badges.dart` derives a row's one status dot from the bitset
+  (`dotBadgeFor`) and holds the dot palette (`statusDotColor`).
+  `folder_order.dart` orders folders by the user's order
+  (`orderFolders`) and moves one (`movedFolder`) across hosts;
+  `sidebar_store.dart` keeps that order and the collapsed sections on
+  this device with `PrefsStore`. `session_list_view.dart` renders the
+  rows lazily (44 px two-line rows on medium and wide layouts,
+  touch-sized ones on compact layouts): section headers with an
+  attention dot, folder headers that drag onto other folder headers to
+  reorder them (and move up or down from a menu and screen reader
+  actions) with a "+" on hover, and session rows (AV-093) with a status
+  dot, pin and "Mark as done" on hover, a hover card, and a menu
   (right-click, long-press, and screen reader actions) to rename (a
-  dialog, AV-073), archive, mark read or unread, pin or unpin and select,
-  swipes left to archive or
-  unarchive, shows a pin marker on pinned rows, and shows checkboxes while
-  selecting (AV-024, AV-028, AV-029). The sessions screen adds the search field, sort menu, filter
-  chips (with the attention count) and the bulk action bar.
+  dialog, AV-073), archive, mark read or unread, pin or unpin and select;
+  rows swipe left to archive or unarchive and show checkboxes while
+  selecting (AV-024, AV-028, AV-029). The sessions screen adds the
+  sidebar header ("New", the filter and sort menu with the attention
+  count, the search icon and field, and the "…" menu with Select, Add
+  host…, Disconnect and a submenu per host) and the bulk action bar.
 - `lib/src/session_detail/`: the session view. `timeline_items.dart` and
   `chat_commands.dart` are pure: `timelineItems(ChatState)` flattens turns
   into rows, and the command builders return the chat actions to dispatch.

@@ -6,6 +6,7 @@ import 'dart:async';
 
 import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../composer/new_session_draft.dart';
@@ -47,9 +48,10 @@ import 'host_storage_banner.dart';
 /// Width of the session list pane on medium and wide layouts.
 const _listPaneWidth = 380.0;
 
-/// Full-screen session browser for the connected hosts: filters, search
-/// and sort (AV-022, AV-026, AV-027), row actions and multi-select
-/// (AV-024, AV-029), and the list's keyboard shortcuts (AV-140).
+/// Full-screen session browser for the connected hosts: the sidebar
+/// header (AV-092) with filters, search and sort (AV-022, AV-026,
+/// AV-027) and the hosts' menu, row actions and multi-select (AV-024,
+/// AV-029), and the list's keyboard shortcuts (AV-140).
 class SessionsScreen extends ConsumerStatefulWidget {
   /// Creates the sessions screen.
   const SessionsScreen({super.key});
@@ -66,6 +68,10 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
   final _search = TextEditingController();
   final _searchFocus = FocusNode(debugLabel: 'session search');
 
+  /// Whether the search field is shown (the header's search icon or
+  /// Cmd/Ctrl+K); it also shows while it holds a query.
+  bool _searchOpen = false;
+
   /// The sessions opened, for the title bar's back and forward (AV-091).
   SessionHistory _history = emptySessionHistory;
 
@@ -80,6 +86,9 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
 
   /// The shown pinned sessions, to reveal a selected pinned session.
   List<SessionRef> _pinned = const [];
+
+  /// The shown sessions of the "Chats" section, to reveal one.
+  List<SessionRef> _chats = const [];
 
   /// The shown sessions in list order, for next/previous (AV-140).
   List<SessionRef> _order = const [];
@@ -195,11 +204,18 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
     });
     final groups = _groups;
     final pinned = _pinned;
+    final chats = _chats;
     unawaited(
       ref
           .read(collapsedNodesProvider.notifier)
           .change(
-            (ids) => revealSession({...ids}, groups, session, pinned: pinned),
+            (ids) => revealSession(
+              {...ids},
+              groups,
+              session,
+              pinned: pinned,
+              chats: chats,
+            ),
           ),
     );
     _showPage((_) => _detailPage(session));
@@ -218,8 +234,11 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
   Future<void> _focusSearch() async {
     if (ref.read(sidebarCollapsedProvider)) {
       await ref.read(sidebarCollapsedProvider.notifier).set(false);
-      await WidgetsBinding.instance.endOfFrame;
     }
+    if (!mounted) return;
+    // The search field is built in the next frame when it was hidden.
+    setState(() => _searchOpen = true);
+    await WidgetsBinding.instance.endOfFrame;
     if (!mounted) return;
     _searchFocus.requestFocus();
     _search.selection = TextSelection(
@@ -227,6 +246,12 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
       extentOffset: _search.text.length,
     );
   }
+
+  /// Clears and hides the search field.
+  void _closeSearch() => setState(() {
+    _search.clear();
+    _searchOpen = false;
+  });
 
   /// Shows the draft for [target] in the session pane, or as a page on
   /// compact layouts.
@@ -360,6 +385,22 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
     }
   }
 
+  /// Archives [session] from its row's "Mark as done" button (AV-093),
+  /// with Undo on a snackbar.
+  void _markDone(SessionRef session) {
+    _setArchived([session], true);
+    if (!mounted) return;
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      SnackBar(
+        content: const Text('Marked as done'),
+        action: SnackBarAction(
+          label: 'Undo',
+          onPressed: () => _setArchived([session], false),
+        ),
+      ),
+    );
+  }
+
   void _setArchived(Iterable<SessionRef> sessions, bool archived) {
     for (final session in sessions) {
       _dispatchToSession(
@@ -434,20 +475,19 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
       ref.watch(pinnedSessionsProvider),
       shown,
     );
+    final chats = chatSessions(rest, sort: _sort);
     final groups = _groups = orderFolders(
-      groupHostSessions(rest, sort: _sort),
+      groupHostSessions([
+        for (final s in rest)
+          if (folderKeyOf(s.summary) != null) s,
+      ], sort: _sort),
       ref.watch(folderOrderProvider),
     );
-    final tree = sessionTree(
-      hosts,
-      groups,
-      hostsWithSessions: {for (final s in onHost) s.host},
-      hostsWithPinned: {for (final s in pinned) s.host},
-      hostFilter: hostFilter,
-    );
     _pinned = [for (final s in pinned) s.ref];
+    _chats = [for (final s in chats) s.ref];
     _order = [
       ..._pinned,
+      ..._chats,
       for (final g in groups)
         for (final s in g.sessions) (host: g.host, session: s.resource),
     ];
@@ -494,26 +534,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                 : 'Reconnecting…',
           ),
         ),
-      IconButton(
-        tooltip: 'New session (${shortcutLabel(AppCommand.newSession)})',
-        icon: const Icon(Icons.add),
-        onPressed: () => _newSession(),
-      ),
       if (ref.watch(notifierProvider) != null) const NotificationsMenu(),
-      PopupMenuButton<void>(
-        tooltip: 'More',
-        icon: const Icon(Icons.more_horiz),
-        itemBuilder: (_) => [
-          PopupMenuItem<void>(
-            onTap: () => unawaited(_disconnect(hosts)),
-            child: Text(
-              hostFilter == null || hosts.length == 1
-                  ? 'Disconnect'
-                  : 'Disconnect ${labels[hostFilter]}',
-            ),
-          ),
-        ],
-      ),
     ];
     final sidebarCollapsed = ref.watch(sidebarCollapsedProvider);
     final history = _history;
@@ -525,20 +546,45 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const HostStorageBanner(),
-              _SearchBar(
-                controller: _search,
-                focusNode: _searchFocus,
+              _SidebarHeader(
+                filter: _filter,
                 sort: _sort,
-                onChanged: () => setState(() {}),
+                attention: attention,
+                onNewSession: () => _newSession(),
+                onFilter: (filter) => setState(() => _filter = filter),
                 onSort: (sort) => setState(() => _sort = sort),
+                onSearch: () => unawaited(_focusSearch()),
+                menu: _HostsMenu(
+                  hosts: hosts,
+                  hostFilter: hostFilter,
+                  onSelect: () => setState(() => _selection = {}),
+                  onAddHost: _addHost,
+                  onDisconnect: () => _disconnect(hosts),
+                  onShowOnly: (host) => setState(() => _hostFilter = host),
+                  onRetry: (host) =>
+                      ref.read(openHostsProvider.notifier).retry(host),
+                  onRemove: (host) =>
+                      ref.read(openHostsProvider.notifier).disconnect(host),
+                  onSshTerminal: (key) => _withOpenHost(
+                    key,
+                    (host) => openSshTerminal(context, ref, host),
+                  ),
+                  onSshSettings: sshSupported
+                      ? (key) => _withOpenHost(
+                          key,
+                          (host) => editSshSettings(context, ref, host),
+                        )
+                      : null,
+                ),
               ),
-              if (selection == null)
-                _FilterBar(
-                  filter: _filter,
-                  attention: attention,
-                  onChanged: (filter) => setState(() => _filter = filter),
-                )
-              else
+              if (_searchOpen || _search.text.isNotEmpty)
+                _SearchField(
+                  controller: _search,
+                  focusNode: _searchFocus,
+                  onChanged: () => setState(() {}),
+                  onClose: _closeSearch,
+                ),
+              if (selection != null)
                 _SelectionBar(
                   count: selection.length,
                   allArchived:
@@ -570,7 +616,11 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                 ),
               Expanded(
                 child: SessionListView(
-                  tree: tree,
+                  pinned: pinned,
+                  chats: chats,
+                  folders: groups,
+                  hostLabels: hostLabelsOf(hosts),
+                  emptyText: onHost.isEmpty ? noSessionsText : noMatchText,
                   collapsed: {...ref.watch(collapsedNodesProvider)},
                   onToggle: (id) => ref
                       .read(collapsedNodesProvider.notifier)
@@ -580,33 +630,14 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                       .change((order) => movedFolder(order, folders, from, to)),
                   selected: _selected,
                   onSelect: _select,
-                  selectedHost: hostFilter,
-                  onSelectHost: hosts.length > 1
-                      ? (host) => setState(() => _hostFilter = host)
-                      : null,
-                  onAddHost: _addHost,
-                  onRetry: (host) =>
-                      ref.read(openHostsProvider.notifier).retry(host),
-                  onRemove: (host) =>
-                      ref.read(openHostsProvider.notifier).disconnect(host),
-                  onSshTerminal: (key) => _withOpenHost(
-                    key,
-                    (host) => openSshTerminal(context, ref, host),
-                  ),
-                  onSshSettings: sshSupported
-                      ? (key) => _withOpenHost(
-                          key,
-                          (host) => editSshSettings(context, ref, host),
-                        )
-                      : null,
                   onNewSession: (group) =>
                       _newSession(host: group.host, directory: group.key),
                   selection: selection,
                   runLabels: runLabels,
-                  pinned: pinned,
                   dense: tier != LayoutTier.compact,
                   actions: SessionRowActions(
                     onArchive: (s, archived) => _setArchived([s], archived),
+                    onMarkDone: _markDone,
                     onMarkRead: (s, read) => _setRead([s], read),
                     onSelect: _toggleSelected,
                     onPin: (s, pin) => ref
@@ -733,109 +764,337 @@ SessionRef? steppedSession(
   return order[(index + delta).clamp(0, order.length - 1)];
 }
 
-/// Filter chips above the session list (AV-022); "Needs attention"
-/// carries the attention count (AV-120).
-class _FilterBar extends StatelessWidget {
-  const _FilterBar({
+/// The sidebar's header (AV-092): "Sessions", the "New" button, the
+/// filter and sort menu (AV-022, AV-026; "Needs attention" carries the
+/// attention count, AV-120), the search icon (AV-027) and [menu].
+class _SidebarHeader extends StatelessWidget {
+  const _SidebarHeader({
     required this.filter,
-    required this.attention,
-    required this.onChanged,
-  });
-
-  final SessionFilter filter;
-  final int attention;
-  final ValueChanged<SessionFilter> onChanged;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
-    child: Wrap(
-      spacing: 8,
-      runSpacing: 4,
-      children: [
-        for (final f in SessionFilter.values)
-          ChoiceChip(
-            label: Text(
-              f == SessionFilter.attention && attention > 0
-                  ? '${f.label} ($attention)'
-                  : f.label,
-            ),
-            selected: f == filter,
-            onSelected: (_) => onChanged(f),
-          ),
-      ],
-    ),
-  );
-}
-
-/// The search field (AV-027, focused by Cmd/Ctrl+K) and the sort menu
-/// (AV-026).
-class _SearchBar extends StatelessWidget {
-  const _SearchBar({
-    required this.controller,
-    required this.focusNode,
     required this.sort,
-    required this.onChanged,
+    required this.attention,
+    required this.onNewSession,
+    required this.onFilter,
     required this.onSort,
+    required this.onSearch,
+    required this.menu,
   });
 
-  final TextEditingController controller;
-  final FocusNode focusNode;
+  /// The chosen filter, checked in the menu.
+  final SessionFilter filter;
+
+  /// The chosen sort, checked in the menu.
   final SessionSort sort;
-  final VoidCallback onChanged;
+
+  /// Number of sessions that need attention.
+  final int attention;
+
+  /// Opens a new-session draft.
+  final VoidCallback onNewSession;
+
+  /// Picks a filter.
+  final ValueChanged<SessionFilter> onFilter;
+
+  /// Picks a sort.
   final ValueChanged<SessionSort> onSort;
 
+  /// Shows the search field.
+  final VoidCallback onSearch;
+
+  /// The "…" menu ([_HostsMenu]).
+  final Widget menu;
+
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(12, 8, 4, 0),
-    child: Row(
-      children: [
-        Expanded(
-          child: TextField(
-            controller: controller,
-            focusNode: focusNode,
-            onChanged: (_) => onChanged(),
-            decoration: InputDecoration(
-              isDense: true,
-              prefixIcon: const Icon(Icons.search),
-              hintText:
-                  'Search (${shortcutLabel(AppCommand.searchSessions)}); '
-                  'agent: status: repo: host:',
-              border: const OutlineInputBorder(),
-              suffixIcon: controller.text.isEmpty
-                  ? null
-                  : IconButton(
-                      tooltip: 'Clear search',
-                      icon: const Icon(Icons.clear),
-                      onPressed: () {
-                        controller.clear();
-                        onChanged();
-                      },
-                    ),
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final muted = AppColors.of(context).mutedText;
+    const compact = VisualDensity(horizontal: -4, vertical: -4);
+    return Padding(
+      padding: const EdgeInsetsDirectional.fromSTEB(12, 6, 4, 2),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Sessions',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
-        ),
-        PopupMenuButton<SessionSort>(
-          tooltip: 'Sort: ${sort.label}',
-          icon: const Icon(Icons.sort),
-          initialValue: sort,
-          onSelected: onSort,
-          itemBuilder: (_) => [
-            for (final s in SessionSort.values)
-              CheckedPopupMenuItem(
-                value: s,
-                checked: s == sort,
-                child: Text(s.label),
+          Tooltip(
+            message: 'New session (${shortcutLabel(AppCommand.newSession)})',
+            child: OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                visualDensity: compact,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                minimumSize: const Size(0, 28),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                side: BorderSide(color: AppColors.of(context).hairline),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(6),
+                ),
               ),
-          ],
+              onPressed: onNewSession,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('New'),
+                  const SizedBox(width: 6),
+                  Text(
+                    shortcutLabel(AppCommand.newSession),
+                    style: theme.textTheme.labelSmall?.copyWith(color: muted),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          PopupMenuButton<Object>(
+            tooltip: 'Filter and sort',
+            icon: Icon(
+              filter == SessionFilter.active
+                  ? Icons.filter_alt_outlined
+                  : Icons.filter_alt,
+              size: 20,
+            ),
+            onSelected: (choice) => switch (choice) {
+              final SessionFilter f => onFilter(f),
+              final SessionSort s => onSort(s),
+              _ => null,
+            },
+            itemBuilder: (_) => [
+              for (final f in SessionFilter.values)
+                CheckedPopupMenuItem<Object>(
+                  value: f,
+                  checked: f == filter,
+                  child: Text(
+                    f == SessionFilter.attention && attention > 0
+                        ? '${f.label} ($attention)'
+                        : f.label,
+                  ),
+                ),
+              const PopupMenuDivider(),
+              for (final s in SessionSort.values)
+                CheckedPopupMenuItem<Object>(
+                  value: s,
+                  checked: s == sort,
+                  child: Text(s.label),
+                ),
+            ],
+          ),
+          IconButton(
+            tooltip:
+                'Search sessions (${shortcutLabel(AppCommand.searchSessions)})',
+            icon: const Icon(Icons.search, size: 20),
+            onPressed: onSearch,
+          ),
+          menu,
+        ],
+      ),
+    );
+  }
+}
+
+/// The sidebar header's "…" menu (AV-092): "Select" (AV-029), "Add
+/// host…", "Disconnect", and a submenu per open host with its status
+/// (AV-011), "Show only this host" with several hosts, Retry and Remove
+/// for a host that is not connected, and the SSH terminal (AV-014). The
+/// icon has a dot while a host is not connected.
+class _HostsMenu extends StatelessWidget {
+  const _HostsMenu({
+    required this.hosts,
+    required this.hostFilter,
+    required this.onSelect,
+    required this.onAddHost,
+    required this.onDisconnect,
+    required this.onShowOnly,
+    required this.onRetry,
+    required this.onRemove,
+    required this.onSshTerminal,
+    this.onSshSettings,
+  });
+
+  /// The open hosts.
+  final List<HostInfo> hosts;
+
+  /// The host the list is narrowed to; null for every host.
+  final String? hostFilter;
+
+  /// Starts multi-select.
+  final VoidCallback onSelect;
+
+  /// Opens the page that connects another host.
+  final VoidCallback onAddHost;
+
+  /// Disconnects [hostFilter], or every host when it is null.
+  final VoidCallback onDisconnect;
+
+  /// Narrows the list to a host, or to every host (null).
+  final ValueChanged<String?> onShowOnly;
+
+  /// Connects a failed host again, by key.
+  final ValueChanged<String> onRetry;
+
+  /// Closes a host that is not connected, by key.
+  final ValueChanged<String> onRemove;
+
+  /// Opens an SSH terminal to a host, by key.
+  final ValueChanged<String> onSshTerminal;
+
+  /// Edits a host's SSH settings, by key; no item when null.
+  final ValueChanged<String>? onSshSettings;
+
+  Widget _hostMenu(BuildContext context, HostInfo host) {
+    final status = AppColors.of(context).statusColors;
+    final idle =
+        host.status == ConnectionStatus.failed ||
+        host.status == ConnectionStatus.disconnected;
+    final onSshSettings = this.onSshSettings;
+    return SubmenuButton(
+      leadingIcon: Icon(
+        Icons.circle,
+        size: 10,
+        color: switch (host.status) {
+          ConnectionStatus.connected => status.done,
+          ConnectionStatus.failed => status.error,
+          _ => status.idle,
+        },
+      ),
+      menuChildren: [
+        if (hosts.length > 1)
+          CheckboxMenuButton(
+            value: hostFilter == host.key,
+            onChanged: (_) =>
+                onShowOnly(hostFilter == host.key ? null : host.key),
+            child: const Text('Show only this host'),
+          ),
+        if (idle) ...[
+          MenuItemButton(
+            leadingIcon: const Icon(Icons.refresh),
+            onPressed: () => onRetry(host.key),
+            child: Text('Retry ${host.label}'),
+          ),
+          MenuItemButton(
+            leadingIcon: const Icon(Icons.close),
+            onPressed: () => onRemove(host.key),
+            child: Text('Remove ${host.label}'),
+          ),
+        ],
+        MenuItemButton(
+          leadingIcon: const Icon(Icons.terminal),
+          onPressed: () => onSshTerminal(host.key),
+          child: const Text(openSshTerminalLabel),
         ),
+        if (onSshSettings != null)
+          MenuItemButton(
+            onPressed: () => onSshSettings(host.key),
+            child: const Text('SSH settings…'),
+          ),
       ],
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 280),
+        child: Text(
+          '${host.label} · ${hostStatusText(host)}',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final notConnected = hosts.any((h) => h.status == ConnectionStatus.failed);
+    final narrowed = hosts.where((h) => h.key == hostFilter).firstOrNull;
+    return MenuAnchor(
+      menuChildren: [
+        MenuItemButton(
+          leadingIcon: const Icon(Icons.checklist),
+          onPressed: onSelect,
+          child: const Text('Select'),
+        ),
+        MenuItemButton(
+          leadingIcon: const Icon(Icons.add_link),
+          onPressed: onAddHost,
+          child: const Text('Add host…'),
+        ),
+        MenuItemButton(
+          leadingIcon: const Icon(Icons.logout),
+          onPressed: onDisconnect,
+          child: Text(
+            narrowed == null || hosts.length == 1
+                ? 'Disconnect'
+                : 'Disconnect ${narrowed.label}',
+          ),
+        ),
+        if (hosts.isNotEmpty) const Divider(height: 8),
+        for (final host in hosts) _hostMenu(context, host),
+      ],
+      builder: (context, controller, _) => IconButton(
+        tooltip: notConnected
+            ? 'More actions (a host is not connected)'
+            : 'More actions',
+        icon: Badge(
+          isLabelVisible: notConnected,
+          smallSize: 6,
+          child: const Icon(Icons.more_horiz, size: 20),
+        ),
+        onPressed: () =>
+            controller.isOpen ? controller.close() : controller.open(),
+      ),
+    );
+  }
+}
+
+/// The search field (AV-027), shown by the header's search icon and
+/// Cmd/Ctrl+K; Escape or its close button clears and hides it.
+class _SearchField extends StatelessWidget {
+  const _SearchField({
+    required this.controller,
+    required this.focusNode,
+    required this.onChanged,
+    required this.onClose,
+  });
+
+  /// The query.
+  final TextEditingController controller;
+
+  /// Focused when the field opens.
+  final FocusNode focusNode;
+
+  /// Called when the query changes.
+  final VoidCallback onChanged;
+
+  /// Clears and hides the field.
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(8, 2, 8, 4),
+    child: CallbackShortcuts(
+      bindings: {const SingleActivator(LogicalKeyboardKey.escape): onClose},
+      child: TextField(
+        controller: controller,
+        focusNode: focusNode,
+        onChanged: (_) => onChanged(),
+        decoration: InputDecoration(
+          isDense: true,
+          prefixIcon: const Icon(Icons.search, size: 18),
+          hintText:
+              'Search (${shortcutLabel(AppCommand.searchSessions)}); '
+              'agent: status: repo: host:',
+          border: const OutlineInputBorder(),
+          suffixIcon: IconButton(
+            tooltip: 'Close search',
+            icon: const Icon(Icons.close, size: 18),
+            onPressed: onClose,
+          ),
+        ),
+      ),
     ),
   );
 }
 
-/// Bulk actions on the picked sessions (AV-029), in place of the filter
-/// chips while selecting.
+/// Bulk actions on the picked sessions (AV-029), under the sidebar header
+/// while selecting.
 class _SelectionBar extends StatelessWidget {
   const _SelectionBar({
     required this.count,

@@ -9,6 +9,22 @@ void reduceMotion(WidgetTester tester) {
   addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
 }
 
+/// Picks [label] (a filter or a sort) in the sidebar header's filter
+/// menu.
+Future<void> pickFilter(WidgetTester tester, String label) async {
+  await tester.tap(find.byTooltip('Filter and sort'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(label).last);
+  await tester.pumpAndSettle();
+}
+
+/// Shows the sidebar's search field with the header's search icon.
+Future<void> openSearch(WidgetTester tester) async {
+  // The title bar has a search button too on medium and wide layouts.
+  await tester.tap(find.byTooltip(RegExp('^Search sessions')).last);
+  await tester.pumpAndSettle();
+}
+
 /// Builds a [SessionSummary] for tests.
 SessionSummary session(
   String id, {

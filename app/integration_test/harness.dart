@@ -337,6 +337,37 @@ class AppHarness {
     await settle();
   }
 
+  /// Opens the menu of [opener] and picks [item], even when [item]'s
+  /// text is also shown outside the menu (a filter named like a status).
+  Future<void> pickFromMenu(Finder opener, String item) async {
+    final choice = find.text(item);
+    final before = choice.evaluate().length;
+    await tapVisible(opener);
+    await waitUntil(
+      'the menu item "$item"',
+      () => choice.evaluate().length > before,
+    );
+    await settle();
+    await tester.tap(choice.last);
+    await settle();
+  }
+
+  /// Picks [item] (a filter or a sort) in the sidebar header's filter
+  /// menu (AV-092).
+  Future<void> pickFilter(String item) =>
+      pickFromMenu(find.byTooltip('Filter and sort'), item);
+
+  /// Picks [item] in the sidebar header's "…" menu (AV-092).
+  Future<void> pickMore(String item) =>
+      pickFromMenu(find.byTooltip(RegExp(r'^More actions')), item);
+
+  /// Waits until the window title is [title] (it carries the attention
+  /// count, AV-120).
+  Future<void> waitForTitle(String title) => waitUntil(
+    'the title "$title"',
+    () => tester.widget<MaterialApp>(find.byType(MaterialApp)).title == title,
+  );
+
   /// The follow-up box.
   Finder get composer => find.descendant(
     of: find.byType(FollowUpInput),

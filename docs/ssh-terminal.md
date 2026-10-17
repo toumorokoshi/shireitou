@@ -6,8 +6,8 @@ something by hand without leaving the app.
 
 ## Opening a terminal
 
-- **From the sidebar:** the host's menu (⋮ on its row) has **Open SSH
-  terminal** and **SSH settings…**.
+- **From the sidebar:** the "…" menu in the sidebar header has a
+  submenu per host with **Open SSH terminal** and **SSH settings…**.
 - **From a session:** the session header's menu has **Open SSH
   terminal**. The shell changes to the session's working directory
   (`cd '<folder>' && clear`) once it opens.

@@ -1,6 +1,6 @@
 /// Reordering the sidebar's workspace folders: the pure order functions,
 /// dragging a folder row, "Move up" and "Move down", and keeping the
-/// order and the collapsed hosts and folders across restarts.
+/// order and the collapsed folders across restarts.
 library;
 
 import 'package:ahp_client/ahp_client.dart';
@@ -235,7 +235,7 @@ void main() {
     final node = find.semantics
         .byPredicate(
           (n) =>
-              n.label.contains('/src/b') &&
+              n.label.startsWith('b') &&
               (n.getSemanticsData().customSemanticsActionIds?.contains(
                     moveDown,
                   ) ??

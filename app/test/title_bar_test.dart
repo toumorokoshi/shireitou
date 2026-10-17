@@ -100,7 +100,7 @@ void main() {
     expect(find.byType(TitleBar), findsNothing);
     expect(find.byType(AppBar), findsOneWidget);
     expect(find.byTooltip(RegExp(r'^New session \(')), findsOneWidget);
-    expect(find.byTooltip('More'), findsOneWidget);
+    expect(find.byTooltip('More actions'), findsOneWidget);
   });
 
   testWidgets('the sidebar toggle hides the list and is remembered', (
@@ -111,7 +111,7 @@ void main() {
     await tester.tap(find.byTooltip('Hide sidebar'));
     await tester.pumpAndSettle();
     expect(find.text('Explain'), findsNothing);
-    expect(prefs.values['sidebar_collapsed'], 'true');
+    expect(prefs.values['sidebar_hidden'], 'true');
 
     await tester.pumpWidget(const SizedBox());
     await _pump(tester, prefs: prefs);
@@ -124,7 +124,7 @@ void main() {
   testWidgets('clicking the centre box shows the sidebar and focuses search', (
     tester,
   ) async {
-    await _pump(tester, prefs: MemoryPrefsStore({'sidebar_collapsed': 'true'}));
+    await _pump(tester, prefs: MemoryPrefsStore({'sidebar_hidden': 'true'}));
     await tester.tap(_centreBox());
     await tester.pumpAndSettle();
     // The session search is the only text field while no session is open.
@@ -178,9 +178,9 @@ void main() {
     expect(prefs.values['review_pane_open'], 'true');
   });
 
-  testWidgets('"More" holds Disconnect', (tester) async {
+  testWidgets('the sidebar\'s "…" menu holds Disconnect', (tester) async {
     await _pump(tester);
-    await tester.tap(find.byTooltip('More'));
+    await tester.tap(find.byTooltip('More actions'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Disconnect'));
     await tester.pumpAndSettle();
