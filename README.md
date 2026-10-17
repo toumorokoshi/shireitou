@@ -34,7 +34,8 @@ with a UX modeled on the GitHub Agents view and Cursor's Agents Window.
 > the branch's pull request, one prompt can start several runs to
 > compare and pick from, and the desktop apps (and the web app, where
 > the browser allows) notify when a session needs input, finishes or
-> fails. Push notifications for a closed app
+> fails. A host's menu and a session's menu open an SSH terminal on the
+> host (desktop and mobile apps). Push notifications for a closed app
 > are not built; see [GAPS.md](GAPS.md).
 
 ## Layout
@@ -70,6 +71,8 @@ so one `flutter pub get` at the root resolves every package.
   dependencies, window behavior and the desktop smoke test.
 - [docs/mobile.md](docs/mobile.md): iOS and Android builds, permissions,
   secure storage, sign-in and the mobile smoke test.
+- [docs/ssh-terminal.md](docs/ssh-terminal.md): SSH terminals to a host
+  (settings, host keys, the terminals screen).
 - [docs/packaging.md](docs/packaging.md): packages, the app icon, the
   release workflow and the signing secrets it uses.
 - [specs/agents-view.md](specs/agents-view.md): UI and feature requirements.

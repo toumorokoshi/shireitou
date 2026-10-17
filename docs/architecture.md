@@ -215,6 +215,13 @@ Dart source); `bin/generate.dart` does the file I/O. See
   redirect on a `BroadcastChannel`, on the web. `HostConnection` creates
   a `HostAuthenticator` per connection with a `HostTokenStore` (tokens
   per host in the `HostStore`'s secure storage).
+- `lib/src/ssh/`: the SSH terminal (AV-014) on dartssh2 and xterm.dart.
+  `ssh_settings.dart` and `ssh_agent_codec.dart` are pure (settings,
+  trust on first use, `cd` commands, agent messages); `ssh_connect.dart`
+  picks `connectSsh` by conditional import (none on the web);
+  `ssh_terminal.dart` holds the open terminals (`sshTerminalsProvider`);
+  `ssh_store.dart` keeps settings and host keys in secure storage. See
+  [ssh-terminal.md](ssh-terminal.md).
 - `lib/src/composer/`: `config_fields.dart` is pure: a model's
   `configSchema` and a session config schema become `ConfigField`s, with
   `configValues`, `modelSelection` and `mutableSessionFields`.

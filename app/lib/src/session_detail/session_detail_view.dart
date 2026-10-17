@@ -29,6 +29,9 @@ import '../runs/compare_screen.dart';
 import '../runs/run_group_store.dart';
 import '../runs/run_groups.dart';
 import '../session_title.dart';
+import '../hosts/open_hosts.dart';
+import '../ssh/ssh_settings.dart';
+import '../ssh/ssh_terminal_screen.dart';
 import 'chat_commands.dart';
 import '../composer/config_fields.dart';
 import 'chat_switcher.dart';
@@ -596,6 +599,20 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
       },
       onDetails: () =>
           showSessionInfo(context, session: widget.session, chat: chatUri),
+      onSshTerminal: switch (ref
+          .watch(openHostsProvider)
+          .where((h) => h.key == context.host)
+          .firstOrNull) {
+        final host? => () => unawaited(
+          openSshTerminal(
+            context,
+            ref,
+            host,
+            directory: sessionDirectory(summary),
+          ),
+        ),
+        null => null,
+      },
     );
     if (widget.reviewAsPane) {
       final open = ref.watch(reviewPaneOpenProvider);
@@ -690,6 +707,7 @@ class _Header extends StatelessWidget {
     required this.onArchive,
     required this.onMarkUnread,
     required this.onDetails,
+    required this.onSshTerminal,
   });
 
   /// Whether the session is pinned to the top of the list (AV-028).
@@ -724,6 +742,10 @@ class _Header extends StatelessWidget {
   final ValueChanged<bool> onArchive;
   final VoidCallback onMarkUnread;
   final VoidCallback onDetails;
+
+  /// Opens an SSH terminal to the host in the session's folder (AV-014);
+  /// no menu item when null.
+  final VoidCallback? onSshTerminal;
 
   @override
   Widget build(BuildContext context) {
@@ -864,6 +886,11 @@ class _Header extends StatelessWidget {
                 PopupMenuItem(
                   value: compare,
                   child: const Text('Compare runs'),
+                ),
+              if (onSshTerminal case final ssh?)
+                PopupMenuItem(
+                  value: ssh,
+                  child: const Text(openSshTerminalLabel),
                 ),
             ],
           ),

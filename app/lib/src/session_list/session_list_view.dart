@@ -72,6 +72,8 @@ class SessionListView extends StatelessWidget {
     this.onAddHost,
     this.onRetry,
     this.onRemove,
+    this.onSshTerminal,
+    this.onSshSettings,
     this.onNewSession,
     this.onMoveFolder,
     this.now,
@@ -114,6 +116,14 @@ class SessionListView extends StatelessWidget {
 
   /// Closes a host that is not connected, by key.
   final ValueChanged<String>? onRemove;
+
+  /// Opens an SSH terminal to a host, by key (AV-014): "Open SSH
+  /// terminal" in the host's menu; no menu item when null.
+  final ValueChanged<String>? onSshTerminal;
+
+  /// Edits a host's SSH settings, by key: "SSH settings…" in the host's
+  /// menu; no menu item when null.
+  final ValueChanged<String>? onSshSettings;
 
   /// Starts a session in a folder (the header's "+" button); no button
   /// when null.
@@ -167,6 +177,12 @@ class SessionListView extends StatelessWidget {
       onToggle: onToggle == null ? null : () => onToggle!(hostNodeId(node)),
       onRetry: onRetry == null ? null : () => onRetry!(node.host.key),
       onRemove: onRemove == null ? null : () => onRemove!(node.host.key),
+      onSshTerminal: onSshTerminal == null
+          ? null
+          : () => onSshTerminal!(node.host.key),
+      onSshSettings: onSshSettings == null
+          ? null
+          : () => onSshSettings!(node.host.key),
     ),
     FolderRow(:final group, :final collapsed) => _FolderHeader(
       key: ValueKey(('folder', group.id)),
@@ -391,8 +407,9 @@ class _RowButton extends StatelessWidget {
 }
 
 /// A host's row: collapse toggle, status dot, label, status when not
-/// connected, session and attention counts, and Retry and Remove for a
-/// host that is not connected (AV-010 to AV-012).
+/// connected, session and attention counts, Retry and Remove for a
+/// host that is not connected (AV-010 to AV-012), and a menu with the
+/// SSH terminal (AV-014).
 class _HostHeader extends StatelessWidget {
   const _HostHeader({
     super.key,
@@ -404,6 +421,8 @@ class _HostHeader extends StatelessWidget {
     this.onToggle,
     this.onRetry,
     this.onRemove,
+    this.onSshTerminal,
+    this.onSshSettings,
   });
 
   final HostNode node;
@@ -414,10 +433,14 @@ class _HostHeader extends StatelessWidget {
   final VoidCallback? onToggle;
   final VoidCallback? onRetry;
   final VoidCallback? onRemove;
+  final VoidCallback? onSshTerminal;
+  final VoidCallback? onSshSettings;
 
   @override
   Widget build(BuildContext context) {
     final host = node.host;
+    final onSshTerminal = this.onSshTerminal;
+    final onSshSettings = this.onSshSettings;
     final scheme = Theme.of(context).colorScheme;
     final idle =
         host.status == ConnectionStatus.failed ||
@@ -511,6 +534,32 @@ class _HostHeader extends StatelessWidget {
               icon: Icons.close,
               dense: dense,
               onPressed: onRemove!,
+            ),
+          if (onSshTerminal != null || onSshSettings != null)
+            PopupMenuButton<VoidCallback>(
+              tooltip: '${host.label} actions',
+              icon: Icon(Icons.more_vert, size: _iconSize(dense)),
+              padding: dense ? EdgeInsets.zero : const EdgeInsets.all(8),
+              constraints: const BoxConstraints(minWidth: 200),
+              style: dense
+                  ? IconButton.styleFrom(
+                      minimumSize: const Size(24, 24),
+                      fixedSize: const Size(24, 24),
+                    )
+                  : null,
+              onSelected: (action) => action(),
+              itemBuilder: (_) => [
+                if (onSshTerminal != null)
+                  PopupMenuItem(
+                    value: onSshTerminal,
+                    child: const Text('Open SSH terminal'),
+                  ),
+                if (onSshSettings != null)
+                  PopupMenuItem(
+                    value: onSshSettings,
+                    child: const Text('SSH settings…'),
+                  ),
+              ],
             ),
         ],
       ),

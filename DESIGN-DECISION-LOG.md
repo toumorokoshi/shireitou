@@ -1,5 +1,64 @@
 # Design Decision Log
 
+## 2026-10-16: SSH terminal to a host (AV-014)
+
+- **dartssh2 for SSH, xterm.dart for the terminal.** Both are pure Dart,
+  MIT licensed, maintained, and by the same original author, and
+  xterm.dart's own example drives a dartssh2 shell. dartssh2 (4.1)
+  supports password, keyboard-interactive and public key login
+  (Ed25519, ECDSA, RSA with SHA-2; OpenSSH keys with bcrypt
+  passphrases), pty requests and window changes, keepalives, and gives
+  the host key's SHA256 fingerprint to a callback, so trust on first use
+  needs no crypto of ours. Its custom `SSHIdentity` lets the agent sign,
+  so the SSH agent needed only a small message codec over the Unix
+  socket (`ssh_agent_codec.dart`). xterm.dart (4.0) is a full VT
+  emulator with scrollback, selection, copy and paste shortcuts, mouse
+  modes, resize and the platform text input (soft keyboards). The app
+  had no terminal emulator before: live AHP terminals are plain text with
+  escapes stripped (`terminal_text.dart`), so there was nothing to
+  reuse. Alternatives: `ssh2` (a plugin wrapping native libssh2 on iOS
+  and Android only, no desktop), spawning the system `ssh` in a pty with
+  `flutter_pty` (no iOS, Android or sandboxed macOS, and the host key
+  and secrets would live outside the app), and `flutter_terminal` or a
+  `WebView` with xterm.js (heavier, and a web view per terminal).
+  `file_selector` (flutter.dev) loads a key file; the macOS app gains
+  the `files.user-selected.read-only` entitlement for it.
+- **Settings per AHP host, all in secure storage.** One JSON entry per
+  host key (`ssh:<host key>`) holds host, port, user, method and the
+  secrets, like host tokens. The SSH host defaults to the AHP URL's
+  host, since the agents run there. The known host keys are one map by
+  `host:port` (`ssh_known_hosts`), so two AHP hosts on one machine share
+  it.
+- **Trust on first use, shown, not asked.** A new key is accepted,
+  remembered and printed into the terminal with its fingerprint (as
+  `ssh` does with `StrictHostKeyChecking=accept-new`). A changed key is
+  refused with both fingerprints, and "Forget host key" in the SSH
+  settings is the way to accept a new one.
+- **`cd` typed into the shell, not a command.** Opening from a session
+  types `cd '<folder>' && clear` into the login shell, so the user keeps
+  their normal interactive shell and its startup files; `exec`-ing a
+  command would change the shell's behavior. The folder is quoted for a
+  POSIX shell.
+- **Tabs on one screen.** `sshTerminalsProvider` holds the open
+  `SshTerminal`s; each owns its xterm `Terminal` (so switching tabs
+  keeps the screen and scrollback) and its shell. Terminals keep
+  running when the screen is closed. A disconnected terminal stays open
+  with Reconnect.
+- **Ctrl on touch keyboards.** A key row adds Esc, Tab, arrows and a
+  sticky Ctrl. The latch lives in `SshTerminal` and applies to the next
+  character the terminal sends (`withControl`), because text from the
+  soft keyboard does not go through xterm's key handler.
+- **Not on the web.** Browsers cannot open TCP sockets.
+  `ssh_connect.dart` exports `ssh_connect_io.dart` or
+  `ssh_connect_web.dart` by conditional import; the web one sets
+  `sshSupported` to false and explains why when asked to open a
+  terminal.
+- **Tested against a real sshd.** dartssh2 has no server, so
+  `ssh_sshd_test.dart` starts OpenSSH's `sshd` as the current user on a
+  free port with generated keys (CI installs `openssh-server` on Linux).
+  The rest is tested against a fake `SshShell` through
+  `sshConnectorProvider`.
+
 ## 2026-10-16: Turn markers in the chat (AV-074)
 
 - **`super_sliver_list` for the timeline, not `scrollable_positioned_list`

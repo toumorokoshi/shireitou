@@ -52,12 +52,21 @@ AppImage and the release workflow (see
 - **Highest priority (user feedback, 2026-10-16):** do these before the
   items below.
 
-  - **SSH terminal:** open an interactive SSH TTY to a host from the app.
-    Prefer a maintained third-party SSH client and terminal emulator
-    library over writing one from scratch.
   - **`/` completions (AV-044):** typing `/` in the composer or follow-up
     box does not offer the agent's skills and commands.
 
+- **SSH terminal (AV-014), remaining details:** no terminal on the web
+  (browsers have no TCP sockets; a WebSocket-to-SSH bridge on the host
+  would be needed). The SSH agent works only on Linux: not in the
+  sandboxed macOS app, on Windows (named pipe) or on mobile, and agent
+  login is not tested against a real agent. Keyboard-interactive login
+  only answers prompts with the saved password (no one-time codes or
+  2FA prompts), there is no jump host, port forwarding or
+  `~/.ssh/config`, and the host key is trusted on first use without
+  asking. Terminals are tabs on one screen; they cannot be split or
+  moved to their own window, and the screen can only be reopened by
+  opening another terminal. They are not driven on iOS or Android or in
+  the desktop smoke tests.
 - **Renaming a session (AV-073), remaining details:** the session list
   renames in a dialog, not in place. A rename from the list of a session
   that is not open is not shown until the host updates its catalogue

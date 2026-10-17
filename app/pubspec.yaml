@@ -10,7 +10,10 @@ environment:
 dependencies:
   ahp_client:
     path: ../packages/ahp_client
+  async: ^2.13.1
+  dartssh2: ^4.1.0
   diffutil_dart: ^5.0.0
+  file_selector: ^1.1.0
   flutter:
     sdk: flutter
   flutter_local_notifications: 22.3.1
@@ -27,6 +30,7 @@ dependencies:
   uuid: ^4.6.0
   web: ^1.1.1
   window_manager: ^0.5.2
+  xterm: ^4.0.0
 
 dev_dependencies:
   ahp_fake_host:

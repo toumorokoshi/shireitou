@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../connection_notices.dart';
 import '../host_connection.dart';
 import '../hosts/open_hosts.dart';
+import '../hosts/saved_hosts.dart';
 import '../layout.dart';
 import '../session_detail/editable_title.dart';
 import '../session_detail/session_detail_view.dart';
@@ -24,6 +25,8 @@ import '../session_list/sidebar_store.dart';
 import '../session_list/folder_order.dart';
 import '../session_title.dart';
 import '../shortcuts.dart';
+import '../ssh/ssh_connect.dart';
+import '../ssh/ssh_terminal_screen.dart';
 import '../notifications/notification_menu.dart';
 import '../notifications/notifications.dart';
 import '../runs/compare_screen.dart';
@@ -228,6 +231,15 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
       builder: (_) => const ConnectScreen(addingHost: true),
     ),
   );
+
+  /// Calls [action] with the open host whose key is [key], if any.
+  void _withOpenHost(String key, Future<void> Function(SavedHost) action) {
+    final host = ref
+        .read(openHostsProvider)
+        .where((h) => h.key == key)
+        .firstOrNull;
+    if (host != null) unawaited(action(host));
+  }
 
   Future<void> _disconnect(List<HostInfo> hosts) async {
     final hostFilter = _hostFilter;
@@ -469,6 +481,16 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                       ref.read(openHostsProvider.notifier).retry(host),
                   onRemove: (host) =>
                       ref.read(openHostsProvider.notifier).disconnect(host),
+                  onSshTerminal: (key) => _withOpenHost(
+                    key,
+                    (host) => openSshTerminal(context, ref, host),
+                  ),
+                  onSshSettings: sshSupported
+                      ? (key) => _withOpenHost(
+                          key,
+                          (host) => editSshSettings(context, ref, host),
+                        )
+                      : null,
                   onNewSession: (group) =>
                       _newSession(host: group.host, directory: group.key),
                   selection: selection,
