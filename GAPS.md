@@ -56,6 +56,10 @@ AppImage and the release workflow (see
   - **Theme and title bar (AV-090, AV-091):** system light or dark, the
     reference's flat dark palette; a slim title bar with the sidebar
     toggle, back and forward, a workspace box and a review pane icon.
+    The theme's tokens are in `app/lib/src/theme/` (`AppColors.of(context)`
+    for `sidebarBackground`, `hairline`, `mutedText`, `bubbleFill`,
+    `selectedFill`, `hoverFill`, `statusColors`; see
+    [docs/architecture.md](docs/architecture.md)).
   - **Sidebar (AV-092, AV-093):** the "Sessions" header with icon
     buttons; Pinned, Chats and per-directory workspace sections instead
     of the host tree; two-line rows with a status dot, hover pin and

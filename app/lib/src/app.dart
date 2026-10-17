@@ -15,7 +15,7 @@ import 'screens/connect_screen.dart';
 import 'screens/sessions_screen.dart';
 import 'session_list/session_filter.dart';
 import 'shortcuts.dart';
-import 'theme.dart';
+import 'theme/app_theme.dart';
 
 /// The shireitou app: follows the system light/dark setting, and shows
 /// the attention count in the window or tab title (AV-120).

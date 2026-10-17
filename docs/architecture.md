@@ -263,6 +263,18 @@ Dart source); `bin/generate.dart` does the file I/O. See
   the system, titled with the attention count (`windowTitle`, AV-120).
   Shows the connect screen until connected, and restores the hosts that
   were open.
+- `lib/src/theme/`: the light and dark themes (AV-090). `app_theme.dart`
+  builds them (`buildTheme`: the reference's greys in the `ColorScheme`,
+  no elevation or `surfaceTint`, hairline borders, 6 px radii, and on
+  desktop `VisualDensity.compact` and 13 px body text, in the platform's
+  system font). `app_colors.dart` is the `AppColors` `ThemeExtension`
+  with the tokens `ColorScheme` has no slot for: `sidebarBackground`,
+  `titleBarBackground`, `raisedSurface`, `hairline`, `mutedText`,
+  `bubbleFill`, `selectedFill`, `hoverFill` and `statusColors` (running,
+  attention, done, error, idle). Widgets read them with
+  `AppColors.of(context)`, which falls back to values derived from the
+  `ColorScheme` under a theme without the extension; use these instead
+  of hard-coded colours.
 - `lib/src/screens/`: the connect screen and the sessions screen. The
   sessions screen picks a layout tier with `layoutTierFor(width)`:
   compact (< 700 dp) pushes the session onto a new page, medium shows list
