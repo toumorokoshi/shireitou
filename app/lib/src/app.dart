@@ -41,6 +41,7 @@ class _ShireitouAppState extends ConsumerState<ShireitouApp> {
     }
     return MaterialApp(
       navigatorKey: rootNavigatorKey,
+      debugShowCheckedModeBanner: false,
       title: title,
       theme: buildTheme(Brightness.light),
       darkTheme: buildTheme(Brightness.dark),

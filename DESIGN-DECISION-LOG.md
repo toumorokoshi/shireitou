@@ -1,5 +1,41 @@
 # Design Decision Log
 
+## 2026-10-17: Screenshots of the app against the reference UI, and the fixes they showed (AV-090 to AV-096)
+
+The restyle to the reference UI (AV-090 to AV-096) had been built and
+tested, but nobody had looked at the result on screen.
+
+- **Screenshots come from a tagged widget test.** `screencapture` is
+  not available to agents, and an integration test needs a desktop
+  window, so `app/test/screenshots/reference_layout_test.dart` pumps the
+  real `SessionsScreen` (macOS platform, fake host fixtures like the
+  reference) and writes PNGs with `captureImage`. It is tagged
+  `screenshots`: `just test` excludes it and `just screenshots` runs it.
+  It loads the macOS system fonts and the SDK's Material icons, because
+  widget tests draw text with a box font, and skips elsewhere. No golden
+  files: the pixels depend on the installed fonts, so goldens would fail
+  in CI; the layout facts behind the fixes are asserted in widget tests
+  instead.
+- **The reference is at 120% zoom.** Its 13 px text measures 15.6
+  points, so the desktop shots render 1484×927 logical pixels at a 1.2
+  pixel ratio, half the reference's pixels, and sizes are compared at
+  that scale rather than by enlarging the app's fonts.
+- **Fixes:** session rows are 56 px (the reference's, not the 44 px the
+  spec had guessed) with 12 px details and a 4 px gap; section headers
+  are semibold; toolbar and row icons are muted through the theme's
+  `iconButtonTheme` and `popupMenuTheme`; the "New" button is neutral
+  with a key cap for ⌘N; the session header has no divider and a muted
+  "…"; the timeline's rows share the composer's centred column
+  (`timelineMaxWidth`), and the turn rail floats over the list's end so
+  the two stay aligned; user bubbles may take 90% of the column; table
+  headers are start-aligned with outline-coloured borders and tighter
+  cells; the composer's text field no longer draws the theme's border
+  inside the box (a double border); the hover card opens beside the row,
+  past its buttons (`hoverCardPosition`), instead of below it; and the
+  debug banner is off.
+- **Kept on purpose:** the turn footer (tokens per turn, AV-067) and the
+  fixed sidebar width; see GAPS.md.
+
 ## 2026-10-17: Diff, terminal and highlight colours come from the theme; contrast is tested (AV-090)
 
 The diff view, the AHP terminal preview and the SSH terminal used fixed
@@ -35,8 +71,6 @@ the status dot and muted text colours had not been checked for contrast.
   highlight colours fall under 4.5:1 (as in VS Code); the plain code
   text stays at 4.5:1 and the line numbers, which repeat the position,
   at 3:1.
-
-||||||| parent of 5820aa2 (feat(app): title-only session header and the reference composer (AV-094, AV-096))
 
 ## 2026-10-17: A title-only session header and the reference composer (AV-094, AV-096)
 

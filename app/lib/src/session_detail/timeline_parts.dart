@@ -231,12 +231,12 @@ class UserMessageBubble extends StatelessWidget {
       builder: (context, constraints) => Align(
         alignment: Alignment.centerRight,
         child: Container(
-          constraints: BoxConstraints(maxWidth: constraints.maxWidth * 0.75),
-          margin: const EdgeInsets.only(top: 24, bottom: 16),
+          constraints: BoxConstraints(maxWidth: constraints.maxWidth * 0.9),
+          margin: const EdgeInsets.only(top: 24, bottom: 28),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
             color: colors.bubbleFill,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(8),
           ),
           child: Text(
             message.text,
@@ -253,8 +253,9 @@ class UserMessageBubble extends StatelessWidget {
 
 /// The style of agent replies (AV-095): body text with a comfortable line
 /// height, compact headings, inline code on a tinted background, and
-/// tables with bordered, padded cells and a bold header row, drawn with
-/// [colors]' hairline.
+/// tables with bordered, padded cells and a bold, start-aligned header
+/// row, drawn with the scheme's outline (the hairline is too faint for
+/// cell borders in the reference).
 MarkdownStyleSheet markdownStyle(ThemeData theme, AppColors colors) {
   final scheme = theme.colorScheme;
   final text = theme.textTheme;
@@ -264,6 +265,7 @@ MarkdownStyleSheet markdownStyle(ThemeData theme, AppColors colors) {
     listBullet: body,
     tableBody: body,
     tableHead: body?.copyWith(fontWeight: FontWeight.w600),
+    tableHeadAlign: TextAlign.start,
     h1: text.titleLarge?.copyWith(fontWeight: FontWeight.w600),
     h2: text.titleMedium?.copyWith(fontWeight: FontWeight.w600, fontSize: 18),
     h3: text.titleMedium?.copyWith(fontWeight: FontWeight.w600),
@@ -276,8 +278,8 @@ MarkdownStyleSheet markdownStyle(ThemeData theme, AppColors colors) {
       fontFamilyFallback: const ['Menlo', 'Consolas', 'DejaVu Sans Mono'],
       backgroundColor: scheme.surfaceContainerHighest,
     ),
-    tableBorder: TableBorder.all(color: colors.hairline),
-    tableCellsPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+    tableBorder: TableBorder.all(color: scheme.outline),
+    tableCellsPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
     tableColumnWidth: const IntrinsicColumnWidth(),
   );
 }

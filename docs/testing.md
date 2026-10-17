@@ -21,6 +21,36 @@ device, which has no window plugin but runs everything else. The mobile
 smoke test runs on an Android emulator or iOS simulator (see
 [mobile.md](mobile.md)).
 
+## Screenshots against the reference UI
+
+`just screenshots` runs `app/test/screenshots/reference_layout_test.dart`
+(tagged `screenshots`, so `just test` leaves it out). It pumps the real
+`SessionsScreen` with fixture data like
+[the reference screenshot](../design/reference/agents-window.md) (pinned
+sessions, Chats, two workspaces, an open session with a 25-step turn, a
+markdown table and the composer's chips) and writes PNGs to
+`app/build/screenshots/`:
+
+| File                | What                                                         |
+| ------------------- | ------------------------------------------------------------ |
+| `dark.png`          | Desktop, dark, at the reference's scale                      |
+| `light.png`         | Desktop, light                                               |
+| `compact.png`       | A phone (390×844), the open session                          |
+| `compact-list.png`  | A phone, the session list                                    |
+| `dark-hover.png`    | Desktop, a row hovered: its buttons and hover card           |
+| `dark-scrolled.png` | Desktop, scrolled up: the jump-to-latest button and the rail |
+
+The desktop shots are 1781×1112 pixels at a 1.2 pixel ratio (1484×927
+logical pixels), because the reference was taken at 120% zoom; they are
+half the reference's size, pixel for pixel, so the two can be compared
+directly or cropped at the same coordinates. Widget tests draw text with
+a box font, so the test loads the macOS system fonts (`SFNS.ttf`,
+`SFNSMono.ttf`) and the Flutter SDK's Material icons; on other systems it
+is skipped. The PNGs depend on the fonts installed, so they are not
+golden files and do not run in CI; the layout they show (row heights,
+the shared column, the hover card's position) is asserted in the widget
+tests.
+
 ## pi with the faux model
 
 pi ships a scripted "faux" model provider for its own tests.

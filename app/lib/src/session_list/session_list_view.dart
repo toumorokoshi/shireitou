@@ -2,6 +2,8 @@
 /// (AV-092, AV-093).
 library;
 
+import 'dart:math' as math;
+
 import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
@@ -228,8 +230,9 @@ class SessionListView extends StatelessWidget {
 /// Height of a section or folder header in a dense sidebar.
 const denseHeaderHeight = 28.0;
 
-/// Height of a two-line session row in a dense sidebar (AV-093).
-const denseSessionHeight = 44.0;
+/// Height of a two-line session row in a dense sidebar (AV-093), as
+/// measured in the reference screenshot.
+const denseSessionHeight = 56.0;
 
 /// Height of a two-line session row on touch layouts.
 const touchSessionHeight = 52.0;
@@ -252,14 +255,11 @@ TextStyle? _titleStyle(BuildContext context, bool dense) => Theme.of(context)
     );
 
 TextStyle? _detailStyle(BuildContext context, bool dense) =>
-    (dense
-            ? Theme.of(context).textTheme.labelSmall
-            : Theme.of(context).textTheme.bodySmall)
-        ?.copyWith(
-          color: AppColors.of(context).mutedText,
-          fontWeight: FontWeight.normal,
-          height: 1.25,
-        );
+    Theme.of(context).textTheme.bodySmall?.copyWith(
+      color: AppColors.of(context).mutedText,
+      fontWeight: FontWeight.normal,
+      height: 1.25,
+    );
 
 /// Tracks whether the pointer is over the row or focus is inside it, so
 /// a row shows its hover buttons to the mouse and the keyboard alike.
@@ -501,7 +501,10 @@ class _SectionHeader extends StatelessWidget {
       label,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
-      style: _titleStyle(context, dense)?.copyWith(color: muted),
+      style: _titleStyle(
+        context,
+        dense,
+      )?.copyWith(color: muted, fontWeight: FontWeight.w600),
     );
     return _TreeRow(
       depth: 0,
@@ -975,6 +978,21 @@ String folderDetails(FolderGroup group) => [
   );
 }
 
+/// Where a row's hover card goes (AV-093): past the end of the row and
+/// centred on it, as in the reference, so it covers the pane rather
+/// than the neighbouring rows or the row's hover buttons; kept inside
+/// the window.
+Offset hoverCardPosition(TooltipPositionContext context) {
+  final TooltipPositionContext(:target, :targetSize, :tooltipSize) = context;
+  final overlay = context.overlaySize;
+  final x = target.dx + targetSize.width / 2 + 4;
+  final y = target.dy - tooltipSize.height / 2;
+  return Offset(
+    x.clamp(0, math.max(0, overlay.width - tooltipSize.width)),
+    y.clamp(0, math.max(0, overlay.height - tooltipSize.height)),
+  );
+}
+
 /// One session row (AV-093): a status dot ([dotBadgeFor]) and the
 /// title, then a folder icon, [place] and the relative modified time on a
 /// smaller second line. A longer hover shows a card with the agent and
@@ -1053,7 +1071,7 @@ class SessionTile extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: _titleStyle(context, dense),
         ),
-        const SizedBox(height: 2),
+        const SizedBox(height: 4),
         Row(
           children: [
             if (folderKeyOf(session) != null) ...[
@@ -1072,7 +1090,7 @@ class SessionTile extends StatelessWidget {
         ),
       ],
     );
-    return _TreeRow(
+    final row = _TreeRow(
       depth: 1,
       height: dense ? denseSessionHeight : touchSessionHeight,
       selected: selected,
@@ -1084,7 +1102,7 @@ class SessionTile extends StatelessWidget {
               width: 12,
               child: Icon(
                 Icons.circle,
-                size: 7,
+                size: 6,
                 color: statusDotColor(
                   dotBadgeFor(status),
                   colors.statusColors,
@@ -1094,47 +1112,50 @@ class SessionTile extends StatelessWidget {
               ),
             ),
           ),
-      // The card shows only for a resting pointer: touch long-presses
-      // open the row menu.
-      title: Tooltip(
-        excludeFromSemantics: true,
-        waitDuration: hoverCardDelay,
-        triggerMode: TooltipTriggerMode.manual,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        constraints: const BoxConstraints(maxWidth: 420),
-        decoration: BoxDecoration(
-          color: colors.raisedSurface,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: colors.hairline),
-        ),
-        richMessage: TextSpan(
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurface,
-          ),
-          children: [
-            TextSpan(
-              text: session.title,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            TextSpan(text: card.heading, style: detailStyle),
-            if (card.path case final path?) ...[
-              const TextSpan(text: '\n'),
-              WidgetSpan(
-                alignment: PlaceholderAlignment.middle,
-                child: Padding(
-                  padding: const EdgeInsetsDirectional.only(top: 6, end: 6),
-                  child: Icon(Icons.folder_outlined, size: 14, color: muted),
-                ),
-              ),
-              TextSpan(text: 'Workspace · $path', style: detailStyle),
-            ],
-          ],
-        ),
-        child: content,
-      ),
+      title: content,
       trailing: trailing.isEmpty
           ? null
           : Row(mainAxisSize: MainAxisSize.min, children: trailing),
+    );
+    // The card shows only for a resting pointer: touch long-presses
+    // open the row menu. It wraps the whole row so it opens past the
+    // row's end, clear of the hover buttons.
+    return Tooltip(
+      excludeFromSemantics: true,
+      waitDuration: hoverCardDelay,
+      triggerMode: TooltipTriggerMode.manual,
+      positionDelegate: hoverCardPosition,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      constraints: const BoxConstraints(maxWidth: 420),
+      decoration: BoxDecoration(
+        color: colors.raisedSurface,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: colors.hairline),
+      ),
+      richMessage: TextSpan(
+        style: theme.textTheme.bodyMedium?.copyWith(
+          color: theme.colorScheme.onSurface,
+        ),
+        children: [
+          TextSpan(
+            text: session.title,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          TextSpan(text: card.heading, style: detailStyle),
+          if (card.path case final path?) ...[
+            const TextSpan(text: '\n'),
+            WidgetSpan(
+              alignment: PlaceholderAlignment.middle,
+              child: Padding(
+                padding: const EdgeInsetsDirectional.only(top: 6, end: 6),
+                child: Icon(Icons.folder_outlined, size: 14, color: muted),
+              ),
+            ),
+            TextSpan(text: 'Workspace · $path', style: detailStyle),
+          ],
+        ],
+      ),
+      child: row,
     );
   }
 }

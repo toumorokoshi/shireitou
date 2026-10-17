@@ -1,0 +1,4 @@
+tags:
+  # Renders PNGs of the app to compare with the reference UI; run with
+  # `just screenshots` (docs/testing.md).
+  screenshots:

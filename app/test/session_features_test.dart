@@ -19,7 +19,6 @@ import 'package:shireitou/src/session_detail/code_highlight.dart';
 import 'package:shireitou/src/session_detail/timeline_parts.dart';
 import 'package:shireitou/src/session_detail/turn_rail.dart';
 import 'package:shireitou/src/session_list/session_list_view.dart';
-import 'package:shireitou/src/theme/app_colors.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
 
 import 'fake_connection.dart';
@@ -288,7 +287,16 @@ void main() {
           )
           .first,
     );
-    expect(bubble.right, greaterThan(list.right - 40));
+    // The timeline and the composer share one centred column.
+    final composerBox = tester.getRect(
+      find
+          .descendant(
+            of: find.byType(FollowUpInput),
+            matching: find.byType(DecoratedBox),
+          )
+          .first,
+    );
+    expect(bubble.right, moreOrLessEquals(composerBox.right, epsilon: 1));
     expect(bubble.left, greaterThan(list.center.dx));
     // The reasoning and the finished call fold into one muted line.
     expect(find.text('Completed 2 steps in 2s'), findsOneWidget);
@@ -335,8 +343,13 @@ void main() {
     expect(find.text('Name'), findsOneWidget);
     final table = tester.widget<Table>(find.byType(Table));
     final context = tester.element(find.byType(Table));
-    expect(table.border?.top.color, AppColors.of(context).hairline);
+    expect(table.border?.top.color, Theme.of(context).colorScheme.outline);
     expect(table.border?.horizontalInside.style, BorderStyle.solid);
+    // Header cells start where the body's do.
+    expect(
+      tester.getTopLeft(find.text('Name')).dx,
+      tester.getTopLeft(find.text('bazel test')).dx,
+    );
   });
 
   testWidgets('jump to latest is a small round button (AV-095)', (

@@ -327,7 +327,7 @@ Dart source); `bin/generate.dart` does the file I/O. See
   (`orderFolders`) and moves one (`movedFolder`) across hosts;
   `sidebar_store.dart` keeps that order and the collapsed sections on
   this device with `PrefsStore`. `session_list_view.dart` renders the
-  rows lazily (44 px two-line rows on medium and wide layouts,
+  rows lazily (56 px two-line rows on medium and wide layouts,
   touch-sized ones on compact layouts): section headers with an
   attention dot, folder headers that drag onto other folder headers to
   reorder them (and move up or down from a menu and screen reader

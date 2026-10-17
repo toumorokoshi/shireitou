@@ -667,7 +667,6 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 header,
-                const Divider(height: 1),
                 Expanded(child: conversation),
               ],
             ),
@@ -685,7 +684,6 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           header,
-          const Divider(height: 1),
           Expanded(child: conversation),
         ],
       );
@@ -880,7 +878,7 @@ class _Header extends StatelessWidget {
       color: AppColors.of(context).mutedText,
     );
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
+      padding: const EdgeInsets.fromLTRB(20, 0, 8, 0),
       child: Row(
         children: [
           Expanded(
@@ -913,7 +911,7 @@ class _Header extends StatelessWidget {
             menuChildren: [_details(context, detailsController)],
             builder: (context, details, _) => PopupMenuButton<VoidCallback>(
               tooltip: 'Session actions',
-              icon: const Icon(Icons.more_horiz),
+              icon: const Icon(Icons.more_horiz, size: 18),
               onSelected: (action) => action(),
               itemBuilder: (context) => [
                 for (final line in sessionDetailLines(
@@ -1219,7 +1217,7 @@ class _TimelineState extends ConsumerState<_Timeline> {
             controller: _scroll,
             listController: _list,
             reverse: true,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
             itemCount: rows.length,
             findChildIndexCallback: (key) {
               if (key is! ValueKey<String>) return null;
@@ -1228,19 +1226,28 @@ class _TimelineState extends ConsumerState<_Timeline> {
             },
             itemBuilder: (context, index) {
               final item = rows[rows.length - 1 - index];
-              return KeyedSubtree(
+              return Align(
                 key: ValueKey(item.key),
-                child: buildTimelineItem(
-                  item,
-                  widget.onAction,
-                  onSignIn: widget.onSignIn,
-                  onOpenChat: widget.onOpenChat,
-                  onLoadOlder: widget.onLoadOlder,
-                  expandedSteps: _expandedSteps,
-                  onToggleSteps: (key) => setState(
-                    () => _expandedSteps.contains(key)
-                        ? _expandedSteps.remove(key)
-                        : _expandedSteps.add(key),
+                alignment: Alignment.topCenter,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: timelineMaxWidth),
+                  // Rows take the column's full width, as they did the
+                  // list's, so notes and bubbles keep their alignment.
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: buildTimelineItem(
+                      item,
+                      widget.onAction,
+                      onSignIn: widget.onSignIn,
+                      onOpenChat: widget.onOpenChat,
+                      onLoadOlder: widget.onLoadOlder,
+                      expandedSteps: _expandedSteps,
+                      onToggleSteps: (key) => setState(
+                        () => _expandedSteps.contains(key)
+                            ? _expandedSteps.remove(key)
+                            : _expandedSteps.add(key),
+                      ),
+                    ),
                   ),
                 ),
               );
@@ -1290,29 +1297,35 @@ class _TimelineState extends ConsumerState<_Timeline> {
           onExit: (_) {
             if (_railHovered) setState(() => _railHovered = false);
           },
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+          // The rail floats over the list's end padding, so the list
+          // keeps the composer's width and the two stay aligned.
+          child: Stack(
             children: [
-              Expanded(child: list),
-              AnimatedOpacity(
-                opacity: visible ? 1 : 0,
-                duration: MediaQuery.disableAnimationsOf(context)
-                    ? Duration.zero
-                    : const Duration(milliseconds: 150),
-                // Screen readers reach the rail while it is hidden.
-                alwaysIncludeSemantics: true,
-                child: IgnorePointer(
-                  ignoring: !visible,
-                  child: TurnRail(
-                    markers: markers,
-                    current: current != null && current < markers.length
-                        ? current
-                        : null,
-                    onSelect: (index) => _jumpTo(markers[index]),
-                    onLoadOlder: widget.chat.turnsNextCursor == null
-                        ? null
-                        : () => unawaited(_loadOlderAndJump()),
-                    compact: compact,
+              list,
+              PositionedDirectional(
+                top: 0,
+                bottom: 0,
+                end: 0,
+                child: AnimatedOpacity(
+                  opacity: visible ? 1 : 0,
+                  duration: MediaQuery.disableAnimationsOf(context)
+                      ? Duration.zero
+                      : const Duration(milliseconds: 150),
+                  // Screen readers reach the rail while it is hidden.
+                  alwaysIncludeSemantics: true,
+                  child: IgnorePointer(
+                    ignoring: !visible,
+                    child: TurnRail(
+                      markers: markers,
+                      current: current != null && current < markers.length
+                          ? current
+                          : null,
+                      onSelect: (index) => _jumpTo(markers[index]),
+                      onLoadOlder: widget.chat.turnsNextCursor == null
+                          ? null
+                          : () => unawaited(_loadOlderAndJump()),
+                      compact: compact,
+                    ),
                   ),
                 ),
               ),
@@ -1339,6 +1352,11 @@ const composerMaxWidth = 960.0;
 
 /// The space around the composer's box.
 const composerMargin = EdgeInsets.fromLTRB(20, 8, 20, 20);
+
+/// The widest the timeline's rows get: the composer box's width, so the
+/// messages and the composer share one centred column as in the
+/// reference.
+const timelineMaxWidth = composerMaxWidth - 40;
 
 /// The follow-up box (AV-080, AV-096): one rounded box with the text at
 /// the top and, along its bottom, "+" (attachments, not supported yet),
@@ -1656,11 +1674,17 @@ class _FollowUpInputState extends State<FollowUpInput> {
     maxLines: 8,
     keyboardType: TextInputType.multiline,
     style: Theme.of(context).textTheme.bodyMedium,
-    decoration: InputDecoration.collapsed(
-      hintText: widget.hintText ?? composerPlaceholder(),
-      hintStyle: Theme.of(context).textTheme.bodyMedium
-          ?.copyWith(color: AppColors.of(context).mutedText),
-    ),
+    // The box around the composer is its only border: the theme's
+    // enabled and focused borders would draw a second one inside it.
+    decoration:
+        InputDecoration.collapsed(
+          hintText: widget.hintText ?? composerPlaceholder(),
+          hintStyle: Theme.of(context).textTheme.bodyMedium
+              ?.copyWith(color: AppColors.of(context).mutedText),
+        ).copyWith(
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+        ),
   );
 
   Widget _withCompletions(Widget field) => switch (widget.completionSource) {

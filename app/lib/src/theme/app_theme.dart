@@ -114,7 +114,13 @@ ThemeData buildTheme(Brightness brightness, {TargetPlatform? platform}) {
       thickness: 1,
       space: 1,
     ),
+    // Toolbar and row icons are muted in the reference; text and
+    // status colours stand out instead.
+    iconButtonTheme: IconButtonThemeData(
+      style: IconButton.styleFrom(foregroundColor: tokens.mutedText),
+    ),
     popupMenuTheme: PopupMenuThemeData(
+      iconColor: tokens.mutedText,
       color: tokens.raisedSurface,
       elevation: 2,
       surfaceTintColor: Colors.transparent,

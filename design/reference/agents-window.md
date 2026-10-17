@@ -2,7 +2,10 @@
 
 ![Agents window reference](agents-window.png)
 
-The app's look follows this screenshot (2026-10-16). The requirements are
+The app's look follows this screenshot (2026-10-16). It was taken at
+120% zoom (its 13 px text measures 15.6 points), so compare it with the
+app at 1484×927 logical pixels: `just screenshots` renders the app that
+way (see [docs/testing.md](../../docs/testing.md)). The requirements are
 AV-090 to AV-096 in [specs/agents-view.md](../../specs/agents-view.md).
 What to match, by area:
 
@@ -31,7 +34,7 @@ What to match, by area:
   working directory, AV-025) labelled "folder [repo]" with a folder
   icon. Headers are an icon and text; no counts, only a small attention
   dot. Hosts are not a level of their own.
-- Rows are two lines, about 44 px: a small status dot and the title in
+- Rows are two lines, about 56 px: a small status dot and the title in
   regular weight; then a folder icon, "folder [repo]", the host's label
   when more than one host is connected, and the relative time. No status
   chips or change stats.

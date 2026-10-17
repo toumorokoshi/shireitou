@@ -809,7 +809,7 @@ class _SidebarHeader extends StatelessWidget {
     final muted = AppColors.of(context).mutedText;
     const compact = VisualDensity(horizontal: -4, vertical: -4);
     return Padding(
-      padding: const EdgeInsetsDirectional.fromSTEB(12, 6, 4, 2),
+      padding: const EdgeInsetsDirectional.fromSTEB(12, 0, 4, 0),
       child: Row(
         children: [
           Expanded(
@@ -828,7 +828,8 @@ class _SidebarHeader extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 minimumSize: const Size(0, 28),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                side: BorderSide(color: AppColors.of(context).hairline),
+                foregroundColor: theme.colorScheme.onSurface,
+                side: BorderSide(color: theme.colorScheme.outline),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(6),
                 ),
@@ -842,11 +843,29 @@ class _SidebarHeader extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text('New'),
+                    const Text(
+                      'New',
+                      style: TextStyle(fontWeight: FontWeight.normal),
+                    ),
                     const SizedBox(width: 6),
-                    Text(
-                      shortcutLabel(AppCommand.newSession),
-                      style: theme.textTheme.labelSmall?.copyWith(color: muted),
+                    // The shortcut as a key cap, as in the reference.
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: AppColors.of(context).bubbleFill,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 1,
+                        ),
+                        child: Text(
+                          shortcutLabel(AppCommand.newSession),
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: muted,
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -859,7 +878,7 @@ class _SidebarHeader extends StatelessWidget {
               filter == SessionFilter.active
                   ? Icons.filter_alt_outlined
                   : Icons.filter_alt,
-              size: 20,
+              size: 18,
             ),
             onSelected: (choice) => switch (choice) {
               final SessionFilter f => onFilter(f),
@@ -889,7 +908,7 @@ class _SidebarHeader extends StatelessWidget {
           IconButton(
             tooltip:
                 'Search sessions (${shortcutLabel(AppCommand.searchSessions)})',
-            icon: const Icon(Icons.search, size: 20),
+            icon: const Icon(Icons.search, size: 18),
             onPressed: onSearch,
           ),
           menu,
@@ -1041,7 +1060,7 @@ class _HostsMenu extends StatelessWidget {
         icon: Badge(
           isLabelVisible: notConnected,
           smallSize: 6,
-          child: const Icon(Icons.more_horiz, size: 20),
+          child: const Icon(Icons.more_horiz, size: 18),
         ),
         onPressed: () =>
             controller.isOpen ? controller.close() : controller.open(),

@@ -49,6 +49,25 @@ smoke-tested Windows, iOS and Android in CI, added the app icon, the
 AppImage and the release workflow (see
 [docs/packaging.md](docs/packaging.md)). Remaining work:
 
+- **Reference UI, remaining differences** (compared with
+  `just screenshots`, see [docs/testing.md](docs/testing.md)): the
+  sidebar is a fixed 380 px (the reference's is about 486 px at 100%
+  zoom and resizable), so titles truncate sooner. Each finished turn
+  keeps its "Done · 107.0 s · tokens" footer (AV-067 asks for tokens per
+  turn), which the reference does not have. The hover card names the
+  agent by its provider id ("pi"), not its display name ("Pi"), since
+  rows do not know the host's agents. The session header shows the
+  session title, where the reference shows the current turn's message
+  with a bullet. Icons are Material icons, heavier than the reference's
+  thin line icons (the filter funnel, pin and "…" most visibly), and the
+  "Agent" mode chip uses "∞". The title bar's right side has the review
+  pane toggle and the notifications bell, not the reference's layout and
+  account icons. On a phone the session page has a back-only app bar
+  above the session header (two bars), and the turn rail is always shown
+  there over the list's end padding. The jump-to-latest button sits at
+  the pane's bottom-right corner rather than at the column's edge. The
+  screenshots are checked by eye; there are no golden files, because the
+  PNGs depend on the macOS fonts.
 - **Session header and composer (AV-094, AV-096), remaining details:**
   the "+" button is disabled until attachments can be picked (AV-042).
   The "Details" popover (live, from the header's "…" menu) and the

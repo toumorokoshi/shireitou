@@ -30,12 +30,19 @@ test:
     cd packages/ahp_wire_gen && dart test
     cd packages/ahp_client && dart test -x integration
     cd packages/ahp_fake_host && dart test -x integration
-    cd app && flutter test
+    cd app && flutter test -x screenshots
 
 # Run the scripted fake AHP host (asks for approvals, input and sign-in;
 # see packages/ahp_fake_host). Pass `--port N`, `--token T` or `--no-token`.
 fake-host *args:
     cd packages/ahp_fake_host && dart run ahp_fake_host {{args}}
+
+# Render the sessions screen (dark, light, phone, a hovered row) to
+# app/build/screenshots/*.png to compare with
+# design/reference/agents-window.png. Needs macOS for its system fonts;
+# see docs/testing.md.
+screenshots:
+    cd app && flutter test -t screenshots test/screenshots
 
 # Drive the real app against the fake host: approvals, input requests,
 # session-level requests, MCP sign-in, terminals, diffs and review,

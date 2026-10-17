@@ -255,6 +255,24 @@ void main() {
     expect(find.text('A chat'), findsNothing);
   });
 
+  test('the hover card sits past the row and inside the window', () {
+    TooltipPositionContext at(Offset target) => TooltipPositionContext(
+      target: target,
+      targetSize: const Size(380, 56),
+      tooltipSize: const Size(300, 60),
+      verticalOffset: 0,
+      overlaySize: const Size(1000, 800),
+    );
+    // Beside the row (centred on it at x = 190), centred vertically.
+    expect(
+      hoverCardPosition(at(const Offset(190, 400))),
+      const Offset(384, 370),
+    );
+    // Kept inside the window at the bottom and on narrow windows.
+    expect(hoverCardPosition(at(const Offset(190, 790))).dy, 740);
+    expect(hoverCardPosition(at(const Offset(900, 400))).dx, 700);
+  });
+
   testWidgets('hovering a row shows "Mark as done", with Undo, and then '
       'its card', (tester) async {
     final connection = await _pump(tester, _connected());
@@ -279,6 +297,13 @@ void main() {
     expect(
       find.textContaining('Explain · pi · fix-login', findRichText: true),
       findsOneWidget,
+    );
+    // The card opens past the row's end, clear of its buttons.
+    expect(
+      tester
+          .getRect(find.textContaining('Workspace ·', findRichText: true))
+          .left,
+      greaterThan(tester.getRect(find.byTooltip(markDoneLabel)).right),
     );
 
     await tester.tap(find.byTooltip(markDoneLabel));
