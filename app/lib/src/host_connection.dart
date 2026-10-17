@@ -247,6 +247,14 @@ class HostConnection extends Notifier<HostState> {
     query: query,
   );
 
+  /// The host's completions for [text] typed in [chat] with the cursor at
+  /// [offset] (`completions`, AV-044).
+  Future<List<CompletionItem>> completions({
+    required String chat,
+    required String text,
+    required int offset,
+  }) => _connected.completions(chat: chat, text: text, offset: offset);
+
   /// Creates a session for [provider] in [workingDirectory] with the
   /// session settings [config], and sends [prompt] as its first turn with
   /// [model] (AV-040, AV-041). Returns the session's URI as the host lists

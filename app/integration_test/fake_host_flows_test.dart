@@ -10,7 +10,8 @@
 /// start) and the follow-up mode picker; then the session list (search,
 /// filters, archiving from the list, multi-select), keyboard shortcuts,
 /// a rejected answer in the "Waiting for you" panel, client tool
-/// executions, and the open hosts coming back after a restart.
+/// executions, and the open hosts coming back after a restart; and `/`
+/// completions in the follow-up box.
 ///
 /// ```sh
 /// flutter test integration_test/fake_host_flows_test.dart -d linux
@@ -21,6 +22,7 @@ import 'package:ahp_client/ahp_client.dart';
 import 'package:ahp_fake_host/ahp_fake_host.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:shireitou/src/session_detail/code_highlight.dart';
@@ -154,6 +156,26 @@ void main() {
     await send('open a pr');
     await waitFor(find.widgetWithText(ActionChip, 'PR #42 · open'));
     expect(find.widgetWithText(ActionChip, 'main'), findsOneWidget);
+
+    // `/` completions from the host's `completions` (AV-044): Enter
+    // accepts, and the message carries the item's attachment.
+    debugPrint('fake host flows: / completions');
+    await h.waitFor(find.byTooltip('Send'));
+    await h.type('/ex');
+    await waitFor(find.text('Explain the selected code'));
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    await h.waitForNone(find.text('Explain the selected code'));
+    expect(find.text('/explain '), findsOneWidget);
+    await tester.tap(find.byTooltip('Send'));
+    await waitFor(find.textContaining('You said: /explain'));
+    final sent = host.received.lastWhere(
+      (r) => r.action['type'] == 'chat/turnStarted',
+    );
+    expect(
+      ((sent.action['message']! as Map)['attachments']! as List).single,
+      containsPair('label', '/explain'),
+    );
   }, timeout: const Timeout(Duration(minutes: 3)));
 
   testWidgets('OAuth sign-in, re-authentication, and host-provided '

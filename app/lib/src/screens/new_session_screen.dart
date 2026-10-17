@@ -9,6 +9,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
+import '../composer/completion_popup.dart';
+import '../composer/completions.dart';
 import '../composer/config_fields.dart';
 import '../composer/config_form.dart';
 import '../composer/directory_browser.dart';
@@ -43,6 +45,7 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
   final _prompt = TextEditingController();
   final _directory = TextEditingController();
   late final _promptFocus = FocusNode(onKeyEvent: _onKey);
+  final _completions = GlobalKey<CompletionPopupState>();
   String? _host;
   String? _provider;
   String? _model;
@@ -105,6 +108,9 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
   }
 
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
+    if (_completions.currentState?.handleKey(event) == KeyEventResult.handled) {
+      return KeyEventResult.handled;
+    }
     if (event is KeyDownEvent &&
         event.logicalKey == LogicalKeyboardKey.enter &&
         !HardwareKeyboard.instance.isShiftPressed) {
@@ -339,6 +345,9 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
         : recentFolders(ref.watch(allSessionsProvider), host);
     final resolved = _resolved;
     final settingFields = sessionConfigFields(resolved?.schema);
+    // `/` completions (AV-044): there is no chat to ask the host about
+    // yet, so the agent's own skills and prompts.
+    final commands = slashCommands(agent?.customizations);
     final signIns = host == null || agent == null
         ? const <AgentSignIn>[]
         : missingAgentSignIns(
@@ -528,20 +537,31 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
                   onChanged: (runs) => setState(() => _extraRuns = runs),
                 ),
                 const SizedBox(height: 16),
-                TextField(
+                CompletionPopup(
+                  key: _completions,
                   controller: _prompt,
                   focusNode: _promptFocus,
-                  autofocus: true,
-                  minLines: 4,
-                  maxLines: 12,
-                  keyboardType: TextInputType.multiline,
-                  decoration: const InputDecoration(
-                    labelText: 'Prompt',
-                    hintText:
-                        'What should the agent do? '
-                        '(Enter to start, Shift+Enter for a newline)',
-                    border: OutlineInputBorder(),
-                    alignLabelWithHint: true,
+                  triggers: completionTriggers(const [], commands),
+                  source: (text, token) => resolveCompletions(
+                    text: text,
+                    token: token,
+                    commands: commands,
+                  ),
+                  child: TextField(
+                    controller: _prompt,
+                    focusNode: _promptFocus,
+                    autofocus: true,
+                    minLines: 4,
+                    maxLines: 12,
+                    keyboardType: TextInputType.multiline,
+                    decoration: const InputDecoration(
+                      labelText: 'Prompt',
+                      hintText:
+                          'What should the agent do? '
+                          '(Enter to start, Shift+Enter for a newline)',
+                      border: OutlineInputBorder(),
+                      alignLabelWithHint: true,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),

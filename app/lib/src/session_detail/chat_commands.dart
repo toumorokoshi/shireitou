@@ -10,7 +10,8 @@ import 'package:ahp_client/ahp_client.dart';
 ///
 /// With no turn running it starts a turn. While a turn runs it queues the
 /// message, or with [steer] delivers it to the agent at its next step.
-/// [id] is the new turn or pending-message ID.
+/// [id] is the new turn or pending-message ID; [attachments] go with the
+/// message (accepted completions, AV-044).
 JsonMap sendMessageAction(
   ChatState chat, {
   required String text,
@@ -18,8 +19,9 @@ JsonMap sendMessageAction(
   required DateTime now,
   bool steer = false,
   ModelSelection? model,
+  List<MessageAttachment>? attachments,
 }) {
-  final message = userMessage(text, model: model);
+  final message = userMessage(text, model: model, attachments: attachments);
   final StateAction action = chat.activeTurn == null
       ? ChatTurnStartedAction(
           turnId: id,

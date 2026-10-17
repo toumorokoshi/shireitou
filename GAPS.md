@@ -49,12 +49,6 @@ smoke-tested Windows, iOS and Android in CI, added the app icon, the
 AppImage and the release workflow (see
 [docs/packaging.md](docs/packaging.md)). Remaining work:
 
-- **Highest priority (user feedback, 2026-10-16):** do these before the
-  items below.
-
-  - **`/` completions (AV-044):** typing `/` in the composer or follow-up
-    box does not offer the agent's skills and commands.
-
 - **SSH terminal (AV-014), remaining details:** no terminal on the web
   (browsers have no TCP sockets; a WebSocket-to-SSH bridge on the host
   would be needed). The SSH agent works only on Linux: not in the
@@ -67,6 +61,17 @@ AppImage and the release workflow (see
   moved to their own window, and the screen can only be reopened by
   opening another terminal. They are not driven on iOS or Android or in
   the desktop smoke tests.
+- **`/` completions (AV-044), remaining details:** the new-session
+  composer has no chat to send `completions` for, so it offers only the
+  skills and prompts the agent lists in `AgentInfo.customizations`
+  (parsed `children` only; pi lists none, so there are no completions
+  there against pi). Accepted attachments are sent when their insert
+  text is still in the message, without a `range`, and are not kept in
+  the synced draft. The popup shows at most eight items (the window
+  follows ↑/↓, but a mouse wheel does not scroll it), shows no icons or
+  `displayKind`, and Cmd/Ctrl+Enter accepts an item rather than steering
+  while it is open. The queued-message editor has no completions. Only
+  `/` is verified: neither the fake host nor pi triggers on `@`.
 - **Renaming a session (AV-073), remaining details:** the session list
   renames in a dialog, not in place. A rename from the list of a session
   that is not open is not shown until the host updates its catalogue

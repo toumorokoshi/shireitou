@@ -8,6 +8,7 @@ export 'src/changesets.dart';
 export 'src/channel_mirror.dart';
 export 'src/chat_reducer.dart';
 export 'src/client.dart';
+export 'src/completions.dart';
 export 'src/connection_problems.dart';
 export 'src/host_state.dart';
 export 'src/oauth.dart';

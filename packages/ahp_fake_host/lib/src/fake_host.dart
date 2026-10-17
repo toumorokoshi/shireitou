@@ -95,6 +95,7 @@ class FakeAhpHost {
     this.slowDuration = const Duration(seconds: 4),
     this.name = 'ahp-fake-host',
     this.titlePrefix = '',
+    this.completionTriggers = fakeCompletionTriggers,
     Duration tokenLifetime = const Duration(hours: 1),
   }) : oauthServer = FakeOAuthServer(tokenLifetime: tokenLifetime),
        directories = fakeDirectories(defaultDirectory),
@@ -141,6 +142,11 @@ class FakeAhpHost {
 
   /// Put before the seeded sessions' titles, to tell two hosts apart.
   final String titlePrefix;
+
+  /// The `completionTriggerCharacters` sent in `initialize`. When empty,
+  /// the host acts like one without completions: `completions` is not
+  /// found, and clients fall back to the sessions' skills.
+  final List<String> completionTriggers;
 
   /// The folders `resourceList` knows; [defaultDirectory] is a git
   /// repository on branch `main`. Creating a session in any other folder
@@ -362,6 +368,20 @@ class FakeAhpHost {
               : const [],
         ).toJson();
       })
+      ..registerMethod('completions', (Parameters p) {
+        if (completionTriggers.isEmpty) {
+          throw RpcException.methodNotFound('completions');
+        }
+        final params = CompletionsParams.fromJson(p.value as JsonMap);
+        final session = _sessions[_sessionOfChat[params.channel]];
+        return CompletionsResult(
+          items: fakeCompletions(
+            slashCommands(session?.customizations),
+            params.text,
+            params.offset,
+          ),
+        ).toJson();
+      })
       ..registerMethod('fetchTurns', (Parameters p) {
         _fetchTurns(FetchTurnsParams.fromJson(p.value as JsonMap));
         return <String, Object?>{};
@@ -438,6 +458,9 @@ class FakeAhpHost {
             Snapshot.fromJson(snapshot),
       ],
       defaultDirectory: defaultDirectory,
+      completionTriggerCharacters: completionTriggers.isEmpty
+          ? null
+          : completionTriggers,
     ).toJson();
   }
 
@@ -618,6 +641,7 @@ class FakeAhpHost {
           name: 'Example Docs',
           state: McpServerReadyState(),
         ),
+        ...fakeCommandCustomizations,
       ],
     );
     _changesets['ahp-changeset:/${changesetKey(session)}/session'] =

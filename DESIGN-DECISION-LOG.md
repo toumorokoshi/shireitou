@@ -1,5 +1,46 @@
 # Design Decision Log
 
+## 2026-10-16: `/` completions in the composer and follow-up box (AV-044)
+
+- **The host's `completions` first, the session's skills second.** AHP
+  1.0.0 (and 0.9.0) has a `completions` command on a chat channel, and
+  `InitializeResult.completionTriggerCharacters` says which characters
+  should ask for it. The client keeps the characters in `HostState` and
+  asks the host for them. pi answers `/` with its skills
+  (`/skill:<name>`) and prompt templates, with the description in the
+  attachment's `_meta.description`. A host with no trigger characters,
+  or one that answers `-32601`, gets the user-invocable skills and
+  prompts of `SessionState.customizations` (`slashCommands`) inserted
+  as `/name `. The new-session composer has no chat yet, so it can only
+  use the agent's `AgentInfo.customizations`.
+- **Insert what the host returns, and send its attachment.** Accepting
+  replaces `[rangeStart, rangeEnd)` with `insertText` (or inserts at the
+  cursor without a range), as the protocol says. When the user typed
+  more after the host answered, the end moves by the change in length.
+  The item's attachment, with its `_meta` unchanged as the protocol
+  requires, goes in `Message.attachments` when its text is still in the
+  message: pi uses it to add skills referenced after the start of a
+  message.
+- **Pure logic in two places, one widget.** `completionToken` and
+  `slashCommands` live in `ahp_client` (pure Dart), so the fake host
+  answers `completions` with the same code. The app's
+  `composer/completions.dart` holds the popup items, filtering
+  (prefix matches first, then in-order characters), `applyCompletion`
+  and the host-or-fallback choice. `CompletionPopup` holds the state
+  (debounce of 150 ms, a generation counter, and a check that the text
+  has not changed, so stale answers are dropped) and is shared by both
+  text fields. The fields' existing key handlers call its `handleKey`
+  first, so Enter, queue and steer still work when it is closed.
+- **Anchored with `OverlayPortal` and `CompositedTransformFollower`.**
+  The popup sits above the caret at the start of the word, measured
+  from the field's `RenderEditable` when the popup changes (not during
+  build), and it is a `TextFieldTapRegion` so a click does not unfocus
+  the field. It shows at most eight items in a `Column` inside a
+  `SemanticsRole.list` node, each item a `listItem`: a scroll view would
+  put a scroll node between the list and its items, which the semantics
+  roles do not allow. The result count is announced with
+  `SemanticsService.sendAnnouncement`.
+
 ## 2026-10-16: SSH terminal to a host (AV-014)
 
 - **dartssh2 for SSH, xterm.dart for the terminal.** Both are pure Dart,

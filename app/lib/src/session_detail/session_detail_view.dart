@@ -33,6 +33,8 @@ import '../hosts/open_hosts.dart';
 import '../ssh/ssh_settings.dart';
 import '../ssh/ssh_terminal_screen.dart';
 import 'chat_commands.dart';
+import '../composer/completion_popup.dart';
+import '../composer/completions.dart';
 import '../composer/config_fields.dart';
 import 'chat_switcher.dart';
 import 'editable_title.dart';
@@ -422,6 +424,12 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
       ),
     );
     final sessionFields = mutableSessionFields(sessionState?.config);
+    // `/` completions (AV-044): the host's, else the session's skills.
+    final commands = slashCommands(sessionState?.customizations);
+    final hostTriggers = ref.watch(
+      hostConnectionProvider(context.host)
+          .select((s) => s.completionTriggerCharacters),
+    );
     // Panels above and below the timeline get at most a share of the
     // height and scroll past it, so a short phone screen (or one with the
     // keyboard up) never overflows; the timeline takes what is left.
@@ -514,17 +522,40 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
                           chatUri!,
                           draftAction(text, previous: chat.draft),
                         ),
-                        onSend: (text, {required steer, model}) => _dispatch(
-                          chatUri!,
-                          sendMessageAction(
-                            chat,
-                            text: text,
-                            id: const Uuid().v4(),
-                            now: DateTime.now(),
-                            steer: steer,
-                            model: model,
-                          ),
+                        completionTriggers: completionTriggers(
+                          hostTriggers,
+                          commands,
                         ),
+                        completionSource: (text, token) => resolveCompletions(
+                          text: text,
+                          token: token,
+                          commands: commands,
+                          request: hostTriggers.isEmpty
+                              ? null
+                              : () => _connection.completions(
+                                  chat: chatUri!,
+                                  text: text,
+                                  offset: token.end,
+                                ),
+                        ),
+                        onSend:
+                            (
+                              text, {
+                              required steer,
+                              model,
+                              attachments = const [],
+                            }) => _dispatch(
+                              chatUri!,
+                              sendMessageAction(
+                                chat,
+                                text: text,
+                                id: const Uuid().v4(),
+                                now: DateTime.now(),
+                                steer: steer,
+                                model: model,
+                                attachments: attachments,
+                              ),
+                            ),
                       ),
                   ],
                 ),
@@ -1145,12 +1176,14 @@ class _TimelineState extends ConsumerState<_Timeline> {
   }
 }
 
-/// Sends [text] with [model] (null for the host's default); [steer] asks
-/// to deliver it at the agent's next step.
+/// Sends [text] with [model] (null for the host's default) and the
+/// [attachments] of accepted completions; [steer] asks to deliver it at
+/// the agent's next step.
 typedef SendMessage = void Function(
   String text, {
   required bool steer,
   ModelSelection? model,
+  List<MessageAttachment> attachments,
 });
 
 /// The follow-up box (AV-080): Enter sends (or queues while working),
@@ -1159,7 +1192,8 @@ typedef SendMessage = void Function(
 /// as the draft, debounced ([onDraftChanged], `chat/draftChanged`).
 /// Above it, [MessageSettingsBar] picks the model (and its options) for
 /// the next message, starting from [initialModel], and changes the
-/// session's mutable settings.
+/// session's mutable settings. Typing one of [completionTriggers] at the
+/// start of a word opens [CompletionPopup] (AV-044).
 class FollowUpInput extends StatefulWidget {
   /// Creates a [FollowUpInput].
   const FollowUpInput({
@@ -1175,7 +1209,15 @@ class FollowUpInput extends StatefulWidget {
     this.sessionValues = const {},
     this.onSessionSettingChanged,
     this.focusRequests,
+    this.completionTriggers = const [],
+    this.completionSource,
   });
+
+  /// Characters that open the completion popup; none when empty.
+  final List<String> completionTriggers;
+
+  /// Answers the completion popup; no popup when null.
+  final CompletionSource? completionSource;
 
   /// Takes focus whenever this changes (Cmd/Ctrl+L, AV-140).
   final Listenable? focusRequests;
@@ -1218,7 +1260,11 @@ class FollowUpInput extends StatefulWidget {
 class _FollowUpInputState extends State<FollowUpInput> {
   late final _text = TextEditingController(text: widget.draft?.text ?? '');
   late final _focus = FocusNode(onKeyEvent: _onKey);
+  final _completions = GlobalKey<CompletionPopupState>();
   Timer? _draftTimer;
+
+  /// Completions accepted since the last send, for their attachments.
+  final _accepted = <ComposerCompletion>[];
 
   /// The text last synced with the chat's draft (sent or adopted).
   late String _synced = widget.draft?.text ?? '';
@@ -1286,6 +1332,9 @@ class _FollowUpInputState extends State<FollowUpInput> {
   }
 
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
+    if (_completions.currentState?.handleKey(event) == KeyEventResult.handled) {
+      return KeyEventResult.handled;
+    }
     if (event is! KeyDownEvent ||
         (event.logicalKey != LogicalKeyboardKey.enter &&
             event.logicalKey != LogicalKeyboardKey.numpadEnter)) {
@@ -1300,7 +1349,13 @@ class _FollowUpInputState extends State<FollowUpInput> {
   void _send({required bool steer}) {
     final text = _text.text.trim();
     if (text.isEmpty) return;
-    widget.onSend(text, steer: steer, model: _model);
+    widget.onSend(
+      text,
+      steer: steer,
+      model: _model,
+      attachments: acceptedAttachments(_accepted, text),
+    );
+    _accepted.clear();
     _draftTimer?.cancel();
     final hadDraft = _synced.isNotEmpty || (widget.draft != null);
     _synced = '';
@@ -1331,26 +1386,39 @@ class _FollowUpInputState extends State<FollowUpInput> {
     ],
   );
 
+  Widget _field() => TextField(
+    controller: _text,
+    focusNode: _focus,
+    minLines: 1,
+    maxLines: 8,
+    keyboardType: TextInputType.multiline,
+    decoration: InputDecoration(
+      hintText: widget.working
+          ? 'Queue a follow-up (Enter) or steer now (Ctrl/Cmd+Enter)'
+          : 'Send a follow-up (Enter; Shift+Enter for a newline)',
+      border: const OutlineInputBorder(),
+    ),
+  );
+
+  Widget _withCompletions(Widget field) => switch (widget.completionSource) {
+    final source? => CompletionPopup(
+      key: _completions,
+      controller: _text,
+      focusNode: _focus,
+      triggers: widget.completionTriggers,
+      source: source,
+      onAccepted: _accepted.add,
+      child: field,
+    ),
+    null => field,
+  };
+
   Widget _input(BuildContext context) => Padding(
     padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        Expanded(
-          child: TextField(
-            controller: _text,
-            focusNode: _focus,
-            minLines: 1,
-            maxLines: 8,
-            keyboardType: TextInputType.multiline,
-            decoration: InputDecoration(
-              hintText: widget.working
-                  ? 'Queue a follow-up (Enter) or steer now (Ctrl/Cmd+Enter)'
-                  : 'Send a follow-up (Enter; Shift+Enter for a newline)',
-              border: const OutlineInputBorder(),
-            ),
-          ),
-        ),
+        Expanded(child: _withCompletions(_field())),
         const SizedBox(width: 8),
         IconButton.filled(
           tooltip: widget.working ? 'Queue' : 'Send',

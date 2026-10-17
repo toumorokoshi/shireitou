@@ -213,6 +213,22 @@ class FakeHostConnection extends HostConnection {
         SessionConfigValueItem(value: value, label: value),
   ];
 
+  /// What [completions] answers.
+  List<CompletionItem> completionItems = const [];
+
+  /// The (chat, text, offset) of each [completions] call.
+  final completionRequests = <(String, String, int)>[];
+
+  @override
+  Future<List<CompletionItem>> completions({
+    required String chat,
+    required String text,
+    required int offset,
+  }) async {
+    completionRequests.add((chat, text, offset));
+    return completionItems;
+  }
+
   /// The arguments of each [startSession] call.
   final started =
       <

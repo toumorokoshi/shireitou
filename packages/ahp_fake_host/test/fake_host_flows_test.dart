@@ -979,6 +979,51 @@ void main() {
       );
     });
 
+    test('completes the session\'s skills and prompts after /', () async {
+      expect(client.state.completionTriggerCharacters, ['/']);
+      final items = await client.completions(
+        chat: chat,
+        text: 'please /re',
+        offset: 10,
+      );
+      expect([for (final i in items) i.insertText], ['/review ']);
+      expect((items.single.rangeStart, items.single.rangeEnd), (7, 10));
+      expect(
+        items.single.attachment.meta?['description'],
+        'Review the changes on this branch',
+      );
+      final all = await client.completions(chat: chat, text: '/', offset: 1);
+      expect(
+        [for (final i in all) i.attachment.label],
+        ['/review', '/explain'],
+      );
+      expect(
+        await client.completions(chat: chat, text: 'src/re', offset: 6),
+        isEmpty,
+      );
+      expect(slashCommands(sessionState().customizations).map((c) => c.name), [
+        'review',
+        'explain',
+      ]);
+    });
+
+    test('a host without completions answers method not found', () async {
+      final bare = FakeAhpHost(completionTriggers: const []);
+      addTearDown(bare.close);
+      final other = AhpClient(
+        uri: await bare.start(),
+        pingInterval: Duration.zero,
+      );
+      addTearDown(other.close);
+      await other.connect();
+      expect(other.state.completionTriggerCharacters, isEmpty);
+      final otherChat = (await other.openSession(seededSession))!;
+      await expectLater(
+        other.completions(chat: otherChat, text: '/', offset: 1),
+        throwsA(predicate(isMethodNotFound)),
+      );
+    });
+
     test('resolves session settings and completes branches', () async {
       final inRepo = await client.resolveSessionConfig(
         provider: fakeProvider,

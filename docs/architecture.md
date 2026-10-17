@@ -32,6 +32,11 @@ WebSocket ──► json_rpc_2 Peer ──► AhpClient (I/O edge)
   `json_rpc_2`'s `Peer` handles JSON-RPC 2.0 in both directions (requests,
   responses, notifications). The connector is injectable, so tests use an
   in-memory `StreamChannelController` with a fake host peer.
+- **Completions:** `completions.dart` is pure: `completionToken` finds
+  the `/` or `@` word before the cursor, and `slashCommands` lists the
+  user-invocable skills and prompts of a customization list (the app's
+  fallback when a host has no `completions`, and the fake host's
+  answer). `AhpClient.completions` sends the command.
 - **Handshake:** `initialize` offers `['1.0.0', '0.9.0']` and subscribes to
   `ahp-root://`. The token is carried in the URL's `tkn` query parameter;
   `handshakeFor(uri, TokenTransport)` (pure) decides the upgrade request.
@@ -227,7 +232,18 @@ Dart source); `bin/generate.dart` does the file I/O. See
   `configValues`, `modelSelection` and `mutableSessionFields`.
   `config_form.dart` renders them (dropdowns, switches, text, and host
   suggestions for `enumDynamic`), and `directory_browser.dart` is the
-  `resourceList` folder picker.
+  `resourceList` folder picker. `completions.dart` is pure (AV-044): a
+  host `CompletionItem` or a session command becomes a
+  `ComposerCompletion`, `filterCompletions` filters while typing,
+  `applyCompletion` puts the accepted item into the text (moving the
+  host's range by what was typed since it answered),
+  `acceptedAttachments` picks the attachments to send, and
+  `resolveCompletions` asks the host or falls back to the skills.
+  `completion_popup.dart` is the popup: it watches the field's
+  controller, debounces requests, drops stale answers, anchors itself
+  above the caret (`OverlayPortal` and `CompositedTransformFollower`) and
+  takes ↑/↓, Enter, Tab and Esc through `handleKey`, which the field's
+  key handler calls first.
 - `lib/src/desktop/`: native window setup. `window_bounds.dart` is pure
   (placement encoding, minimum size, whether a saved position is on a
   display); `desktop_window.dart` applies it with `window_manager` and

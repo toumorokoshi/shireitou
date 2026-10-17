@@ -575,6 +575,24 @@ class AhpClient {
     ).items;
   }
 
+  /// The host's completions for [text] typed in [chat] with the cursor at
+  /// [offset] (`completions`, AHP-044), in the order the host suggests.
+  Future<List<CompletionItem>> completions({
+    required String chat,
+    required String text,
+    required int offset,
+  }) async => CompletionsResult.fromJson(
+    await _request(
+      'completions',
+      CompletionsParams(
+        channel: chat,
+        kind: CompletionItemKind.userMessage,
+        text: text,
+        offset: offset,
+      ).toJson(),
+    ) as JsonMap,
+  ).items;
+
   /// Pushes a bearer [token] for the protected [resource] (`authenticate`,
   /// AHP-060), for example to resume a tool call waiting on MCP sign-in.
   Future<void> authenticate({

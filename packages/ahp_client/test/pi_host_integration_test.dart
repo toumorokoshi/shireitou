@@ -134,6 +134,34 @@ void main() {
       await client.ping();
     });
 
+    test('completes the agent directory\'s skills after /', () async {
+      final skill = File('${host.temp.path}/agent/skills/greet/SKILL.md');
+      await skill.create(recursive: true);
+      await skill.writeAsString(
+        '---\nname: greet\ndescription: Says hello\n---\nSay hello.\n',
+      );
+      final client = AhpClient(uri: host.url);
+      addTearDown(client.close);
+      await client.connect();
+      expect(client.state.completionTriggerCharacters, ['/']);
+      final session = await client.createSession(
+        provider: 'pi',
+        workingDirectories: [Uri.directory(host.temp.path).toString()],
+      );
+      final chat = (await client.openSession(session))!;
+      final items = await client.completions(
+        chat: chat,
+        text: '/gre',
+        offset: 4,
+      );
+      final item = items.singleWhere(
+        (i) => i.attachment.label.contains('greet'),
+      );
+      expect(item.insertText, '/skill:greet ');
+      expect((item.rangeStart, item.rangeEnd), (0, 4));
+      expect(item.attachment.meta?['description'], 'Says hello');
+    });
+
     test('negotiates 0.9.0 when offered only that', () async {
       final client = AhpClient(
         uri: host.url,

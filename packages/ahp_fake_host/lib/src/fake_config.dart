@@ -168,3 +168,78 @@ String settingsReply(ModelSelection? model, JsonMap? sessionConfig) {
     for (final MapEntry(:key, :value) in settings.entries) '$key: $value',
   ].join('\n\n');
 }
+
+/// The skills and prompt directories every fake session lists in its
+/// customizations (AV-044): `/review` and `/explain` complete; `/deploy`
+/// is for the agent only.
+const fakeCommandCustomizations = <Customization>[
+  DirectoryCustomization(
+    id: 'skills',
+    uri: 'file:///workspace/.agents/skills',
+    name: 'Workspace skills',
+    enabled: true,
+    contents: ChildCustomizationType.skill,
+    writable: false,
+    children: [
+      SkillCustomization(
+        id: 'skill-review',
+        uri: 'file:///workspace/.agents/skills/review/SKILL.md',
+        name: 'review',
+        description: 'Review the changes on this branch',
+      ),
+      SkillCustomization(
+        id: 'skill-deploy',
+        uri: 'file:///workspace/.agents/skills/deploy/SKILL.md',
+        name: 'deploy',
+        description: 'Deploy the app',
+        disableUserInvocation: true,
+      ),
+    ],
+  ),
+  DirectoryCustomization(
+    id: 'prompts',
+    uri: 'file:///workspace/.agents/prompts',
+    name: 'Workspace prompts',
+    enabled: true,
+    contents: ChildCustomizationType.prompt,
+    writable: false,
+    children: [
+      PromptCustomization(
+        id: 'prompt-explain',
+        uri: 'file:///workspace/.agents/prompts/explain.md',
+        name: 'explain',
+        description: 'Explain the selected code',
+      ),
+    ],
+  ),
+];
+
+/// The characters that ask the fake host for `completions`.
+const fakeCompletionTriggers = ['/'];
+
+/// The `completions` answer for [text] with the cursor at [offset]: the
+/// [commands] whose names start with the `/word` before the cursor
+/// (case-insensitive), replacing that word with `/name `. The attachment
+/// carries the description in `_meta`, as pi and VS Code's hosts do.
+List<CompletionItem> fakeCompletions(
+  List<SlashCommand> commands,
+  String text,
+  int offset,
+) {
+  final token = completionToken(text, offset, fakeCompletionTriggers);
+  if (token == null) return const [];
+  final query = token.query.toLowerCase();
+  return [
+    for (final command in commands)
+      if (command.name.toLowerCase().startsWith(query))
+        CompletionItem(
+          insertText: '/${command.name} ',
+          rangeStart: token.start,
+          rangeEnd: token.end,
+          attachment: SimpleMessageAttachment(
+            label: '/${command.name}',
+            meta: {'description': ?command.description},
+          ),
+        ),
+  ];
+}

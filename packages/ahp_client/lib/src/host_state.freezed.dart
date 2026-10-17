@@ -22,7 +22,10 @@ mixin _$HostState {
  int get serverSeq;/// Negotiated protocol version.
  String? get protocolVersion;/// Host name and version.
  Implementation? get serverInfo;/// Default working directory URI for new sessions.
- String? get defaultDirectory;/// Last error, for display.
+ String? get defaultDirectory;/// Characters that ask for `completions` while a message is typed
+/// (`InitializeResult.completionTriggerCharacters`, AHP-044); empty
+/// when the host does not offer completions.
+ List<String> get completionTriggerCharacters;/// Last error, for display.
  String? get error;/// Subscribed session channels, keyed by the URI they were subscribed
 /// with (AHP-024).
  Map<String, ChannelMirror<SessionState>> get sessionChannels;/// Subscribed chat channels, keyed by chat URI (AHP-025).
@@ -46,20 +49,20 @@ $HostStateCopyWith<HostState> get copyWith => _$HostStateCopyWithImpl<HostState>
 @override
 bool operator ==(Object other) {
   final _this = this as HostState;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is HostState&&(identical(other.status, _this.status) || other.status == _this.status)&&(identical(other.root, _this.root) || other.root == _this.root)&&const DeepCollectionEquality().equals(other.sessions, _this.sessions)&&(identical(other.serverSeq, _this.serverSeq) || other.serverSeq == _this.serverSeq)&&(identical(other.protocolVersion, _this.protocolVersion) || other.protocolVersion == _this.protocolVersion)&&(identical(other.serverInfo, _this.serverInfo) || other.serverInfo == _this.serverInfo)&&(identical(other.defaultDirectory, _this.defaultDirectory) || other.defaultDirectory == _this.defaultDirectory)&&(identical(other.error, _this.error) || other.error == _this.error)&&const DeepCollectionEquality().equals(other.sessionChannels, _this.sessionChannels)&&const DeepCollectionEquality().equals(other.chatChannels, _this.chatChannels)&&const DeepCollectionEquality().equals(other.terminalChannels, _this.terminalChannels)&&const DeepCollectionEquality().equals(other.changesetChannels, _this.changesetChannels)&&const DeepCollectionEquality().equals(other.canvasChannels, _this.canvasChannels)&&const DeepCollectionEquality().equals(other.missingChannels, _this.missingChannels));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is HostState&&(identical(other.status, _this.status) || other.status == _this.status)&&(identical(other.root, _this.root) || other.root == _this.root)&&const DeepCollectionEquality().equals(other.sessions, _this.sessions)&&(identical(other.serverSeq, _this.serverSeq) || other.serverSeq == _this.serverSeq)&&(identical(other.protocolVersion, _this.protocolVersion) || other.protocolVersion == _this.protocolVersion)&&(identical(other.serverInfo, _this.serverInfo) || other.serverInfo == _this.serverInfo)&&(identical(other.defaultDirectory, _this.defaultDirectory) || other.defaultDirectory == _this.defaultDirectory)&&const DeepCollectionEquality().equals(other.completionTriggerCharacters, _this.completionTriggerCharacters)&&(identical(other.error, _this.error) || other.error == _this.error)&&const DeepCollectionEquality().equals(other.sessionChannels, _this.sessionChannels)&&const DeepCollectionEquality().equals(other.chatChannels, _this.chatChannels)&&const DeepCollectionEquality().equals(other.terminalChannels, _this.terminalChannels)&&const DeepCollectionEquality().equals(other.changesetChannels, _this.changesetChannels)&&const DeepCollectionEquality().equals(other.canvasChannels, _this.canvasChannels)&&const DeepCollectionEquality().equals(other.missingChannels, _this.missingChannels));
 }
 
 
 @override
 int get hashCode {
   final _this = this as HostState;
-  return Object.hash(runtimeType,_this.status,_this.root,const DeepCollectionEquality().hash(_this.sessions),_this.serverSeq,_this.protocolVersion,_this.serverInfo,_this.defaultDirectory,_this.error,const DeepCollectionEquality().hash(_this.sessionChannels),const DeepCollectionEquality().hash(_this.chatChannels),const DeepCollectionEquality().hash(_this.terminalChannels),const DeepCollectionEquality().hash(_this.changesetChannels),const DeepCollectionEquality().hash(_this.canvasChannels),const DeepCollectionEquality().hash(_this.missingChannels));
+  return Object.hash(runtimeType,_this.status,_this.root,const DeepCollectionEquality().hash(_this.sessions),_this.serverSeq,_this.protocolVersion,_this.serverInfo,_this.defaultDirectory,const DeepCollectionEquality().hash(_this.completionTriggerCharacters),_this.error,const DeepCollectionEquality().hash(_this.sessionChannels),const DeepCollectionEquality().hash(_this.chatChannels),const DeepCollectionEquality().hash(_this.terminalChannels),const DeepCollectionEquality().hash(_this.changesetChannels),const DeepCollectionEquality().hash(_this.canvasChannels),const DeepCollectionEquality().hash(_this.missingChannels));
 }
 
 @override
 String toString() {
   final _this = this as HostState;
-  return 'HostState(status: ${_this.status}, root: ${_this.root}, sessions: ${_this.sessions}, serverSeq: ${_this.serverSeq}, protocolVersion: ${_this.protocolVersion}, serverInfo: ${_this.serverInfo}, defaultDirectory: ${_this.defaultDirectory}, error: ${_this.error}, sessionChannels: ${_this.sessionChannels}, chatChannels: ${_this.chatChannels}, terminalChannels: ${_this.terminalChannels}, changesetChannels: ${_this.changesetChannels}, canvasChannels: ${_this.canvasChannels}, missingChannels: ${_this.missingChannels})';
+  return 'HostState(status: ${_this.status}, root: ${_this.root}, sessions: ${_this.sessions}, serverSeq: ${_this.serverSeq}, protocolVersion: ${_this.protocolVersion}, serverInfo: ${_this.serverInfo}, defaultDirectory: ${_this.defaultDirectory}, completionTriggerCharacters: ${_this.completionTriggerCharacters}, error: ${_this.error}, sessionChannels: ${_this.sessionChannels}, chatChannels: ${_this.chatChannels}, terminalChannels: ${_this.terminalChannels}, changesetChannels: ${_this.changesetChannels}, canvasChannels: ${_this.canvasChannels}, missingChannels: ${_this.missingChannels})';
 }
 
 
@@ -70,7 +73,7 @@ abstract mixin class $HostStateCopyWith<$Res>  {
   factory $HostStateCopyWith(HostState value, $Res Function(HostState) _then) = _$HostStateCopyWithImpl;
 @useResult
 $Res call({
- ConnectionStatus status, RootState? root, SessionCatalogue sessions, int serverSeq, String? protocolVersion, Implementation? serverInfo, String? defaultDirectory, String? error, Map<String, ChannelMirror<SessionState>> sessionChannels, Map<String, ChannelMirror<ChatState>> chatChannels, Map<String, ChannelMirror<TerminalState>> terminalChannels, Map<String, ChannelMirror<ChangesetState>> changesetChannels, Map<String, ChannelMirror<CanvasState>> canvasChannels, Set<String> missingChannels
+ ConnectionStatus status, RootState? root, SessionCatalogue sessions, int serverSeq, String? protocolVersion, Implementation? serverInfo, String? defaultDirectory, List<String> completionTriggerCharacters, String? error, Map<String, ChannelMirror<SessionState>> sessionChannels, Map<String, ChannelMirror<ChatState>> chatChannels, Map<String, ChannelMirror<TerminalState>> terminalChannels, Map<String, ChannelMirror<ChangesetState>> changesetChannels, Map<String, ChannelMirror<CanvasState>> canvasChannels, Set<String> missingChannels
 });
 
 
@@ -87,7 +90,7 @@ class _$HostStateCopyWithImpl<$Res>
 
 /// Create a copy of HostState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? status = null,Object? root = freezed,Object? sessions = null,Object? serverSeq = null,Object? protocolVersion = freezed,Object? serverInfo = freezed,Object? defaultDirectory = freezed,Object? error = freezed,Object? sessionChannels = null,Object? chatChannels = null,Object? terminalChannels = null,Object? changesetChannels = null,Object? canvasChannels = null,Object? missingChannels = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? status = null,Object? root = freezed,Object? sessions = null,Object? serverSeq = null,Object? protocolVersion = freezed,Object? serverInfo = freezed,Object? defaultDirectory = freezed,Object? completionTriggerCharacters = null,Object? error = freezed,Object? sessionChannels = null,Object? chatChannels = null,Object? terminalChannels = null,Object? changesetChannels = null,Object? canvasChannels = null,Object? missingChannels = null,}) {
   return _then(HostState(
 status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
 as ConnectionStatus,root: freezed == root ? _self.root : root // ignore: cast_nullable_to_non_nullable
@@ -96,7 +99,8 @@ as SessionCatalogue,serverSeq: null == serverSeq ? _self.serverSeq : serverSeq /
 as int,protocolVersion: freezed == protocolVersion ? _self.protocolVersion : protocolVersion // ignore: cast_nullable_to_non_nullable
 as String?,serverInfo: freezed == serverInfo ? _self.serverInfo : serverInfo // ignore: cast_nullable_to_non_nullable
 as Implementation?,defaultDirectory: freezed == defaultDirectory ? _self.defaultDirectory : defaultDirectory // ignore: cast_nullable_to_non_nullable
-as String?,error: freezed == error ? _self.error : error // ignore: cast_nullable_to_non_nullable
+as String?,completionTriggerCharacters: null == completionTriggerCharacters ? _self.completionTriggerCharacters : completionTriggerCharacters // ignore: cast_nullable_to_non_nullable
+as List<String>,error: freezed == error ? _self.error : error // ignore: cast_nullable_to_non_nullable
 as String?,sessionChannels: null == sessionChannels ? _self.sessionChannels : sessionChannels // ignore: cast_nullable_to_non_nullable
 as Map<String, ChannelMirror<SessionState>>,chatChannels: null == chatChannels ? _self.chatChannels : chatChannels // ignore: cast_nullable_to_non_nullable
 as Map<String, ChannelMirror<ChatState>>,terminalChannels: null == terminalChannels ? _self.terminalChannels : terminalChannels // ignore: cast_nullable_to_non_nullable
@@ -188,10 +192,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( ConnectionStatus status,  RootState? root,  SessionCatalogue sessions,  int serverSeq,  String? protocolVersion,  Implementation? serverInfo,  String? defaultDirectory,  String? error,  Map<String, ChannelMirror<SessionState>> sessionChannels,  Map<String, ChannelMirror<ChatState>> chatChannels,  Map<String, ChannelMirror<TerminalState>> terminalChannels,  Map<String, ChannelMirror<ChangesetState>> changesetChannels,  Map<String, ChannelMirror<CanvasState>> canvasChannels,  Set<String> missingChannels)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( ConnectionStatus status,  RootState? root,  SessionCatalogue sessions,  int serverSeq,  String? protocolVersion,  Implementation? serverInfo,  String? defaultDirectory,  List<String> completionTriggerCharacters,  String? error,  Map<String, ChannelMirror<SessionState>> sessionChannels,  Map<String, ChannelMirror<ChatState>> chatChannels,  Map<String, ChannelMirror<TerminalState>> terminalChannels,  Map<String, ChannelMirror<ChangesetState>> changesetChannels,  Map<String, ChannelMirror<CanvasState>> canvasChannels,  Set<String> missingChannels)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _HostState() when $default != null:
-return $default(_that.status,_that.root,_that.sessions,_that.serverSeq,_that.protocolVersion,_that.serverInfo,_that.defaultDirectory,_that.error,_that.sessionChannels,_that.chatChannels,_that.terminalChannels,_that.changesetChannels,_that.canvasChannels,_that.missingChannels);case _:
+return $default(_that.status,_that.root,_that.sessions,_that.serverSeq,_that.protocolVersion,_that.serverInfo,_that.defaultDirectory,_that.completionTriggerCharacters,_that.error,_that.sessionChannels,_that.chatChannels,_that.terminalChannels,_that.changesetChannels,_that.canvasChannels,_that.missingChannels);case _:
   return orElse();
 
 }
@@ -209,10 +213,10 @@ return $default(_that.status,_that.root,_that.sessions,_that.serverSeq,_that.pro
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( ConnectionStatus status,  RootState? root,  SessionCatalogue sessions,  int serverSeq,  String? protocolVersion,  Implementation? serverInfo,  String? defaultDirectory,  String? error,  Map<String, ChannelMirror<SessionState>> sessionChannels,  Map<String, ChannelMirror<ChatState>> chatChannels,  Map<String, ChannelMirror<TerminalState>> terminalChannels,  Map<String, ChannelMirror<ChangesetState>> changesetChannels,  Map<String, ChannelMirror<CanvasState>> canvasChannels,  Set<String> missingChannels)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( ConnectionStatus status,  RootState? root,  SessionCatalogue sessions,  int serverSeq,  String? protocolVersion,  Implementation? serverInfo,  String? defaultDirectory,  List<String> completionTriggerCharacters,  String? error,  Map<String, ChannelMirror<SessionState>> sessionChannels,  Map<String, ChannelMirror<ChatState>> chatChannels,  Map<String, ChannelMirror<TerminalState>> terminalChannels,  Map<String, ChannelMirror<ChangesetState>> changesetChannels,  Map<String, ChannelMirror<CanvasState>> canvasChannels,  Set<String> missingChannels)  $default,) {final _that = this;
 switch (_that) {
 case _HostState():
-return $default(_that.status,_that.root,_that.sessions,_that.serverSeq,_that.protocolVersion,_that.serverInfo,_that.defaultDirectory,_that.error,_that.sessionChannels,_that.chatChannels,_that.terminalChannels,_that.changesetChannels,_that.canvasChannels,_that.missingChannels);case _:
+return $default(_that.status,_that.root,_that.sessions,_that.serverSeq,_that.protocolVersion,_that.serverInfo,_that.defaultDirectory,_that.completionTriggerCharacters,_that.error,_that.sessionChannels,_that.chatChannels,_that.terminalChannels,_that.changesetChannels,_that.canvasChannels,_that.missingChannels);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -229,10 +233,10 @@ return $default(_that.status,_that.root,_that.sessions,_that.serverSeq,_that.pro
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( ConnectionStatus status,  RootState? root,  SessionCatalogue sessions,  int serverSeq,  String? protocolVersion,  Implementation? serverInfo,  String? defaultDirectory,  String? error,  Map<String, ChannelMirror<SessionState>> sessionChannels,  Map<String, ChannelMirror<ChatState>> chatChannels,  Map<String, ChannelMirror<TerminalState>> terminalChannels,  Map<String, ChannelMirror<ChangesetState>> changesetChannels,  Map<String, ChannelMirror<CanvasState>> canvasChannels,  Set<String> missingChannels)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( ConnectionStatus status,  RootState? root,  SessionCatalogue sessions,  int serverSeq,  String? protocolVersion,  Implementation? serverInfo,  String? defaultDirectory,  List<String> completionTriggerCharacters,  String? error,  Map<String, ChannelMirror<SessionState>> sessionChannels,  Map<String, ChannelMirror<ChatState>> chatChannels,  Map<String, ChannelMirror<TerminalState>> terminalChannels,  Map<String, ChannelMirror<ChangesetState>> changesetChannels,  Map<String, ChannelMirror<CanvasState>> canvasChannels,  Set<String> missingChannels)?  $default,) {final _that = this;
 switch (_that) {
 case _HostState() when $default != null:
-return $default(_that.status,_that.root,_that.sessions,_that.serverSeq,_that.protocolVersion,_that.serverInfo,_that.defaultDirectory,_that.error,_that.sessionChannels,_that.chatChannels,_that.terminalChannels,_that.changesetChannels,_that.canvasChannels,_that.missingChannels);case _:
+return $default(_that.status,_that.root,_that.sessions,_that.serverSeq,_that.protocolVersion,_that.serverInfo,_that.defaultDirectory,_that.completionTriggerCharacters,_that.error,_that.sessionChannels,_that.chatChannels,_that.terminalChannels,_that.changesetChannels,_that.canvasChannels,_that.missingChannels);case _:
   return null;
 
 }
@@ -244,7 +248,7 @@ return $default(_that.status,_that.root,_that.sessions,_that.serverSeq,_that.pro
 
 
 class _HostState implements HostState {
-  const _HostState({this.status = ConnectionStatus.disconnected, this.root,  SessionCatalogue sessions = emptyCatalogue, this.serverSeq = 0, this.protocolVersion, this.serverInfo, this.defaultDirectory, this.error,  Map<String, ChannelMirror<SessionState>> sessionChannels = const <String, ChannelMirror<SessionState>>{},  Map<String, ChannelMirror<ChatState>> chatChannels = const <String, ChannelMirror<ChatState>>{},  Map<String, ChannelMirror<TerminalState>> terminalChannels = const <String, ChannelMirror<TerminalState>>{},  Map<String, ChannelMirror<ChangesetState>> changesetChannels = const <String, ChannelMirror<ChangesetState>>{},  Map<String, ChannelMirror<CanvasState>> canvasChannels = const <String, ChannelMirror<CanvasState>>{},  Set<String> missingChannels = const <String>{}}): _sessions = sessions,_sessionChannels = sessionChannels,_chatChannels = chatChannels,_terminalChannels = terminalChannels,_changesetChannels = changesetChannels,_canvasChannels = canvasChannels,_missingChannels = missingChannels;
+  const _HostState({this.status = ConnectionStatus.disconnected, this.root,  SessionCatalogue sessions = emptyCatalogue, this.serverSeq = 0, this.protocolVersion, this.serverInfo, this.defaultDirectory,  List<String> completionTriggerCharacters = const <String>[], this.error,  Map<String, ChannelMirror<SessionState>> sessionChannels = const <String, ChannelMirror<SessionState>>{},  Map<String, ChannelMirror<ChatState>> chatChannels = const <String, ChannelMirror<ChatState>>{},  Map<String, ChannelMirror<TerminalState>> terminalChannels = const <String, ChannelMirror<TerminalState>>{},  Map<String, ChannelMirror<ChangesetState>> changesetChannels = const <String, ChannelMirror<ChangesetState>>{},  Map<String, ChannelMirror<CanvasState>> canvasChannels = const <String, ChannelMirror<CanvasState>>{},  Set<String> missingChannels = const <String>{}}): _sessions = sessions,_completionTriggerCharacters = completionTriggerCharacters,_sessionChannels = sessionChannels,_chatChannels = chatChannels,_terminalChannels = terminalChannels,_changesetChannels = changesetChannels,_canvasChannels = canvasChannels,_missingChannels = missingChannels;
   
 
 /// Connection status.
@@ -268,6 +272,19 @@ class _HostState implements HostState {
 @override final  Implementation? serverInfo;
 /// Default working directory URI for new sessions.
 @override final  String? defaultDirectory;
+/// Characters that ask for `completions` while a message is typed
+/// (`InitializeResult.completionTriggerCharacters`, AHP-044); empty
+/// when the host does not offer completions.
+ final  List<String> _completionTriggerCharacters;
+/// Characters that ask for `completions` while a message is typed
+/// (`InitializeResult.completionTriggerCharacters`, AHP-044); empty
+/// when the host does not offer completions.
+@override@JsonKey() List<String> get completionTriggerCharacters {
+  if (_completionTriggerCharacters is EqualUnmodifiableListView) return _completionTriggerCharacters;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_completionTriggerCharacters);
+}
+
 /// Last error, for display.
 @override final  String? error;
 /// Subscribed session channels, keyed by the URI they were subscribed
@@ -345,18 +362,18 @@ _$HostStateCopyWith<_HostState> get copyWith => __$HostStateCopyWithImpl<_HostSt
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _HostState&&(identical(other.status, status) || other.status == status)&&(identical(other.root, root) || other.root == root)&&const DeepCollectionEquality().equals(other.sessions, _sessions)&&(identical(other.serverSeq, serverSeq) || other.serverSeq == serverSeq)&&(identical(other.protocolVersion, protocolVersion) || other.protocolVersion == protocolVersion)&&(identical(other.serverInfo, serverInfo) || other.serverInfo == serverInfo)&&(identical(other.defaultDirectory, defaultDirectory) || other.defaultDirectory == defaultDirectory)&&(identical(other.error, error) || other.error == error)&&const DeepCollectionEquality().equals(other.sessionChannels, _sessionChannels)&&const DeepCollectionEquality().equals(other.chatChannels, _chatChannels)&&const DeepCollectionEquality().equals(other.terminalChannels, _terminalChannels)&&const DeepCollectionEquality().equals(other.changesetChannels, _changesetChannels)&&const DeepCollectionEquality().equals(other.canvasChannels, _canvasChannels)&&const DeepCollectionEquality().equals(other.missingChannels, _missingChannels));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _HostState&&(identical(other.status, status) || other.status == status)&&(identical(other.root, root) || other.root == root)&&const DeepCollectionEquality().equals(other.sessions, _sessions)&&(identical(other.serverSeq, serverSeq) || other.serverSeq == serverSeq)&&(identical(other.protocolVersion, protocolVersion) || other.protocolVersion == protocolVersion)&&(identical(other.serverInfo, serverInfo) || other.serverInfo == serverInfo)&&(identical(other.defaultDirectory, defaultDirectory) || other.defaultDirectory == defaultDirectory)&&const DeepCollectionEquality().equals(other.completionTriggerCharacters, _completionTriggerCharacters)&&(identical(other.error, error) || other.error == error)&&const DeepCollectionEquality().equals(other.sessionChannels, _sessionChannels)&&const DeepCollectionEquality().equals(other.chatChannels, _chatChannels)&&const DeepCollectionEquality().equals(other.terminalChannels, _terminalChannels)&&const DeepCollectionEquality().equals(other.changesetChannels, _changesetChannels)&&const DeepCollectionEquality().equals(other.canvasChannels, _canvasChannels)&&const DeepCollectionEquality().equals(other.missingChannels, _missingChannels));
 }
 
 
 @override
 int get hashCode {
-    return Object.hash(runtimeType,status,root,const DeepCollectionEquality().hash(_sessions),serverSeq,protocolVersion,serverInfo,defaultDirectory,error,const DeepCollectionEquality().hash(_sessionChannels),const DeepCollectionEquality().hash(_chatChannels),const DeepCollectionEquality().hash(_terminalChannels),const DeepCollectionEquality().hash(_changesetChannels),const DeepCollectionEquality().hash(_canvasChannels),const DeepCollectionEquality().hash(_missingChannels));
+    return Object.hash(runtimeType,status,root,const DeepCollectionEquality().hash(_sessions),serverSeq,protocolVersion,serverInfo,defaultDirectory,const DeepCollectionEquality().hash(_completionTriggerCharacters),error,const DeepCollectionEquality().hash(_sessionChannels),const DeepCollectionEquality().hash(_chatChannels),const DeepCollectionEquality().hash(_terminalChannels),const DeepCollectionEquality().hash(_changesetChannels),const DeepCollectionEquality().hash(_canvasChannels),const DeepCollectionEquality().hash(_missingChannels));
 }
 
 @override
 String toString() {
-    return 'HostState(status: $status, root: $root, sessions: $sessions, serverSeq: $serverSeq, protocolVersion: $protocolVersion, serverInfo: $serverInfo, defaultDirectory: $defaultDirectory, error: $error, sessionChannels: $sessionChannels, chatChannels: $chatChannels, terminalChannels: $terminalChannels, changesetChannels: $changesetChannels, canvasChannels: $canvasChannels, missingChannels: $missingChannels)';
+    return 'HostState(status: $status, root: $root, sessions: $sessions, serverSeq: $serverSeq, protocolVersion: $protocolVersion, serverInfo: $serverInfo, defaultDirectory: $defaultDirectory, completionTriggerCharacters: $completionTriggerCharacters, error: $error, sessionChannels: $sessionChannels, chatChannels: $chatChannels, terminalChannels: $terminalChannels, changesetChannels: $changesetChannels, canvasChannels: $canvasChannels, missingChannels: $missingChannels)';
 }
 
 
@@ -367,7 +384,7 @@ abstract mixin class _$HostStateCopyWith<$Res> implements $HostStateCopyWith<$Re
   factory _$HostStateCopyWith(_HostState value, $Res Function(_HostState) _then) = __$HostStateCopyWithImpl;
 @override @useResult
 $Res call({
- ConnectionStatus status, RootState? root, SessionCatalogue sessions, int serverSeq, String? protocolVersion, Implementation? serverInfo, String? defaultDirectory, String? error, Map<String, ChannelMirror<SessionState>> sessionChannels, Map<String, ChannelMirror<ChatState>> chatChannels, Map<String, ChannelMirror<TerminalState>> terminalChannels, Map<String, ChannelMirror<ChangesetState>> changesetChannels, Map<String, ChannelMirror<CanvasState>> canvasChannels, Set<String> missingChannels
+ ConnectionStatus status, RootState? root, SessionCatalogue sessions, int serverSeq, String? protocolVersion, Implementation? serverInfo, String? defaultDirectory, List<String> completionTriggerCharacters, String? error, Map<String, ChannelMirror<SessionState>> sessionChannels, Map<String, ChannelMirror<ChatState>> chatChannels, Map<String, ChannelMirror<TerminalState>> terminalChannels, Map<String, ChannelMirror<ChangesetState>> changesetChannels, Map<String, ChannelMirror<CanvasState>> canvasChannels, Set<String> missingChannels
 });
 
 
@@ -384,7 +401,7 @@ class __$HostStateCopyWithImpl<$Res>
 
 /// Create a copy of HostState
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? status = null,Object? root = freezed,Object? sessions = null,Object? serverSeq = null,Object? protocolVersion = freezed,Object? serverInfo = freezed,Object? defaultDirectory = freezed,Object? error = freezed,Object? sessionChannels = null,Object? chatChannels = null,Object? terminalChannels = null,Object? changesetChannels = null,Object? canvasChannels = null,Object? missingChannels = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? status = null,Object? root = freezed,Object? sessions = null,Object? serverSeq = null,Object? protocolVersion = freezed,Object? serverInfo = freezed,Object? defaultDirectory = freezed,Object? completionTriggerCharacters = null,Object? error = freezed,Object? sessionChannels = null,Object? chatChannels = null,Object? terminalChannels = null,Object? changesetChannels = null,Object? canvasChannels = null,Object? missingChannels = null,}) {
   return _then(_HostState(
 status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
 as ConnectionStatus,root: freezed == root ? _self.root : root // ignore: cast_nullable_to_non_nullable
@@ -393,7 +410,8 @@ as SessionCatalogue,serverSeq: null == serverSeq ? _self.serverSeq : serverSeq /
 as int,protocolVersion: freezed == protocolVersion ? _self.protocolVersion : protocolVersion // ignore: cast_nullable_to_non_nullable
 as String?,serverInfo: freezed == serverInfo ? _self.serverInfo : serverInfo // ignore: cast_nullable_to_non_nullable
 as Implementation?,defaultDirectory: freezed == defaultDirectory ? _self.defaultDirectory : defaultDirectory // ignore: cast_nullable_to_non_nullable
-as String?,error: freezed == error ? _self.error : error // ignore: cast_nullable_to_non_nullable
+as String?,completionTriggerCharacters: null == completionTriggerCharacters ? _self._completionTriggerCharacters : completionTriggerCharacters // ignore: cast_nullable_to_non_nullable
+as List<String>,error: freezed == error ? _self.error : error // ignore: cast_nullable_to_non_nullable
 as String?,sessionChannels: null == sessionChannels ? _self._sessionChannels : sessionChannels // ignore: cast_nullable_to_non_nullable
 as Map<String, ChannelMirror<SessionState>>,chatChannels: null == chatChannels ? _self._chatChannels : chatChannels // ignore: cast_nullable_to_non_nullable
 as Map<String, ChannelMirror<ChatState>>,terminalChannels: null == terminalChannels ? _self._terminalChannels : terminalChannels // ignore: cast_nullable_to_non_nullable

@@ -31,7 +31,9 @@ with a UX modeled on the GitHub Agents view and Cursor's Agents Window.
 > focus the composer (in the macOS menu bar too), and the hosts open at
 > the last run reconnect on start. Agents' todo lists show as checklists,
 > plan reviews take a choice plus feedback, the session header links to
-> the branch's pull request, one prompt can start several runs to
+> the branch's pull request, `/` in the composer and follow-up box
+> completes the agent's skills and commands (from the host's
+> `completions`), one prompt can start several runs to
 > compare and pick from, and the desktop apps (and the web app, where
 > the browser allows) notify when a session needs input, finishes or
 > fails. A host's menu and a session's menu open an SSH terminal on the

@@ -18,11 +18,17 @@ extension StringOrMarkdownText on StringOrMarkdown {
   };
 }
 
-/// Builds a user [Message] with [text], optionally for [model].
-Message userMessage(String text, {ModelSelection? model}) => Message(
+/// Builds a user [Message] with [text], optionally for [model] and with
+/// [attachments] (such as accepted completions, AHP-044).
+Message userMessage(
+  String text, {
+  ModelSelection? model,
+  List<MessageAttachment>? attachments,
+}) => Message(
   text: text,
   origin: const MessageOrigin(kind: MessageKind.user),
   model: model,
+  attachments: attachments == null || attachments.isEmpty ? null : attachments,
 );
 
 /// The chat a session sends input to: `defaultChat`, else the first chat.

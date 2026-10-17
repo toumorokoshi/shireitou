@@ -108,6 +108,16 @@ the web app can use it.
   (`/workspace`, "workspace") and the branch and GitHub repository in
   `_meta.git` (`branchName`, `githubOwner: example`,
   `githubRepo: workspace`), the shape VS Code's agent host uses.
+- **Completions (AV-044):** `initialize` sends
+  `completionTriggerCharacters: ['/']`, and every session lists a skills
+  directory (`review`, plus `deploy` with `disableUserInvocation`) and a
+  prompts directory (`explain`) in `customizations`. `completions`
+  answers the session's user-invocable commands whose names start with
+  the `/word` before the cursor (`fakeCompletions`): `insertText` is
+  `/name `, the range is the word, and the attachment carries the
+  description in `_meta`, as pi does. `FakeAhpHost(completionTriggers:
+[])` acts like a host without completions (no trigger characters,
+  `completions` is `-32601`), for the client's fallback to the skills.
 - **Creation failure:** `createSession` in a folder the tree does not have
   succeeds, then the host dispatches `session/creationFailed`
   ("No such folder: …") on the session channel a step later and never

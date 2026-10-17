@@ -60,6 +60,11 @@ abstract class HostState with _$HostState {
     /// Default working directory URI for new sessions.
     String? defaultDirectory,
 
+    /// Characters that ask for `completions` while a message is typed
+    /// (`InitializeResult.completionTriggerCharacters`, AHP-044); empty
+    /// when the host does not offer completions.
+    @Default(<String>[]) List<String> completionTriggerCharacters,
+
     /// Last error, for display.
     String? error,
 
@@ -269,6 +274,8 @@ HostState applyInitializeResult(HostState state, InitializeResult result) =>
         protocolVersion: result.protocolVersion,
         serverInfo: result.serverInfo,
         defaultDirectory: result.defaultDirectory,
+        completionTriggerCharacters:
+            result.completionTriggerCharacters ?? const [],
         serverSeq: result.serverSeq,
         error: null,
       ),
