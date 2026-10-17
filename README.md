@@ -24,7 +24,8 @@ with a UX modeled on the GitHub Agents view and Cursor's Agents Window.
 > model and its options such as the thinking level, a folder browsed on
 > the host, and the agent's settings such as the mode). The inbox has
 > filters, search, sort, pins, rename, archive and mark read from a row's menu, a
-> swipe or multi-select, and the attention count in the window title; keyboard
+> swipe or multi-select, folders reordered by drag and drop (the order
+> and collapsed folders remembered), and the attention count in the window title; keyboard
 > shortcuts start sessions, search, step through sessions, stop turns and
 > focus the composer (in the macOS menu bar too), and the hosts open at
 > the last run reconnect on start. Agents' todo lists show as checklists,

@@ -20,6 +20,8 @@ import '../session_list/session_filter.dart';
 import '../session_list/session_list_view.dart';
 import '../session_list/session_query.dart';
 import '../session_list/session_tree.dart';
+import '../session_list/sidebar_store.dart';
+import '../session_list/folder_order.dart';
 import '../session_title.dart';
 import '../shortcuts.dart';
 import '../notifications/notification_menu.dart';
@@ -58,9 +60,6 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
 
   /// The host the list is narrowed to; null shows every host.
   String? _hostFilter;
-
-  /// Ids of the collapsed hosts and folders in the sidebar tree.
-  Set<String> _collapsed = const {};
 
   /// The shown folders, to reveal a selected session's folder.
   List<FolderGroup> _groups = const [];
@@ -151,10 +150,13 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
   );
 
   void _select(SessionRef session) {
-    setState(() {
-      _selected = session;
-      _collapsed = revealSession(_collapsed, _groups, session);
-    });
+    setState(() => _selected = session);
+    final groups = _groups;
+    unawaited(
+      ref
+          .read(collapsedNodesProvider.notifier)
+          .change((ids) => revealSession({...ids}, groups, session)),
+    );
     if (_tier != LayoutTier.compact) return;
     final route = MaterialPageRoute<void>(builder: (_) => _detailPage(session));
     final navigator = Navigator.of(context);
@@ -331,10 +333,9 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
           s,
     ];
     final pinned = ref.watch(pinnedSessionsProvider);
-    final groups = _groups = groupHostSessions(
-      shown,
-      sort: _sort,
-      pinned: pinned,
+    final groups = _groups = orderFolders(
+      groupHostSessions(shown, sort: _sort, pinned: pinned),
+      ref.watch(folderOrderProvider),
     );
     final tree = sessionTree(
       hosts,
@@ -448,9 +449,13 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
               Expanded(
                 child: SessionListView(
                   tree: tree,
-                  collapsed: _collapsed,
-                  onToggle: (id) =>
-                      setState(() => _collapsed = toggledNode(_collapsed, id)),
+                  collapsed: {...ref.watch(collapsedNodesProvider)},
+                  onToggle: (id) => ref
+                      .read(collapsedNodesProvider.notifier)
+                      .change((ids) => toggledNode({...ids}, id)),
+                  onMoveFolder: (folders, from, to) => ref
+                      .read(folderOrderProvider.notifier)
+                      .change((order) => movedFolder(order, folders, from, to)),
                   selected: _selected,
                   onSelect: _select,
                   selectedHost: hostFilter,

@@ -258,9 +258,14 @@ Dart source); `bin/generate.dart` does the file I/O. See
   open host's folders under it, `sidebarRows` flattens it into host,
   folder, session and empty rows while skipping collapsed hosts and
   folders, and `revealSession` expands the ones holding an opened
-  session. `session_list_view.dart` renders the rows lazily (thin rows
+  session. `folder_order.dart` orders folders by the user's order
+  (`orderFolders`) and moves one (`movedFolder`); `sidebar_store.dart`
+  keeps that order and the collapsed hosts and folders on this device
+  with `PrefsStore`. `session_list_view.dart` renders the rows lazily (thin rows
   on medium and wide layouts, touch-sized ones on compact layouts);
-  host rows show the status with Retry and Remove, and each session row has a menu
+  host rows show the status with Retry and Remove, folder rows drag
+  onto other folder rows of their host to reorder them (and move up or
+  down from a menu and screen reader actions), and each session row has a menu
   (right-click, long-press, and screen reader actions) to rename (a
   dialog, AV-073), archive, mark read or unread, pin or unpin and select,
   swipes left to archive or

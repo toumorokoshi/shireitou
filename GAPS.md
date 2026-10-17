@@ -49,12 +49,6 @@ smoke-tested Windows, iOS and Android in CI, added the app icon, the
 AppImage and the release workflow (see
 [docs/packaging.md](docs/packaging.md)). Remaining work:
 
-- **Highest priority (user feedback, 2026-10-16):** do these before the
-  items below.
-
-  - **Reorder workspaces:** drag and drop workspace folders in the
-    sidebar to reorder them, with the order remembered.
-
 - **Renaming a session (AV-073), remaining details:** the session list
   renames in a dialog, not in place. A rename from the list of a session
   that is not open is not shown until the host updates its catalogue
@@ -288,9 +282,18 @@ AppImage and the release workflow (see
     the app. There is
     no shortcut help overlay (the spec has none); tooltips and the
     search hint name the keys, and macOS lists them in the menu.
-- **Sidebar tree (AV-012, AV-025):** collapsed hosts and folders are
-  kept in memory only, so every host and folder is expanded again after
-  a restart. Only the open hosts are in the tree; remembered hosts that
+- **Sidebar tree (AV-012, AV-025):** folder order and collapsed hosts
+  and folders are kept per device, not synced. Their stored ids are
+  never pruned: a folder whose sessions are all gone (or a host removed)
+  keeps its id, since a host that is not open, or sessions not loaded
+  yet, cannot be told from a deleted folder; the lists only grow by
+  folders the user moved or collapsed. Dragging a folder does not
+  scroll the list near its edges, so a long list needs "Move up" and
+  "Move down" or a shorter drag; a folder dropped on a session row (not
+  a folder row) does not move. Keyboard users reach "Move up" and "Move
+  down" through the handle that shows when the folder row has focus on
+  medium and wide layouts; on compact layouts only touch (long press)
+  and screen reader actions move folders. Hosts cannot be reordered. Only the open hosts are in the tree; remembered hosts that
   are not open are listed under Recent hosts on the "Add host…" page.
   Folders do not narrow the list (collapsing the others or the `repo:`
   qualifier does). The tree's top level replaces grouping by host; the

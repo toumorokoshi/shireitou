@@ -1,5 +1,39 @@
 # Design Decision Log
 
+## 2026-10-16: Reorder workspace folders in the sidebar
+
+- **The user's order wins over sorting and pins.** Once the user moves
+  a folder, its place is kept: placed folders come first under their
+  host, in the order placed, ahead of the sort and of the "folder with a
+  pinned session first" rule. Pins still sort first inside their folder.
+  Folders never placed (a new working directory) follow in the usual
+  sort order. `orderFolders` applies the order to the output of
+  `groupHostSessions`, before `sessionTree`, so next and previous
+  session (Alt+↓/↑) follow it too.
+- **A move places every shown folder of the host.** `movedFolder` first
+  appends the host's shown, unplaced folders to the stored order, then
+  swaps places only among the shown folders. The order is then exactly
+  what the user sees, and folders hidden by a filter or on other hosts
+  keep their places.
+- **Ids, not indices, per device.** The order and the collapsed hosts
+  and folders are lists of ids (`FolderGroup.id` is `'host|path'`, a
+  host's id is its key) in `PrefsStore` (`folder_order`,
+  `sidebar_collapsed`), loaded by one small notifier class
+  (`StoredIds`). AHP has no folder order, so it is not synced. Ids are
+  not pruned: a folder missing now may be on a host that is not open.
+- **Drag and drop with Flutter's `Draggable` and `DragTarget`, not
+  `ReorderableListView`.** The sidebar is one lazy list of host, folder
+  and session rows; a folder must move with its sessions and only among
+  its host's folders. Each folder row is a drag source and a drop
+  target that accepts folders of its host, and the dropped folder takes
+  the target's place (a line above or below the target shows where).
+  With a pointer (dense rows) the drag starts from the row with a grab
+  cursor; on touch it starts after a long press, which folder rows did
+  not use before.
+- **"Move up" and "Move down" without dragging.** Right-click on a
+  folder row, the drag handle (shown on hover or keyboard focus) and the
+  row's screen reader actions move a folder one place.
+
 ## 2026-10-16: Rename a session (AV-073)
 
 - **The protocol's `session/titleChanged`, not a local title.** AHP

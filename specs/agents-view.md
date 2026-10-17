@@ -89,7 +89,23 @@ The left-hand session list is a tree (AV-012, AV-025):
 - **Sessions** under their folder.
 - Hosts and folders collapse (the host's chevron, a tap on the folder
   row). Opening a session (a click, a notification, Alt+↓/↑) expands its
-  host and folder.
+  host and folder. The collapsed hosts and folders are kept on this
+  device (`sidebar_collapsed`), so they stay collapsed after a restart.
+- **Reordering folders:** a folder row is dragged onto another folder
+  row of the same host and takes its place, moving with its sessions.
+  With a pointer the drag starts from the row (grab cursor, and a drag
+  handle on hover or keyboard focus that opens "Move up" and "Move
+  down"); on touch it starts after a long press. The target row shows a
+  line above or below it where the folder will go. Right-click on a
+  folder row, the handle, and the row's screen reader actions offer
+  "Move up" and "Move down". The order is kept on this device
+  (`folder_order`, a list of `FolderGroup.id`s, `'host|path'`).
+- **Folder order:** folders the user moved come first under their
+  host, in the order they were placed, overriding the sort and the
+  "folder with a pinned session first" rule (pins still come first
+  inside their folder). Folders never placed (a new working directory)
+  follow in the usual sort order. Moving a folder places every shown
+  folder of its host, so what is shown stays put apart from the move.
 - With several hosts, tapping a host narrows the list to it (the other
   hosts stay listed without folders); tapping it again shows every host.
   Folders do not narrow the list: collapsing the others, or the `repo:`
@@ -104,12 +120,14 @@ The left-hand session list is a tree (AV-012, AV-025):
 - The tree is built by pure functions, `sessionTree` (hosts with their
   folders, in the order of the grouped folders) and `sidebarRows` (the
   rows left after collapsing), in
-  `app/lib/src/session_list/session_tree.dart`, so a user-defined folder
-  order only has to order the folders before `sessionTree`.
+  `app/lib/src/session_list/session_tree.dart`; `orderFolders` and
+  `movedFolder` in `app/lib/src/session_list/folder_order.dart` apply
+  and change the user's folder order before `sessionTree`.
 
-Status (2026-10-16): implemented. Collapsed hosts and folders are not
-remembered across restarts, and hosts that are remembered but not open
-are listed on the "Add host…" page (Recent hosts), not in the tree.
+Status (2026-10-16): implemented, with folder reordering and the
+collapsed hosts and folders remembered on this device. Hosts that are
+remembered but not open are listed on the "Add host…" page (Recent
+hosts), not in the tree. Hosts cannot be reordered.
 
 ## Starting a session (composer)
 

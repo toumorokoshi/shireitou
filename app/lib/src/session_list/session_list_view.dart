@@ -56,7 +56,8 @@ class SessionRowActions {
 /// mark read or unread, pin or unpin, and select; swiping a row to the left
 /// archives (or unarchives) it. While [selection] is set, rows show
 /// checkboxes and tapping toggles them. [dense] rows are thin, for
-/// pointers; otherwise rows keep touch-sized targets.
+/// pointers; otherwise rows keep touch-sized targets. Folders are
+/// dragged within their host to reorder them ([onMoveFolder]).
 class SessionListView extends StatelessWidget {
   /// Creates a [SessionListView].
   const SessionListView({
@@ -72,6 +73,7 @@ class SessionListView extends StatelessWidget {
     this.onRetry,
     this.onRemove,
     this.onNewSession,
+    this.onMoveFolder,
     this.now,
     this.actions,
     this.selection,
@@ -117,6 +119,14 @@ class SessionListView extends StatelessWidget {
   /// when null.
   final ValueChanged<FolderGroup>? onNewSession;
 
+  /// Moves `folders[from]` to index `to` of `folders`, one host's folders
+  /// in list order: a folder row dragged onto another of its host (from
+  /// the row with a pointer, after a long press on touch), or "Move up"
+  /// and "Move down" in its menu and screen reader actions. Folders do
+  /// not move when null.
+  final void Function(List<FolderGroup> folders, int from, int to)?
+  onMoveFolder;
+
   /// Clock for relative times; defaults to `DateTime.now()`.
   final DateTime? now;
 
@@ -141,6 +151,7 @@ class SessionListView extends StatelessWidget {
     BuildContext context,
     SidebarRow row,
     DateTime clock,
+    Map<String, List<FolderGroup>> folders,
   ) => switch (row) {
     HostRow(:final node, :final collapsed) => _HostHeader(
       key: ValueKey(('host', node.host.key)),
@@ -164,6 +175,11 @@ class SessionListView extends StatelessWidget {
       dense: dense,
       onToggle: onToggle == null ? null : () => onToggle!(group.id),
       onNewSession: onNewSession == null ? null : () => onNewSession!(group),
+      index: folders[group.host]!.indexOf(group),
+      count: folders[group.host]!.length,
+      onMove: onMoveFolder == null
+          ? null
+          : (from, to) => onMoveFolder!(folders[group.host]!, from, to),
     ),
     EmptyRow(:final host, :final text) => Padding(
       key: ValueKey(('empty', host)),
@@ -198,11 +214,12 @@ class SessionListView extends StatelessWidget {
   Widget build(BuildContext context) {
     final clock = now ?? DateTime.now();
     final rows = sidebarRows(tree, collapsed);
+    final folders = {for (final node in tree) node.host.key: node.folders};
     final addHost = onAddHost;
     return ListView.builder(
       itemCount: rows.length + (addHost == null ? 0 : 1),
       itemBuilder: (context, index) => index < rows.length
-          ? _row(context, rows[index], clock)
+          ? _row(context, rows[index], clock, folders)
           : _TreeRow(
               key: const ValueKey('add-host'),
               depth: 0,
@@ -255,6 +272,8 @@ class _TreeRow extends StatelessWidget {
     this.onTap,
     this.selected = false,
     this.expanded,
+    this.mouseCursor,
+    this.semanticsActions,
   });
 
   /// Tree depth: 0 hosts, 1 folders, 2 sessions.
@@ -285,6 +304,13 @@ class _TreeRow extends StatelessWidget {
   /// collapse.
   final bool? expanded;
 
+  /// The cursor over the row; the click cursor when null and [onTap] is
+  /// set.
+  final MouseCursor? mouseCursor;
+
+  /// Screen reader actions on the row, by label.
+  final Map<String, VoidCallback>? semanticsActions;
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -293,10 +319,16 @@ class _TreeRow extends StatelessWidget {
       color: selected ? scheme.secondaryContainer : Colors.transparent,
       child: InkWell(
         onTap: onTap,
+        mouseCursor: mouseCursor,
         child: Semantics(
           button: onTap != null,
           selected: selected,
           expanded: expanded,
+          customSemanticsActions: {
+            for (final MapEntry(key: label, value: action)
+                in (semanticsActions ?? const {}).entries)
+              CustomSemanticsAction(label: label): action,
+          },
           child: ConstrainedBox(
             constraints: BoxConstraints(minHeight: height),
             child: Padding(
@@ -486,33 +518,106 @@ class _HostHeader extends StatelessWidget {
   }
 }
 
+/// The folder a folder row drag carries: its host and its index among the
+/// host's folders.
+@immutable
+class _DraggedFolder {
+  const _DraggedFolder(this.host, this.index);
+
+  /// The host key of the folder.
+  final String host;
+
+  /// The folder's index among its host's folders.
+  final int index;
+}
+
 /// A workspace folder's row (AV-025): collapse marker, name, details
-/// ([folderDetails]), counts and the "+" button.
-class _FolderHeader extends StatelessWidget {
+/// ([folderDetails]), counts and the "+" button. With [onMove] it is
+/// dragged onto another folder row of its host to take that folder's
+/// place (from the row in a [dense] sidebar, with a grab cursor and a
+/// handle on hover or focus; after a long press otherwise), and its
+/// menu (right-click, the handle) and screen reader actions move it up
+/// or down.
+class _FolderHeader extends StatefulWidget {
   const _FolderHeader({
     super.key,
     required this.group,
     required this.collapsed,
     required this.dense,
+    required this.index,
+    required this.count,
     this.onToggle,
     this.onNewSession,
+    this.onMove,
   });
 
   final FolderGroup group;
   final bool collapsed;
   final bool dense;
+
+  /// The folder's index among its host's [count] folders.
+  final int index;
+  final int count;
   final VoidCallback? onToggle;
   final VoidCallback? onNewSession;
 
+  /// Moves the folder at the first index among its host's folders to the
+  /// second.
+  final void Function(int from, int to)? onMove;
+
   @override
-  Widget build(BuildContext context) {
+  State<_FolderHeader> createState() => _FolderHeaderState();
+}
+
+class _FolderHeaderState extends State<_FolderHeader> {
+  bool _hovered = false;
+  bool _focused = false;
+
+  /// "Move up" and "Move down", where the folder can move that way.
+  Map<String, VoidCallback> get _moves {
+    final onMove = widget.onMove;
+    final index = widget.index;
+    return {
+      if (onMove != null && index > 0)
+        'Move up': () => onMove(index, index - 1),
+      if (onMove != null && index < widget.count - 1)
+        'Move down': () => onMove(index, index + 1),
+    };
+  }
+
+  Future<void> _showMenu(Offset position) async {
+    final moves = _moves;
+    if (moves.isEmpty) return;
+    final overlay =
+        Overlay.of(context).context.findRenderObject()! as RenderBox;
+    final action = await showMenu<VoidCallback>(
+      context: context,
+      position: RelativeRect.fromRect(
+        position & Size.zero,
+        Offset.zero & overlay.size,
+      ),
+      items: [
+        for (final MapEntry(key: label, value: move) in moves.entries)
+          PopupMenuItem(value: move, child: Text(label)),
+      ],
+    );
+    action?.call();
+  }
+
+  Widget _row(BuildContext context, {required bool interactive}) {
+    final group = widget.group;
+    final dense = widget.dense;
+    final collapsed = widget.collapsed;
     final details = folderDetails(group);
-    final onNewSession = this.onNewSession;
+    final onNewSession = widget.onNewSession;
+    final movable = interactive && _moves.isNotEmpty;
     return _TreeRow(
       depth: 1,
       height: dense ? denseHeaderHeight : kMinInteractiveDimension,
-      onTap: onToggle,
-      expanded: onToggle == null ? null : !collapsed,
+      onTap: interactive ? widget.onToggle : null,
+      mouseCursor: movable && dense ? SystemMouseCursors.grab : null,
+      semanticsActions: movable ? _moves : null,
+      expanded: widget.onToggle == null ? null : !collapsed,
       leading: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -562,15 +667,102 @@ class _FolderHeader extends StatelessWidget {
             attention: group.attentionCount,
             dense: dense,
           ),
-          if (onNewSession != null)
+          if (interactive && onNewSession != null)
             _RowButton(
               tooltip: 'New session in ${group.label}',
               icon: Icons.add,
               dense: dense,
               onPressed: onNewSession,
             ),
+          if (movable && dense && (_hovered || _focused))
+            Builder(
+              builder: (context) => _RowButton(
+                tooltip: 'Move ${group.label}',
+                icon: Icons.drag_indicator,
+                dense: dense,
+                onPressed: () {
+                  final box = context.findRenderObject()! as RenderBox;
+                  _showMenu(
+                    box.localToGlobal(box.size.bottomLeft(Offset.zero)),
+                  );
+                },
+              ),
+            ),
         ],
       ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final onMove = widget.onMove;
+    final row = _row(context, interactive: true);
+    if (onMove == null || widget.count < 2) return row;
+    final data = _DraggedFolder(widget.group.host, widget.index);
+    final dimmed = Opacity(opacity: 0.4, child: row);
+    final interactiveRow = GestureDetector(
+      onSecondaryTapUp: (details) => _showMenu(details.globalPosition),
+      child: Focus(
+        canRequestFocus: false,
+        skipTraversal: true,
+        onFocusChange: (focused) => setState(() => _focused = focused),
+        child: MouseRegion(
+          onEnter: (_) => setState(() => _hovered = true),
+          onExit: (_) => setState(() => _hovered = false),
+          child: row,
+        ),
+      ),
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final feedback = Material(
+          elevation: 4,
+          child: SizedBox(
+            width: constraints.maxWidth,
+            child: _row(context, interactive: false),
+          ),
+        );
+        final draggable = widget.dense
+            ? Draggable<_DraggedFolder>(
+                data: data,
+                feedback: feedback,
+                childWhenDragging: dimmed,
+                child: interactiveRow,
+              )
+            : LongPressDraggable<_DraggedFolder>(
+                data: data,
+                feedback: feedback,
+                childWhenDragging: dimmed,
+                child: interactiveRow,
+              );
+        return DragTarget<_DraggedFolder>(
+          onWillAcceptWithDetails: (details) =>
+              details.data.host == widget.group.host &&
+              details.data.index != widget.index,
+          onAcceptWithDetails: (details) =>
+              onMove(details.data.index, widget.index),
+          builder: (context, candidates, _) {
+            final from = candidates.firstOrNull?.index;
+            // The dragged folder takes this one's place: above it when it
+            // comes from below, else below it.
+            final side = BorderSide(
+              color: Theme.of(context).colorScheme.primary,
+              width: 2,
+            );
+            return DecoratedBox(
+              position: DecorationPosition.foreground,
+              decoration: BoxDecoration(
+                border: from == null
+                    ? null
+                    : from > widget.index
+                    ? Border(top: side)
+                    : Border(bottom: side),
+              ),
+              child: draggable,
+            );
+          },
+        );
+      },
     );
   }
 }
