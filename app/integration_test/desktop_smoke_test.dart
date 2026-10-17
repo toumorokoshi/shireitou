@@ -23,6 +23,7 @@ import 'package:shireitou/src/host_connection.dart';
 import 'package:shireitou/src/hosts/host_store.dart';
 import 'package:shireitou/src/hosts/open_hosts.dart';
 import 'package:shireitou/src/hosts/saved_hosts.dart';
+import 'package:shireitou/src/notifications/notifications.dart';
 import 'package:window_manager/window_manager.dart';
 
 const _url = String.fromEnvironment('AHP_URL');
@@ -76,7 +77,11 @@ void main() {
   testWidgets('connects and remembers the host in secure storage', (
     tester,
   ) async {
-    final container = ProviderContainer();
+    // No permission prompt: the app asks for one at start (AV-121), and
+    // macOS's would stay up over the next test's app on the runner.
+    final container = ProviderContainer(
+      overrides: [notifierProvider.overrideWithValue(null)],
+    );
     addTearDown(container.dispose);
     await tester.pumpWidget(
       UncontrolledProviderScope(
