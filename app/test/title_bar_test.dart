@@ -7,10 +7,33 @@ import 'package:shireitou/src/app.dart';
 import 'package:shireitou/src/prefs.dart';
 import 'package:shireitou/src/review/changes_pane.dart';
 import 'package:shireitou/src/session_detail/session_detail_view.dart';
+import 'package:shireitou/src/theme/app_theme.dart';
 import 'package:shireitou/src/title_bar/title_bar.dart';
 
 import 'fake_connection.dart';
 import 'fixtures.dart';
+
+Finder _appNameLabel() => find.byKey(const ValueKey('title-bar-app-name'));
+
+Future<void> _pumpTitleBar(
+  WidgetTester tester, {
+  required String title,
+  bool isWorkspace = false,
+}) async {
+  await tester.pumpWidget(
+    MaterialApp(
+      theme: buildTheme(Brightness.dark, platform: TargetPlatform.macOS),
+      home: Scaffold(
+        body: TitleBar(
+          title: title,
+          isWorkspace: isWorkspace,
+          searchTooltip: 'Search sessions',
+          onSearch: () {},
+        ),
+      ),
+    ),
+  );
+}
 
 HostState _state() => HostState(
   status: ConnectionStatus.connected,
@@ -72,11 +95,28 @@ void main() {
     expect(workspaceTitle(null), isNull);
   });
 
+  testWidgets('the app name label is always beside the navigation buttons', (
+    tester,
+  ) async {
+    await _pumpTitleBar(tester, title: 'test host');
+    expect(_appNameLabel(), findsOneWidget);
+    expect(tester.widget<Text>(_appNameLabel()).data, appName);
+
+    await _pumpTitleBar(tester, title: 'app [cruise]', isWorkspace: true);
+    expect(_appNameLabel(), findsOneWidget);
+    expect(find.text(appName), findsOneWidget);
+    expect(
+      find.descendant(of: _centreBox(), matching: find.text('app [cruise]')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('wide layouts show the title bar instead of an app bar', (
     tester,
   ) async {
     await _pump(tester);
     expect(find.byType(TitleBar), findsOneWidget);
+    expect(_appNameLabel(), findsOneWidget);
     expect(find.byType(AppBar), findsNothing);
     expect(tester.getSize(find.byType(TitleBar)).height, titleBarHeight);
     // No session open: the host's name.
@@ -85,6 +125,7 @@ void main() {
       findsOneWidget,
     );
     await _open(tester, 'Fix login');
+    expect(_appNameLabel(), findsOneWidget);
     expect(
       find.descendant(
         of: _centreBox(),

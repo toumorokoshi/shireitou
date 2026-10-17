@@ -1,7 +1,8 @@
 /// The slim bar at the top of the sessions screen on medium and wide
-/// layouts (AV-091): the sidebar toggle, back and forward, a centred box
-/// naming the open session's workspace (it focuses search), and icon
-/// actions on the right. On macOS it is drawn in the window's title bar.
+/// layouts (AV-091): the sidebar toggle, back and forward, the app's name,
+/// a centred box naming the open session's workspace (it focuses search),
+/// and icon actions on the right. On macOS it is drawn in the window's
+/// title bar.
 library;
 
 import 'package:ahp_client/ahp_client.dart';
@@ -19,7 +20,7 @@ import '../theme/app_icons.dart';
 /// centred in it.
 const titleBarHeight = 38.0;
 
-/// The app's name, in the centre box when no session is open.
+/// The app's name, shown persistently beside the navigation buttons.
 const appName = 'shireitou';
 
 /// The width the macOS traffic lights take at the bar's left.
@@ -61,7 +62,7 @@ class TitleBar extends StatelessWidget {
   });
 
   /// The text in the centre box: the open session's workspace, or the
-  /// app's name.
+  /// hosts title when no session is open.
   final String title;
 
   /// Whether [title] is a workspace (it gets a folder icon).
@@ -119,7 +120,8 @@ class TitleBar extends StatelessWidget {
           icon: const Icon(AppIcons.forward),
           onPressed: onForward,
         ),
-        const SizedBox(width: 8),
+        const _AppNameLabel(),
+        const SizedBox(width: 12),
         Expanded(
           child: Center(
             child: ConstrainedBox(
@@ -175,7 +177,29 @@ class TitleBar extends StatelessWidget {
   }
 }
 
-/// The centre box: the workspace (or app name) in a bordered box; a click
+/// The app's name beside the back and forward buttons.
+class _AppNameLabel extends StatelessWidget {
+  const _AppNameLabel();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
+    final style = Theme.of(context).textTheme.labelMedium
+        ?.copyWith(color: colors.mutedText, fontWeight: FontWeight.w600);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Text(
+        appName,
+        key: const ValueKey('title-bar-app-name'),
+        style: style,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }
+}
+
+/// The centre box: the workspace or hosts title in a bordered box; a click
 /// focuses search.
 class _CentreBox extends StatelessWidget {
   const _CentreBox({

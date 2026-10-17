@@ -17,11 +17,11 @@ What to match, by area:
 
 ## Title bar
 
-- A slim bar: a sidebar toggle, back and forward arrows, a centred box
-  naming the open session's workspace ("cruise [cruise]"), and on the
-  right an icon toggle for the review pane (the change count moves to its
-  tooltip or a small badge). On macOS it is drawn in the window's title
-  bar beside the traffic lights.
+- A slim bar: a sidebar toggle, back and forward arrows, the app's name
+  ("shireitou") beside them, a centred box naming the open session's
+  workspace ("cruise [cruise]"), and on the right an icon toggle for the
+  review pane (the change count moves to its tooltip or a small badge).
+  On macOS it is drawn in the window's title bar beside the traffic lights.
 
 ## Sidebar
 

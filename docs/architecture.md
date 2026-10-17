@@ -310,8 +310,10 @@ Dart source); `bin/generate.dart` does the file I/O. See
   `sidebarWidthProvider` (`session_list/sidebar_store.dart`) and
   `reviewPaneWidthProvider` (`review/review_pane_store.dart`).
 - `lib/src/title_bar/`: the title bar (AV-091). `title_bar.dart` is the
-  `TitleBar` widget (callbacks only, no state), `workspaceTitle` ("folder
-  [repo]", built with `workspaceLabel`) and `sidebarCollapsedProvider`
+  `TitleBar` widget (callbacks only, no state): back and forward, the
+  `appName` label, and a centred search box for the workspace or hosts
+  title; `workspaceTitle` ("folder [repo]", built with `workspaceLabel`)
+  and `sidebarCollapsedProvider`
   (a `StoredFlag` from `prefs.dart` under `sidebar_hidden`, as
   `reviewPaneOpenProvider` is);
   `session_history.dart` is the back and forward history as pure

@@ -1,5 +1,20 @@
 # Design Decision Log
 
+## 2026-10-17: Persistent app name in the title bar (AV-091)
+
+With a session open, the title bar's centre box showed only the
+workspace and the app's name disappeared. Users could not see which app
+they were in while reviewing a session.
+
+- **A muted `appName` label** sits after the back and forward buttons
+  and before the centred search box, styled with `labelMedium` and
+  `mutedText`, on every medium and wide layout. The centre box still
+  names the workspace or the connected host(s); compact layouts keep the
+  list app bar unchanged.
+- **Plain `Text` on the row** keeps macOS window dragging (`DragToMoveArea`
+  under the row) working; the label uses `ValueKey('title-bar-app-name')`
+  for tests.
+
 ## 2026-10-17: Skill completions in the new-session draft and when the host answers nothing (AV-044)
 
 Typing `/` in the new-session composer completed nothing against pi.
