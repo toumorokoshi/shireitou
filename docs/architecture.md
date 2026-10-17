@@ -34,7 +34,8 @@ WebSocket ──► json_rpc_2 Peer ──► AhpClient (I/O edge)
   in-memory `StreamChannelController` with a fake host peer.
 - **Completions:** `completions.dart` is pure: `completionToken` finds
   the `/` or `@` word before the cursor, and `slashCommands` lists the
-  user-invocable skills and prompts of a customization list (the app's
+  user-invocable skills (with their file URI) and prompts of a
+  customization list (the app's
   fallback when a host has no `completions`, and the fake host's
   answer). `AhpClient.completions` sends the command.
 - **Handshake:** `initialize` offers `['1.0.0', '0.9.0']` and subscribes to
@@ -246,7 +247,12 @@ Dart source); `bin/generate.dart` does the file I/O. See
   `applyCompletion` puts the accepted item into the text (moving the
   host's range by what was typed since it answered),
   `acceptedAttachments` picks the attachments to send, and
-  `resolveCompletions` asks the host or falls back to the skills.
+  `resolveCompletions` asks the host or, when it fails or answers
+  nothing, falls back to the skills (a skill's item carries a skill
+  reference, `_meta.uri`, so pi loads it under its `/skill:` name).
+  `draftCommands` picks the new-session draft's commands: the agent's
+  customizations, else a loaded session's of the same agent (same folder
+  first).
   `completion_popup.dart` is the popup: it watches the field's
   controller, debounces requests, drops stale answers, anchors itself
   above the caret (`OverlayPortal` and `CompositedTransformFollower`) and

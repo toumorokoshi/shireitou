@@ -236,6 +236,7 @@ class FakeHostConnection extends HostConnection {
           String provider,
           String directory,
           String prompt,
+          List<MessageAttachment> attachments,
           ModelSelection? model,
           JsonMap? config,
         })
@@ -249,6 +250,7 @@ class FakeHostConnection extends HostConnection {
     required String provider,
     required String workingDirectory,
     required String prompt,
+    List<MessageAttachment> attachments = const [],
     ModelSelection? model,
     JsonMap? config,
   }) async {
@@ -256,6 +258,7 @@ class FakeHostConnection extends HostConnection {
       provider: provider,
       directory: workingDirectory,
       prompt: prompt,
+      attachments: attachments,
       model: model,
       config: config,
     ));

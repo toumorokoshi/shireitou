@@ -36,8 +36,9 @@ CompletionToken? completionToken(
 bool _isSpace(int unit) =>
     unit == 0x20 || unit == 0x09 || unit == 0x0a || unit == 0x0d;
 
-/// A command a user can type after `/`: a skill or a prompt.
-typedef SlashCommand = ({String name, String? description});
+/// A command a user can type after `/`: a skill (with its [skillUri]) or
+/// a prompt (whose [skillUri] is null).
+typedef SlashCommand = ({String name, String? description, String? skillUri});
 
 /// The skills and prompts in [customizations] (the children of plugins and
 /// directories) that a user may invoke, in order, without duplicate names.
@@ -58,14 +59,15 @@ List<SlashCommand> slashCommands(List<Customization>? customizations) {
             SkillCustomization(
               :final name,
               :final description,
+              :final uri,
               :final enabled,
               :final disableUserInvocation,
             )
                 when enabled != false && disableUserInvocation != true =>
-              (name: name, description: description),
+              (name: name, description: description, skillUri: uri),
             PromptCustomization(:final name, :final description, :final enabled)
                 when enabled != false =>
-              (name: name, description: description),
+              (name: name, description: description, skillUri: null),
             _ => null,
           }
           case final command? when seen.add(command.name))

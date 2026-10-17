@@ -16,10 +16,13 @@
 /// ```
 library;
 
+import 'dart:io';
+
 import 'package:ahp_client/ahp_client.dart';
 import 'package:ahp_fake_host/ahp_fake_host.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:shireitou/src/session_list/session_list_view.dart';
@@ -36,9 +39,20 @@ Future<AppHarness> _connect(WidgetTester tester, Uri url) async {
   return h;
 }
 
-/// Starts pi with the faux model; stopped when the test ends.
+/// Starts pi with the faux model and a `greet` skill in its agent
+/// directory (written first: pi reads its global skills at start). The
+/// caller stops it; its state is deleted when the test ends.
 Future<PiFauxHost> _startPi(WidgetTester tester) async {
-  final pi = (await tester.runAsync(PiFauxHost.start))!;
+  final pi = (await tester.runAsync(() async {
+    final dir = await Directory.systemTemp.createTemp('shireitou-pi-');
+    final skill = File('${dir.path}/agent/skills/greet/SKILL.md');
+    await skill.create(recursive: true);
+    await skill.writeAsString(
+      '---\nname: greet\ndescription: Says hello\n---\nSay hello.\n',
+    );
+    return PiFauxHost.start(stateDir: dir);
+  }))!;
+  addTearDown(() => tester.runAsync(() => pi.stateDir.delete(recursive: true)));
   return pi;
 }
 
@@ -105,6 +119,30 @@ void main() {
       await h.waitFor(find.text('Thought about: think about it'));
       await h.send('run a tool');
       await h.waitFor(find.text('The bash tool printed: hello from pi'));
+
+      debugPrint('pi host flows: / completions in a new session');
+      await tester.tap(find.byTooltip(RegExp(r'^New session \(')));
+      await h.waitFor(find.byTooltip('Start session'));
+      await tester.enterText(h.composer, '/gre');
+      await h.waitFor(find.text('/greet'));
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await h.waitForNone(find.text('Says hello'));
+      await tester.enterText(h.composer, '/greet the team');
+      await h.tapVisible(find.byTooltip('Start session'));
+      // The faux model echoes its prompt, which holds the skill's body.
+      await h.waitFor(find.textContaining('Say hello.'));
+      await h.settle();
+      await tester.tap(_inList('hello pi'));
+      await h.waitFor(find.text('pi faux reply: hello pi'));
+
+      debugPrint('pi host flows: / completions in a follow-up');
+      await h.type('/gre');
+      await h.waitFor(find.text('/skill:greet'));
+      expect(find.text('Says hello'), findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await h.waitForNone(find.text('Says hello'));
+      expect(find.text('/skill:greet '), findsOneWidget);
+      await h.type('');
 
       debugPrint('pi host flows: stop');
       await h.send('slow, then stop');

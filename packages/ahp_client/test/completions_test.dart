@@ -93,8 +93,8 @@ void main() {
         ),
       ];
       expect(slashCommands(customizations), [
-        (name: 'review', description: 'Reviews'),
-        (name: 'explain', description: null),
+        (name: 'review', description: 'Reviews', skillUri: 'file:///skills/a'),
+        (name: 'explain', description: null, skillUri: null),
       ]);
       expect(slashCommands(null), isEmpty);
     });

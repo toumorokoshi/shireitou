@@ -125,10 +125,15 @@ AppImage and the release workflow (see
   opening another terminal. They are not driven on iOS or Android or in
   the desktop smoke tests.
 - **`/` completions (AV-044), remaining details:** the new-session
-  draft has no chat to send `completions` for, so it offers only the
-  skills and prompts the agent lists in `AgentInfo.customizations`
-  (parsed `children` only; pi lists none, so there are no completions
-  there against pi). Accepted attachments are sent when their insert
+  draft has no chat to send `completions` for, so it offers the skills
+  and prompts the agent lists in `AgentInfo.customizations` (parsed
+  `children` only; pi lists its global ones since 10ffeb9 of
+  pi-agent-host-protocol), else those of a session of the same agent
+  the app has loaded. Neither holds the chosen folder's project skills
+  until a session in that folder has been opened. The fallback inserts
+  `/name` with a skill reference: pi loads the skill from the reference,
+  but a host that ignores `_meta.uri` and names skills differently would
+  not. Accepted attachments are sent when their insert
   text is still in the message, without a `range`, and are not kept in
   the synced draft. The popup shows at most eight items (the window
   follows ↑/↓, but a mouse wheel does not scroll it), shows no icons or

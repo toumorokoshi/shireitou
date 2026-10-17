@@ -242,9 +242,13 @@ class _NewSessionViewState extends ConsumerState<NewSessionView> {
     if (chosen != null) _directory.text = chosen;
   }
 
-  /// Starts the session (and the parallel runs) with [prompt] and the
-  /// first run's [model].
-  Future<void> _start(String prompt, ModelSelection? model) async {
+  /// Starts the session (and the parallel runs) with [prompt] and its
+  /// accepted completions' [attachments], and the first run's [model].
+  Future<void> _start(
+    String prompt,
+    ModelSelection? model,
+    List<MessageAttachment> attachments,
+  ) async {
     if (_starting) return;
     final host = _host;
     final agents = _agentsOf(host);
@@ -289,6 +293,7 @@ class _NewSessionViewState extends ConsumerState<NewSessionView> {
               provider: run.agent.provider,
               workingDirectory: directory,
               prompt: prompt,
+              attachments: attachments,
               model: run.model,
               config: run.config,
             )
@@ -371,8 +376,23 @@ class _NewSessionViewState extends ConsumerState<NewSessionView> {
     final settingValues = {...?resolved?.values, ..._settings};
     final settingFields = sessionConfigFields(resolved?.schema);
     // `/` completions (AV-044): there is no chat to ask the host about
-    // yet, so the agent's own skills and prompts.
-    final commands = slashCommands(agent?.customizations);
+    // yet, so the agent's own skills and prompts, else a loaded session's.
+    final commands = draftCommands(
+      agent: agent,
+      sessions: host == null
+          ? const <SessionState>[]
+          : [
+              for (final channel
+                  in ref
+                      .watch(
+                        hostConnectionProvider(host)
+                            .select((s) => s.sessionChannels),
+                      )
+                      .values)
+                channel.state,
+            ],
+      directory: _directoryUri,
+    );
     final signIns = host == null || agent == null
         ? const <AgentSignIn>[]
         : missingAgentSignIns(
@@ -607,7 +627,7 @@ class _NewSessionViewState extends ConsumerState<NewSessionView> {
               commands: commands,
             ),
             onSend: (text, {required steer, model, attachments = const []}) =>
-                unawaited(_start(text, model)),
+                unawaited(_start(text, model, attachments)),
           ),
         ),
       ],

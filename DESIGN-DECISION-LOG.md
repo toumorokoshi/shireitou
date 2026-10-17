@@ -1,5 +1,36 @@
 # Design Decision Log
 
+## 2026-10-17: Skill completions in the new-session draft and when the host answers nothing (AV-044)
+
+Typing `/` in the new-session composer completed nothing against pi.
+The draft has no chat to send `completions` for and falls back to
+`AgentInfo.customizations`, which pi did not publish (it lists skills
+only on a session, once its pi starts). The follow-up box also showed
+nothing when the host's `completions` failed with anything other than
+"method not found", or answered no items (pi answers none when it cannot
+list its commands), even though the session listed its skills.
+
+- **pi publishes its global skills on the agent** (pi-agent-host-protocol
+  10ffeb9): `refreshAgents` lists the commands an agent started in an
+  empty folder would list, so project skills are left out. This is where
+  AHP puts an agent's customizations before a session exists, and other
+  clients (VS Code) benefit too.
+- **The app falls back to a loaded session's skills** (`draftCommands`)
+  when the agent lists none, preferring a session in the chosen folder,
+  for hosts that, like pi before, publish skills only on sessions. It
+  uses only state the app already mirrors; asking another session's chat
+  for `completions` was rejected, since it would load that session on the
+  host for an unrelated draft.
+- **Fallback skills carry a skill reference.** Customizations name pi's
+  skills without the `skill:` prefix pi expands, so inserting `/greet`
+  alone would reach pi as text. The item's attachment has VS Code's
+  skill-reference `_meta` (`uri`, `name`, `description`), which pi
+  resolves to the skill; the new-session draft now sends accepted
+  attachments with the first message.
+- **Any failed or empty host answer falls back** to the session's
+  commands, rather than only "method not found". The popup showed nothing
+  in those cases before, so the fallback can only add items.
+
 ## 2026-10-17: Resizable panes, codicons and the reference's remaining differences (AV-005, AV-067, AV-090 to AV-096)
 
 The screenshots against the reference left a list of differences in

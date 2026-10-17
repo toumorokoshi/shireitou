@@ -20,9 +20,9 @@ import 'fake_connection.dart';
 import 'fixtures.dart';
 
 const _commands = [
-  (name: 'review', description: 'Review the changes'),
-  (name: 'explain', description: 'Explain the code'),
-  (name: 'refactor', description: null),
+  (name: 'review', description: 'Review the changes', skillUri: null),
+  (name: 'explain', description: 'Explain the code', skillUri: null),
+  (name: 'refactor', description: null, skillUri: null),
 ];
 
 const _skill = DirectoryCustomization(
@@ -117,6 +117,109 @@ void main() {
       expect(applyCompletion(_at('see /re'), items.first), _at('see /review '));
     });
 
+    test('a skill command carries a skill reference', () {
+      final [skill, prompt] = commandCompletions(
+        slashCommands(const [
+          _skill,
+          DirectoryCustomization(
+            id: 'prompts',
+            uri: 'file:///w/.agents/prompts',
+            name: 'Prompts',
+            enabled: true,
+            contents: ChildCustomizationType.prompt,
+            writable: false,
+            children: [
+              PromptCustomization(
+                id: 'fix',
+                uri: 'file:///w/.agents/prompts/fix.md',
+                name: 'fix',
+              ),
+            ],
+          ),
+        ]),
+        completionToken('/', 1, ['/'])!,
+      );
+      final attachment = skill.attachment! as SimpleMessageAttachment;
+      expect(attachment.label, '/review');
+      expect(attachment.displayKind, 'skill');
+      expect(attachment.meta, {
+        'uri': 'file:///w/.agents/skills/review/SKILL.md',
+        'name': 'review',
+        'description': 'Review the changes',
+      });
+      expect(prompt.attachment, isNull);
+    });
+
+    test('draftCommands use the agent, else a session of the agent', () {
+      SessionState session(String provider, String folder) => SessionState(
+        provider: provider,
+        title: 't',
+        status: SessionStatus.idle,
+        workingDirectories: [folder],
+        lifecycle: SessionLifecycle.ready,
+        activeClients: const [],
+        chats: const [],
+        customizations: [
+          DirectoryCustomization(
+            id: folder,
+            uri: '$folder/.agents/skills',
+            name: 'Skills',
+            enabled: true,
+            contents: ChildCustomizationType.skill,
+            writable: false,
+            children: [
+              SkillCustomization(
+                id: folder,
+                uri: '$folder/SKILL.md',
+                name: folder.split('/').last,
+              ),
+            ],
+          ),
+        ],
+      );
+      List<String> names(List<SlashCommand> commands) => [
+        for (final c in commands) c.name,
+      ];
+      final sessions = [
+        session('other', 'file:///w/x'),
+        session('pi', 'file:///w/a'),
+        session('pi', 'file:///w/b'),
+      ];
+      const pi = AgentInfo(
+        provider: 'pi',
+        displayName: 'Pi',
+        description: '',
+        models: [],
+      );
+      expect(names(draftCommands(agent: pi, sessions: sessions)), ['a']);
+      expect(
+        names(
+          draftCommands(
+            agent: pi,
+            sessions: sessions,
+            directory: 'file:///w/b/',
+          ),
+        ),
+        ['b'],
+      );
+      expect(
+        names(
+          draftCommands(
+            agent: const AgentInfo(
+              provider: 'pi',
+              displayName: 'Pi',
+              description: '',
+              models: [],
+              customizations: [_skill],
+            ),
+            sessions: sessions,
+          ),
+        ),
+        ['review'],
+      );
+      expect(draftCommands(agent: null, sessions: sessions), isEmpty);
+    });
+
     test('filterCompletions puts prefix matches first, then fuzzy', () {
       final items = commandCompletions(
         _commands,
@@ -204,6 +307,18 @@ void main() {
           request: () async => [_hostItem('example')],
         );
         expect([for (final i in host) i.label], ['/skill:example']);
+        for (final request in <Future<List<CompletionItem>> Function()>[
+          () async => throw RpcException(-32603, 'internal'),
+          () async => const [],
+        ]) {
+          final items = await resolveCompletions(
+            text: '/ex',
+            token: token,
+            commands: _commands,
+            request: request,
+          );
+          expect([for (final i in items) i.label], ['/explain']);
+        }
         expect(
           await resolveCompletions(
             text: '@x',

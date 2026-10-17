@@ -257,13 +257,15 @@ class HostConnection extends Notifier<HostState> {
 
   /// Creates a session for [provider] in [workingDirectory] with the
   /// session settings [config], and sends [prompt] as its first turn with
-  /// [model] (AV-040, AV-041). Returns the session's URI as the host lists
-  /// it. Throws [SessionCreationFailedError] as soon as the host reports
-  /// that the session could not start.
+  /// [model] and [attachments] (AV-040, AV-041, AV-044). Returns the
+  /// session's URI as the host lists it. Throws
+  /// [SessionCreationFailedError] as soon as the host reports that the
+  /// session could not start.
   Future<String> startSession({
     required String provider,
     required String workingDirectory,
     required String prompt,
+    List<MessageAttachment> attachments = const [],
     ModelSelection? model,
     JsonMap? config,
   }) async {
@@ -280,7 +282,7 @@ class HostConnection extends Notifier<HostState> {
         ChatTurnStartedAction(
           turnId: const Uuid().v4(),
           startedAt: DateTime.now().toUtc().toIso8601String(),
-          message: userMessage(prompt, model: model),
+          message: userMessage(prompt, model: model, attachments: attachments),
         ).toJson(),
       );
     }

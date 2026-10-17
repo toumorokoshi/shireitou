@@ -6,6 +6,8 @@ library;
 import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter/services.dart';
 
+import '../session_list/folder_grouping.dart';
+
 /// One item in the completion popup.
 class ComposerCompletion {
   /// Creates a [ComposerCompletion].
@@ -67,7 +69,10 @@ ComposerCompletion hostCompletion(
   );
 }
 
-/// The [commands] as items that replace the `/word` of [token].
+/// The [commands] as items that replace the `/word` of [token]. A skill's
+/// item carries a skill reference (`_meta` with its `uri`, `name` and
+/// `description`, the shape VS Code sends), so a host that names its
+/// skill commands differently, such as pi's `/skill:name`, still loads it.
 List<ComposerCompletion> commandCompletions(
   List<SlashCommand> commands,
   CompletionToken token,
@@ -78,8 +83,47 @@ List<ComposerCompletion> commandCompletions(
       description: command.description,
       insertText: '/${command.name} ',
       rangeStart: token.start,
+      attachment: switch (command.skillUri) {
+        final uri? => SimpleMessageAttachment(
+          label: '/${command.name}',
+          displayKind: 'skill',
+          meta: {
+            'uri': uri,
+            'name': command.name,
+            'description': ?command.description,
+          },
+        ),
+        null => null,
+      },
     ),
 ];
+
+/// The commands for a new session of [agent] in [directory]: the agent's
+/// own, else those of a session of the same agent in [sessions] (one in
+/// [directory] first), for hosts that list skills only on sessions.
+List<SlashCommand> draftCommands({
+  required AgentInfo? agent,
+  required Iterable<SessionState> sessions,
+  String? directory,
+}) {
+  final own = slashCommands(agent?.customizations);
+  if (own.isNotEmpty || agent == null) return own;
+  final folder = directory == null ? null : normalizeFolderKey(directory);
+  final candidates = [
+    for (final session in sessions)
+      if (session.provider == agent.provider &&
+          slashCommands(session.customizations).isNotEmpty)
+        session,
+  ];
+  final inFolder = candidates.where(
+    (s) => (s.workingDirectories ?? const [])
+        .map(normalizeFolderKey)
+        .contains(folder),
+  );
+  return slashCommands(
+    (inFolder.firstOrNull ?? candidates.firstOrNull)?.customizations,
+  );
+}
 
 /// The [items] matching [query]: those whose label, without its trigger
 /// character, holds the query's characters in order (case-insensitive),
@@ -163,8 +207,9 @@ List<String> completionTriggers(
     : const ['/'];
 
 /// The completions for [token] in [text]: the host's answer to [request]
-/// (`completions`) when given, else, or when the host does not know the
-/// command, the [commands] matching a `/` word.
+/// (`completions`) when given, else, or when the host fails or answers
+/// nothing (hosts such as pi answer nothing when they cannot list their
+/// commands), the [commands] matching a `/` word.
 Future<List<ComposerCompletion>> resolveCompletions({
   required String text,
   required CompletionToken token,
@@ -173,12 +218,15 @@ Future<List<ComposerCompletion>> resolveCompletions({
 }) async {
   if (request != null) {
     try {
-      return [
-        for (final item in await request())
-          hostCompletion(item, text: text, commands: commands),
-      ];
-    } on Object catch (error) {
-      if (!isMethodNotFound(error)) rethrow;
+      final items = await request();
+      if (items.isNotEmpty) {
+        return [
+          for (final item in items)
+            hostCompletion(item, text: text, commands: commands),
+        ];
+      }
+    } on Object {
+      // Fall back to the commands below.
     }
   }
   return token.trigger == '/'
