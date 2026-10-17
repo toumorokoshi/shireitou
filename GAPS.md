@@ -54,12 +54,6 @@ AppImage and the release workflow (see
 
   - **Rename a session:** clicking the session's title in the header
     should let the user edit it in place.
-  - **Denser sidebar:** the icons and text in the left-hand session list
-    are too large. Use smaller icons and fonts and thin rows so more
-    sessions fit.
-  - **Hosts and workspaces in the sidebar:** replace the host dropdown
-    with a tree on the left that lists every host and its workspaces
-    (AV-012, AV-025, AV-031).
   - **Reorder workspaces:** drag and drop workspace folders in the
     sidebar to reorder them, with the order remembered.
   - **Collapsible right-hand pane (AV-003):** on wide layouts the review
@@ -287,13 +281,22 @@ AppImage and the release workflow (see
     the app. There is
     no shortcut help overlay (the spec has none); tooltips and the
     search hint name the keys, and macOS lists them in the menu.
+- **Sidebar tree (AV-012, AV-025):** collapsed hosts and folders are
+  kept in memory only, so every host and folder is expanded again after
+  a restart. Only the open hosts are in the tree; remembered hosts that
+  are not open are listed under Recent hosts on the "Add host…" page.
+  Folders do not narrow the list (collapsing the others or the `repo:`
+  qualifier does). The tree's top level replaces grouping by host; the
+  other alternative grouping of AV-031, by time, is not built. Thin rows
+  are chosen by layout width (medium and wide), not by input device, so
+  a touch screen at desktop width gets the 28 to 32 px rows.
 - **Hosts (AV-010 to AV-012):** the open hosts' keys are saved with the
   remembered hosts, so a host is only reopened after a restart when it is
   remembered (it connected once and secure storage works); with a locked
   keyring nothing is restored. A host that never connected is dropped
   when its connect fails (its error shows on the connect page); a
-  remembered one stays open, failed, with Retry and Remove in the host
-  switcher. Secure storage per platform:
+  remembered one stays open, failed, with Retry and Remove on its row in
+  the sidebar tree. Secure storage per platform:
   - Web: encrypted local storage; verified.
   - Linux: libsecret; verified by the desktop smoke test with a fresh
     gnome-keyring. A locked keyring (`KeyringLocked`) or no Secret Service

@@ -18,6 +18,7 @@ import '../session_list/pinned_store.dart';
 import '../session_list/session_filter.dart';
 import '../session_list/session_list_view.dart';
 import '../session_list/session_query.dart';
+import '../session_list/session_tree.dart';
 import '../shortcuts.dart';
 import '../notifications/notification_menu.dart';
 import '../notifications/notifications.dart';
@@ -55,6 +56,12 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
 
   /// The host the list is narrowed to; null shows every host.
   String? _hostFilter;
+
+  /// Ids of the collapsed hosts and folders in the sidebar tree.
+  Set<String> _collapsed = const {};
+
+  /// The shown folders, to reveal a selected session's folder.
+  List<FolderGroup> _groups = const [];
 
   /// The shown sessions in list order, for next/previous (AV-140).
   List<SessionRef> _order = const [];
@@ -142,7 +149,10 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
   );
 
   void _select(SessionRef session) {
-    setState(() => _selected = session);
+    setState(() {
+      _selected = session;
+      _collapsed = revealSession(_collapsed, _groups, session);
+    });
     if (_tier != LayoutTier.compact) return;
     final route = MaterialPageRoute<void>(builder: (_) => _detailPage(session));
     final navigator = Navigator.of(context);
@@ -301,7 +311,17 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
           s,
     ];
     final pinned = ref.watch(pinnedSessionsProvider);
-    final groups = groupHostSessions(shown, sort: _sort, pinned: pinned);
+    final groups = _groups = groupHostSessions(
+      shown,
+      sort: _sort,
+      pinned: pinned,
+    );
+    final tree = sessionTree(
+      hosts,
+      groups,
+      hostsWithSessions: {for (final s in onHost) s.host},
+      hostFilter: hostFilter,
+    );
     _order = [
       for (final g in groups)
         for (final s in g.sessions) (host: g.host, session: s.resource),
@@ -326,15 +346,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
     });
     return Scaffold(
       appBar: AppBar(
-        title: HostSwitcher(
-          hosts: hosts,
-          selected: hostFilter,
-          onSelect: (host) => setState(() => _hostFilter = host),
-          onAddHost: _addHost,
-          onRetry: (host) => ref.read(openHostsProvider.notifier).retry(host),
-          onRemove: (host) =>
-              ref.read(openHostsProvider.notifier).disconnect(host),
-        ),
+        title: Text(hostsTitle(hosts, hostFilter)),
         actions: [
           IconButton(
             tooltip: 'New session (${shortcutLabel(AppCommand.newSession)})',
@@ -415,18 +427,27 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                 ),
               Expanded(
                 child: SessionListView(
-                  groups: groups,
+                  tree: tree,
+                  collapsed: _collapsed,
+                  onToggle: (id) =>
+                      setState(() => _collapsed = toggledNode(_collapsed, id)),
                   selected: _selected,
                   onSelect: _select,
-                  hostLabels: hostFilter == null ? labels : const {},
+                  selectedHost: hostFilter,
+                  onSelectHost: hosts.length > 1
+                      ? (host) => setState(() => _hostFilter = host)
+                      : null,
+                  onAddHost: _addHost,
+                  onRetry: (host) =>
+                      ref.read(openHostsProvider.notifier).retry(host),
+                  onRemove: (host) =>
+                      ref.read(openHostsProvider.notifier).disconnect(host),
                   onNewSession: (group) =>
                       _newSession(host: group.host, directory: group.key),
                   selection: selection,
                   runLabels: runLabels,
                   pinned: pinned,
-                  emptyText: onHost.isEmpty
-                      ? 'No sessions on this host yet.'
-                      : 'No sessions match.',
+                  dense: tier != LayoutTier.compact,
                   actions: SessionRowActions(
                     onArchive: (s, archived) => _setArchived([s], archived),
                     onMarkRead: (s, read) => _setRead([s], read),
@@ -480,148 +501,6 @@ SessionRef? steppedSession(
   if (index < 0) return delta >= 0 ? order.first : order.last;
   return order[(index + delta).clamp(0, order.length - 1)];
 }
-
-/// The host switcher in the title (AV-010 to AV-012): shows which host
-/// the list is narrowed to (or "All hosts"), each host's connection
-/// status and error, retries or removes a host that is not connected,
-/// and adds hosts.
-class HostSwitcher extends StatelessWidget {
-  /// Creates a [HostSwitcher].
-  const HostSwitcher({
-    super.key,
-    required this.hosts,
-    required this.selected,
-    required this.onSelect,
-    required this.onAddHost,
-    this.onRetry,
-    this.onRemove,
-  });
-
-  /// The open hosts.
-  final List<HostInfo> hosts;
-
-  /// The host the list shows, or null for all.
-  final String? selected;
-
-  /// Narrows the list to a host (null for all).
-  final ValueChanged<String?> onSelect;
-
-  /// Opens the page that connects another host.
-  final VoidCallback onAddHost;
-
-  /// Connects a failed host again, by key.
-  final ValueChanged<String>? onRetry;
-
-  /// Closes a host that is not connected, by key.
-  final ValueChanged<String>? onRemove;
-
-  static Widget _dot(BuildContext context, HostInfo host) {
-    final scheme = Theme.of(context).colorScheme;
-    return Icon(
-      Icons.circle,
-      size: 10,
-      color: switch (host.status) {
-        ConnectionStatus.connected => Colors.green,
-        ConnectionStatus.failed => scheme.error,
-        _ => scheme.outline,
-      },
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final current = hosts.where((h) => h.key == selected).firstOrNull;
-    final title = switch ((current, hosts.length)) {
-      (final host?, _) => host.label,
-      (null, 1) => hosts.single.label,
-      (null, 0) => 'shireitou',
-      _ => 'All hosts',
-    };
-    final idle = [
-      for (final h in hosts)
-        if (h.status == ConnectionStatus.failed ||
-            h.status == ConnectionStatus.disconnected)
-          h,
-    ];
-    return PopupMenuButton<String?>(
-      tooltip: 'Switch host',
-      onSelected: (key) => switch (key) {
-        _addHostValue => onAddHost(),
-        final String k when k.startsWith(_retryPrefix) => onRetry?.call(
-          k.substring(_retryPrefix.length),
-        ),
-        final String k when k.startsWith(_removePrefix) => onRemove?.call(
-          k.substring(_removePrefix.length),
-        ),
-        _ => onSelect(key),
-      },
-      itemBuilder: (context) => [
-        if (hosts.length > 1)
-          CheckedPopupMenuItem(
-            value: null,
-            checked: selected == null,
-            child: Text('All hosts (${hosts.length})'),
-          ),
-        for (final host in hosts)
-          CheckedPopupMenuItem(
-            value: host.key,
-            checked: selected == host.key,
-            child: ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: _dot(context, host),
-              title: Text(host.label),
-              subtitle: Text(hostStatusText(host)),
-            ),
-          ),
-        for (final host in idle) ...[
-          if (onRetry != null)
-            PopupMenuItem(
-              value: '$_retryPrefix${host.key}',
-              child: ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.refresh),
-                title: Text('Retry ${host.label}'),
-              ),
-            ),
-          if (onRemove != null)
-            PopupMenuItem(
-              value: '$_removePrefix${host.key}',
-              child: ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.close),
-                title: Text('Remove ${host.label}'),
-              ),
-            ),
-        ],
-        const PopupMenuDivider(),
-        const PopupMenuItem(
-          value: _addHostValue,
-          child: ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.add_link),
-            title: Text('Add host…'),
-          ),
-        ),
-      ],
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Flexible(child: Text(title, overflow: TextOverflow.ellipsis)),
-          const Icon(Icons.arrow_drop_down),
-        ],
-      ),
-    );
-  }
-}
-
-/// The [HostSwitcher] menu value that adds a host (never a host key,
-/// which is a ws:// URL).
-const _addHostValue = '#add-host';
-
-/// Prefixes of the [HostSwitcher] menu values that retry or remove a
-/// host (followed by its key).
-const _retryPrefix = '#retry:';
-const _removePrefix = '#remove:';
 
 /// Filter chips above the session list (AV-022); "Needs attention"
 /// carries the attention count (AV-120).

@@ -11,6 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shireitou/src/app.dart';
 import 'package:shireitou/src/hosts/host_store.dart';
 import 'package:shireitou/src/hosts/saved_hosts.dart';
+import 'package:shireitou/src/session_list/session_list_view.dart';
 
 import 'fake_connection.dart';
 import 'fixtures.dart';
@@ -97,26 +98,50 @@ Future<(FakeHostConnection, FakeHostConnection)> _pump(
 void main() {
   setUp(() => FlutterSecureStorage.setMockInitialValues({}));
 
-  testWidgets('sessions of every host are listed, tagged by host, and the '
-      'switcher narrows the list', (tester) async {
+  testWidgets('every host is a node of the sidebar tree with its folders, '
+      'and tapping a host narrows the list', (tester) async {
     await _pump(tester);
     expect(find.text('All hosts'), findsOneWidget);
     expect(find.text('Fix login'), findsOneWidget);
     expect(find.text('Deploy'), findsOneWidget);
-    // The same path on two hosts is two folders, each naming its host.
+    // The same path on two hosts is two folders, each under its host.
+    expect(find.text('test host'), findsOneWidget);
+    expect(find.text('build box'), findsOneWidget);
     expect(find.text('app'), findsNWidgets(2));
-    expect(find.text('test host · /src/app'), findsOneWidget);
-    expect(find.text('build box · /src/app'), findsOneWidget);
+    expect(find.text('/src/app'), findsNWidgets(2));
+    expect(
+      find.byWidgetPredicate(
+        (w) => w is Icon && w.semanticLabel == 'Connected',
+      ),
+      findsNWidgets(2),
+    );
 
-    await tester.tap(find.byTooltip('Switch host'));
+    // Collapsing a host hides its folders; expanding shows them again.
+    await tester.tap(find.byTooltip('Collapse build box'));
     await tester.pumpAndSettle();
-    expect(find.text('All hosts (2)'), findsOneWidget);
-    expect(find.text('Connected'), findsNWidgets(2));
-    await tester.tap(find.text('build box').last);
+    expect(find.text('Deploy'), findsNothing);
+    expect(find.text('app'), findsOneWidget);
+    await tester.tap(find.byTooltip('Expand build box'));
+    await tester.pumpAndSettle();
+    expect(find.text('Deploy'), findsOneWidget);
+
+    // Collapsing a folder hides its sessions (the build box is listed
+    // first, as it was opened first).
+    await tester.tap(find.text('app').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Deploy'), findsNothing);
+    expect(find.text('Fix login'), findsOneWidget);
+    await tester.tap(find.text('app').first);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('build box'));
     await tester.pumpAndSettle();
     expect(find.text('Deploy'), findsOneWidget);
     expect(find.text('Fix login'), findsNothing);
+    // The other host stays listed, without its folders.
+    expect(find.text('test host'), findsOneWidget);
     expect(find.text('/src/app'), findsOneWidget);
+    expect(find.text('build box'), findsNWidgets(2));
     expect(find.byTooltip('Disconnect build box'), findsOneWidget);
 
     // Opening a session shows it from its own host.
@@ -129,21 +154,46 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Fix login'), findsOneWidget);
     expect(find.text('Deploy'), findsNothing);
-    expect(find.text('test host'), findsOneWidget);
+    expect(find.text('test host'), findsNWidgets(2));
   });
 
   testWidgets('"Add host…" connects another host from a pushed page', (
     tester,
   ) async {
     await _pump(tester);
-    await tester.tap(find.byTooltip('Switch host'));
-    await tester.pumpAndSettle();
     await tester.tap(find.text('Add host…'));
     await tester.pumpAndSettle();
     expect(find.text('Connect to another host'), findsOneWidget);
     await tester.pageBack();
     await tester.pumpAndSettle();
     expect(find.text('All hosts'), findsOneWidget);
+  });
+
+  testWidgets('desktop rows are thin; compact rows keep touch targets', (
+    tester,
+  ) async {
+    await _pump(tester);
+    expect(
+      tester.getSize(find.byKey(const ValueKey('add-host'))).height,
+      denseHeaderHeight,
+    );
+    expect(
+      tester.getSize(find.widgetWithText(InkWell, 'Deploy')).height,
+      lessThanOrEqualTo(denseSessionHeight),
+    );
+
+    tester.view.physicalSize = const Size(400, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpAndSettle();
+    expect(
+      tester.getSize(find.byKey(const ValueKey('add-host'))).height,
+      kMinInteractiveDimension,
+    );
+    expect(
+      tester.getSize(find.widgetWithText(InkWell, 'Deploy')).height,
+      greaterThanOrEqualTo(kMinInteractiveDimension),
+    );
   });
 
   testWidgets('the folder "+" opens the composer on that host and folder, '

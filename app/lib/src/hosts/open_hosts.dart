@@ -54,7 +54,7 @@ class OpenHosts extends Notifier<List<SavedHost>> {
   /// Connects to [host] alongside the others (reconnecting it if it was
   /// already open). A host whose connect fails stays open, failed, when
   /// it is a remembered host (one that connected before), so it can be
-  /// retried from the host switcher or the connect screen; a host that
+  /// retried from the sidebar or the connect screen; a host that
   /// never connected is dropped again, and its error stays in
   /// `hostConnectionProvider(host.key)` for the connect screen.
   Future<void> connect(SavedHost host) async {

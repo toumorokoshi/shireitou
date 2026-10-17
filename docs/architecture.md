@@ -199,10 +199,10 @@ Dart source); `bin/generate.dart` does the file I/O. See
   `HostSession`s). `OpenHosts` saves the open hosts' keys
   (`HostStore.saveOpenHosts`) and `restore()` (called by `HomeScreen` on
   start) reconnects them; a remembered host whose connect fails stays
-  open, failed, with Retry and Remove in the host switcher (and its error
+  open, failed, with Retry and Remove on its sidebar row (and its error
   under Recent hosts on the connect screen), while a host that never
   connected is dropped again. The connect screen prefills the most recent
-  host and lists the rest; "Add host…" in the host switcher pushes it
+  host and lists the rest; "Add host…" at the end of the sidebar pushes it
   again.
 - `lib/src/auth/`: sign-in (AHP-060 to AHP-062). `sign_in_dialog.dart`
   is the dialog ("Sign in with browser" when the resource names an
@@ -254,7 +254,13 @@ Dart source); `bin/generate.dart` does the file I/O. See
   AV-027), `pinned_sessions.dart` (`withPinned` and the pin set's JSON,
   AV-028), and `formatRelativeTime`. `pinned_store.dart` keeps the pinned
   sessions (by host and session) on this device with `PrefsStore`.
-  `session_list_view.dart` renders the folders; each row has a menu
+  `session_tree.dart` builds the sidebar tree: `sessionTree` puts each
+  open host's folders under it, `sidebarRows` flattens it into host,
+  folder, session and empty rows while skipping collapsed hosts and
+  folders, and `revealSession` expands the ones holding an opened
+  session. `session_list_view.dart` renders the rows lazily (thin rows
+  on medium and wide layouts, touch-sized ones on compact layouts);
+  host rows show the status with Retry and Remove, and each session row has a menu
   (right-click, long-press, and screen reader actions) to archive, mark
   read or unread, pin or unpin and select, swipes left to archive or
   unarchive, shows a pin marker on pinned rows, and shows checkboxes while

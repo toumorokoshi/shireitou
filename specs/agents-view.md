@@ -74,6 +74,43 @@ shows the repository when the host's `project` names one other than the
 folder, and the branch from `_meta.git.branchName` (VS Code's agent host
 convention); pi reports neither, so its folders show the path only.
 
+### Sidebar tree
+
+The left-hand session list is a tree (AV-012, AV-025):
+
+- **Hosts** at the top level, one row per open host (connected, or
+  remembered and failed), in the order they were opened. A row shows a
+  status dot, the host's label, its status or error when it is not
+  connected, the session count and attention badge, and Retry and Remove
+  for a host that is not connected. "Add host…" is the last row.
+- **Workspace folders** under their host (the AV-025 folders), with the
+  repository, branch and path beside the name, the counts and the "+"
+  button.
+- **Sessions** under their folder.
+- Hosts and folders collapse (the host's chevron, a tap on the folder
+  row). Opening a session (a click, a notification, Alt+↓/↑) expands its
+  host and folder.
+- With several hosts, tapping a host narrows the list to it (the other
+  hosts stay listed without folders); tapping it again shows every host.
+  Folders do not narrow the list: collapsing the others, or the `repo:`
+  search qualifier, does that.
+- Filters, search, sort, pins and multi-select apply to the sessions in
+  the tree; a host left with no sessions says "No sessions on this host
+  yet." or "No sessions match.".
+- **Density:** with a pointer (medium and wide layouts) host and folder
+  rows are 28 px and session rows 32 px (title at 13 px, details at
+  11 px, 16 px icons). On compact layouts rows are at least 48 px for
+  touch. Status badges keep the 11 px label size.
+- The tree is built by pure functions, `sessionTree` (hosts with their
+  folders, in the order of the grouped folders) and `sidebarRows` (the
+  rows left after collapsing), in
+  `app/lib/src/session_list/session_tree.dart`, so a user-defined folder
+  order only has to order the folders before `sessionTree`.
+
+Status (2026-10-16): implemented. Collapsed hosts and folders are not
+remembered across restarts, and hosts that are remembered but not open
+are listed on the "Add host…" page (Recent hosts), not in the tree.
+
 ## Starting a session (composer)
 
 | ID     | Pri | Requirement                                                                                                                                                                       |
@@ -223,9 +260,9 @@ hosts (shortcuts, OAuth through `oauth_callback.html`, reconnects); see
 | AV-007 | Done        | Linux, macOS and Windows build in CI and pass a desktop smoke test against pi (window, minimum size, secure storage, token header) and the fake host app flows; macOS has the network-client entitlement. iOS and Android are built in CI and pass a mobile smoke test on a simulator and an emulator. See [docs/desktop.md](../docs/desktop.md) and [docs/mobile.md](../docs/mobile.md).                                                                                                                                                                                                          |
 | AV-008 | Done        | Minimum size, remembered size/position/maximized state, macOS menu bar (app, Session with the AV-140 shortcuts, Host, View, Window).                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | AV-009 | Done        | `.tar.gz`, `.deb` and AppImage (x64 and arm64) for Linux, `.dmg` for macOS, `.zip` and `.msix` for Windows and an APK for Android, built on every push and published to a GitHub Release on `v*` tags. The `.dmg` is signed and notarized, the Windows files signed, the APK release-signed and `SHA256SUMS` GPG-signed only when their secrets are set (none are yet). See [docs/packaging.md](../docs/packaging.md).                                                                                                                                                                             |
-| AV-010 | Done        | Up to 20 remembered hosts (name, URL, token) in secure storage; connect, edit or forget from the connect screen, and add more from the host switcher ("Add host…"). Several hosts are connected at once. A secure storage failure (a locked Linux keyring, no Secret Service) is shown as a banner with Retry, and hosts are kept in memory meanwhile.                                                                                                                                                                                                                                             |
-| AV-011 | Done        | Connect errors (including `-32005` with the host's versions) on the connect screen, each host's status and last error in the host switcher with Retry and Remove for a host that is not connected (a remembered host that fails stays open), a "Reconnecting…" chip naming the hosts, an "AHP 0.9.0" chip per older host, and snackbars for undone actions. The hosts open at the last run are reconnected on start. Reconnects are driven end to end (fake host and pi, desktop and web): the chip, a replay, a rolled-back message with its notice, a host restart, and a session the host lost. |
-| AV-012 | Done        | Every connected host's sessions are merged into one list; folders are per host and name it, and the host switcher narrows the list to one host.                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| AV-010 | Done        | Up to 20 remembered hosts (name, URL, token) in secure storage; connect, edit or forget from the connect screen, and add more with "Add host…" in the sidebar. Several hosts are connected at once. A secure storage failure (a locked Linux keyring, no Secret Service) is shown as a banner with Retry, and hosts are kept in memory meanwhile.                                                                                                                                                                                                                                                  |
+| AV-011 | Done        | Connect errors (including `-32005` with the host's versions) on the connect screen, each host's status and last error in its sidebar entry with Retry and Remove for a host that is not connected (a remembered host that fails stays open), a "Reconnecting…" chip naming the hosts, an "AHP 0.9.0" chip per older host, and snackbars for undone actions. The hosts open at the last run are reconnected on start. Reconnects are driven end to end (fake host and pi, desktop and web): the chip, a replay, a rolled-back message with its notice, a host restart, and a session the host lost. |
+| AV-012 | Done        | Every connected host's sessions are merged into one list. The sidebar is a tree of hosts, their workspace folders and the folders' sessions (see [Sidebar tree](#sidebar-tree)); tapping a host narrows the list to it.                                                                                                                                                                                                                                                                                                                                                                            |
 | AV-020 | Done        |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | AV-021 | Done        |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | AV-022 | Done        | Active (default, hides archived), Needs attention (with its count), Done (idle, not failed, not archived), Archived, All.                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |

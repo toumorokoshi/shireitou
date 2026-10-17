@@ -194,7 +194,8 @@ test-fake-host-app [linux|macos]`, run by CI on both desktops): the real
   tool's input, accepts a result, syncs an input draft and gets another
   client's, and starts a session with the secured agent (the composer
   asks for sign-in; `-32007` prompts it and the start is retried). A third test adds a second fake
-  host from the host switcher, checks the merged list and the switcher,
+  host from "Add host…" in the sidebar, checks the merged list and
+  narrows it by tapping the host in the sidebar tree,
   starts a session from a folder's "+" button with the host picker,
   folder browser, a model option, the mode and a branch suggestion, changes
   the mode from the follow-up bar, and checks that a session in a missing

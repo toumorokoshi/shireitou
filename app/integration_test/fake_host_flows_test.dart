@@ -5,7 +5,7 @@
 /// blocks, grouped tool calls, live terminal output, inline diffs and the
 /// review pane, a subagent chat and the chat switcher, queued messages,
 /// drafts and paging in a windowed chat; then a second host, the merged
-/// session list and host switcher, and the composer (host picker, folder
+/// session list and sidebar host tree, and the composer (host picker, folder
 /// browser, model options, session settings, a session that fails to
 /// start) and the follow-up mode picker; then the session list (search,
 /// filters, archiving from the list, multi-select), keyboard shortcuts,
@@ -26,6 +26,7 @@ import 'package:integration_test/integration_test.dart';
 import 'package:shireitou/src/session_detail/code_highlight.dart';
 import 'package:shireitou/src/session_detail/session_detail_view.dart';
 import 'package:shireitou/src/session_detail/session_status_widgets.dart';
+import 'package:shireitou/src/session_list/session_list_view.dart';
 import 'package:shireitou/src/shortcuts.dart';
 
 import 'harness.dart';
@@ -429,9 +430,15 @@ void main() {
     // Folder labels carry the branch the host reports in `_meta.git`.
     expect(find.textContaining('⎇ main'), findsWidgets);
 
-    // Add the second host from the host switcher.
-    await tester.tap(find.byTooltip('Switch host'));
-    await h.settle();
+    // Add the second host from the end of the sidebar.
+    await tester.scrollUntilVisible(
+      find.text('Add host…'),
+      100,
+      scrollable: find.descendant(
+        of: find.byType(SessionListView),
+        matching: find.byType(Scrollable),
+      ),
+    );
     await tester.tap(find.text('Add host…'));
     await h.settle();
     await tester.enterText(
@@ -444,12 +451,11 @@ void main() {
     await h.settle();
     expect(find.text('Scripted session'), findsOneWidget);
     expect(find.text('All hosts'), findsOneWidget);
-    expect(find.textContaining('second-host · ⎇ main'), findsOneWidget);
+    // The second host is a node of the sidebar tree.
+    expect(find.text('second-host'), findsOneWidget);
 
-    // The switcher narrows the list to one host.
-    await tester.tap(find.byTooltip('Switch host'));
-    await h.settle();
-    await tester.tap(find.text('second-host').last);
+    // Tapping the host narrows the list to it.
+    await h.tapVisible(find.text('second-host'));
     await h.settle();
     expect(find.text('Scripted session'), findsNothing);
     expect(find.text('Other Scripted session'), findsOneWidget);

@@ -460,16 +460,12 @@ void main() {
         other.key,
       ]);
 
-      await tester.tap(find.byTooltip('Switch host'));
-      await tester.pumpAndSettle();
       expect(find.text('Connection refused'), findsOneWidget);
-      await tester.tap(find.text('Retry build box'));
+      await tester.tap(find.byTooltip('Retry build box'));
       await tester.pumpAndSettle();
       expect(connections[other.key]!.connected, [other.url, other.url]);
 
-      await tester.tap(find.byTooltip('Switch host'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Remove build box'));
+      await tester.tap(find.byTooltip('Remove build box'));
       await tester.pumpAndSettle();
       expect(container.read(openHostsProvider).map((h) => h.key), [
         testHost.key,

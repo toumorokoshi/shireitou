@@ -115,14 +115,8 @@ void main() {
       final group = groupSessionsByFolder([worktree]).single;
       expect(group.repo, 'app');
       expect(group.branch, 'fix');
-      expect(
-        folderDetails(group, 'laptop'),
-        'laptop · app · ⎇ fix · /src/app-worktrees/fix',
-      );
-      expect(
-        folderDetails(groupSessionsByFolder([session('3')]).single, null),
-        '',
-      );
+      expect(folderDetails(group), 'app · ⎇ fix · /src/app-worktrees/fix');
+      expect(folderDetails(groupSessionsByFolder([session('3')]).single), '');
     });
 
     test('recentFolders lists a host\'s folders, newest first', () {

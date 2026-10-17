@@ -1,5 +1,38 @@
 # Design Decision Log
 
+## 2026-10-16: Hosts and workspaces in a dense sidebar tree (AV-012, AV-025)
+
+- **A tree replaces the host dropdown.** The sidebar lists every open
+  host, its workspace folders under it and their sessions under those.
+  The dropdown hid each host's status and errors behind a menu and made
+  "Add host…" hard to find; on the tree's host rows the status, Retry
+  and Remove are always visible, and "Add host…" is the last row.
+- **Tapping a host still narrows the list; folders do not.** With
+  several hosts, a host's sessions can be far down the list, so
+  narrowing stays (it also scopes "New session" and "Disconnect" to that
+  host). The other hosts stay listed without their folders, so another
+  host is one tap away. Folders are not a filter: collapsing the other
+  folders, or the `repo:` search qualifier, already narrows to one, and
+  a second kind of selection on the same rows would be confusing. Folder
+  rows toggle on tap; host rows toggle with their chevron.
+- **Pure tree functions, rendered lazily.** `sessionTree` (hosts with
+  their folders) and `sidebarRows` (the rows left after collapsing) are
+  pure, and `SessionListView` draws the rows with `ListView.builder`
+  instead of nested `ExpansionTile`s. The folders keep the order of
+  `groupHostSessions`, so a user-defined folder order (drag and drop)
+  only has to reorder the folders before `sessionTree`. Opening a
+  session expands its host and folder (`revealSession`), so Alt+↓/↑ and
+  notifications never land on a hidden row.
+- **Custom rows instead of `ListTile`.** A two-line `ListTile` places
+  its lines at fixed baselines and cannot go below about 48 px, so the
+  rows are a small `InkWell` with the same button and selected
+  semantics. With a pointer (medium and wide layouts) host and folder
+  rows are 28 px and session rows 32 px (13 px title, 11 px details,
+  16 px icons); compact layouts keep 48 px rows for touch. Status badges
+  keep the 11 px label and lose padding instead.
+- **Collapsed state is kept in memory.** Remembering it is left for
+  later, with the folder order, so both can share one stored setting.
+
 ## 2026-10-16: Click a queued message to edit it in place (AV-081)
 
 - **An inline editor in the row, not the follow-up box.** The follow-up
