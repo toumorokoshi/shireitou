@@ -269,6 +269,21 @@ host, pi-agent-host-protocol), which settle how these features work:
   and the browser), and again from the bell menu while refused. Only
   the session on screen is quiet, and only while the window has focus.
 
+## Visual design
+
+The app matches the reference screenshot in
+[design/reference/agents-window.md](../design/reference/agents-window.md).
+
+| ID     | Pri | Requirement                                                                                                                                                                                                                                                              |
+| ------ | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| AV-090 | P0  | Theme: follow the system light or dark setting; the dark theme matches the reference (flat greys, no cards or elevation, hairline borders).                                                                                                                              |
+| AV-091 | P0  | Title bar: sidebar toggle, back and forward, a centred workspace box, and a review pane icon toggle; drawn in the macOS title bar.                                                                                                                                       |
+| AV-092 | P0  | Sidebar header ("Sessions", "New ⌘N", filter, search and "…" icons) and sections: Pinned, Chats (no working directory), then one section per working directory labelled "folder [repo]". Hosts are not a level; the host is shown in the row when several are connected. |
+| AV-093 | P0  | Session rows: two lines with a status dot, title, folder, host and time; pin and mark-done (archive) icons on hover; a hover card with the agent and full path.                                                                                                          |
+| AV-094 | P0  | Session header: the title and a "…" menu holding the other details and actions.                                                                                                                                                                                          |
+| AV-095 | P0  | Timeline: user bubbles on the right, agent markdown full width with bordered tables, tool calls collapsed into "Completed N steps in T", a round jump-to-latest button, and a turn rail shown on hover.                                                                  |
+| AV-096 | P0  | Composer: one rounded box with "Chat with <agent> [<workspace>]", and "+", mode, model and effort/context chips and send/stop along its bottom, also used for new sessions.                                                                                              |
+
 ## Implementation status
 
 As of 2026-10-16, iteration 13 (`app/`; Windows, iOS and Android builds

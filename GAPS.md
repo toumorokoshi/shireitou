@@ -49,6 +49,24 @@ smoke-tested Windows, iOS and Android in CI, added the app icon, the
 AppImage and the release workflow (see
 [docs/packaging.md](docs/packaging.md)). Remaining work:
 
+- **Highest priority (user feedback, 2026-10-16): match the reference
+  UI** in [design/reference/agents-window.md](design/reference/agents-window.md)
+  (AV-090 to AV-096). Do these before the items below.
+
+  - **Theme and title bar (AV-090, AV-091):** system light or dark, the
+    reference's flat dark palette; a slim title bar with the sidebar
+    toggle, back and forward, a workspace box and a review pane icon.
+  - **Sidebar (AV-092, AV-093):** the "Sessions" header with icon
+    buttons; Pinned, Chats and per-directory workspace sections instead
+    of the host tree; two-line rows with a status dot, hover pin and
+    mark-done icons, and a hover card.
+  - **Session header and timeline (AV-094, AV-095):** a title-only
+    header with a "…" menu; user bubbles; collapsed "Completed N steps"
+    lines; bordered tables; a round jump-to-latest button; the turn rail
+    on hover.
+  - **Composer (AV-096):** the rounded box with chips along its bottom,
+    for follow-ups and new sessions alike.
+
 - **SSH terminal (AV-014), remaining details:** no terminal on the web
   (browsers have no TCP sockets; a WebSocket-to-SSH bridge on the host
   would be needed). The SSH agent works only on Linux: not in the
