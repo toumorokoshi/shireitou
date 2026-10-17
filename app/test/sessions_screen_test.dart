@@ -144,6 +144,10 @@ void main() {
     expect(dot(attentionDotLabel), findsOneWidget);
     expect(find.byType(StatusBadgeChip), findsNothing);
     expect(find.text('Select a session'), findsOneWidget);
+    // The header's "New ⌘N" button is named for screen readers.
+    final semantics = tester.ensureSemantics();
+    expect(find.bySemanticsLabel('New session'), findsOneWidget);
+    semantics.dispose();
   });
 
   testWidgets('archived sessions are hidden until the Archived filter', (

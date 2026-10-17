@@ -834,16 +834,22 @@ class _SidebarHeader extends StatelessWidget {
                 ),
               ),
               onPressed: onNewSession,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('New'),
-                  const SizedBox(width: 6),
-                  Text(
-                    shortcutLabel(AppCommand.newSession),
-                    style: theme.textTheme.labelSmall?.copyWith(color: muted),
-                  ),
-                ],
+              // Named "New session" for screen readers rather than by its
+              // short visible text and shortcut.
+              child: Semantics(
+                label: 'New session',
+                excludeSemantics: true,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('New'),
+                    const SizedBox(width: 6),
+                    Text(
+                      shortcutLabel(AppCommand.newSession),
+                      style: theme.textTheme.labelSmall?.copyWith(color: muted),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
