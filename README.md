@@ -12,7 +12,8 @@ with a UX modeled on the GitHub Agents view and Cursor's Agents Window.
 > them), opens a session's
 > history (paging older turns in when the host windows it, with a rail
 > of turn markers to jump between turns), streams
-> replies with highlighted code, groups similar tool calls, shows live
+> replies with highlighted code, folds each turn's tool calls into one
+> "Completed N steps" line (grouping similar ones), shows live
 > terminal output and inline diffs, switches between a session's chats
 > (subagents, side chats), sends, queues, edits and reorders follow-ups,
 > syncs drafts, stops turns, answers tool approvals (with the host's

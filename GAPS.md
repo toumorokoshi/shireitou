@@ -57,10 +57,7 @@ AppImage and the release workflow (see
     buttons; Pinned, Chats and per-directory workspace sections instead
     of the host tree; two-line rows with a status dot, hover pin and
     mark-done icons, and a hover card.
-  - **Session header and timeline (AV-094, AV-095):** a title-only
-    header with a "…" menu; user bubbles; collapsed "Completed N steps"
-    lines; bordered tables; a round jump-to-latest button; the turn rail
-    on hover.
+  - **Session header (AV-094):** a title-only header with a "…" menu.
   - **Composer (AV-096):** the rounded box with chips along its bottom,
     for follow-ups and new sessions alike.
 
@@ -80,6 +77,16 @@ AppImage and the release workflow (see
   then the bar's copies can go. Back and forward have no shortcut and
   forget the history on restart; the compact layout has no back and
   forward (the system back button pops the session page).
+- **Timeline look (AV-095), remaining details:** the steps line shows
+  no elapsed time while a turn runs (only "Working… N steps"), and a
+  finished turn's time comes from `Turn.duration`, so it is left out
+  when the host does not send one (the fake host's turns finish in
+  "0s"). Failed tool calls fold into the steps line with a "N failed"
+  count instead of staying in view. Steps rows remember being expanded
+  only while the timeline is open. Bubbles show only the
+  message text (no attachments). The rail shows on hover but has no
+  keyboard focus of its own; the Cmd/Ctrl+Alt+↑/↓ shortcuts and the
+  screen reader buttons are the non-pointer ways in.
 - **SSH terminal (AV-014), remaining details:** no terminal on the web
   (browsers have no TCP sockets; a WebSocket-to-SSH bridge on the host
   would be needed). The SSH agent works only on Linux: not in the

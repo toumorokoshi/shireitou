@@ -339,21 +339,35 @@ Dart source); `bin/generate.dart` does the file I/O. See
   streams), so a delta only rebuilds the active turn's rows;
   `TimelineRows` indexes them without copying and finds rows by key for
   the keyed, lazily built list. It also groups consecutive calls of one
-  tool (AV-064), adds a "load older turns" row while the host holds
-  turns back (AV-068), and ends with a `WorkingItem` while the chat
-  works (`isChatWorking`: the `InProgress` bit or an active turn, not
-  `InputNeeded`; AV-072). Being the last row of the reversed list, the
-  indicator sits at scroll offset 0, so it stays in view whenever the
-  user is at the bottom.
+  tool (AV-064), and `turnPartItems` folds each turn's steps (reasoning,
+  tool calls that do not wait on the user and are not todo lists or
+  subagents, and the replies between them; `isStep`) into one
+  `StepsItem` at the first step, so the turn reads as the user's
+  message, "Completed N steps in T" (`stepsSummary`, from
+  `Turn.duration`) and the reply (AV-095). Calls that need approval,
+  input or sign-in, input requests and errors stay rows of their own
+  after the steps row, so they are never hidden. It adds a "load older
+  turns" row while the host holds turns back (AV-068), and while the
+  chat works (`isChatWorking`: the `InProgress` bit or an active turn,
+  not `InputNeeded`; AV-072) the active turn's `StepsItem` carries the
+  working indicator ("Working… N steps"), or, when the turn has no
+  steps yet, a `WorkingItem` ends the list. Being the last row of the
+  reversed list, that row sits at scroll offset 0, so it stays in view
+  whenever the user is at the bottom. Which steps rows are expanded is
+  kept in the timeline's state, by row key, because the lazy list
+  disposes rows scrolled out of view.
   The timeline is a `SuperListView` (`super_sliver_list`): its
   `ListController` keeps every row's measured or estimated extent, so it
   can jump to rows that were never built, and reports the visible range
   after each layout. `turn_markers.dart` is pure: `turnMarkers` lists one
   marker per user turn (row, first line, done/cancelled/error/running),
   `currentTurn` and `steppedTurn` pick the turn in view and the one a
-  step away from the oldest row on screen, and `turnRailLayout` spaces
-  the dots. `turn_rail.dart` draws the `TurnRail` beside the list
-  (AV-074); the timeline jumps to a marker's row with alignment 1 (the
+  step away from the oldest row on screen, `turnRailLayout` spaces
+  the dots, and `turnRailVisible` shows the rail on compact layouts and
+  touch input, else only while the pointer is within 64 px of the
+  timeline's right edge. `turn_rail.dart` draws the 16 px `TurnRail`
+  beside the list (AV-074), faded in and out (instantly with reduced
+  motion) and kept in the semantics tree while hidden; the timeline jumps to a marker's row with alignment 1 (the
   top of the reversed list), and pages older turns in first when the
   user steps back past the oldest loaded one.
   `approval_bar.dart` is the bar under a waiting tool call: Approve/Deny
@@ -384,7 +398,11 @@ Dart source); `bin/generate.dart` does the file I/O. See
   client", and one delegated to this app (which provides no tools) is
   turned down with a failed `chat/toolCallComplete`
   (`declineClientExecutionAction`).
-  `timeline_parts.dart` renders markdown (`flutter_markdown_plus`), collapsed reasoning, tool call cards with
+  `timeline_parts.dart` renders the user's messages as right-aligned
+  bubbles, markdown (`flutter_markdown_plus`, styled by `markdownStyle`:
+  body text with a 1.6 line height and tables with bordered, padded
+  cells), the `StepsRow` steps line, the round `JumpToLatestButton`,
+  collapsed reasoning, tool call cards with
   Approve/Deny (and Sign in / Cancel for `auth-required` calls, with a
   token dialog), input request forms, errors, grouped tool calls and the
   working indicator (pulsing dots, a static "…" when

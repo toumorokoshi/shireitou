@@ -57,6 +57,58 @@
   pane's setting now uses too. Search (Cmd/Ctrl+K or the centre box)
   expands a collapsed sidebar first, since the search field is in it.
 
+## 2026-10-16: The timeline matches the reference UI (AV-095)
+
+The reference screenshot reads as a conversation: the user's bubble,
+one muted "Completed 25 steps in 1m 47s" line, then the answer. Our
+timeline showed every tool call as a card, so a long turn buried its
+reply.
+
+- **What a step is.** Reasoning and tool calls are steps, and so is
+  markdown between the first and last step (the agent's narration,
+  "Now the tests."), as in Cursor's agents window. Markdown before the
+  first step and after the last (the reply) stays in view. The steps
+  row sits where the first step was, so nothing is reordered except the
+  folded parts. A part-by-part line per run of steps was rejected: a
+  turn that alternates narration and calls would show many lines,
+  unlike the reference.
+- **Never hide what needs the user.** Calls waiting for approval,
+  result confirmation or sign-in (`isBlocking`), input requests and
+  errors are not steps; when they fall between steps they are listed
+  right after the steps row. Todo lists (AV-070) and subagent cards
+  (AV-069) also stay in view: they are the turn's progress and the way
+  into child chats. A failed tool call is folded in, with "· N failed"
+  on the line, because agents routinely run commands that fail (a
+  `grep` with no match), and showing each one would undo the collapse.
+- **The count and the time.** N counts the folded parts (each call of
+  a grouped "Read · 3 calls" counts), so it matches what expanding
+  shows. The time is `Turn.duration`, the host's own measure, formatted
+  "12s", "1m 47s" or "1h 3m"; it is left out when the host sends none.
+  A running turn shows "Working… N steps" without a live clock, which
+  would rebuild the row every second.
+- **The working indicator moves onto the line.** When the active turn
+  has steps, its steps row carries the AV-072 dots and activity text
+  (and keeps the "Agent is working: …" screen reader label) instead of
+  a separate last row; without steps the `WorkingItem` row stays. The
+  steps row is near the bottom, so the indicator is still in view.
+- **Expansion lives in the timeline.** The lazy list disposes rows
+  scrolled out of view, so an expanded steps row is remembered by key
+  in the timeline's state (for as long as the chat is open), not in the
+  row.
+- **Rail on hover.** The rail is 16 dp and fades in when the pointer is
+  within 64 dp of the timeline's right edge; it keeps its width so the
+  text does not reflow. Compact layouts, touch platforms and a touch on
+  the timeline keep it visible, since there is no hover there. Hidden,
+  it stays in the semantics tree, and Cmd/Ctrl+Alt+↑/↓ still work.
+- **Colours.** The timeline reads the AV-090 `AppColors` tokens:
+  `bubbleFill` for bubbles, `hairline` for table borders, code blocks,
+  the expanded steps' left rule and the jump button's ring, and
+  `mutedText` for the steps line, so both themes follow the reference.
+- **Tests.** The app flows and the harness's `send` now scroll the
+  timeline to the newest row first, and `expandSteps` opens the newest
+  turn's steps before the flows look for tool calls, terminals or
+  diffs.
+
 ## 2026-10-16: One shared Pinned section at the top of the sidebar (AV-028)
 
 This reverses the earlier "pins lead their folder" decision (see

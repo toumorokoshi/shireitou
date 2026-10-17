@@ -12,7 +12,8 @@ import 'turn_markers.dart';
 /// line. The [current] turn's dot is highlighted, failed turns are red,
 /// running ones hollow and cancelled ones faint. When [onLoadOlder] is
 /// set (the host holds older turns back), a button above the dots pages
-/// them in. [compact] makes the rail thinner (phones).
+/// them in. [compact] makes the rail thinner still (phones), where
+/// dragging along it scrubs.
 class TurnRail extends StatefulWidget {
   /// Creates a [TurnRail].
   const TurnRail({
@@ -79,7 +80,7 @@ class _TurnRailState extends State<TurnRail> {
 
   @override
   Widget build(BuildContext context) {
-    final width = widget.compact ? 14.0 : 24.0;
+    final width = widget.compact ? 14.0 : 16.0;
     return SizedBox(
       width: width,
       child: Semantics(
@@ -186,7 +187,7 @@ class _Dot extends StatelessWidget {
       TurnMarkerState.cancelled => scheme.outlineVariant,
       _ => scheme.outline,
     };
-    final size = (current ? 10.0 : 7.0).clamp(2.0, extent);
+    final size = (current ? 8.0 : 5.0).clamp(2.0, extent);
     final hollow = marker.state == TurnMarkerState.running;
     return Semantics(
       button: true,

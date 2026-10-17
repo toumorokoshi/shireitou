@@ -153,6 +153,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('List the files'), findsOneWidget);
+    // Reasoning and the tool call are collapsed steps (AV-095).
+    expect(find.text('Thinking'), findsNothing);
+    await tester.tap(find.text('Completed 2 steps in 2s'));
+    await tester.pumpAndSettle();
     expect(find.text('Thinking'), findsOneWidget);
     expect(find.text('I should run ls.'), findsNothing);
     expect(find.text('Ran `ls`'), findsOneWidget);

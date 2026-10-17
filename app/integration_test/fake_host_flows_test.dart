@@ -72,6 +72,8 @@ void main() {
     expect(find.text('Needs input'), findsWidgets);
     await tapVisible(find.text('Approve'));
     await waitFor(find.text('The folder has 3 entries.'));
+    // The finished call folds into the turn's steps line (AV-095).
+    await h.expandSteps();
     expect(find.text('Ran `ls -la`'), findsOneWidget);
 
     // Deny one.
@@ -330,19 +332,22 @@ void main() {
     await h.send('read code');
     await h.waitFor(find.byTooltip('Copy code'));
     expect(find.byType(CodeBlock), findsOneWidget);
+    await h.expandSteps();
     await h.waitFor(find.text('Read · 3 calls'));
 
     // Live terminal output (AV-065, AHP-028).
     debugPrint('fake host flows: shell');
     await h.send('shell');
-    await h.waitFor(find.textContaining('00:02 +3: All tests passed!'));
     await h.waitFor(find.text('All 3 tests passed.'));
+    await h.expandSteps();
+    await h.waitFor(find.textContaining('00:02 +3: All tests passed!'));
 
     // An inline diff, then the review pane: review, revert, commit
     // (AV-065, AV-100 to AV-103).
     debugPrint('fake host flows: edit and review');
     await h.send('edit');
     await h.waitFor(find.text('Edited README.md.'));
+    await h.expandSteps();
     await h.waitFor(find.text('A scripted host for tests.'));
     // The review pane starts closed on wide layouts (AV-003).
     expect(find.text('Reviewed 0 of 1'), findsNothing);

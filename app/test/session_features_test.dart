@@ -4,6 +4,7 @@
 library;
 
 import 'package:ahp_client/ahp_client.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,6 +18,7 @@ import 'package:shireitou/src/session_detail/session_detail_view.dart';
 import 'package:shireitou/src/session_detail/code_highlight.dart';
 import 'package:shireitou/src/session_detail/timeline_parts.dart';
 import 'package:shireitou/src/session_detail/turn_rail.dart';
+import 'package:shireitou/src/theme/app_colors.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
 
 import 'fake_connection.dart';
@@ -272,6 +274,87 @@ void main() {
     expect(copied, 'void main() {}');
   });
 
+  testWidgets('user bubbles sit on the right; steps collapse but calls that '
+      'need attention stay expanded (AV-095)', (tester) async {
+    final semantics = tester.ensureSemantics();
+    await _pump(tester, _state(chat: chatFixture()));
+    final list = tester.getRect(find.byType(SuperListView));
+    final bubble = tester.getRect(
+      find
+          .descendant(
+            of: find.widgetWithText(UserMessageBubble, 'List the files'),
+            matching: find.byType(Container),
+          )
+          .first,
+    );
+    expect(bubble.right, greaterThan(list.right - 40));
+    expect(bubble.left, greaterThan(list.center.dx));
+    // The reasoning and the finished call fold into one muted line.
+    expect(find.text('Completed 2 steps in 2s'), findsOneWidget);
+    expect(find.text('Ran `ls`'), findsNothing);
+    expect(
+      tester.getSemantics(find.bySemanticsLabel('Completed 2 steps in 2s')),
+      isSemantics(isButton: true, hasExpandedState: true, isExpanded: false),
+    );
+    // The call waiting for approval and the input request stay in view.
+    expect(find.text('Run `rm a.txt`'), findsOneWidget);
+    expect(find.text('Which branch?'), findsOneWidget);
+    // The reply after the steps is full width, with no bubble.
+    expect(
+      find.ancestor(
+        of: find.textContaining('one'),
+        matching: find.byType(UserMessageBubble),
+      ),
+      findsNothing,
+    );
+
+    await tester.tap(find.text('Completed 2 steps in 2s'));
+    await tester.pumpAndSettle();
+    expect(find.text('Ran `ls`'), findsOneWidget);
+    expect(find.text('Thinking'), findsOneWidget);
+    await tester.tap(find.text('Completed 2 steps in 2s'));
+    await tester.pumpAndSettle();
+    expect(find.text('Ran `ls`'), findsNothing);
+    semantics.dispose();
+  });
+
+  testWidgets('markdown tables have bordered cells (AV-095)', (tester) async {
+    await _pump(
+      tester,
+      _state(
+        chat: _chatWith(const [
+          MarkdownResponsePart(
+            id: 'm',
+            content: '| Name | Calls |\n| --- | --- |\n| bazel test | 260 |',
+          ),
+        ]),
+      ),
+    );
+    expect(find.text('bazel test'), findsOneWidget);
+    expect(find.text('Name'), findsOneWidget);
+    final table = tester.widget<Table>(find.byType(Table));
+    final context = tester.element(find.byType(Table));
+    expect(table.border?.top.color, AppColors.of(context).hairline);
+    expect(table.border?.horizontalInside.style, BorderStyle.solid);
+  });
+
+  testWidgets('jump to latest is a small round button (AV-095)', (
+    tester,
+  ) async {
+    reduceMotion(tester);
+    await _pump(tester, _state(chat: _longChat(4)));
+    expect(find.byTooltip('Jump to latest'), findsNothing);
+    await tester.drag(find.byType(SuperListView), const Offset(0, 600));
+    await tester.pumpAndSettle();
+    final button = find.byTooltip('Jump to latest');
+    expect(button, findsOneWidget);
+    expect(tester.getSize(button), const Size(32, 32));
+    expect(find.byType(JumpToLatestButton), findsOneWidget);
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Jump to latest'), findsNothing);
+  });
+
   testWidgets('similar tool calls are grouped (AV-064)', (tester) async {
     await _pump(
       tester,
@@ -282,6 +365,10 @@ void main() {
         ]),
       ),
     );
+    // The calls are steps of the turn, collapsed until expanded (AV-095).
+    expect(find.text('Read · 3 calls'), findsNothing);
+    await tester.tap(find.text('Completed 3 steps'));
+    await tester.pumpAndSettle();
     expect(find.text('Read · 3 calls'), findsOneWidget);
     expect(find.text('Did read a'), findsNothing);
     await tester.tap(find.text('Read · 3 calls'));
@@ -331,6 +418,10 @@ void main() {
       ),
       settle: false,
     );
+    await tester.tap(find.text('Working… 1 step'));
+    for (var i = 0; i < 5; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
     expect(connection.subscribed, contains(_terminal));
     expect(find.text('\$ npm test\nok 1'), findsOneWidget);
     expect(find.text('Running'), findsWidgets);
@@ -372,6 +463,8 @@ void main() {
       ),
     );
     await tester.tap(find.text('Fix login').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Completed 1 step'));
     await tester.pumpAndSettle();
     expect(find.text('app/README.md'), findsOneWidget);
     expect(find.text('+1 −1'), findsOneWidget);
@@ -906,6 +999,39 @@ void main() {
     expect(_atTop(tester, 'Question 2\nwith details'), isTrue);
     expect(find.byTooltip('Load older turns'), findsNothing);
   });
+
+  testWidgets(
+    'with a pointer the rail shows only near the right edge (AV-074)',
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      reduceMotion(tester);
+      await _pump(tester, _state(chat: _longChat(12)));
+      double opacity() => tester
+          .widget<AnimatedOpacity>(
+            find.ancestor(
+              of: find.byType(TurnRail),
+              matching: find.byType(AnimatedOpacity),
+            ),
+          )
+          .opacity;
+      expect(opacity(), 0);
+      // Screen readers still reach the hidden rail.
+      expect(find.bySemanticsLabel('Turn 1: Question 0'), findsOneWidget);
+      expect(tester.getSize(find.byType(TurnRail)).width, 16);
+      final list = tester.getRect(find.byType(SuperListView));
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(mouse.removePointer);
+      await mouse.addPointer(location: list.center);
+      await mouse.moveTo(Offset(list.right - 8, list.center.dy));
+      await tester.pumpAndSettle();
+      expect(opacity(), 1);
+      await mouse.moveTo(list.center);
+      await tester.pumpAndSettle();
+      expect(opacity(), 0);
+      semantics.dispose();
+    },
+  );
 
   testWidgets('a chat with one turn has no turn rail (AV-074)', (tester) async {
     await _pump(tester, _state(chat: chatFixture(active: false)));

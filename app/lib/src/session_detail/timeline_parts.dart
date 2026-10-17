@@ -1,5 +1,5 @@
 /// Widgets for timeline rows: messages, markdown, reasoning, tool calls,
-/// input requests and errors (AV-061 to AV-067, AV-083, AV-084).
+/// input requests and errors (AV-061 to AV-067, AV-083, AV-084, AV-095).
 library;
 
 import 'dart:async';
@@ -11,6 +11,7 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../auth/sign_in_dialog.dart';
+import '../theme/app_colors.dart';
 import 'approval_bar.dart';
 import 'chat_commands.dart';
 import 'code_highlight.dart';
@@ -21,15 +22,30 @@ import 'tool_previews.dart';
 
 /// Builds the widget for one [item]. [onAction] dispatches a chat action;
 /// [onSignIn] signs a tool call in to its MCP server; [onOpenChat]
-/// opens a subagent's chat; [onLoadOlder] pages in older turns.
+/// opens a subagent's chat; [onLoadOlder] pages in older turns. A
+/// [StepsItem] is expanded when its key is in [expandedSteps];
+/// [onToggleSteps] is called with the key to expand or collapse it.
 Widget buildTimelineItem(
   TimelineItem item,
   ValueChanged<JsonMap> onAction, {
   SignIn? onSignIn,
   OpenChat? onOpenChat,
   VoidCallback? onLoadOlder,
+  Set<String> expandedSteps = const {},
+  ValueChanged<String>? onToggleSteps,
 }) => switch (item) {
   UserMessageItem(:final message) => UserMessageBubble(message: message),
+  StepsItem() => StepsRow(
+    item: item,
+    expanded: expandedSteps.contains(item.key),
+    onToggle: () => onToggleSteps?.call(item.key),
+    buildStep: (step) => buildTimelineItem(
+      step,
+      onAction,
+      onSignIn: onSignIn,
+      onOpenChat: onOpenChat,
+    ),
+  ),
   ToolCallGroupItem(:final turnId, :final calls) => ToolCallGroupCard(
     turnId: turnId,
     calls: calls,
@@ -197,7 +213,8 @@ class _WorkingIndicatorRowState extends State<WorkingIndicatorRow>
   }
 }
 
-/// The user's message, right-aligned.
+/// The user's message (AV-095): a right-aligned bubble with a light fill,
+/// at most three quarters of the timeline wide.
 class UserMessageBubble extends StatelessWidget {
   /// Creates a [UserMessageBubble].
   const UserMessageBubble({super.key, required this.message});
@@ -207,26 +224,66 @@ class UserMessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Align(
-      alignment: Alignment.centerRight,
-      child: Container(
-        margin: const EdgeInsets.only(top: 16, bottom: 8, left: 48),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: scheme.primaryContainer,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Text(
-          message.text,
-          style: TextStyle(color: scheme.onPrimaryContainer),
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final colors = AppColors.of(context);
+    return LayoutBuilder(
+      builder: (context, constraints) => Align(
+        alignment: Alignment.centerRight,
+        child: Container(
+          constraints: BoxConstraints(maxWidth: constraints.maxWidth * 0.75),
+          margin: const EdgeInsets.only(top: 24, bottom: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: colors.bubbleFill,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
+            message.text,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: scheme.onSurface,
+              height: 1.5,
+            ),
+          ),
         ),
       ),
     );
   }
 }
 
-/// Assistant markdown (AV-061). Links open in the browser.
+/// The style of agent replies (AV-095): body text with a comfortable line
+/// height, compact headings, inline code on a tinted background, and
+/// tables with bordered, padded cells and a bold header row, drawn with
+/// [colors]' hairline.
+MarkdownStyleSheet markdownStyle(ThemeData theme, AppColors colors) {
+  final scheme = theme.colorScheme;
+  final text = theme.textTheme;
+  final body = text.bodyMedium?.copyWith(height: 1.6);
+  return MarkdownStyleSheet.fromTheme(theme).copyWith(
+    p: body,
+    listBullet: body,
+    tableBody: body,
+    tableHead: body?.copyWith(fontWeight: FontWeight.w600),
+    h1: text.titleLarge?.copyWith(fontWeight: FontWeight.w600),
+    h2: text.titleMedium?.copyWith(fontWeight: FontWeight.w600, fontSize: 18),
+    h3: text.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+    h1Padding: const EdgeInsets.only(top: 12),
+    h2Padding: const EdgeInsets.only(top: 12),
+    h3Padding: const EdgeInsets.only(top: 8),
+    blockSpacing: 12,
+    code: text.bodySmall?.copyWith(
+      fontFamily: 'monospace',
+      fontFamilyFallback: const ['Menlo', 'Consolas', 'DejaVu Sans Mono'],
+      backgroundColor: scheme.surfaceContainerHighest,
+    ),
+    tableBorder: TableBorder.all(color: colors.hairline),
+    tableCellsPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+    tableColumnWidth: const IntrinsicColumnWidth(),
+  );
+}
+
+/// Assistant markdown (AV-061, AV-095): full width with no bubble. Links
+/// open in the browser.
 class MarkdownText extends StatelessWidget {
   /// Creates a [MarkdownText] for [data].
   const MarkdownText(this.data, {super.key});
@@ -236,9 +293,10 @@ class MarkdownText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 4),
+    padding: const EdgeInsets.symmetric(vertical: 6),
     child: MarkdownBody(
       data: data,
+      styleSheet: markdownStyle(Theme.of(context), AppColors.of(context)),
       builders: {'pre': _codeBlocks},
       onTapLink: (_, href, _) {
         final uri = href == null ? null : Uri.tryParse(href);
@@ -246,6 +304,128 @@ class MarkdownText extends StatelessWidget {
       },
     ),
   );
+}
+
+/// "Jump to latest" (AV-066, AV-095): a small round button with ↓ at the
+/// bottom right of the timeline, shown while the user scrolled up.
+class JumpToLatestButton extends StatelessWidget {
+  /// Creates a [JumpToLatestButton].
+  const JumpToLatestButton({super.key, required this.onPressed});
+
+  /// Scrolls to the newest row.
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
+    return IconButton(
+      tooltip: 'Jump to latest',
+      onPressed: onPressed,
+      iconSize: 18,
+      constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+      padding: EdgeInsets.zero,
+      style: IconButton.styleFrom(
+        shape: const CircleBorder(),
+        backgroundColor: colors.raisedSurface,
+        foregroundColor: colors.mutedText,
+        side: BorderSide(color: colors.hairline),
+      ),
+      icon: const Icon(Icons.arrow_downward),
+    );
+  }
+}
+
+/// A turn's steps collapsed into one muted line (AV-095): "Completed 3
+/// steps in 1m 47s", or "Working… 3 steps" with the typing indicator
+/// (AV-072) while the chat works. Tapping it shows the steps, built with
+/// [buildStep], below a hairline on the left.
+class StepsRow extends StatelessWidget {
+  /// Creates a [StepsRow].
+  const StepsRow({
+    super.key,
+    required this.item,
+    required this.expanded,
+    required this.onToggle,
+    required this.buildStep,
+  });
+
+  /// The steps.
+  final StepsItem item;
+
+  /// Whether the steps are shown.
+  final bool expanded;
+
+  /// Expands or collapses the steps.
+  final VoidCallback onToggle;
+
+  /// Builds one step's widget.
+  final Widget Function(TimelineItem step) buildStep;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = AppColors.of(context);
+    final muted = colors.mutedText;
+    final summary = stepsSummary(item);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Semantics(
+              button: true,
+              expanded: expanded,
+              label: summary,
+              excludeSemantics: true,
+              onTap: onToggle,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(4),
+                onTap: onToggle,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        summary,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: muted,
+                        ),
+                      ),
+                      Icon(
+                        expanded ? Icons.expand_more : Icons.chevron_right,
+                        size: 18,
+                        color: muted,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            if (item.working) ...[
+              const SizedBox(width: 8),
+              Flexible(child: WorkingIndicatorRow(activity: item.activity)),
+            ],
+          ],
+        ),
+        if (expanded)
+          Container(
+            margin: const EdgeInsets.only(left: 4, bottom: 8),
+            padding: const EdgeInsets.only(left: 12),
+            decoration: BoxDecoration(
+              border: Border(left: BorderSide(color: colors.hairline)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final step in item.steps)
+                  KeyedSubtree(key: ValueKey(step.key), child: buildStep(step)),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
 }
 
 final _codeBlocks = CodeBlockBuilder();

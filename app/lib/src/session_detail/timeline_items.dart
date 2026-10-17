@@ -1,4 +1,4 @@
-/// Pure view logic for the session timeline (AV-061 to AV-067).
+/// Pure view logic for the session timeline (AV-061 to AV-067, AV-095).
 library;
 
 import 'dart:collection';
@@ -77,6 +77,50 @@ class ToolCallGroupItem extends TimelineItem {
 
   @override
   String get key => '$turnId/group/${calls.first.toolCallId}';
+}
+
+/// The steps of turn [turnId] (AV-095): its tool calls, reasoning and the
+/// replies between them, collapsed into one "Completed N steps in T" row
+/// that expands to [steps]. Calls that wait on the user, todo lists,
+/// subagents, input requests and errors are not steps: they stay rows of
+/// their own, so they are never hidden.
+class StepsItem extends TimelineItem {
+  /// Creates a [StepsItem].
+  const StepsItem(
+    this.turnId,
+    this.steps, {
+    required this.count,
+    required this.active,
+    this.duration,
+    this.working = false,
+    this.activity,
+  });
+
+  /// Turn ID.
+  final String turnId;
+
+  /// The rows shown when expanded: [ResponsePartItem]s and
+  /// [ToolCallGroupItem]s, in order.
+  final List<TimelineItem> steps;
+
+  /// How many response parts the steps hold (each call of a group counts).
+  final int count;
+
+  /// Whether the turn is still running.
+  final bool active;
+
+  /// The finished turn's duration in milliseconds, when the host sent it.
+  final int? duration;
+
+  /// Whether the chat is working ([isChatWorking]): the row then shows
+  /// the typing indicator in place of a [WorkingItem] (AV-072).
+  final bool working;
+
+  /// What the agent is doing now while [working], or null.
+  final String? activity;
+
+  @override
+  String get key => '$turnId/steps';
 }
 
 /// The footer of a finished turn: how it ended, duration and usage.
@@ -187,6 +231,14 @@ List<TimelineItem> partItems(
   String turnId,
   List<ResponsePart> parts, {
   required bool active,
+}) => _partItems(turnId, parts.indexed, active: active);
+
+/// [partItems] over parts paired with their index in the turn, which keys
+/// the parts without an ID.
+List<TimelineItem> _partItems(
+  String turnId,
+  Iterable<(int, ResponsePart)> parts, {
+  required bool active,
 }) {
   final items = <TimelineItem>[];
   final run = <(int, ToolCallState)>[];
@@ -212,7 +264,7 @@ List<TimelineItem> partItems(
     run.clear();
   }
 
-  for (final (index, part) in parts.indexed) {
+  for (final (index, part) in parts) {
     if (!_visible(part)) continue;
     if (part is ToolCallResponsePart && _groupable(part.toolCall)) {
       if (run.isNotEmpty && run.first.$2.toolName != part.toolCall.toolName) {
@@ -228,6 +280,105 @@ List<TimelineItem> partItems(
   return items;
 }
 
+/// Whether [part] is a step that folds into the turn's [StepsItem]
+/// (AV-095): reasoning, and tool calls that do not wait on the user and
+/// are not todo lists (AV-070) or subagents (AV-069), which stay in view.
+bool isStep(ResponsePart part) => switch (part) {
+  ReasoningResponsePart() => true,
+  ToolCallResponsePart(:final toolCall) =>
+    !toolCall.isBlocking &&
+        !isTodoTool(toolCall.toolName) &&
+        !(toolCall.content ?? const <ToolResultContent>[]).any(
+          (c) => c is ToolResultSubagentContent,
+        ),
+  _ => false,
+};
+
+/// The rows of one turn's [parts] with its steps collapsed (AV-095): the
+/// visible parts before the first step, a [StepsItem] holding every step
+/// and the markdown between steps, then the remaining parts in order
+/// (calls that need attention, input requests, errors and the reply after
+/// the last step). Without steps, the same rows as [partItems].
+/// [working] and [activity] go to the [StepsItem] (see
+/// [StepsItem.working]).
+List<TimelineItem> turnPartItems(
+  String turnId,
+  List<ResponsePart> parts, {
+  required bool active,
+  int? duration,
+  bool working = false,
+  String? activity,
+}) {
+  final visible = [
+    for (final entry in parts.indexed)
+      if (_visible(entry.$2)) entry,
+  ];
+  final first = visible.indexWhere((e) => isStep(e.$2));
+  if (first < 0) return _partItems(turnId, visible, active: active);
+  final last = visible.lastIndexWhere((e) => isStep(e.$2));
+  final folded = [
+    for (final entry in visible.sublist(first, last + 1))
+      if (isStep(entry.$2) || entry.$2 is MarkdownResponsePart) entry,
+  ];
+  return [
+    ..._partItems(turnId, visible.sublist(0, first), active: active),
+    StepsItem(
+      turnId,
+      _partItems(turnId, folded, active: active),
+      count: folded.length,
+      active: active,
+      duration: duration,
+      working: working,
+      activity: activity,
+    ),
+    ..._partItems(turnId, [
+      for (final entry in visible.sublist(first, last + 1))
+        if (!isStep(entry.$2) && entry.$2 is! MarkdownResponsePart) entry,
+      ...visible.sublist(last + 1),
+    ], active: active),
+  ];
+}
+
+/// The number of tool calls among [steps] that failed (each call of a
+/// group counts).
+int failedSteps(List<TimelineItem> steps) => [
+  for (final step in steps)
+    ...switch (step) {
+      ToolCallGroupItem(:final calls) => calls,
+      ResponsePartItem(part: ToolCallResponsePart(:final toolCall)) => [
+        toolCall,
+      ],
+      _ => const <ToolCallState>[],
+    },
+].where((c) => c is ToolCallCompletedState && !c.success).length;
+
+/// "1m 47s", "12s" or "1h 3m": a turn's [ms] for the steps line.
+String formatStepsDuration(int ms) {
+  final seconds = (ms / 1000).round();
+  if (seconds < 60) return '${seconds}s';
+  final minutes = seconds ~/ 60;
+  if (minutes < 60) return '${minutes}m ${seconds % 60}s';
+  return '${minutes ~/ 60}h ${minutes % 60}m';
+}
+
+/// The steps line of [item] (AV-095): "Working… 3 steps" while the turn
+/// runs, else "Completed 3 steps in 1m 47s" (without the time when the
+/// host did not send the duration), and how many calls failed.
+String stepsSummary(StepsItem item) {
+  final steps = '${item.count} ${item.count == 1 ? 'step' : 'steps'}';
+  final failed = failedSteps(item.steps);
+  return [
+    if (item.active)
+      'Working… $steps'
+    else
+      [
+        'Completed $steps',
+        if (item.duration case final ms?) 'in ${formatStepsDuration(ms)}',
+      ].join(' '),
+    if (failed > 0) '$failed failed',
+  ].join(' · ');
+}
+
 final _turnRows = Expando<List<TimelineItem>>('turn rows');
 
 /// The rows of a finished [turn], computed once per turn object (turns are
@@ -235,7 +386,12 @@ final _turnRows = Expando<List<TimelineItem>>('turn rows');
 List<TimelineItem> turnItems(Turn turn) =>
     _turnRows[turn] ??= List.unmodifiable([
       UserMessageItem(turn.id, turn.message),
-      ...partItems(turn.id, turn.responseParts, active: false),
+      ...turnPartItems(
+        turn.id,
+        turn.responseParts,
+        active: false,
+        duration: turn.duration,
+      ),
       TurnFooterItem(turn),
     ]);
 
@@ -296,30 +452,41 @@ class TimelineRows with ListMixin<TimelineItem> {
 
 /// Flattens [chat] into timeline rows, oldest first: a [LoadOlderItem]
 /// when the host holds older turns back, each finished turn's message,
-/// visible parts (similar tool calls grouped) and footer, then the active
-/// turn, then a [WorkingItem] while the chat is working
-/// ([isChatWorking]). Pending messages are not rows; see
-/// [pendingMessages].
-TimelineRows timelineItems(ChatState chat) => TimelineRows._(
-  switch (chat.turnsNextCursor) {
-    final cursor? => LoadOlderItem(cursor),
-    null => null,
-  },
-  _settled(chat.turns),
-  [
+/// visible parts (steps collapsed, similar tool calls grouped) and footer,
+/// then the active turn, then a [WorkingItem] while the chat is working
+/// ([isChatWorking]) and the active turn has no [StepsItem] to show it.
+/// Pending messages are not rows; see [pendingMessages].
+TimelineRows timelineItems(ChatState chat) {
+  final working = isChatWorking(chat);
+  final activity = switch (chat.activity?.trim()) {
+    final activity? when activity.isNotEmpty => activity,
+    _ => null,
+  };
+  final live = [
     if (chat.activeTurn case final active?) ...[
       UserMessageItem(active.id, active.message),
-      ...partItems(active.id, active.responseParts, active: true),
-    ],
-    if (isChatWorking(chat))
-      WorkingItem(
-        activity: switch (chat.activity?.trim()) {
-          final activity? when activity.isNotEmpty => activity,
-          _ => null,
-        },
+      ...turnPartItems(
+        active.id,
+        active.responseParts,
+        active: true,
+        working: working,
+        activity: activity,
       ),
-  ],
-);
+    ],
+  ];
+  return TimelineRows._(
+    switch (chat.turnsNextCursor) {
+      final cursor? => LoadOlderItem(cursor),
+      null => null,
+    },
+    _settled(chat.turns),
+    [
+      ...live,
+      if (working && !live.any((item) => item is StepsItem))
+        WorkingItem(activity: activity),
+    ],
+  );
+}
 
 /// The steering message, then the queued ones in order (AV-081).
 List<PendingMessageItem> pendingMessages(ChatState chat) => [

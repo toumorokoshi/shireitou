@@ -35,6 +35,8 @@ import 'package:re_highlight/re_highlight.dart';
 import 'package:re_highlight/styles/github-dark.dart';
 import 'package:re_highlight/styles/github.dart';
 
+import '../theme/app_colors.dart';
+
 /// The languages this app highlights, a common subset of highlight.js
 /// (the full set would add every grammar to the web build).
 final Highlight _highlighter = Highlight()
@@ -142,6 +144,7 @@ class CodeBlock extends StatelessWidget {
       margin: const EdgeInsets.symmetric(vertical: 4),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest,
+        border: Border.all(color: AppColors.of(context).hairline),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Column(

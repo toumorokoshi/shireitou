@@ -22,19 +22,14 @@ void main() {
             '${part.runtimeType}${active ? '*' : ''}',
           TurnFooterItem() => 'footer',
           ToolCallGroupItem() => 'group',
+          StepsItem() => 'steps',
           LoadOlderItem() => 'older',
           WorkingItem() => 'working',
         },
     ];
     // The empty markdown part pi opens before streaming is hidden.
-    expect(kinds, [
-      'user',
-      'ReasoningResponsePart',
-      'ToolCallResponsePart',
-      'MarkdownResponsePart',
-      'footer',
-      'user',
-    ]);
+    // Reasoning and the tool call fold into the steps row (AV-095).
+    expect(kinds, ['user', 'steps', 'MarkdownResponsePart', 'footer', 'user']);
     // Pending messages are listed above the input instead.
     expect(pendingMessages(chat).map((p) => (p.kind, p.pending.id)), [
       (PendingMessageKind.queued, 'q'),
@@ -103,6 +98,98 @@ ToolCallState _done(
 );
 
 void groupingTests() {
+  test('a turn folds its steps into one row (AV-095)', () {
+    const blocking = ToolCallPendingConfirmationState(
+      toolCallId: 'p',
+      toolName: 'bash',
+      displayName: 'Bash',
+      invocationMessage: PlainString('Run rm'),
+    );
+    final parts = [
+      const MarkdownResponsePart(id: 'intro', content: 'Let me look.'),
+      const ReasoningResponsePart(id: 'r', content: 'hmm'),
+      ToolCallResponsePart(toolCall: _done('a', 'read')),
+      const MarkdownResponsePart(id: 'between', content: 'Now the tests.'),
+      const ErrorResponsePart(
+        error: ErrorInfo(errorType: 'x', message: 'x'),
+      ),
+      ToolCallResponsePart(toolCall: _done('b', 'read')),
+      ToolCallResponsePart(toolCall: _done('c', 'read')),
+      const ToolCallResponsePart(toolCall: blocking),
+      const MarkdownResponsePart(id: 'reply', content: 'Done.'),
+    ];
+    final items = turnPartItems('t', parts, active: false, duration: 107000);
+    // Text before the first step and after the last stays; the error and
+    // the call that needs approval stay in view after the steps row.
+    expect(items.map((i) => i.key), [
+      't/intro',
+      't/steps',
+      't/#4',
+      't/tool/p',
+      't/reply',
+    ]);
+    final steps = items[1] as StepsItem;
+    expect(steps.steps.map((i) => i.key), [
+      't/r',
+      't/tool/a',
+      't/between',
+      't/group/b',
+    ]);
+    expect(steps.count, 5);
+    expect(stepsSummary(steps), 'Completed 5 steps in 1m 47s');
+    // A turn without steps has no steps row.
+    expect(
+      turnPartItems('t', parts.sublist(7), active: false).map((i) => i.key),
+      ['t/tool/p', 't/reply'],
+    );
+  });
+
+  test('steps summary while working, without a duration and with failures', () {
+    final failed = ToolCallCompletedState(
+      toolCallId: 'f',
+      toolName: 'bash',
+      displayName: 'Bash',
+      invocationMessage: const PlainString('false'),
+      pastTenseMessage: const PlainString('Ran false'),
+      confirmed: ToolCallConfirmationReason.notNeeded,
+      success: false,
+    );
+    final parts = [
+      ToolCallResponsePart(toolCall: _done('a', 'bash')),
+      ToolCallResponsePart(toolCall: failed),
+    ];
+    StepsItem stepsOf(List<TimelineItem> items) =>
+        items.whereType<StepsItem>().single;
+    expect(
+      stepsSummary(stepsOf(turnPartItems('t', parts, active: true))),
+      'Working… 2 steps · 1 failed',
+    );
+    expect(
+      stepsSummary(
+        stepsOf(turnPartItems('t', parts.sublist(0, 1), active: false)),
+      ),
+      'Completed 1 step',
+    );
+  });
+
+  test('steps duration is formatted in seconds, minutes and hours', () {
+    expect(formatStepsDuration(400), '0s');
+    expect(formatStepsDuration(12400), '12s');
+    expect(formatStepsDuration(107000), '1m 47s');
+    expect(formatStepsDuration(3780000), '1h 3m');
+  });
+
+  test('a working chat shows the indicator on the steps row (AV-072)', () {
+    final chat = _chatOf([ToolCallResponsePart(toolCall: _done('a', 'bash'))]);
+    final rows = timelineItems(chat);
+    final steps = rows.last as StepsItem;
+    expect(steps.working, isTrue);
+    expect(steps.activity, 'Reading');
+    expect(rows.whereType<WorkingItem>(), isEmpty);
+    // Without steps the working row comes last as before.
+    expect(timelineItems(_chatOf(const [])).last, isA<WorkingItem>());
+  });
+
   test('consecutive calls of one tool are grouped (AV-064)', () {
     final parts = [
       for (final id in ['a', 'b', 'c'])
@@ -147,7 +234,7 @@ void groupingTests() {
     );
     expect(identical(first[1], next[1]), isTrue);
     expect(next.indexOfKey('turn-2/x'), next.length - 1);
-    expect(next.indexOfKey('turn-1/footer'), 4);
+    expect(next.indexOfKey('turn-1/footer'), 3);
     expect(next.indexOfKey('nope'), isNull);
   });
 
@@ -162,7 +249,7 @@ void groupingTests() {
     expect(isChatWorking(working), isTrue);
     final row = timelineItems(working).last as WorkingItem;
     expect(row.activity, 'Reading files');
-    expect(timelineItems(working).indexOfKey('working'), 5);
+    expect(timelineItems(working).indexOfKey('working'), 4);
     expect(
       (timelineItems(working.copyWith(activity: ' ')).last as WorkingItem)
           .activity,
@@ -228,3 +315,16 @@ void groupingTests() {
     );
   });
 }
+
+/// A working chat whose active turn has [parts].
+ChatState _chatOf(List<ResponsePart> parts) =>
+    chatFixture(active: false).copyWith(
+      status: const SessionStatus(8),
+      activity: 'Reading',
+      activeTurn: ActiveTurn(
+        id: 'a',
+        startedAt: '2026-10-01T00:00:00Z',
+        message: userMessage('go'),
+        responseParts: parts,
+      ),
+    );

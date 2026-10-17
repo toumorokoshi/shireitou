@@ -23,6 +23,7 @@ import 'package:shireitou/src/notifications/notifications.dart';
 import 'package:shireitou/src/prefs.dart';
 import 'package:shireitou/src/session_detail/session_detail_view.dart';
 import 'package:shireitou/src/shortcuts.dart';
+import 'package:super_sliver_list/super_sliver_list.dart';
 import 'package:window_manager/window_manager.dart';
 
 /// Keeps remembered hosts in memory. Secure storage is covered by the
@@ -282,11 +283,38 @@ class AppHarness {
     await followTimeline();
   }
 
-  /// Scrolls the timeline back to the newest row when it is scrolled up.
+  /// Expands the newest turn's steps line ("Completed N steps…",
+  /// AV-095), so its tool calls, terminals and diffs are built.
+  Future<void> expandSteps() async {
+    final steps = find.textContaining(
+      RegExp(r'^(Completed|Working…) \d+ steps?'),
+    );
+    await waitFor(steps);
+    final newest =
+        [for (var i = 0; i < steps.evaluate().length; i++) steps.at(i)].reduce(
+          (a, b) => tester.getTopLeft(a).dy >= tester.getTopLeft(b).dy ? a : b,
+        );
+    await tapVisible(newest);
+    await settle();
+  }
+
+  /// Scrolls the timeline back to the newest row when it is scrolled up:
+  /// with "Jump to latest" when it shows, else directly (it shows only
+  /// past 200 px, and rows below that may not be built).
   Future<void> followTimeline() async {
     final jump = find.byTooltip('Jump to latest');
     if (jump.evaluate().isNotEmpty) {
       await tester.tap(jump.first);
+      await settle();
+    }
+    final timeline = find.descendant(
+      of: find.byType(SuperListView),
+      matching: find.byType(Scrollable),
+    );
+    if (timeline.evaluate().isEmpty) return;
+    final position = tester.state<ScrollableState>(timeline.first).position;
+    if (position.pixels != 0) {
+      position.jumpTo(0);
       await settle();
     }
   }
@@ -339,10 +367,13 @@ class AppHarness {
     await settle();
   }
 
-  /// Sends [text] as a follow-up once the previous turn has ended.
+  /// Sends [text] as a follow-up once the previous turn has ended, with
+  /// the timeline at the newest row so the reply is built on screen
+  /// (expanded steps can leave it scrolled up).
   Future<void> send(String text) async {
     // Wait for the previous turn to end, so this starts a new one.
     await waitFor(find.byTooltip('Send'));
+    await followTimeline();
     await clearSnackBars();
     await type(text);
     await tester.tap(find.byTooltip('Send'));
