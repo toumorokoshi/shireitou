@@ -11,7 +11,7 @@ import 'relative_time.dart';
 import 'status_badges.dart';
 
 /// What a session row's menu, swipe and multi-select can do (AV-024,
-/// AV-029). Each callback gets the session.
+/// AV-028, AV-029). Each callback gets the session.
 @immutable
 class SessionRowActions {
   /// Creates the row actions.
@@ -19,6 +19,7 @@ class SessionRowActions {
     required this.onArchive,
     required this.onMarkRead,
     required this.onSelect,
+    this.onPin,
     this.onCompare,
   });
 
@@ -32,14 +33,18 @@ class SessionRowActions {
   /// selecting.
   final ValueChanged<SessionRef> onSelect;
 
+  /// Pins the session (true) or unpins it (false, AV-028); not offered
+  /// when null.
+  final void Function(SessionRef session, bool pinned)? onPin;
+
   /// Opens the comparison of the session's parallel runs (AV-045); only
   /// offered for sessions with a run label.
   final ValueChanged<SessionRef>? onCompare;
 }
 
 /// Shows [groups] as collapsible folders of session rows. Rows have a
-/// menu (right-click or long-press) to archive, mark read or unread, and
-/// select; swiping a row to the left archives (or unarchives) it. While
+/// menu (right-click or long-press) to archive, mark read or unread, pin
+/// or unpin, and select; swiping a row to the left archives (or unarchives) it. While
 /// [selection] is set, rows show checkboxes and tapping toggles them.
 class SessionListView extends StatelessWidget {
   /// Creates a [SessionListView].
@@ -54,6 +59,7 @@ class SessionListView extends StatelessWidget {
     this.actions,
     this.selection,
     this.runLabels = const {},
+    this.pinned = const {},
     this.emptyText = 'No sessions on this host yet.',
   });
 
@@ -86,6 +92,9 @@ class SessionListView extends StatelessWidget {
   /// Labels of sessions started as parallel runs ("Run 2 of 3",
   /// AV-045), by session.
   final Map<SessionRef, String> runLabels;
+
+  /// The pinned sessions (AV-028), shown with a pin marker.
+  final Set<SessionRef> pinned;
 
   /// Shown when there are no [groups].
   final String emptyText;
@@ -135,6 +144,10 @@ class SessionListView extends StatelessWidget {
                     host: group.host,
                     session: session.resource,
                   )),
+                  pinned: pinned.contains((
+                    host: group.host,
+                    session: session.resource,
+                  )),
                   actions: actions,
                   onOpen: onSelect,
                   runLabel:
@@ -156,6 +169,7 @@ class _SessionRow extends StatelessWidget {
     required this.now,
     required this.selected,
     required this.checked,
+    required this.pinned,
     required this.actions,
     required this.onOpen,
     this.runLabel,
@@ -169,6 +183,7 @@ class _SessionRow extends StatelessWidget {
 
   /// Whether the row is picked; null when not selecting.
   final bool? checked;
+  final bool pinned;
   final SessionRowActions? actions;
   final ValueChanged<SessionRef> onOpen;
 
@@ -194,6 +209,11 @@ class _SessionRow extends StatelessWidget {
           value: () => actions.onMarkRead(ref, !_read),
           child: Text(_read ? 'Mark unread' : 'Mark read'),
         ),
+        if (actions.onPin case final onPin?)
+          PopupMenuItem(
+            value: () => onPin(ref, !pinned),
+            child: Text(pinLabel(pinned: pinned)),
+          ),
         PopupMenuItem(
           value: () => actions.onSelect(ref),
           child: Text(checked == null ? 'Select' : 'Toggle selection'),
@@ -216,6 +236,7 @@ class _SessionRow extends StatelessWidget {
       session: session,
       now: now,
       runLabel: runLabel,
+      pinned: pinned,
       selected: selected || (checked ?? false),
       leading: checked == null
           ? null
@@ -230,6 +251,9 @@ class _SessionRow extends StatelessWidget {
             actions.onArchive(ref, !_archived),
         CustomSemanticsAction(label: _read ? 'Mark unread' : 'Mark read'): () =>
             actions.onMarkRead(ref, !_read),
+        if (actions.onPin case final onPin?)
+          CustomSemanticsAction(label: pinLabel(pinned: pinned)): () =>
+              onPin(ref, !pinned),
       },
       child: GestureDetector(
         onSecondaryTapUp: (details) =>
@@ -277,6 +301,10 @@ class _SessionRow extends StatelessWidget {
     );
   }
 }
+
+/// The pin action's label for a session that is [pinned] or not
+/// (AV-028).
+String pinLabel({required bool pinned}) => pinned ? 'Unpin' : 'Pin to top';
 
 /// The line under a folder's name: its host (when several are listed),
 /// repository and branch when the host reports them, and its full path.
@@ -331,6 +359,7 @@ class SessionTile extends StatelessWidget {
     this.selected = false,
     this.leading,
     this.runLabel,
+    this.pinned = false,
   });
 
   /// The session to show.
@@ -339,6 +368,10 @@ class SessionTile extends StatelessWidget {
   /// "Run 2 of 3" when the session is one of several parallel runs
   /// (AV-045).
   final String? runLabel;
+
+  /// Whether the session is pinned (AV-028); a pin marker is shown
+  /// before the title.
+  final bool pinned;
 
   /// Clock for the relative modified time.
   final DateTime now;
@@ -369,13 +402,23 @@ class SessionTile extends StatelessWidget {
       selected: selected,
       onTap: onTap,
       leading: leading,
-      title: Text(
-        session.title,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: session.status.isReadFlag
-            ? null
-            : const TextStyle(fontWeight: FontWeight.bold),
+      title: Row(
+        children: [
+          if (pinned) ...[
+            const Icon(Icons.push_pin, size: 14, semanticLabel: 'Pinned'),
+            const SizedBox(width: 4),
+          ],
+          Flexible(
+            child: Text(
+              session.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: session.status.isReadFlag
+                  ? null
+                  : const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
       ),
       subtitle: Text(details.join(' · '), maxLines: 1),
       trailing: Wrap(

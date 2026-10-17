@@ -14,6 +14,7 @@ import '../hosts/open_hosts.dart';
 import '../layout.dart';
 import '../session_detail/session_detail_view.dart';
 import '../session_list/folder_grouping.dart';
+import '../session_list/pinned_store.dart';
 import '../session_list/session_filter.dart';
 import '../session_list/session_list_view.dart';
 import '../session_list/session_query.dart';
@@ -299,7 +300,8 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
             matchesQuery(s, query, hostLabel: labels[s.host]))
           s,
     ];
-    final groups = groupHostSessions(shown, sort: _sort);
+    final pinned = ref.watch(pinnedSessionsProvider);
+    final groups = groupHostSessions(shown, sort: _sort, pinned: pinned);
     _order = [
       for (final g in groups)
         for (final s in g.sessions) (host: g.host, session: s.resource),
@@ -421,6 +423,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                       _newSession(host: group.host, directory: group.key),
                   selection: selection,
                   runLabels: runLabels,
+                  pinned: pinned,
                   emptyText: onHost.isEmpty
                       ? 'No sessions on this host yet.'
                       : 'No sessions match.',
@@ -428,6 +431,9 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                     onArchive: (s, archived) => _setArchived([s], archived),
                     onMarkRead: (s, read) => _setRead([s], read),
                     onSelect: _toggleSelected,
+                    onPin: (s, pin) => ref
+                        .read(pinnedSessionsProvider.notifier)
+                        .setPinned(s, pinned: pin),
                     onCompare: _compare,
                   ),
                 ),

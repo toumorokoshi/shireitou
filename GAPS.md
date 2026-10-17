@@ -52,8 +52,6 @@ AppImage and the release workflow (see
 - **Highest priority (user feedback, 2026-10-16):** do these before the
   items below.
 
-  - **Pin sessions (AV-028):** sessions cannot be pinned to the top of
-    the list.
   - **Rename a session:** clicking the session's title in the header
     should let the user edit it in place.
   - **Working indicator:** while a session is working, the chat shows
@@ -254,7 +252,12 @@ AppImage and the release workflow (see
   - Search matches titles and the `agent:`, `status:`, `repo:` and
     `host:` qualifiers only, not chat content; there is no negation
     (`-status:done`) and the query is not remembered across restarts.
-    Pinning (AV-028) is not built.
+  - Pins (AV-028) are kept on this device only (AHP has no pin field), so
+    other devices and clients do not see them. A pin is not dropped when
+    its session is disposed or its host removed; the stored set only
+    grows with such leftovers. There is no `pinned:` search qualifier,
+    and no separate "Pinned" section above the folders (pinned sessions
+    lead their folder, which then leads the list).
   - An archive or read change from the list is sent to the session
     channel without subscribing; the row moves only when the host's
     catalogue update arrives (the root catalogue is not written ahead). A

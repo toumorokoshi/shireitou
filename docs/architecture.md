@@ -248,19 +248,23 @@ Dart source); `bin/generate.dart` does the file I/O. See
   `badgesFor` / `needsAttention` (AV-021), `filterSessions` (Active,
   Needs attention, Done, Archived, All; AV-022), `attentionCount` and
   `windowTitle` (AV-120), `session_query.dart` (`SessionSort` and
-  `compareSessions`, AV-026; `parseSessionQuery` and `matchesQuery` for
+  `compareSessions`, AV-026; `compareHostSessions`, which puts pinned
+  sessions first, AV-028; `parseSessionQuery` and `matchesQuery` for
   title words and `agent:`, `status:`, `repo:`, `host:` qualifiers,
-  AV-027), and `formatRelativeTime`. `session_list_view.dart` renders the
-  folders; each row has a menu (right-click, long-press, and screen reader
-  actions) to archive, mark read or unread and select, swipes left to
-  archive or unarchive, and shows checkboxes while selecting (AV-024,
-  AV-029). The sessions screen adds the search field, sort menu, filter
+  AV-027), `pinned_sessions.dart` (`withPinned` and the pin set's JSON,
+  AV-028), and `formatRelativeTime`. `pinned_store.dart` keeps the pinned
+  sessions (by host and session) on this device with `PrefsStore`.
+  `session_list_view.dart` renders the folders; each row has a menu
+  (right-click, long-press, and screen reader actions) to archive, mark
+  read or unread, pin or unpin and select, swipes left to archive or
+  unarchive, shows a pin marker on pinned rows, and shows checkboxes while
+  selecting (AV-024, AV-028, AV-029). The sessions screen adds the search field, sort menu, filter
   chips (with the attention count) and the bulk action bar.
 - `lib/src/session_detail/`: the session view. `timeline_items.dart` and
   `chat_commands.dart` are pure: `timelineItems(ChatState)` flattens turns
   into rows, and the command builders return the chat actions to dispatch.
   `session_detail_view.dart` holds the header (status, activity, Stop,
-  archive, mark unread, session details, change counts, background work,
+  archive, mark unread, pin, session details, change counts, background work,
   canvases and MCP server alerts), the chat switcher, the "Waiting for
   you" panel, the reversed timeline that follows new output (AV-066), the
   queued messages and the follow-up box (which syncs the chat's draft),

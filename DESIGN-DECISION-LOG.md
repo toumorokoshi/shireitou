@@ -1,5 +1,21 @@
 # Design Decision Log
 
+## 2026-10-16: Pinned sessions (AV-028)
+
+- **Pinned sessions lead their folder, and that folder leads the list.**
+  The list is always grouped by working directory (AV-025), so a
+  separate "Pinned" section would show a session away from its folder
+  and break the one-folder-per-directory rule. Instead the sort puts
+  pinned sessions first (`compareHostSessions`), and since folders are
+  ordered by their first session, a folder holding a pinned session
+  moves to the top with no extra rule. Pinned sessions keep the chosen
+  sort (AV-026) among themselves.
+- **Kept on this device, by host and session.** AHP has no pin field, so
+  the set is stored like run groups (AV-045): a JSON list of
+  `{host, session}` in `shared_preferences` through `PrefsStore`, with
+  the pure set and JSON functions in `pinned_sessions.dart` and the
+  notifier in `pinned_store.dart`.
+
 ## 2026-10-16: User-reported gaps take highest priority
 
 - **Usability feedback goes first.** Pinning, renaming sessions from the

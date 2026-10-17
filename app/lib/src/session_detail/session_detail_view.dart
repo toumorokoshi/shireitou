@@ -15,6 +15,7 @@ import '../auth/sign_in_dialog.dart';
 import '../connection_notices.dart';
 import '../host_connection.dart';
 import '../session_list/folder_grouping.dart';
+import '../session_list/pinned_store.dart';
 import '../session_list/session_list_view.dart';
 import '../session_list/status_badges.dart';
 import '../shortcuts.dart';
@@ -513,7 +514,13 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
       host: context.host,
       session: widget.session,
     ));
+    final sessionRef = (host: context.host, session: widget.session);
+    final pinned = ref.watch(pinnedSessionsProvider).contains(sessionRef);
     final header = _Header(
+      pinned: pinned,
+      onPin: (pin) => ref
+          .read(pinnedSessionsProvider.notifier)
+          .setPinned(sessionRef, pinned: pin),
       runLabel: runGroup == null
           ? null
           : labelsOfRuns([runGroup])[(
@@ -610,6 +617,8 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
 /// Title, agent, model, folder, status, activity and actions (AV-060).
 class _Header extends StatelessWidget {
   const _Header({
+    required this.pinned,
+    required this.onPin,
     required this.runLabel,
     required this.onCompareRuns,
     required this.summary,
@@ -627,6 +636,12 @@ class _Header extends StatelessWidget {
     required this.onMarkUnread,
     required this.onDetails,
   });
+
+  /// Whether the session is pinned to the top of the list (AV-028).
+  final bool pinned;
+
+  /// Pins the session (true) or unpins it (false).
+  final ValueChanged<bool> onPin;
 
   /// "Run 2 of 3" for a parallel run (AV-045).
   final String? runLabel;
@@ -768,6 +783,10 @@ class _Header extends StatelessWidget {
               PopupMenuItem(
                 value: onMarkUnread,
                 child: const Text('Mark unread'),
+              ),
+              PopupMenuItem(
+                value: () => onPin(!pinned),
+                child: Text(pinLabel(pinned: pinned)),
               ),
               PopupMenuItem(
                 value: onDetails,
