@@ -20,6 +20,8 @@ import '../session_detail/message_settings.dart';
 import '../session_detail/session_detail_view.dart';
 import '../session_list/folder_grouping.dart';
 import '../shortcuts.dart';
+import '../theme/app_colors.dart';
+import 'composer_labels.dart';
 import 'completions.dart';
 import 'config_fields.dart';
 import 'config_form.dart';
@@ -375,33 +377,11 @@ class _NewSessionViewState extends ConsumerState<NewSessionView> {
             RootState(agents: [agent]),
             ref.watch(signedInResourcesProvider(host)).value ?? const {},
           );
-    final hostLabel = hosts.where((h) => h.key == host).firstOrNull?.label;
     final header = Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Semantics(
-            header: true,
-            child: Text(newSessionTitle, style: theme.textTheme.titleLarge),
-          ),
-          const SizedBox(height: 4),
-          ListenableBuilder(
-            listenable: _directory,
-            builder: (context, _) => Text(
-              [
-                if (hosts.length > 1) ?hostLabel,
-                ?agent?.displayName,
-                if (_directory.text.trim() case final folder
-                    when folder.isNotEmpty)
-                  folder,
-              ].join(' · '),
-              style: theme.textTheme.bodySmall,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
+      child: Semantics(
+        header: true,
+        child: Text(newSessionTitle, style: theme.textTheme.titleSmall),
       ),
     );
     final timeline = SingleChildScrollView(
@@ -468,73 +448,104 @@ class _NewSessionViewState extends ConsumerState<NewSessionView> {
         ),
       ),
     );
-    final pickers = Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-      child: Wrap(
-        spacing: 16,
-        runSpacing: 4,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          if (hosts.length > 1)
-            compactPicker<String>(
-              context,
-              label: 'Host',
-              value: host,
-              items: [for (final h in hosts) (h.key, h.label)],
-              onChanged: (host) {
-                _selectHost(host);
-                _saveDraft();
-              },
-            ),
-          compactPicker<String>(
-            context,
-            label: 'Agent',
-            value: agent?.provider,
-            items: [for (final a in agents) (a.provider, a.displayName)],
-            onChanged: _selectAgent,
+    final muted = AppColors.of(context).mutedText;
+    // The host, agent and folder sit in a row above the composer's box,
+    // in the composer's chip style (AV-096).
+    final pickers = Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: composerMaxWidth),
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(
+            composerMargin.left - 6,
+            8,
+            composerMargin.right,
+            0,
           ),
-          Row(
-            mainAxisSize: MainAxisSize.min,
+          child: Wrap(
+            spacing: 4,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              SizedBox(
-                width: 260,
-                child: TextField(
-                  controller: _directory,
-                  style: theme.textTheme.bodySmall,
-                  decoration: const InputDecoration(
-                    isDense: true,
-                    labelText: 'Working directory',
-                    prefixIcon: Icon(Icons.folder_outlined, size: 18),
-                    border: OutlineInputBorder(),
-                  ),
+              if (hosts.length > 1)
+                pickerChip<String>(
+                  label: 'Host',
+                  icon: Icons.dns_outlined,
+                  value: host,
+                  items: [for (final h in hosts) (h.key, h.label)],
+                  onChanged: (host) {
+                    _selectHost(host);
+                    _saveDraft();
+                  },
                 ),
+              pickerChip<String>(
+                label: 'Agent',
+                icon: Icons.smart_toy_outlined,
+                value: agent?.provider,
+                items: [for (final a in agents) (a.provider, a.displayName)],
+                onChanged: _selectAgent,
               ),
-              IconButton(
-                tooltip: 'Browse…',
-                icon: const Icon(Icons.folder_open),
-                onPressed: host == null ? null : _browse,
-              ),
-              if (recent.isNotEmpty)
-                PopupMenuButton<String>(
-                  tooltip: 'Recent folders',
-                  icon: const Icon(Icons.history),
-                  onSelected: (folder) => _directory.text = folder,
-                  itemBuilder: (_) => [
-                    for (final folder in recent)
-                      PopupMenuItem(
-                        value: folder,
-                        child: ListTile(
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(folderLabelOf(folder)),
-                          subtitle: Text(folder),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 260,
+                    child: Semantics(
+                      label: 'Working directory',
+                      child: TextField(
+                        controller: _directory,
+                        style: theme.textTheme.bodySmall,
+                        decoration: InputDecoration(
+                          isDense: true,
+                          border: InputBorder.none,
+                          hintText: 'Working directory',
+                          hintStyle: theme.textTheme.bodySmall?.copyWith(
+                            color: muted,
+                          ),
+                          prefixIcon: Icon(
+                            Icons.folder_outlined,
+                            size: 14,
+                            color: muted,
+                          ),
+                          prefixIconConstraints: const BoxConstraints(
+                            minWidth: 26,
+                          ),
                         ),
                       ),
-                  ],
-                ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Browse…',
+                    iconSize: 16,
+                    visualDensity: VisualDensity.compact,
+                    color: muted,
+                    icon: const Icon(Icons.folder_open),
+                    onPressed: host == null ? null : _browse,
+                  ),
+                  if (recent.isNotEmpty)
+                    PopupMenuButton<String>(
+                      tooltip: 'Recent folders',
+                      iconSize: 16,
+                      iconColor: muted,
+                      icon: const Icon(Icons.history),
+                      onSelected: (folder) => _directory.text = folder,
+                      itemBuilder: (_) => [
+                        for (final folder in recent)
+                          PopupMenuItem(
+                            value: folder,
+                            child: ListTile(
+                              dense: true,
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(folderLabelOf(folder)),
+                              subtitle: Text(folder),
+                            ),
+                          ),
+                      ],
+                    ),
+                ],
+              ),
             ],
           ),
-        ],
+        ),
       ),
     );
     return Column(
@@ -543,7 +554,6 @@ class _NewSessionViewState extends ConsumerState<NewSessionView> {
         header,
         const Divider(height: 1),
         Expanded(child: timeline),
-        const Divider(height: 1),
         pickers,
         if (_starting)
           const Padding(
@@ -563,29 +573,38 @@ class _NewSessionViewState extends ConsumerState<NewSessionView> {
               ),
             ),
           ),
-        FollowUpInput(
-          // The model pickers start afresh for another host or agent; the
-          // prompt's text is kept.
-          key: ValueKey('prompt-$host-${agent?.provider}'),
-          controller: _prompt,
-          focusRequests: _focusRequests,
-          working: false,
-          labelText: 'Prompt',
-          hintText:
-              'What should the agent do? '
-              '(Enter to start, Shift+Enter for a newline)',
-          sendTooltip: _extraRuns.isEmpty
-              ? 'Start session'
-              : 'Start ${_extraRuns.length + 1} runs',
-          models: agent?.models ?? const [],
-          sessionFields: settingFields.where(isPickerField).toList(),
-          sessionValues: settingValues,
-          onSessionSettingChanged: _changeSetting,
-          completionTriggers: completionTriggers(const [], commands),
-          completionSource: (text, token) =>
-              resolveCompletions(text: text, token: token, commands: commands),
-          onSend: (text, {required steer, model, attachments = const []}) =>
-              unawaited(_start(text, model)),
+        ListenableBuilder(
+          listenable: _directory,
+          builder: (context, _) => FollowUpInput(
+            // The model pickers start afresh for another host or agent;
+            // the prompt's text is kept.
+            key: ValueKey('prompt-$host-${agent?.provider}'),
+            controller: _prompt,
+            focusRequests: _focusRequests,
+            working: false,
+            hintText: composerPlaceholder(
+              agent: agent?.displayName,
+              folder: switch (_directory.text.trim()) {
+                '' => null,
+                final folder => folderLabelOf(normalizeFolderKey(folder)),
+              },
+            ),
+            sendTooltip: _extraRuns.isEmpty
+                ? 'Start session'
+                : 'Start ${_extraRuns.length + 1} runs',
+            models: agent?.models ?? const [],
+            sessionFields: settingFields.where(isPickerField).toList(),
+            sessionValues: settingValues,
+            onSessionSettingChanged: _changeSetting,
+            completionTriggers: completionTriggers(const [], commands),
+            completionSource: (text, token) => resolveCompletions(
+              text: text,
+              token: token,
+              commands: commands,
+            ),
+            onSend: (text, {required steer, model, attachments = const []}) =>
+                unawaited(_start(text, model)),
+          ),
         ),
       ],
     );

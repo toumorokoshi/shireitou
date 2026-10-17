@@ -1,5 +1,7 @@
 import 'package:ahp_client/ahp_client.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shireitou/src/session_detail/session_detail_view.dart';
 
 /// Asks for reduced motion for the rest of the test, so the working
 /// indicator is static and `pumpAndSettle` returns while a chat works.
@@ -7,6 +9,22 @@ void reduceMotion(WidgetTester tester) {
   tester.platformDispatcher.accessibilityFeaturesTestValue =
       const FakeAccessibilityFeatures(disableAnimations: true);
   addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+}
+
+/// The composer's text field (the follow-up box, or a new-session
+/// draft's prompt).
+Finder get composerField => find.descendant(
+  of: find.byType(FollowUpInput),
+  matching: find.byType(TextField),
+);
+
+/// Opens the session header's "…" menu, then its "Details" popover
+/// (AV-094).
+Future<void> openSessionDetails(WidgetTester tester) async {
+  await tester.tap(find.byTooltip('Session actions'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Details…'));
+  await tester.pumpAndSettle();
 }
 
 /// Picks [label] (a filter or a sort) in the sidebar header's filter

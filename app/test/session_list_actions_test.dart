@@ -360,7 +360,7 @@ void main() {
     await _press(tester, LogicalKeyboardKey.keyN);
     expect(find.byTooltip('Start session'), findsOneWidget);
     // Cmd/Ctrl+L focuses the draft's prompt too.
-    final prompt = find.widgetWithText(TextField, 'Prompt');
+    final prompt = composerField;
     FocusManager.instance.primaryFocus?.unfocus();
     await tester.pump();
     await _press(tester, LogicalKeyboardKey.keyL);
@@ -473,6 +473,7 @@ void main() {
     );
     await tester.tap(find.text('Fix login'));
     await tester.pumpAndSettle();
+    await openSessionDetails(tester);
     expect(find.text('1 tool running on another client'), findsOneWidget);
     expect(find.text('Waiting for you (1)'), findsOneWidget);
     final completes = connection.dispatched

@@ -200,7 +200,7 @@ export async function connect(page: Page, url: string): Promise<void> {
 export async function send(page: Page, text: string): Promise<void> {
 	await expect(page.getByRole("button", { name: "Send", exact: true })).toBeVisible();
 	await page.keyboard.press("Control+KeyL");
-	await expect(page.getByRole("textbox", { name: /^Send a follow-up/ })).toBeFocused();
+	await expect(page.getByRole("textbox", { name: /^Chat with/ })).toBeFocused();
 	await page.keyboard.type(text);
 	await page.keyboard.press("Enter");
 }

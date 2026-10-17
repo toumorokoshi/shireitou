@@ -1,15 +1,21 @@
-/// The model and settings pickers above the follow-up box (AV-041).
+/// The composer's chips (AV-041, AV-096): the mode, the model and the
+/// effort and context window, each a flat text button that opens a menu.
 library;
 
 import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter/material.dart';
 
+import '../composer/composer_labels.dart';
 import '../composer/config_fields.dart';
+import '../composer/config_form.dart';
+import '../theme/app_colors.dart';
 
-/// Compact dropdowns for the next message's model (`Message.model`) and
-/// its options (the model's `configSchema`, such as the thinking level),
-/// and for the session settings that may change mid-session (such as the
-/// mode; `session/configChanged`).
+/// The chips for the next message's model (`Message.model`) and its
+/// options (the model's `configSchema`, such as the thinking level), and
+/// for the session settings that may change mid-session (such as the mode;
+/// `session/configChanged`), left to right: one chip per session setting,
+/// the model chip ("anthropic/claude-opus-5-5 · implementation lane") and
+/// the effort and context chip ("Medium · 1M").
 class MessageSettingsBar extends StatelessWidget {
   /// Creates a [MessageSettingsBar].
   const MessageSettingsBar({
@@ -40,90 +46,268 @@ class MessageSettingsBar extends StatelessWidget {
   /// Called with a changed session setting.
   final void Function(String id, Object? value)? onSessionSettingChanged;
 
+  void _setOption(ModelSelection selected, String id, Object? value) =>
+      onModelChanged(
+        ModelSelection(
+          id: selected.id,
+          config: {...?selected.config, id: ?value},
+        ),
+      );
+
+  /// Opens a dialog with the model options a menu cannot hold (text,
+  /// numbers, switches).
+  Future<void> _moreOptions(
+    BuildContext context,
+    ModelSelection selected,
+    List<ConfigField> fields,
+  ) => showDialog<void>(
+    context: context,
+    builder: (context) {
+      var current = selected;
+      return StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Model options'),
+          content: ConfigForm(
+            fields: fields,
+            values: current.config ?? const {},
+            onChanged: (id, value) {
+              setState(
+                () => current = ModelSelection(
+                  id: current.id,
+                  config: {...?current.config, id: ?value},
+                ),
+              );
+              onModelChanged(current);
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Done'),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+
   @override
   Widget build(BuildContext context) {
     final selected = model;
     final info = models.where((m) => m.id == selected?.id).firstOrNull;
-    final options = modelConfigFields(info?.configSchema)
-        .where(isPickerField)
-        .toList();
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-      child: Wrap(
-        spacing: 16,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          if (models.isNotEmpty)
-            compactPicker<String>(
-              context,
-              label: 'Model',
-              value: selected?.id,
-              items: [
-                (null, 'Host default model'),
-                for (final m in models) (m.id, m.name),
-              ],
-              onChanged: (id) => onModelChanged(
-                modelSelection(
-                  models.where((m) => m.id == id).firstOrNull,
-                  const {},
-                ),
-              ),
+    final options = selected == null
+        ? const <ConfigField>[]
+        : modelConfigFields(info?.configSchema);
+    final effort = options
+        .where((f) => isPickerField(f) && isEffortField(f))
+        .firstOrNull;
+    final choices = [
+      for (final f in options)
+        if (isPickerField(f) && f != effort) f,
+    ];
+    final others = [
+      for (final f in options)
+        if (!isPickerField(f) && f.kind != ConfigFieldKind.unsupported) f,
+    ];
+    final effortLabel = effortChipLabel(
+      effort: effort == null
+          ? null
+          : capitalized(
+              effort.labelOf(configValueOf(effort, selected?.config)),
             ),
-          if (selected != null)
-            for (final field in options)
-              compactPicker<Object>(
-                context,
-                label: field.title,
-                value: selected.config?[field.id] ?? field.defaultValue,
-                items: [for (final o in field.options) (o.value, o.label)],
-                onChanged: (value) => onModelChanged(
-                  ModelSelection(
-                    id: selected.id,
-                    config: {...?selected.config, field.id: ?value},
+      contextWindow: contextWindowLabel(info?.maxContextWindow),
+    );
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final field in sessionFields)
+          pickerChip<Object>(
+            label: field.title,
+            icon: field.id == 'mode' ? Icons.all_inclusive : Icons.tune,
+            value: sessionValues[field.id] ?? field.defaultValue,
+            items: [for (final o in field.options) (o.value, o.label)],
+            onChanged: onSessionSettingChanged == null
+                ? null
+                : (value) => onSessionSettingChanged!(field.id, value),
+          ),
+        if (models.isNotEmpty)
+          ComposerChip(
+            key: const ValueKey('picker-Model'),
+            icon: Icons.auto_awesome_outlined,
+            tooltip: 'Model',
+            label: modelChipLabel(info, selected),
+            menuChildren: [
+              choiceMenuItem(
+                hostDefaultModelLabel,
+                selected: selected == null,
+                onPressed: () => onModelChanged(null),
+              ),
+              for (final m in models)
+                choiceMenuItem(
+                  m.name,
+                  selected: m.id == selected?.id,
+                  onPressed: () => onModelChanged(modelSelection(m, const {})),
+                ),
+              if (selected != null)
+                for (final field in choices)
+                  SubmenuButton(
+                    menuChildren: [
+                      for (final o in field.options)
+                        choiceMenuItem(
+                          o.label,
+                          selected:
+                              o.value == configValueOf(field, selected.config),
+                          onPressed: () =>
+                              _setOption(selected, field.id, o.value),
+                        ),
+                    ],
+                    child: Text(
+                      '${field.title}: '
+                      '${field.labelOf(configValueOf(field, selected.config))}',
+                    ),
                   ),
+              if (selected != null && others.isNotEmpty)
+                MenuItemButton(
+                  onPressed: () => _moreOptions(context, selected, others),
+                  child: const Text('More options…'),
                 ),
-              ),
-          for (final field in sessionFields)
-            compactPicker<Object>(
-              context,
-              label: field.title,
-              value: sessionValues[field.id] ?? field.defaultValue,
-              items: [for (final o in field.options) (o.value, o.label)],
-              onChanged: onSessionSettingChanged == null
-                  ? null
-                  : (value) => onSessionSettingChanged!(field.id, value),
-            ),
-        ],
-      ),
+            ],
+          ),
+        if (effortLabel != null)
+          ComposerChip(
+            key: const ValueKey('picker-effort'),
+            tooltip: effort?.title ?? 'Context window',
+            label: effortLabel,
+            menuChildren: [
+              if (effort != null && selected != null)
+                for (final o in effort.options)
+                  choiceMenuItem(
+                    capitalized(o.label),
+                    selected: o.value == configValueOf(effort, selected.config),
+                    onPressed: () => _setOption(selected, effort.id, o.value),
+                  ),
+            ],
+          ),
+      ],
     );
   }
 }
 
-/// A borderless dropdown in small text, labelled by its tooltip (and by
-/// its hint while nothing is picked): the follow-up box's pickers and the
-/// new-session draft's host and agent pickers.
-Widget compactPicker<T>(
-  BuildContext context, {
+/// A menu item with a check before it when [selected].
+Widget choiceMenuItem(
+  String text, {
+  required bool selected,
+  required VoidCallback? onPressed,
+}) => MenuItemButton(
+  leadingIcon: SizedBox(
+    width: 16,
+    child: selected ? const Icon(Icons.check, size: 16) : null,
+  ),
+  onPressed: onPressed,
+  child: Text(text),
+);
+
+/// A chip that picks one of [items] from its menu, showing the picked
+/// item's text (or [label] while nothing is picked) and named [label] by
+/// its tooltip: the composer's setting chips and the new-session draft's
+/// host and agent chips.
+Widget pickerChip<T>({
   required String label,
   required T? value,
   required List<(T?, String)> items,
   required ValueChanged<T?>? onChanged,
-}) {
-  final style = Theme.of(context).textTheme.bodySmall;
-  return Tooltip(
-    message: label,
-    child: DropdownButton<T?>(
-      key: ValueKey('picker-$label'),
-      value: items.any((i) => i.$1 == value) ? value : null,
-      isDense: true,
-      underline: const SizedBox.shrink(),
-      style: style,
-      hint: Text(label, style: style),
-      items: [
-        for (final (v, text) in items)
-          DropdownMenuItem(value: v, child: Text(text)),
-      ],
-      onChanged: onChanged,
-    ),
-  );
+  IconData? icon,
+}) => ComposerChip(
+  key: ValueKey('picker-$label'),
+  icon: icon,
+  tooltip: label,
+  label: items.where((i) => i.$1 == value).firstOrNull?.$2 ?? label,
+  menuChildren: [
+    for (final (v, text) in items)
+      choiceMenuItem(
+        text,
+        selected: v == value,
+        onPressed: onChanged == null ? null : () => onChanged(v),
+      ),
+  ],
+);
+
+/// A flat text button in the composer's bottom row (AV-096): a small
+/// leading [icon] and [label] in muted text that brightens on hover, and a
+/// menu of [menuChildren] when tapped (none when empty).
+class ComposerChip extends StatefulWidget {
+  /// Creates a [ComposerChip].
+  const ComposerChip({
+    super.key,
+    required this.label,
+    required this.tooltip,
+    required this.menuChildren,
+    this.icon,
+  });
+
+  /// The chip's text.
+  final String label;
+
+  /// Names the chip for the pointer and screen readers.
+  final String tooltip;
+
+  /// The menu's items; the chip is not a button when empty.
+  final List<Widget> menuChildren;
+
+  /// The small icon before [label]; none when null.
+  final IconData? icon;
+
+  @override
+  State<ComposerChip> createState() => _ComposerChipState();
+}
+
+class _ComposerChipState extends State<ComposerChip> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final muted = AppColors.of(context).mutedText;
+    return MenuAnchor(
+      menuChildren: widget.menuChildren,
+      builder: (context, controller, _) {
+        final color = _hovered || controller.isOpen
+            ? theme.colorScheme.onSurface
+            : muted;
+        final enabled = widget.menuChildren.isNotEmpty;
+        return Tooltip(
+          message: widget.tooltip,
+          child: Semantics(
+            button: enabled,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(4),
+              onHover: (hovered) => setState(() => _hovered = hovered),
+              onTap: enabled
+                  ? () => controller.isOpen
+                        ? controller.close()
+                        : controller.open()
+                  : null,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (widget.icon case final icon?) ...[
+                      Icon(icon, size: 14, color: color),
+                      const SizedBox(width: 4),
+                    ],
+                    Text(
+                      widget.label,
+                      style: theme.textTheme.bodySmall?.copyWith(color: color),
+                      maxLines: 1,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
 }

@@ -462,7 +462,7 @@ void main() {
     );
     await tester.tap(find.byTooltip(RegExp(r'^New session \(')));
     await tester.pumpAndSettle();
-    final prompt = find.widgetWithText(TextField, 'Prompt');
+    final prompt = composerField;
     await tester.enterText(prompt, 'Please /rev');
     await tester.pump(const Duration(milliseconds: 200));
     await tester.pump();

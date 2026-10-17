@@ -231,7 +231,13 @@ Dart source); `bin/generate.dart` does the file I/O. See
 - `lib/src/composer/`: `config_fields.dart` is pure: a model's
   `configSchema` and a session config schema become `ConfigField`s, with
   `configValues`, `modelSelection`, `isPickerField` and
-  `mutableSessionFields`.
+  `mutableSessionFields`. `composer_labels.dart` is pure (AV-096): the
+  placeholder (`composerPlaceholder`), the model chip's text
+  (`modelChipLabel`), the reasoning option (`isEffortField`) and the
+  effort and context chip's text (`effortChipLabel`,
+  `contextWindowLabel`). `session_detail/message_settings.dart` holds
+  the chips (`ComposerChip`, a `MenuAnchor` with a flat, muted label;
+  `pickerChip`; `MessageSettingsBar`).
   `config_form.dart` renders them (dropdowns, switches, text, and host
   suggestions for `enumDynamic`), and `directory_browser.dart` is the
   `resourceList` folder picker. `completions.dart` is pure (AV-044): a
@@ -339,11 +345,14 @@ Dart source); `bin/generate.dart` does the file I/O. See
   into rows, and the command builders return the chat actions to dispatch.
   `session_detail_view.dart` holds the header (the title, which
   `editable_title.dart` turns into a text field when clicked or on
-  "Rename…", AV-073; status, activity, Stop,
-  archive, mark unread, pin, session details, change counts, background work,
-  canvases and MCP server alerts), the chat switcher, the "Waiting for
+  "Rename…", AV-073; a failed-turn icon and MCP server alerts beside
+  it; and a "…" menu with the `sessionDetailLines`, a "Details" popover
+  with the status, background work, canvases, links and the parallel
+  run, and the actions, AV-094), the chat switcher, the "Waiting for
   you" panel, the reversed timeline that follows new output (AV-066), the
-  queued messages and the follow-up box (which syncs the chat's draft),
+  queued messages and the composer's box (`FollowUpInput`, AV-096,
+  which syncs the chat's draft and turns its send arrow into stop while
+  the agent works),
   with the review pane beside it (wide) or as a tab. On wide layouts a
   `ReviewPaneToggle` right of the header (or Cmd/Ctrl+Alt+B) opens and
   closes the `CollapsibleReviewPane`; whether it is open is
@@ -431,7 +440,7 @@ Dart source); `bin/generate.dart` does the file I/O. See
   open list as a panel above the follow-up box (AV-070).
   `source_links.dart` (pure) reads the pull request
   (`copilot.githubReferences`, `headBranch`) and branch (`git`) from
-  `_meta`, shown as header chips (AV-105). The input form lists
+  `_meta`, shown as items of the session header's "…" menu and chips in its "Details" popover (AV-094, AV-105). The input form lists
   described single-select options and sends free-form text
   (`allowFreeformInput`) with the choice, for plan reviews (AV-046).
 - `lib/src/runs/`: parallel runs (AV-045). `run_groups.dart` is pure
@@ -479,10 +488,10 @@ Dart source); `bin/generate.dart` does the file I/O. See
   (AV-040), shown in the session pane (or as the session page on compact
   layouts) and laid out like an open session: a "New session" header, an
   empty timeline with a hint, the agent's non-dropdown settings (such as
-  `branch`) and the parallel runs editor, then compact host, agent and
-  working directory pickers (with "Browse…" and recent folders) above
-  the follow-up box (`FollowUpInput` with its own `controller`), whose
-  bar picks the model, its options and the dropdown settings (such as
+  `branch`) and the parallel runs editor, then a row of host and agent chips and
+  the working directory field (with "Browse…" and recent folders) above
+  the composer's box (`FollowUpInput` with its own `controller`), whose
+  chips pick the model, its options and the choice settings (such as
   `mode`). Sending starts the session (or runs) and calls `onStarted`;
   the sessions screen then opens the session in place.
   `new_session_draft.dart` is pure: `NewSessionTarget` (the host and

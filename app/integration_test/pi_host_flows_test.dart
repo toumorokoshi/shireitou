@@ -61,7 +61,7 @@ Future<void> _startSession(
     await tester.tap(find.text('Choose this folder'));
     await h.settle();
   }
-  await tester.enterText(find.widgetWithText(TextField, 'Prompt'), prompt);
+  await tester.enterText(h.composer, prompt);
   await h.tapVisible(find.byTooltip('Start session'));
   await h.waitFor(find.text('pi faux reply: $prompt'));
   // Let the draft turn into the session.
@@ -109,13 +109,13 @@ void main() {
       debugPrint('pi host flows: stop');
       await h.send('slow, then stop');
       await h.waitFor(find.textContaining('Counting slowly'));
-      await tester.tap(find.text('Stop'));
+      await tester.tap(find.byTooltip('Stop'));
       await h.waitFor(find.byTooltip('Send'));
       await h.waitFor(find.textContaining('Cancelled'));
 
       debugPrint('pi host flows: queued message');
       await h.send('slow again');
-      await h.waitFor(find.byTooltip('Queue'));
+      await h.waitFor(find.byTooltip('Stop'));
       await h.clearSnackBars();
       await h.type('queued behind it');
       await tester.tap(find.byTooltip('Queue'));

@@ -49,14 +49,23 @@ smoke-tested Windows, iOS and Android in CI, added the app icon, the
 AppImage and the release workflow (see
 [docs/packaging.md](docs/packaging.md)). Remaining work:
 
-- **Highest priority (user feedback, 2026-10-16): match the reference
-  UI** in [design/reference/agents-window.md](design/reference/agents-window.md)
-  (AV-090 to AV-096). Do these before the items below.
-
-  - **Session header (AV-094):** a title-only header with a "…" menu.
-  - **Composer (AV-096):** the rounded box with chips along its bottom,
-    for follow-ups and new sessions alike.
-
+- **Session header and composer (AV-094, AV-096), remaining details:**
+  the "+" button is disabled until attachments can be picked (AV-042).
+  The "Details" popover (live, from the header's "…" menu) and the
+  "Session details" page are separate; the popover could absorb the
+  page's sections. The effort chip shows the context window only when
+  the host sends `maxContextWindow` (pi does; the fake host does not),
+  and nothing about the host's default model (no effort or context is
+  known for it). The model chip's "key option" is the first choice
+  option that is not the reasoning level, which may not be the one a
+  host considers most meaningful (AHP has no such hint). Only the
+  `mode` setting gets the "∞" icon; other settings get a generic one.
+  Chips scroll sideways in a narrow pane rather than wrapping. The
+  new-session draft's folder is a borderless text field with Browse
+  and recent-folder buttons beside the host and agent chips, not a
+  chip of its own. The tooltips name the action ("Send", "Queue",
+  "Send now", "Stop") without the shortcut; the placeholder no longer
+  explains Enter and Cmd/Ctrl+Enter (README and AV-080 do).
 - **Theme and title bar (AV-090, AV-091), remaining details:** the
   theme's tokens are in `app/lib/src/theme/` (`AppColors.of(context)`;
   see [docs/architecture.md](docs/architecture.md)). Contrast is checked
@@ -211,8 +220,8 @@ AppImage and the release workflow (see
     be moved within their session (no move to another or a new session,
     `ChatMoveToNewSessionDestination`), and only "left/right" from a menu,
     not by dragging.
-  - Drafts sync the follow-up text only (not the model picked in the
-    follow-up bar, agents or attachments); a draft from another client
+  - Drafts sync the follow-up text only (not the model picked with the
+    composer's chips, agents or attachments); a draft from another client
     replaces the box's text only while the user has not typed since the
     last sync.
 - **Review pane, remaining details (AV-100 to AV-105):** compare-turns

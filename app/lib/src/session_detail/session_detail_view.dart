@@ -22,6 +22,7 @@ import '../session_list/pinned_store.dart';
 import '../session_list/session_list_view.dart';
 import '../session_list/status_badges.dart';
 import '../shortcuts.dart';
+import '../theme/app_colors.dart';
 import '../channels.dart';
 import '../review/changes_pane.dart';
 import '../review/review_pane_store.dart';
@@ -36,6 +37,7 @@ import '../ssh/ssh_terminal_screen.dart';
 import 'chat_commands.dart';
 import '../composer/completion_popup.dart';
 import '../composer/completions.dart';
+import '../composer/composer_labels.dart';
 import '../composer/config_fields.dart';
 import 'chat_switcher.dart';
 import 'editable_title.dart';
@@ -114,6 +116,9 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
 
   /// Opens the title's text field (the "Rename…" menu item, AV-073).
   final _renameRequests = ValueNotifier<int>(0);
+
+  /// Opens and closes the header's "Details" popover (AV-094).
+  final _detailsMenu = MenuController();
   StreamSubscription<AppCommand>? _commands;
 
   String? get _chat => _selectedChat ?? _defaultChat;
@@ -414,16 +419,13 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
     // Model and mode pickers (AV-041): models of the session's agent, and
     // the session settings that may change mid-session.
     final provider = summary?.provider ?? sessionState?.provider;
-    final models = ref.watch(
+    final agent = ref.watch(
       hostConnectionProvider(context.host).select(
-        (s) =>
-            s.root?.agents
-                .where((a) => a.provider == provider)
-                .firstOrNull
-                ?.models ??
-            const <SessionModelInfo>[],
+        (s) => s.root?.agents.where((a) => a.provider == provider).firstOrNull,
       ),
     );
+    final models = agent?.models ?? const <SessionModelInfo>[];
+    final folder = summary == null ? null : folderKeyOf(summary);
     final sessionFields = mutableSessionFields(sessionState?.config);
     // `/` completions (AV-044): the host's, else the session's skills.
     final commands = slashCommands(sessionState?.customizations);
@@ -509,6 +511,14 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
                         key: ValueKey(chatUri),
                         focusRequests: _composerFocus,
                         working: chat.activeTurn != null,
+                        hintText: composerPlaceholder(
+                          agent: agent?.displayName ?? provider,
+                          folder: folder == null ? null : folderLabelOf(folder),
+                        ),
+                        onStop: () {
+                          final action = stopAction(chat, DateTime.now());
+                          if (action != null) _dispatch(chatUri!, action);
+                        },
                         draft: chat.draft,
                         models: models,
                         initialModel: lastModelSelection(chat),
@@ -604,6 +614,7 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
       title: title,
       onRename: (typed) => _rename(title, typed),
       renameRequests: _renameRequests,
+      detailsController: _detailsMenu,
       summary: summary,
       chat: chat,
       backgroundWork: supports(ProtocolFeature.backgroundWork)
@@ -703,7 +714,9 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
   }
 }
 
-/// Title, agent, model, folder, status, activity and actions (AV-060).
+/// The session's title on one line (click to rename it, AV-073), what
+/// needs the user (a failed turn, MCP servers to sign in to), and a "…"
+/// menu with the details and actions (AV-060, AV-094).
 class _Header extends StatelessWidget {
   const _Header({
     required this.pinned,
@@ -713,6 +726,7 @@ class _Header extends StatelessWidget {
     required this.title,
     required this.onRename,
     required this.renameRequests,
+    required this.detailsController,
     required this.summary,
     required this.chat,
     required this.backgroundWork,
@@ -748,6 +762,9 @@ class _Header extends StatelessWidget {
 
   /// Opens the title's text field when it notifies.
   final ValueNotifier<int> renameRequests;
+
+  /// Opens and closes the "Details" popover.
+  final MenuController detailsController;
   final SessionSummary? summary;
   final ChatState? chat;
   final List<BackgroundWork> backgroundWork;
@@ -767,157 +784,231 @@ class _Header extends StatelessWidget {
   /// no menu item when null.
   final VoidCallback? onSshTerminal;
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final summary = this.summary;
-    final chat = this.chat;
+  /// The "Details" popover: the [sessionDetailLines] and chips for the
+  /// status, background work, the parallel run, the pull request and
+  /// branch, canvases and tools running on other clients.
+  /// It is built with the header, so it stays current while open.
+  Widget _details(BuildContext context, MenuController controller) {
     final status = chat?.status ?? summary?.status;
-    final activity = chat?.activity ?? summary?.activity;
-    final model = chat == null ? null : lastModelOf(chat);
-    final usage = chat == null ? null : sessionUsage(chat);
-    final archived = status?.isArchivedFlag ?? false;
-    final details = [
-      ?summary?.provider,
-      ?model,
-      if (summary != null) folderKeyOf(summary) ?? noFolderLabel,
-      if (summary != null)
-        if (worktreeInfoOf(summary).branch case final branch?) '⎇ $branch',
-      if (usage != null && usage.input + usage.output > 0)
-        '${usage.input} in · ${usage.output} out tokens',
-      ?changesLabel(summary?.changes ?? chat?.changes),
-    ];
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.all(12),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 360),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                EditableTitle(
-                  title: title,
-                  onRename: onRename,
-                  editRequests: renameRequests,
-                  style: theme.textTheme.titleLarge,
+                Expanded(
+                  child: Text(
+                    'Details',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  details.join(' · '),
-                  style: theme.textTheme.bodySmall,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 6),
-                Wrap(
-                  spacing: 4,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    if (status != null)
-                      for (final badge in badgesFor(status))
-                        StatusBadgeChip(badge: badge),
-                    if (backgroundWork.isNotEmpty)
-                      BackgroundWorkChip(
-                        work: backgroundWork,
-                        onOpenChat: onOpenChat,
-                      ),
-                    if (runLabel case final label?)
-                      ActionChip(
-                        avatar: const Icon(Icons.call_split, size: 16),
-                        label: Text(label),
-                        tooltip: 'Compare runs',
-                        visualDensity: VisualDensity.compact,
-                        onPressed: onCompareRuns,
-                      ),
-                    if (links.pullRequest case final pr?)
-                      _LinkChip(
-                        icon: Icons.call_merge,
-                        label: pr.label,
-                        tooltip: [?pr.title, pr.url].join('\n'),
-                        url: pr.url,
-                      ),
-                    if (links.branch case BranchLink(:final name, :final url?))
-                      _LinkChip(
-                        icon: Icons.account_tree_outlined,
-                        label: name,
-                        tooltip: url,
-                        url: url,
-                      ),
-                    if (canvases.isNotEmpty) CanvasChips(canvases: canvases),
-                    if (mcpAlerts.isNotEmpty)
-                      McpServerAlertChips(
-                        alerts: mcpAlerts,
-                        onSignIn: onSignIn,
-                      ),
-                    if (clientExecutions.isNotEmpty)
-                      ClientExecutionChip(
-                        executions: clientExecutions,
-                        session: session,
-                      ),
-                    if (activity != null)
-                      Semantics(
-                        liveRegion: true,
-                        child: Text(
-                          activity,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
-                      ),
-                  ],
+                IconButton(
+                  tooltip: 'Close details',
+                  iconSize: 16,
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(Icons.close),
+                  onPressed: controller.close,
                 ),
               ],
             ),
+            const SizedBox(height: 4),
+            for (final line in sessionDetailLines(summary: summary, chat: chat))
+              Text(line),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 4,
+              runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                if (status != null)
+                  for (final badge in badgesFor(status))
+                    StatusBadgeChip(badge: badge),
+                if (backgroundWork.isNotEmpty)
+                  BackgroundWorkChip(
+                    work: backgroundWork,
+                    onOpenChat: (chat) {
+                      controller.close();
+                      onOpenChat(chat);
+                    },
+                  ),
+                if (runLabel case final label?)
+                  ActionChip(
+                    avatar: const Icon(Icons.call_split, size: 16),
+                    label: Text(label),
+                    tooltip: 'Compare runs',
+                    visualDensity: VisualDensity.compact,
+                    onPressed: onCompareRuns,
+                  ),
+                if (links.pullRequest case final pr?)
+                  _LinkChip(
+                    icon: Icons.call_merge,
+                    label: pr.label,
+                    tooltip: [?pr.title, pr.url].join('\n'),
+                    url: pr.url,
+                  ),
+                if (links.branch case BranchLink(:final name, :final url?))
+                  _LinkChip(
+                    icon: Icons.account_tree_outlined,
+                    label: name,
+                    tooltip: url,
+                    url: url,
+                  ),
+                if (canvases.isNotEmpty) CanvasChips(canvases: canvases),
+                if (clientExecutions.isNotEmpty)
+                  ClientExecutionChip(
+                    executions: clientExecutions,
+                    session: session,
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final status = chat?.status ?? summary?.status;
+    final archived = status?.isArchivedFlag ?? false;
+    final small = theme.textTheme.bodySmall?.copyWith(
+      color: AppColors.of(context).mutedText,
+    );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: EditableTitle(
+              title: title,
+              onRename: onRename,
+              editRequests: renameRequests,
+              style: theme.textTheme.titleSmall,
+            ),
           ),
-          if (chat?.activeTurn != null && onStop != null)
+          // What needs the user stays in view (AV-094).
+          if (status?.isError ?? false)
             Tooltip(
-              message: 'Stop (${shortcutLabel(AppCommand.stop)})',
-              child: FilledButton.tonalIcon(
-                onPressed: onStop,
-                icon: const Icon(Icons.stop),
-                label: const Text('Stop'),
+              message: 'The last turn failed',
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Icon(
+                  Icons.error_outline,
+                  size: 18,
+                  color: AppColors.of(context).statusColors.error,
+                  semanticLabel: SessionBadge.error.label,
+                ),
               ),
             ),
-          PopupMenuButton<VoidCallback>(
-            tooltip: 'Session actions',
-            onSelected: (action) => action(),
-            itemBuilder: (_) => [
-              PopupMenuItem(
-                value: () => renameRequests.value++,
-                child: const Text('Rename…'),
-              ),
-              PopupMenuItem(
-                value: () => onArchive(!archived),
-                child: Text(archived ? 'Unarchive' : 'Archive'),
-              ),
-              PopupMenuItem(
-                value: onMarkUnread,
-                child: const Text('Mark unread'),
-              ),
-              PopupMenuItem(
-                value: () => onPin(!pinned),
-                child: Text(pinLabel(pinned: pinned)),
-              ),
-              PopupMenuItem(
-                value: onDetails,
-                child: const Text('Session details'),
-              ),
-              if (onCompareRuns case final compare?)
+          if (mcpAlerts.isNotEmpty)
+            McpServerAlertChips(alerts: mcpAlerts, onSignIn: onSignIn),
+          // The "…" menu's "Details…" opens the popover anchored here.
+          MenuAnchor(
+            controller: detailsController,
+            menuChildren: [_details(context, detailsController)],
+            builder: (context, details, _) => PopupMenuButton<VoidCallback>(
+              tooltip: 'Session actions',
+              icon: const Icon(Icons.more_horiz),
+              onSelected: (action) => action(),
+              itemBuilder: (context) => [
+                for (final line in sessionDetailLines(
+                  summary: summary,
+                  chat: chat,
+                ))
+                  PopupMenuItem(
+                    enabled: false,
+                    height: 28,
+                    child: Text(line, style: small),
+                  ),
+                const PopupMenuDivider(),
                 PopupMenuItem(
-                  value: compare,
-                  child: const Text('Compare runs'),
+                  value: details.open,
+                  child: const Text('Details…'),
                 ),
-              if (onSshTerminal case final ssh?)
+                if (chat?.activeTurn != null && onStop != null)
+                  PopupMenuItem(
+                    value: onStop,
+                    child: Text('Stop (${shortcutLabel(AppCommand.stop)})'),
+                  ),
+                if (links.pullRequest case final pr?)
+                  PopupMenuItem(
+                    value: () => _launch(pr.url),
+                    child: Text('Open ${pr.label}'),
+                  ),
+                if (links.branch case BranchLink(:final name, :final url?))
+                  PopupMenuItem(
+                    value: () => _launch(url),
+                    child: Text('Open branch $name'),
+                  ),
                 PopupMenuItem(
-                  value: ssh,
-                  child: const Text(openSshTerminalLabel),
+                  value: () => renameRequests.value++,
+                  child: const Text('Rename…'),
                 ),
-            ],
+                PopupMenuItem(
+                  value: () => onArchive(!archived),
+                  child: Text(archived ? 'Unarchive' : 'Archive'),
+                ),
+                PopupMenuItem(
+                  value: onMarkUnread,
+                  child: const Text('Mark unread'),
+                ),
+                PopupMenuItem(
+                  value: () => onPin(!pinned),
+                  child: Text(pinLabel(pinned: pinned)),
+                ),
+                PopupMenuItem(
+                  value: onDetails,
+                  child: const Text('Session details'),
+                ),
+                if (onCompareRuns case final compare?)
+                  PopupMenuItem(
+                    value: compare,
+                    child: const Text('Compare runs'),
+                  ),
+                if (onSshTerminal case final ssh?)
+                  PopupMenuItem(
+                    value: ssh,
+                    child: const Text(openSshTerminalLabel),
+                  ),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
+}
+
+/// Opens [url] in the browser.
+void _launch(String url) =>
+    unawaited(launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication));
+
+/// The session's details as lines of text, for the header's "…" menu and
+/// its "Details" dialog (AV-094): the agent and model, the folder and
+/// branch, the tokens used, the change counts and the status.
+List<String> sessionDetailLines({SessionSummary? summary, ChatState? chat}) {
+  final model = chat == null ? null : lastModelOf(chat);
+  final usage = chat == null ? null : sessionUsage(chat);
+  final status = chat?.status ?? summary?.status;
+  final branch = summary == null ? null : worktreeInfoOf(summary).branch;
+  return [
+    if ([?summary?.provider, ?model] case final agent when agent.isNotEmpty)
+      agent.join(' · '),
+    if (summary != null)
+      [
+        folderKeyOf(summary) ?? noFolderLabel,
+        if (branch != null) '⎇ $branch',
+      ].join(' · '),
+    if (usage != null && usage.input + usage.output > 0)
+      '${usage.input} in · ${usage.output} out tokens',
+    ?changesLabel(summary?.changes ?? chat?.changes),
+    if (status != null) badgesFor(status).map((b) => b.label).join(' · '),
+  ];
 }
 
 /// A chip that opens [url] in the browser (a pull request or branch,
@@ -941,9 +1032,7 @@ class _LinkChip extends StatelessWidget {
     label: Text(label),
     tooltip: tooltip,
     visualDensity: VisualDensity.compact,
-    onPressed: () => unawaited(
-      launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
-    ),
+    onPressed: () => _launch(url),
   );
 }
 
@@ -1245,15 +1334,25 @@ typedef SendMessage = void Function(
   List<MessageAttachment> attachments,
 });
 
-/// The follow-up box (AV-080): Enter sends (or queues while working),
-/// Cmd/Ctrl+Enter sends now while working, Shift+Enter adds a newline.
+/// The widest the composer gets; it is centred in wider panes (AV-096).
+const composerMaxWidth = 960.0;
+
+/// The space around the composer's box.
+const composerMargin = EdgeInsets.fromLTRB(20, 8, 20, 20);
+
+/// The follow-up box (AV-080, AV-096): one rounded box with the text at
+/// the top and, along its bottom, "+" (attachments, not supported yet),
+/// the [MessageSettingsBar] chips and the send button. Enter sends (or
+/// queues while working), Cmd/Ctrl+Enter sends now while working,
+/// Shift+Enter adds a newline; while the agent works and the box is
+/// empty, the send button stops the turn ([onStop]).
 /// It starts from the chat's [draft] and syncs what the user types back
 /// as the draft, debounced ([onDraftChanged], `chat/draftChanged`).
-/// Above it, [MessageSettingsBar] picks the model (and its options) for
-/// the next message, starting from [initialModel], and changes the
-/// session's mutable settings. Typing one of [completionTriggers] at the
-/// start of a word opens [CompletionPopup] (AV-044). The new-session
-/// draft (AV-040) uses it as its prompt, with its own [controller].
+/// The chips pick the model (and its options) for the next message,
+/// starting from [initialModel], and change the session's mutable
+/// settings. Typing one of [completionTriggers] at the start of a word
+/// opens [CompletionPopup] (AV-044). The new-session draft (AV-040) uses
+/// it as its prompt, with its own [controller].
 class FollowUpInput extends StatefulWidget {
   /// Creates a [FollowUpInput].
   const FollowUpInput({
@@ -1272,20 +1371,21 @@ class FollowUpInput extends StatefulWidget {
     this.completionTriggers = const [],
     this.completionSource,
     this.controller,
-    this.labelText,
     this.hintText,
     this.sendTooltip,
+    this.onStop,
   });
 
   /// The box's text, owned by the caller, who then also clears it after
   /// a send; null for a box that owns its text and clears it on send.
   final TextEditingController? controller;
 
-  /// The box's label; none when null.
-  final String? labelText;
-
-  /// The box's hint; null for the follow-up hint.
+  /// The placeholder, "Chat with Pi [cruise]" (see [composerPlaceholder]);
+  /// null for "Describe a task…".
   final String? hintText;
+
+  /// Stops the running turn; no stop button when null.
+  final VoidCallback? onStop;
 
   /// The send button's tooltip; null for "Send" (or "Queue" while
   /// working).
@@ -1449,40 +1549,117 @@ class _FollowUpInputState extends State<FollowUpInput> {
   }
 
   @override
-  Widget build(BuildContext context) => Column(
-    mainAxisSize: MainAxisSize.min,
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      if (widget.models.isNotEmpty || widget.sessionFields.isNotEmpty)
-        MessageSettingsBar(
-          models: widget.models,
-          model: _model,
-          onModelChanged: (model) => setState(() {
-            _model = model;
-            _pickedModel = true;
-          }),
-          sessionFields: widget.sessionFields,
-          sessionValues: widget.sessionValues,
-          onSessionSettingChanged: widget.onSessionSettingChanged,
+  Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: composerMaxWidth),
+        child: Padding(
+          padding: composerMargin,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: colors.raisedSurface,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: colors.hairline),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+                  child: _withCompletions(_field(context)),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(4, 0, 4, 4),
+                  child: Row(
+                    children: [
+                      const IconButton(
+                        tooltip: attachmentsUnsupportedLabel,
+                        iconSize: 18,
+                        visualDensity: VisualDensity.compact,
+                        icon: Icon(Icons.add),
+                        onPressed: null,
+                      ),
+                      Expanded(
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: MessageSettingsBar(
+                            models: widget.models,
+                            model: _model,
+                            onModelChanged: (model) => setState(() {
+                              _model = model;
+                              _pickedModel = true;
+                            }),
+                            sessionFields: widget.sessionFields,
+                            sessionValues: widget.sessionValues,
+                            onSessionSettingChanged:
+                                widget.onSessionSettingChanged,
+                          ),
+                        ),
+                      ),
+                      ListenableBuilder(
+                        listenable: _text,
+                        builder: (context, _) => _sendButtons(),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
-      _input(context),
-    ],
-  );
+      ),
+    );
+  }
 
-  Widget _field() => TextField(
+  /// The send arrow; while the agent works, "Queue" and "Send now" for
+  /// typed text, or the stop square when the box is empty.
+  Widget _sendButtons() {
+    final empty = _text.text.trim().isEmpty;
+    final stop = widget.onStop;
+    if (widget.working && empty && stop != null) {
+      return IconButton(
+        tooltip: 'Stop',
+        iconSize: 18,
+        visualDensity: VisualDensity.compact,
+        icon: const Icon(Icons.stop_rounded),
+        onPressed: stop,
+      );
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (widget.working && !empty)
+          IconButton(
+            tooltip: 'Send now',
+            iconSize: 18,
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.bolt_outlined),
+            onPressed: () => _send(steer: true),
+          ),
+        IconButton(
+          tooltip: widget.sendTooltip ?? (widget.working ? 'Queue' : 'Send'),
+          iconSize: 18,
+          visualDensity: VisualDensity.compact,
+          icon: const Icon(Icons.arrow_upward),
+          onPressed: empty ? null : () => _send(steer: false),
+        ),
+      ],
+    );
+  }
+
+  Widget _field(BuildContext context) => TextField(
     controller: _text,
     focusNode: _focus,
-    minLines: 1,
+    minLines: 2,
     maxLines: 8,
     keyboardType: TextInputType.multiline,
-    decoration: InputDecoration(
-      labelText: widget.labelText,
-      hintText:
-          widget.hintText ??
-          (widget.working
-              ? 'Queue a follow-up (Enter) or steer now (Ctrl/Cmd+Enter)'
-              : 'Send a follow-up (Enter; Shift+Enter for a newline)'),
-      border: const OutlineInputBorder(),
+    style: Theme.of(context).textTheme.bodyMedium,
+    decoration: InputDecoration.collapsed(
+      hintText: widget.hintText ?? composerPlaceholder(),
+      hintStyle: Theme.of(context).textTheme.bodyMedium
+          ?.copyWith(color: AppColors.of(context).mutedText),
     ),
   );
 
@@ -1498,20 +1675,4 @@ class _FollowUpInputState extends State<FollowUpInput> {
     ),
     null => field,
   };
-
-  Widget _input(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Expanded(child: _withCompletions(_field())),
-        const SizedBox(width: 8),
-        IconButton.filled(
-          tooltip: widget.sendTooltip ?? (widget.working ? 'Queue' : 'Send'),
-          icon: Icon(widget.working ? Icons.schedule_send : Icons.send),
-          onPressed: () => _send(steer: false),
-        ),
-      ],
-    ),
-  );
 }

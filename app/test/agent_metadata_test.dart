@@ -389,6 +389,7 @@ void main() {
           meta: meta,
         ),
       );
+      await openSessionDetails(tester);
       expect(find.widgetWithText(ActionChip, 'PR #42 · open'), findsOneWidget);
       expect(
         find.widgetWithText(ActionChip, 'feature/dry-run'),

@@ -192,7 +192,8 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Approve'));
-    await tester.tap(find.text('Stop'));
+    // The composer is empty, so its send button stops the turn (AV-096).
+    await tester.tap(find.byTooltip('Stop'));
     final submit = find.widgetWithText(FilledButton, 'Submit');
     expect(tester.widget<FilledButton>(submit).onPressed, isNull);
     await tester.enterText(
@@ -302,7 +303,7 @@ void main() {
     final draftRow = find.byKey(const ValueKey('new-session-draft'));
     expect(tester.widget<ListTile>(draftRow).selected, isTrue);
     // The prompt has the focus.
-    final prompt = find.widgetWithText(TextField, 'Prompt');
+    final prompt = composerField;
     expect(tester.widget<TextField>(prompt).focusNode!.hasFocus, isTrue);
     await tester.enterText(prompt, 'Fix the build');
 
@@ -358,7 +359,7 @@ void main() {
     await tester.tap(find.byTooltip(RegExp(r'^New session \(')));
     await tester.pumpAndSettle();
     expect(find.byType(BackButton), findsOneWidget);
-    await tester.enterText(find.widgetWithText(TextField, 'Prompt'), 'Hi');
+    await tester.enterText(composerField, 'Hi');
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pumpAndSettle();
     expect(connection.started.single.prompt, 'Hi');
@@ -489,10 +490,7 @@ void main() {
     await tester.tap(find.text('Fix login'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Sign-in required'), findsWidgets);
-    expect(find.text('1 in background'), findsOneWidget);
-    // In the header's details, and in the title bar's review pane
-    // toggle's tooltip and badge.
-    expect(find.textContaining('+3 −1 · 1 file'), findsOneWidget);
+    // In the title bar's review pane toggle's tooltip and badge.
     expect(find.byTooltip(RegExp(r'\+3 −1 · 1 file$')), findsOneWidget);
     expect(
       find.descendant(
@@ -519,6 +517,11 @@ void main() {
     expect(channel, 'ahp-chat:/1');
     expect(action['type'], 'chat/toolCallComplete');
     expect((action['result']! as JsonMap)['success'], isFalse);
+
+    // The header's "Details" popover (AV-094).
+    await openSessionDetails(tester);
+    expect(find.text('1 in background'), findsOneWidget);
+    expect(find.textContaining('+3 −1 · 1 file'), findsOneWidget);
   });
 
   testWidgets('a 0.9.0 host shows no background work', (tester) async {
@@ -529,6 +532,7 @@ void main() {
     );
     await tester.tap(find.text('Fix login'));
     await tester.pumpAndSettle();
+    await openSessionDetails(tester);
     expect(find.text('1 in background'), findsNothing);
   });
 }

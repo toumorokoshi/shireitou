@@ -68,7 +68,14 @@ void main() {
     await send('run the tool');
     await waitFor(find.text('Approve'));
     expect(find.text('Allow Bash to run `ls -la`?'), findsOneWidget);
-    expect(find.text('Needs input'), findsWidgets);
+    // The session's row says so with its status dot.
+    expect(
+      find.byWidgetPredicate(
+        (w) =>
+            w is Icon && (w.semanticLabel?.startsWith('Needs input') ?? false),
+      ),
+      findsWidgets,
+    );
     await tapVisible(find.text('Approve'));
     await waitFor(find.text('The folder has 3 entries.'));
     // The finished call folds into the turn's steps line (AV-095).
@@ -155,8 +162,10 @@ void main() {
     // The pull request the host publishes in _meta (AV-105).
     debugPrint('fake host flows: pull request');
     await send('open a pr');
+    await h.openDetails();
     await waitFor(find.widgetWithText(ActionChip, 'PR #42 · open'));
     expect(find.widgetWithText(ActionChip, 'main'), findsOneWidget);
+    await h.closeDetails();
 
     // `/` completions from the host's `completions` (AV-044): Enter
     // accepts, and the message carries the item's attachment.
@@ -304,7 +313,7 @@ void main() {
       find.widgetWithText(TextField, 'Working directory'),
       '/workspace',
     );
-    await tester.enterText(find.widgetWithText(TextField, 'Prompt'), 'hi');
+    await tester.enterText(h.composer, 'hi');
     await h.tapVisible(find.byTooltip('Start session'));
     await h.waitFor(find.text('Sign in to Fake agent service'));
     await tester.tap(find.text('Sign in with browser'));
@@ -391,7 +400,7 @@ void main() {
     // Queued messages during a slow turn: edit and reorder (AV-081).
     debugPrint('fake host flows: queued messages');
     await h.send('slow');
-    await h.waitFor(find.byTooltip('Queue'));
+    await h.waitFor(find.byTooltip('Stop'));
     await h.clearSnackBars();
     for (final text in ['first', 'second']) {
       await h.type(text);
@@ -417,7 +426,7 @@ void main() {
               .join('|') ==
           'second|first, edited',
     );
-    await tester.tap(find.text('Stop'));
+    await tester.tap(find.byTooltip('Stop'));
     await h.waitFor(find.byTooltip('Send'));
 
     // Drafts are synced to the host (chat/draftChanged).
@@ -519,10 +528,7 @@ void main() {
     await h.waitFor(find.text('fix/crash'));
     await tester.tap(find.text('fix/crash'));
     await h.settle();
-    await tester.enterText(
-      find.widgetWithText(TextField, 'Prompt'),
-      'settings',
-    );
+    await tester.enterText(h.composer, 'settings');
     // Below the fold on small windows (the parallel runs row adds height).
     await h.tapVisible(find.byTooltip('Start session'));
     await h.waitFor(find.textContaining('thinkingLevel: high'));
@@ -552,7 +558,7 @@ void main() {
       find.widgetWithText(TextField, 'Working directory'),
       '/missing',
     );
-    await tester.enterText(find.widgetWithText(TextField, 'Prompt'), 'hi');
+    await tester.enterText(h.composer, 'hi');
     await h.tapVisible(find.byTooltip('Start session'));
     final started = DateTime.now();
     await h.waitFor(
@@ -645,18 +651,25 @@ void main() {
     // A tool another client runs is shown as such, not as a question; one
     // delegated to this app is turned down.
     debugPrint('fake host flows: client tools');
-    await h.send('client');
+    // The chip is in the header's "Details" popover, open before the
+    // turn starts (the tool runs briefly); Enter sends without a tap
+    // outside the popover, which would close it.
+    await h.waitFor(find.byTooltip('Send'));
+    await h.openDetails();
+    await h.type('client');
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await h.waitFor(find.text('1 tool running on another client'));
     expect(panel, findsNothing);
     await h.waitFor(find.text('fake-ide opened the preview.'));
     await h.waitForNone(find.text('1 tool running on another client'));
+    await h.closeDetails();
     await h.send('delegate');
     await h.waitFor(find.textContaining('could not open the preview'));
 
     // Stop (Cmd/Ctrl+.) and focus the composer (Cmd/Ctrl+L).
     debugPrint('fake host flows: stop and focus shortcuts');
     await h.send('slow');
-    await h.waitFor(find.byTooltip('Queue'));
+    await h.waitFor(find.byTooltip('Stop'));
     await h.shortcut(AppCommand.stop);
     await h.waitFor(find.byTooltip('Send'));
     FocusManager.instance.primaryFocus?.unfocus();
@@ -735,11 +748,11 @@ void main() {
     // A running turn survives the outage and can still be stopped.
     debugPrint('fake host flows: running turn');
     await h.send('slow');
-    await h.waitFor(find.byTooltip('Queue'));
+    await h.waitFor(find.byTooltip('Stop'));
     await outage();
-    await h.waitFor(find.byTooltip('Queue'));
+    await h.waitFor(find.byTooltip('Stop'));
     await h.clearSnackBars();
-    await tester.tap(find.text('Stop'));
+    await tester.tap(find.byTooltip('Stop'));
     await h.waitFor(find.byTooltip('Send'));
 
     // A session removed while the app was away is reported as gone.

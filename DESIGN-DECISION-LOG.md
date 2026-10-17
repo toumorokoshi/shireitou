@@ -36,6 +36,59 @@ the status dot and muted text colours had not been checked for contrast.
   text stays at 4.5:1 and the line numbers, which repeat the position,
   at 3:1.
 
+||||||| parent of 5820aa2 (feat(app): title-only session header and the reference composer (AV-094, AV-096))
+
+## 2026-10-17: A title-only session header and the reference composer (AV-094, AV-096)
+
+The user asked for the session header and the chat box at the bottom to
+look like the reference screenshot
+([design/reference/agents-window.md](design/reference/agents-window.md)).
+
+- **Header details move into the "…" menu and a "Details" popover.**
+  The header is now the title (still click-to-rename, AV-073) and the
+  "…" menu. The menu starts with plain lines (agent and model, folder
+  and branch, tokens, change counts, status) so the common facts are one
+  click away, then "Details…", Stop, the pull request and branch links
+  and the existing actions. "Details…" opens a `MenuAnchor` popover
+  instead of a dialog because a popover is rebuilt with the header, so
+  background work, canvases and tools on other clients stay current
+  while it is open (a dialog would show a snapshot). It has a close
+  button so tests and keyboard users can dismiss it without tapping
+  elsewhere.
+- **Attention stays in view.** A failed turn shows an error icon beside
+  the title, and MCP servers that need sign-in (or failed) keep their
+  chips there, since hiding them in a menu would let a session stall
+  unnoticed. Input requests already have the "Waiting for you" panel.
+  Live activity left the header; the timeline's "Working…" line
+  (AV-072, AV-095) shows it.
+- **One composer box, also for new sessions.** `FollowUpInput` draws
+  the box (8 px radius, hairline border, `raisedSurface`, at most 960 px
+  wide with 20 px margins) with the text on top and "+", the chips and
+  the send button along its bottom. The new-session draft keeps its
+  host and agent chips and the folder field in a row above the box,
+  so the bottom row matches a session's and the folder can still be
+  typed.
+- **Chips are `MenuAnchor`s with flat, muted labels.** Each chip's
+  tooltip is its setting's title ("Mode", "Model", "Thinking"), so
+  tests and screen readers keep finding them by name. The model chip
+  reads the model id when it names its provider (pi's
+  "anthropic/claude-opus-5-5"), else the model's name, plus the first
+  choice option that is not the reasoning level; the reasoning option
+  (matched by `thinking`, `reasoning` or `effort` in its id or title)
+  moves to the effort chip with the context window ("Medium · 1M").
+  Other choice options are submenus of the model chip, and options a
+  menu cannot hold (text, numbers, switches) open from "More options…".
+- **Send, queue, send now and stop share one place.** The arrow is
+  disabled while the box is empty (no empty sends), reads "Queue" while
+  the agent works, gains a "Send now" button beside it for typed text
+  (touch users have no Cmd/Ctrl+Enter), and becomes a stop square while
+  the agent works and the box is empty. The header's Stop button is
+  gone; Stop is also in the "…" menu and Cmd/Ctrl+. still works.
+- **Placeholder instead of a label.** The box has no "Prompt" label;
+  its placeholder is "Chat with <agent> [<folder>]", or "Describe a
+  task…" without an agent. Tests find the box as the `FollowUpInput`'s
+  text field and the web tests by the placeholder.
+
 ## 2026-10-16: Hosts are no longer a level of the sidebar (AV-092, AV-093)
 
 The user decided the sidebar should follow the reference UI

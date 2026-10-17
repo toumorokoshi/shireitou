@@ -211,7 +211,7 @@ test-fake-host-app [linux|macos]`, run by CI on both desktops): the real
   starts a session from a folder's "+" button (a draft in the session
   pane that turns into the session) with the host picker,
   folder browser, a model option, the mode and a branch suggestion, changes
-  the mode from the follow-up bar, and checks that a session in a missing
+  the mode from the composer's mode chip, and checks that a session in a missing
   folder fails with the host's error at once. A fourth test drives the
   session list (search, archiving from the row menu, unarchiving with a
   swipe, the Done filter, multi-select "Mark unread" and the attention

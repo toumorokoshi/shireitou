@@ -201,7 +201,7 @@ void main() {
         .read(openSessionRequestsProvider)
         .add(sessionOfPayload(notifier.shown.single.payload)!);
     await tester.pumpAndSettle();
-    expect(find.textContaining('Queue a follow-up'), findsOneWidget);
+    expect(composerField, findsOneWidget);
     expect(container.read(visibleSessionProvider)?.session, 'pi:/1');
 
     // While it is on screen and the window has focus, nothing is posted.

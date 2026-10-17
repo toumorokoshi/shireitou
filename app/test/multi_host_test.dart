@@ -138,7 +138,7 @@ void main() {
     // Opening a session shows it from its own host.
     await tester.tap(find.text('Deploy'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('Queue a follow-up'), findsOneWidget);
+    expect(composerField, findsOneWidget);
 
     // Disconnecting the host leaves the other one.
     await tester.tap(find.byTooltip('More actions'));
@@ -272,7 +272,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.widgetWithText(TextField, '/src/app/lib'), findsOneWidget);
 
-    await tester.enterText(find.widgetWithText(TextField, 'Prompt'), 'Go');
+    await tester.enterText(composerField, 'Go');
+    await tester.pump();
     await tester.tap(find.byTooltip('Start session'));
     await tester.pumpAndSettle();
     final start = second.started.single;
@@ -295,7 +296,8 @@ void main() {
     second.startError = error;
     await tester.tap(find.byTooltip(RegExp(r'^New session \(')));
     await tester.pumpAndSettle();
-    await tester.enterText(find.widgetWithText(TextField, 'Prompt'), 'Go');
+    await tester.enterText(composerField, 'Go');
+    await tester.pump();
     await tester.tap(find.byTooltip('Start session'));
     await tester.pumpAndSettle();
     debugPrint(
@@ -354,6 +356,7 @@ void main() {
     });
 
     await tester.enterText(find.byType(TextField).last, 'Next');
+    await tester.pump();
     await tester.tap(find.byTooltip('Queue'));
     await tester.pump();
     final message = first.dispatched.last.$2['message'] as JsonMap;

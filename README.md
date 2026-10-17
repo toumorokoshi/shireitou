@@ -35,8 +35,10 @@ with a UX modeled on the GitHub Agents view and Cursor's Agents Window.
 > shortcuts start sessions, search, step through sessions, stop turns and
 > focus the composer (in the macOS menu bar too), and the hosts open at
 > the last run reconnect on start. Agents' todo lists show as checklists,
-> plan reviews take a choice plus feedback, the session header links to
-> the branch's pull request, `/` in the composer and follow-up box
+> plan reviews take a choice plus feedback, the session header (a
+> title and a "…" menu with the details and actions) links to
+> the branch's pull request, the composer is one rounded box with mode,
+> model and effort chips and a send arrow that turns into stop, `/` in the composer and follow-up box
 > completes the agent's skills and commands (from the host's
 > `completions`), one prompt can start several runs to
 > compare and pick from, and the desktop apps (and the web app, where
@@ -151,11 +153,14 @@ just run chrome 'ws://127.0.0.1:63877?tkn=...'   # prefill the host URL
    or forget them.
 
 4. Pick a session, or press **+** to start one: a draft opens in the
-   session pane, laid out like a session; choose the agent, model and
-   folder above its prompt, write the prompt and press Enter, and the
+   session pane, laid out like a session; choose the agent and folder
+   above its box and the model with the chips along its bottom, write
+   the prompt and press Enter, and the
    pane switches to the new session. In a session, Enter sends a
    follow-up (or queues it while the agent works), Cmd/Ctrl+Enter steers the
-   running turn, Shift+Enter adds a newline, and **Stop** cancels the turn.
+   running turn, Shift+Enter adds a newline, and the stop square (the
+   send arrow while the agent works and the box is empty) cancels the
+   turn.
 
    Shortcuts (Cmd on macOS, Ctrl elsewhere): Cmd/Ctrl+N new session,
    Cmd/Ctrl+K show and focus the search field (with `agent:`, `status:`, `repo:` and

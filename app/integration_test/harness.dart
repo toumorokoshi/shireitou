@@ -368,6 +368,21 @@ class AppHarness {
     () => tester.widget<MaterialApp>(find.byType(MaterialApp)).title == title,
   );
 
+  /// Opens the session header's "…" menu, then its "Details" popover
+  /// (AV-094), which stays current while open.
+  Future<void> openDetails() async {
+    await tapVisible(find.byTooltip('Session actions'));
+    await settle();
+    await tester.tap(find.text('Details…'));
+    await settle();
+  }
+
+  /// Closes the "Details" popover.
+  Future<void> closeDetails() async {
+    await tester.tap(find.byTooltip('Close details'));
+    await settle();
+  }
+
   /// The follow-up box.
   Finder get composer => find.descendant(
     of: find.byType(FollowUpInput),

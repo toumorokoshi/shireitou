@@ -176,10 +176,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Remove run 3'));
     await tester.pumpAndSettle();
-    await tester.enterText(
-      find.widgetWithText(TextField, 'Prompt'),
-      'Fix the parser',
-    );
+    await tester.enterText(composerField, 'Fix the parser');
+    await tester.pump();
     await tester.tap(find.byTooltip('Start 2 runs'));
     await tester.pumpAndSettle();
 
@@ -197,6 +195,7 @@ void main() {
     // The list labels both runs; the first one is open.
     expect(find.textContaining('Run 1 of 2 · '), findsOneWidget);
     expect(find.textContaining('Run 2 of 2 · '), findsOneWidget);
+    await openSessionDetails(tester);
     expect(find.widgetWithText(ActionChip, 'Run 1 of 2'), findsOneWidget);
   });
 
@@ -235,6 +234,7 @@ void main() {
     await tester.tap(find.text('Open').last);
     await tester.pumpAndSettle();
     expect(find.text('Compare 2 runs'), findsNothing);
+    await openSessionDetails(tester);
     expect(find.widgetWithText(ActionChip, 'Run 2 of 2 · picked'), findsOne);
   });
 }

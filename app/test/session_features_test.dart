@@ -18,6 +18,7 @@ import 'package:shireitou/src/session_detail/session_detail_view.dart';
 import 'package:shireitou/src/session_detail/code_highlight.dart';
 import 'package:shireitou/src/session_detail/timeline_parts.dart';
 import 'package:shireitou/src/session_detail/turn_rail.dart';
+import 'package:shireitou/src/session_list/session_list_view.dart';
 import 'package:shireitou/src/theme/app_colors.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
 
@@ -933,6 +934,7 @@ void main() {
       ),
     };
     await _pump(tester, _state(chat: chat, canvases: canvas));
+    await openSessionDetails(tester);
     expect(find.text('App preview'), findsOneWidget);
   });
 
@@ -940,6 +942,7 @@ void main() {
     final chat = _chatWith(const [])
         .copyWith(canvases: const [CanvasReference(resource: 'ahp-canvas:/c')]);
     await _pump(tester, _state(chat: chat, version: '0.9.0'));
+    await openSessionDetails(tester);
     expect(find.byIcon(Icons.web_asset), findsNothing);
   });
 
@@ -1075,4 +1078,62 @@ void main() {
       await tester.pumpAndSettle();
     },
   );
+
+  group('session header (AV-094)', () {
+    testWidgets('the title and a "…" menu with the details and actions', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        _state(chat: _chatWith(const []), sessionState: _session()),
+      );
+      // Only the title shows; the details are in the menu.
+      expect(find.text('/src/app'), findsNothing);
+      expect(find.byType(StatusBadgeChip), findsNothing);
+      await tester.tap(find.byTooltip('Session actions'));
+      await tester.pumpAndSettle();
+      for (final item in [
+        'pi',
+        '/src/app',
+        'Idle',
+        'Details…',
+        'Rename…',
+        'Archive',
+        'Mark unread',
+        'Pin to top',
+        'Session details',
+      ]) {
+        expect(find.text(item), findsOneWidget, reason: item);
+      }
+      await tester.tap(find.text('Details…'));
+      await tester.pumpAndSettle();
+      expect(find.text('Details'), findsOneWidget);
+      expect(find.byType(StatusBadgeChip), findsOneWidget);
+    });
+
+    testWidgets('a failed turn and MCP servers that need attention stay in '
+        'view', (tester) async {
+      final session = _session();
+      await _pump(
+        tester,
+        _state(
+          chat: _chatWith(const []).copyWith(status: SessionStatus(33 | 2)),
+          sessionState: session.copyWith(
+            customizations: const [
+              McpServerCustomization(
+                id: 'docs',
+                uri: 'file:///src/app/.mcp.json',
+                name: 'Example Docs',
+                state: McpServerErrorState(
+                  error: ErrorInfo(errorType: 'crash', message: 'Exited'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+      expect(find.byTooltip('The last turn failed'), findsOneWidget);
+      expect(find.widgetWithText(ActionChip, 'Example Docs'), findsOneWidget);
+    });
+  });
 }
