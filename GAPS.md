@@ -54,9 +54,6 @@ AppImage and the release workflow (see
 
   - **Rename a session:** clicking the session's title in the header
     should let the user edit it in place.
-  - **Working indicator:** while a session is working, the chat shows
-    nothing at the bottom of the timeline; add a typing ("…") or
-    spinner indicator there.
   - **Denser sidebar:** the icons and text in the left-hand session list
     are too large. Use smaller icons and fonts and thin rows so more
     sessions fit.
@@ -163,6 +160,11 @@ AppImage and the release workflow (see
   `_meta.purpose` on the input request are not in the schema and are
   dropped by the generated types, and there is no editor for the plan
   itself (AHP has no command to change it).
+- **Working indicator (AV-072):** it follows the open chat only, so a
+  parent chat waiting on a working subagent shows it only while its own
+  turn runs. It is hidden while the chat needs input, and is checked by
+  widget tests only (not the fake host, pi or browser flows). Unlike
+  Copilot's, it does not show the elapsed time of the turn.
 - **PR and branch links (AV-105):** only GitHub URLs and VS Code's
   `_meta` conventions (`copilot.githubReferences` with `headBranch`,
   `git.githubOwner`/`githubRepo`); VS Code's folder-keyed `githubData`,

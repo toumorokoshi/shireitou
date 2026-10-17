@@ -274,8 +274,12 @@ Dart source); `bin/generate.dart` does the file I/O. See
   streams), so a delta only rebuilds the active turn's rows;
   `TimelineRows` indexes them without copying and finds rows by key for
   the keyed, lazily built list. It also groups consecutive calls of one
-  tool (AV-064) and adds a "load older turns" row while the host holds
-  turns back (AV-068).
+  tool (AV-064), adds a "load older turns" row while the host holds
+  turns back (AV-068), and ends with a `WorkingItem` while the chat
+  works (`isChatWorking`: the `InProgress` bit or an active turn, not
+  `InputNeeded`; AV-072). Being the last row of the reversed list, the
+  indicator sits at scroll offset 0, so it stays in view whenever the
+  user is at the bottom.
   `approval_bar.dart` is the bar under a waiting tool call: Approve/Deny
   or the host's options in groups, the risk assessment, "Edit input" for
   `editable` calls and "Use result"/"Discard result" for results that
@@ -305,7 +309,9 @@ Dart source); `bin/generate.dart` does the file I/O. See
   (`declineClientExecutionAction`).
   `timeline_parts.dart` renders markdown (`flutter_markdown_plus`), collapsed reasoning, tool call cards with
   Approve/Deny (and Sign in / Cancel for `auth-required` calls, with a
-  token dialog), input request forms, errors and grouped tool calls;
+  token dialog), input request forms, errors, grouped tool calls and the
+  working indicator (pulsing dots, a static "…" when
+  `MediaQuery.disableAnimationsOf` asks for reduced motion);
   markdown code blocks go through `code_highlight.dart`.
 - `lib/src/session_detail/todo_list.dart` (pure) recognizes todo tools
   (`TodoWrite`, `update_todo`, `manage_todo_list`, `update_plan`) and

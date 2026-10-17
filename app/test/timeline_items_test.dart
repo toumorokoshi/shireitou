@@ -23,6 +23,7 @@ void main() {
           TurnFooterItem() => 'footer',
           ToolCallGroupItem() => 'group',
           LoadOlderItem() => 'older',
+          WorkingItem() => 'working',
         },
     ];
     // The empty markdown part pi opens before streaming is hidden.
@@ -148,6 +149,45 @@ void groupingTests() {
     expect(next.indexOfKey('turn-2/x'), next.length - 1);
     expect(next.indexOfKey('turn-1/footer'), 4);
     expect(next.indexOfKey('nope'), isNull);
+  });
+
+  test('a working chat ends with a working row', () {
+    final idle = chatFixture(active: false);
+    // In progress (bit 8) with the read flag (bit 32): bitwise, not equal.
+    final working = idle.copyWith(
+      status: const SessionStatus(8 | 32),
+      activity: '  Reading files ',
+    );
+    expect(isChatWorking(idle), isFalse);
+    expect(isChatWorking(working), isTrue);
+    final row = timelineItems(working).last as WorkingItem;
+    expect(row.activity, 'Reading files');
+    expect(timelineItems(working).indexOfKey('working'), 5);
+    expect(
+      (timelineItems(working.copyWith(activity: ' ')).last as WorkingItem)
+          .activity,
+      isNull,
+    );
+    expect(timelineItems(idle).last, isA<TurnFooterItem>());
+    // An active turn counts even before the status catches up.
+    final started = chatFixture().copyWith(status: const SessionStatus(1));
+    expect(timelineItems(started).last, isA<WorkingItem>());
+    // Waiting on the user is not working: the request is shown instead.
+    expect(isChatWorking(chatFixture()), isFalse);
+  });
+
+  test('working label and typing dot opacity', () {
+    expect(workingLabel(null), 'Agent is working');
+    expect(workingLabel('Reading'), 'Agent is working: Reading');
+    expect(typingDotOpacity(0, 0), closeTo(0.3, 1e-9));
+    expect(typingDotOpacity(0, 0.5), closeTo(1, 1e-9));
+    // Each dot lags the one before it by a third of a cycle.
+    expect(typingDotOpacity(1, 0.5 + 1 / 3), closeTo(1, 1e-9));
+    for (var t = 0.0; t < 1; t += 0.05) {
+      for (var dot = 0; dot < 3; dot++) {
+        expect(typingDotOpacity(dot, t), inInclusiveRange(0.3, 1));
+      }
+    }
   });
 
   test('a windowed chat starts with a load-older row (AV-068)', () {

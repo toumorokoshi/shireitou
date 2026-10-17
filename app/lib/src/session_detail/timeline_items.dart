@@ -104,6 +104,40 @@ class LoadOlderItem extends TimelineItem {
   String get key => 'older/$cursor';
 }
 
+/// The last row while the chat is working (and not waiting on the user):
+/// a typing indicator with the chat's current [activity], if any.
+class WorkingItem extends TimelineItem {
+  /// Creates a [WorkingItem].
+  const WorkingItem({this.activity});
+
+  /// What the agent is doing now (`activity`), or null.
+  final String? activity;
+
+  @override
+  String get key => 'working';
+}
+
+/// Whether [chat] is working: a turn is running ([SessionStatus]
+/// `InProgress` bit, or an active turn) and it does not wait on the user
+/// (`InputNeeded`), whose approval or question is shown instead.
+bool isChatWorking(ChatState chat) =>
+    (chat.status.isInProgress || chat.activeTurn != null) &&
+    !chat.status.isInputNeeded;
+
+/// The screen reader label of the working indicator: "Agent is working",
+/// with [activity] when there is one.
+String workingLabel(String? activity) =>
+    activity == null ? 'Agent is working' : 'Agent is working: $activity';
+
+/// The opacity of typing dot [dot] (0 to 2) at animation progress [t]
+/// (0 to 1): each dot pulses from 0.3 to 1 and back, a third of a cycle
+/// after the one before it.
+double typingDotOpacity(int dot, double t) {
+  final phase = (t - dot / 3) % 1;
+  final pulse = 1 - (2 * phase - 1).abs();
+  return 0.3 + 0.7 * pulse;
+}
+
 /// A steering or queued message waiting to be delivered (AV-081).
 class PendingMessageItem {
   /// Creates a [PendingMessageItem].
@@ -263,20 +297,28 @@ class TimelineRows with ListMixin<TimelineItem> {
 /// Flattens [chat] into timeline rows, oldest first: a [LoadOlderItem]
 /// when the host holds older turns back, each finished turn's message,
 /// visible parts (similar tool calls grouped) and footer, then the active
-/// turn. Pending messages are not rows; see [pendingMessages].
+/// turn, then a [WorkingItem] while the chat is working
+/// ([isChatWorking]). Pending messages are not rows; see
+/// [pendingMessages].
 TimelineRows timelineItems(ChatState chat) => TimelineRows._(
   switch (chat.turnsNextCursor) {
     final cursor? => LoadOlderItem(cursor),
     null => null,
   },
   _settled(chat.turns),
-  switch (chat.activeTurn) {
-    final active? => [
+  [
+    if (chat.activeTurn case final active?) ...[
       UserMessageItem(active.id, active.message),
       ...partItems(active.id, active.responseParts, active: true),
     ],
-    null => const [],
-  },
+    if (isChatWorking(chat))
+      WorkingItem(
+        activity: switch (chat.activity?.trim()) {
+          final activity? when activity.isNotEmpty => activity,
+          _ => null,
+        },
+      ),
+  ],
 );
 
 /// The steering message, then the queued ones in order (AV-081).

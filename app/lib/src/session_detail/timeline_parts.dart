@@ -35,6 +35,7 @@ Widget buildTimelineItem(
     calls: calls,
   ),
   LoadOlderItem() => LoadOlderRow(onLoad: onLoadOlder),
+  WorkingItem(:final activity) => WorkingIndicatorRow(activity: activity),
   ResponsePartItem(:final turnId, :final part, :final active) => switch (part) {
     MarkdownResponsePart(:final content) => MarkdownText(content),
     ReasoningResponsePart(:final content) => ReasoningBlock(content: content),
@@ -102,6 +103,98 @@ class _LoadOlderRowState extends State<LoadOlderRow> {
       ),
     ),
   );
+}
+
+/// The last timeline row while the chat works: three pulsing dots (a
+/// static "…" when the platform asks for reduced motion) and the current
+/// [activity].
+class WorkingIndicatorRow extends StatefulWidget {
+  /// Creates a [WorkingIndicatorRow].
+  const WorkingIndicatorRow({super.key, this.activity});
+
+  /// What the agent is doing now, or null.
+  final String? activity;
+
+  @override
+  State<WorkingIndicatorRow> createState() => _WorkingIndicatorRowState();
+}
+
+class _WorkingIndicatorRowState extends State<WorkingIndicatorRow>
+    with SingleTickerProviderStateMixin {
+  late final _pulse = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1200),
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _pulse.stop();
+    } else if (!_pulse.isAnimating) {
+      _pulse.repeat();
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = theme.colorScheme.onSurfaceVariant;
+    final activity = widget.activity;
+    return Semantics(
+      label: workingLabel(activity),
+      excludeSemantics: true,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          children: [
+            if (MediaQuery.disableAnimationsOf(context))
+              Text(
+                '…',
+                style: theme.textTheme.titleMedium?.copyWith(color: color),
+              )
+            else
+              AnimatedBuilder(
+                animation: _pulse,
+                builder: (context, _) => Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (var dot = 0; dot < 3; dot++)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 2),
+                        child: Opacity(
+                          opacity: typingDotOpacity(dot, _pulse.value),
+                          child: Icon(Icons.circle, size: 6, color: color),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            if (activity != null) ...[
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  activity,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: color,
+                    fontStyle: FontStyle.italic,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// The user's message, right-aligned.

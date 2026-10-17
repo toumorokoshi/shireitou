@@ -11,6 +11,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shireitou/src/app.dart';
 import 'package:shireitou/src/session_detail/code_highlight.dart';
+import 'package:shireitou/src/session_detail/timeline_parts.dart';
 
 import 'fake_connection.dart';
 import 'fixtures.dart';
@@ -422,6 +423,7 @@ void main() {
   testWidgets('queued messages are edited, reordered and removed (AV-081)', (
     tester,
   ) async {
+    reduceMotion(tester);
     final connection = await _pump(
       tester,
       _state(
@@ -492,6 +494,61 @@ void main() {
       'chat/turnStarted',
     ]);
     expect(connection.dispatched.last.$2.containsKey('draft'), isFalse);
+  });
+
+  testWidgets('a working chat ends the timeline with a typing indicator', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final working = _chatWith(const [
+      MarkdownResponsePart(id: 'm', content: 'Looking'),
+    ], active: true).copyWith(activity: 'Reading files');
+    final connection = await _pump(
+      tester,
+      _state(chat: working),
+      settle: false,
+    );
+    expect(find.byType(WorkingIndicatorRow), findsOneWidget);
+    expect(find.text('Reading files'), findsWidgets);
+    expect(
+      find.bySemanticsLabel('Agent is working: Reading files'),
+      findsOneWidget,
+    );
+    // It is the newest row, so it shows below the streamed reply.
+    expect(
+      tester.getTopLeft(find.byType(WorkingIndicatorRow)).dy,
+      greaterThan(tester.getTopLeft(find.text('Looking')).dy),
+    );
+    // The dots pulse.
+    final firstDot = find.descendant(
+      of: find.byType(WorkingIndicatorRow),
+      matching: find.byType(Opacity),
+    );
+    final before = tester.widget<Opacity>(firstDot.first).opacity;
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(tester.widget<Opacity>(firstDot.first).opacity, isNot(before));
+
+    // The turn ends: the indicator goes away.
+    connection.state = _state(chat: chatFixture(active: false));
+    await tester.pumpAndSettle();
+    expect(find.byType(WorkingIndicatorRow), findsNothing);
+    semantics.dispose();
+  });
+
+  testWidgets('with reduced motion the indicator is a static ellipsis', (
+    tester,
+  ) async {
+    reduceMotion(tester);
+    await _pump(tester, _state(chat: _chatWith(const [], active: true)));
+    expect(find.text('…'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(WorkingIndicatorRow),
+        matching: find.byType(Opacity),
+      ),
+      findsNothing,
+    );
+    expect(find.bySemanticsLabel('Agent is working'), findsOneWidget);
   });
 
   testWidgets('older turns are paged in from the top (AV-068)', (tester) async {

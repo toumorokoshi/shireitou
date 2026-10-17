@@ -1,4 +1,13 @@
 import 'package:ahp_client/ahp_client.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+/// Asks for reduced motion for the rest of the test, so the working
+/// indicator is static and `pumpAndSettle` returns while a chat works.
+void reduceMotion(WidgetTester tester) {
+  tester.platformDispatcher.accessibilityFeaturesTestValue =
+      const FakeAccessibilityFeatures(disableAnimations: true);
+  addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+}
 
 /// Builds a [SessionSummary] for tests.
 SessionSummary session(

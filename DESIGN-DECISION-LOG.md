@@ -16,6 +16,27 @@
   the pure set and JSON functions in `pinned_sessions.dart` and the
   notifier in `pinned_store.dart`.
 
+## 2026-10-16: Working indicator at the bottom of the timeline
+
+- **A timeline row, not an overlay.** The indicator is a `WorkingItem`,
+  the last row `timelineItems` returns while the chat works. The
+  timeline is a reversed list, so the last row sits at scroll offset 0:
+  it is in view whenever the user is at the bottom and scrolls away with
+  the rest when they read back, without extra scroll code. Rejected: a
+  `Stack` overlay, which would cover the newest output.
+- **Working means `InProgress` or an active turn, but not
+  `InputNeeded`.** `isChatWorking` checks the bits (never equality) and
+  also the active turn, so the indicator shows as soon as a turn starts.
+  While the agent waits on the user the approval or question is the
+  call to action, so the indicator is hidden.
+- **Pulsing dots, static under reduced motion.** Three dots pulse in
+  turn (`typingDotOpacity`, a pure function of the animation's
+  progress); with `MediaQuery.disableAnimationsOf` the row shows a
+  static "…" and runs no ticker. The row is one semantics node labelled
+  "Agent is working: <activity>". Widget tests that `pumpAndSettle`
+  with a working chat ask for reduced motion (`reduceMotion` in
+  `test/fixtures.dart`).
+
 ## 2026-10-16: User-reported gaps take highest priority
 
 - **Usability feedback goes first.** Pinning, renaming sessions from the

@@ -170,6 +170,7 @@ void main() {
 
     testWidgets('a todo call is a checklist card, and the open list sits '
         'above the follow-up box', (tester) async {
+      reduceMotion(tester);
       await _pump(
         tester,
         chat: _chatWith([
@@ -267,6 +268,7 @@ void main() {
     testWidgets('described options are a list, with a free-form field', (
       tester,
     ) async {
+      reduceMotion(tester);
       final connection = await _pump(
         tester,
         chat: _chatWith([
