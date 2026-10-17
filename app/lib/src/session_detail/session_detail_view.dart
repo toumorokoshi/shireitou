@@ -8,12 +8,14 @@ import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:super_sliver_list/super_sliver_list.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
 
 import '../auth/sign_in_dialog.dart';
 import '../connection_notices.dart';
 import '../host_connection.dart';
+import '../layout.dart';
 import '../session_list/folder_grouping.dart';
 import '../session_list/pinned_store.dart';
 import '../session_list/session_list_view.dart';
@@ -42,6 +44,8 @@ import 'timeline_parts.dart';
 import 'todo_list.dart';
 import 'todo_widgets.dart';
 import 'tool_previews.dart';
+import 'turn_markers.dart';
+import 'turn_rail.dart';
 
 /// Shows [session]: subscribes to it and its default chat while visible and
 /// marks it read when opened (AV-023). Other chats of the session open
@@ -238,6 +242,9 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
           AppCommand.nextSession ||
           AppCommand.previousSession:
         // The session list handles these.
+        break;
+      case AppCommand.previousTurn || AppCommand.nextTurn:
+        // The timeline handles these.
         break;
     }
   }
@@ -896,8 +903,10 @@ class _LinkChip extends StatelessWidget {
 /// The turns, newest at the bottom, following new output unless the user
 /// scrolled up (AV-066). Rows are built lazily and keyed, so finished
 /// turns are not rebuilt while one streams and older turns paged in at
-/// the top (AV-068) do not disturb the rows below.
-class _Timeline extends StatefulWidget {
+/// the top (AV-068) do not disturb the rows below. A [TurnRail] beside
+/// the rows jumps to a user turn (AV-074); Cmd/Ctrl+Alt+↑/↓ step through
+/// them, paging older turns in past the oldest loaded one.
+class _Timeline extends ConsumerStatefulWidget {
   const _Timeline({
     super.key,
     required this.chat,
@@ -911,15 +920,23 @@ class _Timeline extends StatefulWidget {
   final ValueChanged<JsonMap> onAction;
   final SignIn onSignIn;
   final OpenChat onOpenChat;
-  final VoidCallback onLoadOlder;
+  final Future<void> Function() onLoadOlder;
 
   @override
-  State<_Timeline> createState() => _TimelineState();
+  ConsumerState<_Timeline> createState() => _TimelineState();
 }
 
-class _TimelineState extends State<_Timeline> {
+class _TimelineState extends ConsumerState<_Timeline> {
   final _scroll = ScrollController();
+
+  /// Knows every row's (measured or estimated) extent, so the list can
+  /// jump to rows that were never built (AV-074).
+  final _list = ListController();
   bool _awayFromLatest = false;
+
+  /// The index of the turn in view (AV-074).
+  int? _currentTurn;
+  StreamSubscription<AppCommand>? _commands;
 
   @override
   void initState() {
@@ -928,30 +945,117 @@ class _TimelineState extends State<_Timeline> {
       final away = _scroll.offset > 200;
       if (away != _awayFromLatest) setState(() => _awayFromLatest = away);
     });
+    // The visible rows are known after layout, when the list notifies.
+    _list.addListener(_scheduleCurrentTurn);
+    _commands = ref.read(appCommandsProvider).stream.listen(_onCommand);
   }
 
   @override
   void dispose() {
+    unawaited(_commands?.cancel());
     _scroll.dispose();
+    _list.dispose();
     super.dispose();
+  }
+
+  TimelineRows get _rows => timelineItems(widget.chat);
+
+  /// The timeline row of the oldest list item on screen.
+  int? get _topRow {
+    final range = _list.isAttached ? _list.visibleRange : null;
+    if (range == null) return null;
+    return _rows.length - 1 - range.$2;
+  }
+
+  void _scheduleCurrentTurn() =>
+      WidgetsBinding.instance.addPostFrameCallback((_) => _updateCurrentTurn());
+
+  void _updateCurrentTurn() {
+    final top = _topRow;
+    if (top == null) return;
+    final current = currentTurn(turnMarkers(widget.chat, _rows), top);
+    if (current != _currentTurn && mounted) {
+      setState(() => _currentTurn = current);
+    }
+  }
+
+  void _onCommand(AppCommand command) {
+    if (!mounted || !(ModalRoute.of(context)?.isCurrent ?? false)) return;
+    switch (command) {
+      case AppCommand.previousTurn:
+        unawaited(_step(-1));
+      case AppCommand.nextTurn:
+        unawaited(_step(1));
+      case _:
+        break;
+    }
+  }
+
+  /// Scrolls to the user turn [delta] away from the one at the top of the
+  /// screen; past the oldest loaded turn, pages older turns in first.
+  Future<void> _step(int delta) async {
+    final top = _topRow;
+    if (top == null) return;
+    final markers = turnMarkers(widget.chat, _rows);
+    if (steppedTurn(markers, top, delta) case final index?) {
+      _jumpTo(markers[index]);
+    } else if (delta < 0) {
+      await _loadOlderAndJump();
+    }
+  }
+
+  /// Pages older turns in, then scrolls to the newest of them.
+  Future<void> _loadOlderAndJump() async {
+    if (widget.chat.turnsNextCursor == null) return;
+    final oldest = turnMarkers(widget.chat, _rows).firstOrNull?.turnId;
+    await widget.onLoadOlder();
+    // The new rows are laid out on the next frame.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final markers = turnMarkers(widget.chat, _rows);
+      final before = markers.indexWhere((m) => m.turnId == oldest) - 1;
+      if (before >= 0) _jumpTo(markers[before]);
+    });
+  }
+
+  /// Scrolls so that [marker]'s message is at the top of the screen.
+  void _jumpTo(TurnMarker marker) {
+    if (!_list.isAttached || !_scroll.hasClients) return;
+    final index = _rows.length - 1 - marker.row;
+    // In the reversed list the trailing edge (alignment 1) is the top.
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _list.jumpToItem(index: index, scrollController: _scroll, alignment: 1);
+    } else {
+      _list.animateToItem(
+        index: index,
+        scrollController: _scroll,
+        alignment: 1,
+        duration: (_) => const Duration(milliseconds: 250),
+        curve: (_) => Curves.easeOut,
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final rows = timelineItems(widget.chat);
+    final rows = _rows;
     if (rows.isEmpty) {
       return const Center(child: Text('No messages yet. Say something.'));
     }
+    final markers = turnMarkers(widget.chat, rows);
+    // Paged-in rows move the turns without changing the visible range.
+    _scheduleCurrentTurn();
     // A reversed list keeps the newest row in view as it grows, and stays
     // put once the user scrolls up.
-    return Stack(
+    final list = Stack(
       children: [
         // Rows use plain Text (not SelectableText): the area makes them
         // selectable, and on the web read-only text fields expose no text
         // to screen readers (or browser tests).
         SelectionArea(
-          child: ListView.builder(
+          child: SuperListView.builder(
             controller: _scroll,
+            listController: _list,
             reverse: true,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             itemCount: rows.length,
@@ -989,6 +1093,26 @@ class _TimelineState extends State<_Timeline> {
               child: const Icon(Icons.arrow_downward),
             ),
           ),
+      ],
+    );
+    // One turn needs no rail.
+    if (markers.length < 2 && widget.chat.turnsNextCursor == null) return list;
+    final current = _currentTurn;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(child: list),
+        TurnRail(
+          markers: markers,
+          current: current != null && current < markers.length ? current : null,
+          onSelect: (index) => _jumpTo(markers[index]),
+          onLoadOlder: widget.chat.turnsNextCursor == null
+              ? null
+              : () => unawaited(_loadOlderAndJump()),
+          compact:
+              layoutTierFor(MediaQuery.sizeOf(context).width) ==
+              LayoutTier.compact,
+        ),
       ],
     );
   }

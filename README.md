@@ -10,7 +10,8 @@ with a UX modeled on the GitHub Agents view and Cursor's Agents Window.
 > recent hosts), lists their sessions in one inbox grouped by host and
 > working directory (with repository and branch when the host reports
 > them), opens a session's
-> history (paging older turns in when the host windows it), streams
+> history (paging older turns in when the host windows it, with a rail
+> of turn markers to jump between turns), streams
 > replies with highlighted code, groups similar tool calls, shows live
 > terminal output and inline diffs, switches between a session's chats
 > (subagents, side chats), sends, queues, edits and reorders follow-ups,
@@ -148,7 +149,8 @@ just run chrome 'ws://127.0.0.1:63877?tkn=...'   # prefill the host URL
    Cmd/Ctrl+K search sessions (with `agent:`, `status:`, `repo:` and
    `host:` qualifiers), Alt+↓/↑ next and previous session, Cmd/Ctrl+.
    stop, Cmd/Ctrl+L focus the follow-up box, Cmd/Ctrl+Alt+B open or close
-   the review pane (wide windows; it starts closed). Right-click or
+   the review pane (wide windows; it starts closed), Cmd/Ctrl+Alt+↑/↓
+   previous and next turn in the open chat. Right-click or
    long-press a session to rename it, archive it, mark it read or unread,
    or select several; swipe it left to archive it. Click a session's
    title in its header to rename it.

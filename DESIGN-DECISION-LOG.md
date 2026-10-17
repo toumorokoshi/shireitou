@@ -1,5 +1,42 @@
 # Design Decision Log
 
+## 2026-10-16: Turn markers in the chat (AV-074)
+
+- **`super_sliver_list` for the timeline, not `scrollable_positioned_list`
+  or estimated offsets.** A rail that jumps to any turn must reach rows
+  that were never built. `SuperListView` is a drop-in for
+  `ListView.builder` that keeps the `ScrollController`, `reverse`,
+  `findChildIndexCallback` (so keyed rows keep their state while a turn
+  streams) and `SelectionArea`, and its `ListController` measures or
+  estimates every row's extent, jumps or animates to an index, and
+  reports the visible range after layout. `scrollable_positioned_list`
+  replaces the scroll controller with its own and has no
+  `findChildIndexCallback`, so "Jump to latest", the follow-the-bottom
+  behaviour (AV-066) and keyed rows would need rework; estimating
+  offsets ourselves would duplicate what the package does.
+- **Markers for loaded turns only, paging on demand.** AHP does not say
+  how many turns a windowed chat holds back, so the rail shows the
+  loaded ones. A "Load older turns" button above the dots, and the
+  previous-turn key at the oldest loaded turn, call `loadOlderTurns`,
+  then jump to the newest of the new turns once they are laid out.
+- **The turn in view is the newest turn whose message is at or above
+  the top of the timeline**, from the list's visible range after each
+  layout (scroll listeners fire before layout, so they see the old
+  range). Previous and next go to the nearest message above or below
+  the oldest row on screen, so pressing previous inside a long turn
+  first goes back to its own message.
+- **Cmd/Ctrl+Alt+↑/↓ for previous and next turn.** Alt+↑/↓ already step
+  through sessions, and Cmd/Ctrl+Alt+B toggles the review pane, so the
+  turn keys add Cmd/Ctrl to the session keys. They are in the macOS
+  Session menu. Some Linux desktops use Ctrl+Alt+↑/↓ for workspaces.
+- **Pure logic apart from the widgets.** `turn_markers.dart` holds marker
+  extraction (reusing `UserMessageItem` keys and `TimelineRows`), the
+  current and stepped turn, the dot spacing (even, up to 24 dp, down to
+  4 dp, then scrolling) and scrubbing; `turn_rail.dart` only draws.
+- **Compact layouts keep a 14 dp rail**, where dragging along the dots
+  scrubs through turns (touch targets for single dots are too small
+  there). One-turn chats show no rail.
+
 ## 2026-10-16: Reorder workspace folders in the sidebar
 
 - **The user's order wins over sorting and pins.** Once the user moves

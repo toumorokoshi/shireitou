@@ -16,6 +16,8 @@ import 'package:shireitou/src/review/review_logic.dart';
 import 'package:shireitou/src/session_detail/session_detail_view.dart';
 import 'package:shireitou/src/session_detail/code_highlight.dart';
 import 'package:shireitou/src/session_detail/timeline_parts.dart';
+import 'package:shireitou/src/session_detail/turn_rail.dart';
+import 'package:super_sliver_list/super_sliver_list.dart';
 
 import 'fake_connection.dart';
 import 'fixtures.dart';
@@ -183,6 +185,50 @@ const _mainSummary = ChatSummary(
   status: SessionStatus.idle,
   modifiedAt: '2026-10-01T00:00:00Z',
 );
+
+/// A finished chat of [count] turns ("Question i"), each with a long
+/// reply, numbered from [from]; [cursor] holds older turns back.
+ChatState _longChat(int count, {int from = 0, String? cursor}) => ChatState(
+  resource: _chat,
+  title: 'Fix login',
+  status: SessionStatus.idle,
+  modifiedAt: '2026-10-01T00:00:00Z',
+  turnsNextCursor: cursor,
+  turns: [
+    for (var i = from; i < from + count; i++)
+      Turn(
+        id: 'q$i',
+        message: userMessage('Question $i\nwith details'),
+        state: i == from + 1 ? TurnState.error : TurnState.complete,
+        responseParts: [
+          MarkdownResponsePart(
+            id: 'a$i',
+            content: [for (var l = 0; l < 30; l++) 'Answer $i, line $l']
+                .join('\n\n'),
+          ),
+        ],
+      ),
+  ],
+);
+
+/// Presses Ctrl+Alt+[key] (the turn shortcuts off Apple platforms).
+Future<void> _ctrlAlt(WidgetTester tester, LogicalKeyboardKey key) async {
+  await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+  await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+  await tester.sendKeyEvent(key);
+  await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+  await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+  await tester.pumpAndSettle();
+}
+
+/// Whether [text] shows near the top of the timeline.
+bool _atTop(WidgetTester tester, String text) {
+  final finder = find.text(text);
+  if (finder.evaluate().isEmpty) return false;
+  final dy = tester.getTopLeft(finder).dy;
+  final top = tester.getTopLeft(find.byType(SuperListView)).dy;
+  return dy >= top && dy < top + 80;
+}
 
 void main() {
   setUp(() => FlutterSecureStorage.setMockInitialValues({}));
@@ -802,5 +848,87 @@ void main() {
         .copyWith(canvases: const [CanvasReference(resource: 'ahp-canvas:/c')]);
     await _pump(tester, _state(chat: chat, version: '0.9.0'));
     expect(find.byIcon(Icons.web_asset), findsNothing);
+  });
+
+  testWidgets('the turn rail jumps to turns, follows the scroll and steps '
+      'with the keyboard (AV-074)', (tester) async {
+    final semantics = tester.ensureSemantics();
+    await _pump(tester, _state(chat: _longChat(12)));
+    expect(find.byType(TurnRail), findsOneWidget);
+    // One button per turn, labelled with the message's first line.
+    final first = find.bySemanticsLabel('Turn 1: Question 0');
+    expect(first, findsOneWidget);
+    expect(
+      find.bySemanticsLabel('Turn 2: Question 1 (failed)'),
+      findsOneWidget,
+    );
+    // The oldest turn is far above, never built.
+    expect(find.text('Question 0\nwith details'), findsNothing);
+    expect(
+      tester.getSemantics(find.bySemanticsLabel('Turn 12: Question 11')),
+      isSemantics(isSelected: true),
+    );
+
+    await tester.tap(first);
+    await tester.pumpAndSettle();
+    expect(_atTop(tester, 'Question 0\nwith details'), isTrue);
+    expect(tester.getSemantics(first), isSemantics(isSelected: true));
+
+    await _ctrlAlt(tester, LogicalKeyboardKey.arrowDown);
+    expect(_atTop(tester, 'Question 1\nwith details'), isTrue);
+    expect(
+      tester.getSemantics(find.bySemanticsLabel('Turn 2: Question 1 (failed)')),
+      isSemantics(isSelected: true),
+    );
+    await _ctrlAlt(tester, LogicalKeyboardKey.arrowUp);
+    expect(_atTop(tester, 'Question 0\nwith details'), isTrue);
+
+    // Scrolling by hand moves the highlight.
+    await tester.drag(find.byType(SuperListView), const Offset(0, -2000));
+    await tester.pumpAndSettle();
+    expect(tester.getSemantics(first), isNot(isSemantics(isSelected: true)));
+    semantics.dispose();
+  });
+
+  testWidgets('stepping back past the oldest loaded turn pages older turns '
+      'in and jumps to them (AV-074)', (tester) async {
+    reduceMotion(tester);
+    final connection = await _pump(
+      tester,
+      _state(chat: _longChat(3, from: 3, cursor: 'c1')),
+    );
+    expect(connection.loadedOlder, isEmpty);
+    connection.olderState = _state(chat: _longChat(6));
+    await tester.tap(find.byTooltip('Load older turns'));
+    await tester.pumpAndSettle();
+    expect(connection.loadedOlder, [_chat]);
+    // The newest of the paged-in turns is at the top.
+    expect(_atTop(tester, 'Question 2\nwith details'), isTrue);
+    expect(find.byTooltip('Load older turns'), findsNothing);
+  });
+
+  testWidgets('a chat with one turn has no turn rail (AV-074)', (tester) async {
+    await _pump(tester, _state(chat: chatFixture(active: false)));
+    expect(find.byType(TurnRail), findsNothing);
+  });
+
+  testWidgets('the compact rail scrubs by dragging (AV-074)', (tester) async {
+    await _pump(
+      tester,
+      _state(chat: _longChat(12)),
+      size: const Size(400, 800),
+    );
+    expect(tester.getSize(find.byType(TurnRail)).width, 14);
+    final rail = find.byType(TurnRail);
+    final top = tester.getTopLeft(rail);
+    final bottom = tester.getBottomLeft(rail);
+    final center = tester.getCenter(rail);
+    // Drag from the bottom of the dots to near the top.
+    await tester.dragFrom(
+      Offset(center.dx, (top.dy + bottom.dy) / 2 + 100),
+      const Offset(0, -500),
+    );
+    await tester.pumpAndSettle();
+    expect(_atTop(tester, 'Question 0\nwith details'), isTrue);
   });
 }

@@ -118,10 +118,17 @@ class FakeHostConnection extends HostConnection {
   /// Chats [loadOlderTurns] was called for.
   final loadedOlder = <String>[];
 
+  /// The state [loadOlderTurns] moves to, as if the older turns arrived;
+  /// null keeps the state.
+  HostState? olderState;
+
   @override
   Future<bool> loadOlderTurns(String chat) async {
     loadedOlder.add(chat);
-    return false;
+    final older = olderState;
+    if (older == null) return false;
+    state = older;
+    return true;
   }
 
   /// Content served by [readResource], by URI.

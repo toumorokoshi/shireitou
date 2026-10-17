@@ -232,8 +232,9 @@ Dart source); `bin/generate.dart` does the file I/O. See
   `appCommandsProvider`, a broadcast of commands. `AppShortcuts` maps the
   keys to commands above the navigator (except on macOS, where the menu
   sends them); the sessions screen handles new session, search and
-  next/previous, and the visible session view handles stop and focus
-  composer, each only while its route is on top.
+  next/previous, the visible session view handles stop and focus
+  composer, and its timeline previous and next turn (AV-074), each only
+  while its route is on top.
 - `lib/src/app.dart`: `MaterialApp` with light and dark themes that follow
   the system, titled with the attention count (`windowTitle`, AV-120).
   Shows the connect screen until connected, and restores the hosts that
@@ -298,6 +299,17 @@ Dart source); `bin/generate.dart` does the file I/O. See
   `InputNeeded`; AV-072). Being the last row of the reversed list, the
   indicator sits at scroll offset 0, so it stays in view whenever the
   user is at the bottom.
+  The timeline is a `SuperListView` (`super_sliver_list`): its
+  `ListController` keeps every row's measured or estimated extent, so it
+  can jump to rows that were never built, and reports the visible range
+  after each layout. `turn_markers.dart` is pure: `turnMarkers` lists one
+  marker per user turn (row, first line, done/cancelled/error/running),
+  `currentTurn` and `steppedTurn` pick the turn in view and the one a
+  step away from the oldest row on screen, and `turnRailLayout` spaces
+  the dots. `turn_rail.dart` draws the `TurnRail` beside the list
+  (AV-074); the timeline jumps to a marker's row with alignment 1 (the
+  top of the reversed list), and pages older turns in first when the
+  user steps back past the oldest loaded one.
   `approval_bar.dart` is the bar under a waiting tool call: Approve/Deny
   or the host's options in groups, the risk assessment, "Edit input" for
   `editable` calls and "Use result"/"Discard result" for results that

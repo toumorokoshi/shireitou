@@ -196,6 +196,8 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
         _step(-1);
       case AppCommand.stop ||
           AppCommand.focusComposer ||
+          AppCommand.previousTurn ||
+          AppCommand.nextTurn ||
           AppCommand.toggleReviewPane:
         // The open session view handles these.
         break;

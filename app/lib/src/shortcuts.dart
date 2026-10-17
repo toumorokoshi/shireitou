@@ -34,6 +34,14 @@ enum AppCommand {
   /// Focuses the follow-up box of the open session (Cmd/Ctrl+L).
   focusComposer('Focus Composer'),
 
+  /// Scrolls the open chat to the previous user turn (Cmd/Ctrl+Alt+↑,
+  /// AV-074).
+  previousTurn('Previous Turn'),
+
+  /// Scrolls the open chat to the next user turn (Cmd/Ctrl+Alt+↓,
+  /// AV-074).
+  nextTurn('Next Turn'),
+
   /// Opens or closes the review pane on wide layouts (Cmd/Ctrl+Alt+B,
   /// AV-003).
   toggleReviewPane('Toggle Review Pane');
@@ -69,6 +77,18 @@ SingleActivator activatorFor(AppCommand command, {bool? apple}) {
     ),
     AppCommand.stop => primary(LogicalKeyboardKey.period),
     AppCommand.focusComposer => primary(LogicalKeyboardKey.keyL),
+    AppCommand.previousTurn => SingleActivator(
+      LogicalKeyboardKey.arrowUp,
+      meta: cmd,
+      control: !cmd,
+      alt: true,
+    ),
+    AppCommand.nextTurn => SingleActivator(
+      LogicalKeyboardKey.arrowDown,
+      meta: cmd,
+      control: !cmd,
+      alt: true,
+    ),
     AppCommand.toggleReviewPane => SingleActivator(
       LogicalKeyboardKey.keyB,
       meta: cmd,

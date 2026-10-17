@@ -55,9 +55,6 @@ AppImage and the release workflow (see
   - **SSH terminal:** open an interactive SSH TTY to a host from the app.
     Prefer a maintained third-party SSH client and terminal emulator
     library over writing one from scratch.
-  - **Turn markers in the chat:** like the GitHub agents view, show a
-    column of dots, one per user turn, that jump to that turn when
-    clicked, so the history is easy to move through.
   - **`/` completions (AV-044):** typing `/` in the composer or follow-up
     box does not offer the agent's skills and commands.
 
@@ -118,6 +115,15 @@ AppImage and the release workflow (see
     `createSession` itself (checked in `pi_faux_flows_test.dart`), so no
     real host was seen to send `session/creationFailed`.
 - **Timeline, remaining details:**
+  - Turn markers (AV-074) cover the loaded turns only: while the host
+    holds older turns back, turns are numbered from the oldest loaded
+    one, and the rail's "Load older turns" button (or stepping back past
+    the oldest turn) pages one window in at a time. Jumping to a row that
+    was never built lands on an estimated offset that is corrected as the
+    rows are laid out, so a long jump may end a few pixels off. The
+    Cmd/Ctrl+Alt+↑/↓ keys are taken by some Linux desktops (workspace
+    switching); there is no way to change them. The rail is not tried in
+    the web build's Playwright tests.
   - Diff lines are highlighted one line at a time, so constructs that span
     lines (block comments, multi-line strings) can be coloured wrongly.
     Only 24 common languages are registered with `re_highlight`.

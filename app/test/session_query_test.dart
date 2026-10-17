@@ -172,6 +172,11 @@ void main() {
         'Ctrl+Alt+B',
       );
       expect(shortcutLabel(AppCommand.toggleReviewPane, apple: true), '⌥⌘B');
+      expect(
+        shortcutLabel(AppCommand.previousTurn, apple: false),
+        'Ctrl+Alt+↑',
+      );
+      expect(shortcutLabel(AppCommand.nextTurn, apple: true), '⌥⌘↓');
     });
 
     test('the macOS Session menu lists every command with its key', () {
