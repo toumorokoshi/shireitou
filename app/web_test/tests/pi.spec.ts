@@ -25,10 +25,10 @@ test.afterEach(async () => {
 test("a session, a reconnect, a lost message and a host restart", async ({ page }) => {
 	await connect(page, relay.relayed(pi.url));
 	await expect(page.getByText("No sessions yet.")).toBeVisible();
-	const reconnecting = page.getByLabel("Reconnecting…", { exact: true });
+	const reconnecting = page.getByText("Reconnecting…", { exact: true });
 
 	// The composer starts a pi session; the reply streams in.
-	await page.getByRole("button", { name: /^New session/ }).click();
+	await page.getByRole("button", { name: /^New\b/ }).first().click();
 	await page.getByRole("textbox", { name: "Prompt" }).fill("hello from the browser");
 	await page.getByRole("button", { name: "Start session" }).click();
 	await expect(page.getByText("pi faux reply: hello from the browser")).toBeVisible();
