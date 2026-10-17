@@ -50,19 +50,6 @@ int compareSessions(SessionSort sort, SessionSummary a, SessionSummary b) {
   };
 }
 
-/// Compares sessions for [sort], with the sessions in [pinned] first
-/// (AV-028).
-int compareHostSessions(
-  SessionSort sort,
-  Set<SessionRef> pinned,
-  HostSession a,
-  HostSession b,
-) {
-  final aPinned = pinned.contains(a.ref);
-  if (aPinned != pinned.contains(b.ref)) return aPinned ? -1 : 1;
-  return compareSessions(sort, a.summary, b.summary);
-}
-
 /// The qualifiers [parseSessionQuery] knows (GitHub style `key:value`).
 const queryQualifiers = {'agent', 'status', 'repo', 'host'};
 

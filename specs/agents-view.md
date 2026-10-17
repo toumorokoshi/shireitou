@@ -77,8 +77,19 @@ convention); pi reports neither, so its folders show the path only.
 
 ### Sidebar tree
 
-The left-hand session list is a tree (AV-012, AV-025):
+The left-hand session list is a tree (AV-012, AV-025, AV-028):
 
+- **Pinned** (AV-028) at the very top, above every host, when any shown
+  session is pinned: the pinned sessions of every connected host, in
+  the order they were pinned. A pinned session is listed here and not
+  in its folder (a folder holding only pinned sessions is not shown).
+  Its row adds where it lives before its details: the host's label when
+  several hosts are open, and the folder name. The section header shows
+  the count and the attention badge, and a tap collapses it (kept in
+  `sidebar_collapsed` as `pinned`). Filters, search and narrowing to a
+  host apply to it; next and previous session (Alt+↓/↑) and "Select
+  all" take its sessions first, and opening a pinned session expands
+  the section rather than its host and folder.
 - **Hosts** at the top level, one row per open host (connected, or
   remembered and failed), in the order they were opened. A row shows a
   status dot, the host's label, its status or error when it is not
@@ -102,33 +113,36 @@ The left-hand session list is a tree (AV-012, AV-025):
   "Move up" and "Move down". The order is kept on this device
   (`folder_order`, a list of `FolderGroup.id`s, `'host|path'`).
 - **Folder order:** folders the user moved come first under their
-  host, in the order they were placed, overriding the sort and the
-  "folder with a pinned session first" rule (pins still come first
-  inside their folder). Folders never placed (a new working directory)
-  follow in the usual sort order. Moving a folder places every shown
-  folder of its host, so what is shown stays put apart from the move.
+  host, in the order they were placed, overriding the sort. Folders
+  never placed (a new working directory) follow in the usual sort
+  order. Moving a folder places every shown folder of its host, so what
+  is shown stays put apart from the move.
 - With several hosts, tapping a host narrows the list to it (the other
   hosts stay listed without folders); tapping it again shows every host.
   Folders do not narrow the list: collapsing the others, or the `repo:`
   search qualifier, does that.
-- Filters, search, sort, pins and multi-select apply to the sessions in
-  the tree; a host left with no sessions says "No sessions on this host
-  yet." or "No sessions match.".
+- Filters, search, sort and multi-select apply to the sessions in the
+  tree; a host left with no sessions says "No sessions on this host
+  yet." or "No sessions match." (nothing when its shown sessions are all
+  pinned). A host's and folder's counts leave out its pinned sessions.
 - **Density:** with a pointer (medium and wide layouts) host and folder
   rows are 28 px and session rows 32 px (title at 13 px, details at
   11 px, 16 px icons). On compact layouts rows are at least 48 px for
   touch. Status badges keep the 11 px label size.
-- The tree is built by pure functions, `sessionTree` (hosts with their
+- The tree is built by pure functions: `splitPinned` in
+  `app/lib/src/session_list/pinned_sessions.dart` takes the pinned
+  sessions out of the shown ones, `sessionTree` (hosts with their
   folders, in the order of the grouped folders) and `sidebarRows` (the
-  rows left after collapsing), in
+  Pinned section, then the rows left after collapsing) are in
   `app/lib/src/session_list/session_tree.dart`; `orderFolders` and
   `movedFolder` in `app/lib/src/session_list/folder_order.dart` apply
   and change the user's folder order before `sessionTree`.
 
-Status (2026-10-16): implemented, with folder reordering and the
-collapsed hosts and folders remembered on this device. Hosts that are
-remembered but not open are listed on the "Add host…" page (Recent
-hosts), not in the tree. Hosts cannot be reordered.
+Status (2026-10-16): implemented, with the Pinned section, folder
+reordering and the collapsed hosts and folders remembered on this
+device. Hosts that are remembered but not open are listed on the "Add
+host…" page (Recent hosts), not in the tree. Hosts cannot be reordered.
+Pinned sessions cannot be reordered by drag.
 
 ## Starting a session (composer)
 
@@ -293,7 +307,7 @@ hosts (shortcuts, OAuth through `oauth_callback.html`, reconnects); see
 | AV-025 | Done        | See [Worktree grouping](#worktree-grouping).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | AV-026 | Done        | Most recent (default), oldest, or needs attention first (input, error, unread); the filter is kept.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | AV-027 | Done        | Search box (Cmd/Ctrl+K) over titles with `agent:`, `status:` (working, input, error, idle, done, unread, read, attention, archived), `repo:` (folder, project or repository) and `host:` qualifiers; `a,b` lists alternatives and `"…"` quotes a phrase.                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| AV-028 | Partial     | "Pin to top" in the row menu (right-click, long-press, screen reader action) and the session header menu. Pinned sessions come first in their folder (not yet the shared top section), so a folder holding one comes first in the list; pinned sessions sort among themselves by the chosen sort. Rows show a pin marker. Pins are kept on this device (`shared_preferences`, by host and session); AHP has no pin field.                                                                                                                                                                                                                                                                                            |
+| AV-028 | Done        | "Pin to top" in the row menu (right-click, long-press, screen reader action) and the session header menu. Pinned sessions of every host move into one "Pinned" section at the top of the sidebar, in the order pinned, and leave their folder; rows name the host (with several) and folder. The section collapses (`sidebar_collapsed`), hides when empty, follows filters and search, and comes first for Alt+↓/↑ and select all. See [Sidebar tree](#sidebar-tree). Pins are kept on this device (`shared_preferences`, by host and session); AHP has no pin field.                                                                                                                                               |
 | AV-029 | Done        | "Select" in the row menu starts multi-select; the bar archives or unarchives, marks read or unread, or selects all.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | AV-040 | Partial     | Host picker (when several hosts are connected), agent, model, working directory (text field defaulting to the host's `defaultDirectory`, a folder browser, and the host's recent folders) and prompt; Enter submits. A session that fails to start shows the host's error at once.                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | AV-041 | Done        | Model picker from `AgentInfo.models` with the model's `configSchema` options (such as `thinkingLevel`), sent as `Message.model`; the agent's session settings from `resolveSessionConfig` (such as `mode`, or `branch` with `sessionConfigCompletions` suggestions), sent as `createSession` `config`. In a session, the follow-up bar picks the model and options per message and changes `sessionMutable` settings (`session/configChanged`).                                                                                                                                                                                                                                                                      |

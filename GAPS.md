@@ -52,10 +52,6 @@ AppImage and the release workflow (see
 - **Highest priority (user feedback, 2026-10-16):** do these before the
   items below.
 
-  - **Pinned section at the top (AV-028):** pins currently sort first
-    inside their workspace folder. They should instead sit together in
-    one shared "Pinned" section at the very top of the sidebar, above
-    every host and workspace.
   - **New session in the session pane (AV-040):** "New session" opens a
     separate screen. It should open in the session pane, laid out like
     an open session (empty timeline, the follow-up box as the prompt,
@@ -305,9 +301,12 @@ AppImage and the release workflow (see
   - Pins (AV-028) are kept on this device only (AHP has no pin field), so
     other devices and clients do not see them. A pin is not dropped when
     its session is disposed or its host removed; the stored set only
-    grows with such leftovers. There is no `pinned:` search qualifier,
-    and no separate "Pinned" section above the folders (pinned sessions
-    lead their folder, which then leads the list).
+    grows with such leftovers. There is no `pinned:` search qualifier.
+    The "Pinned" section keeps the order pinned; pinned sessions cannot
+    be reordered by drag (the folder drag code is tied to folder rows),
+    so re-pinning is the only way to move one to the end. A folder whose
+    sessions are all pinned is not shown, so its "+" button is not
+    either, and host and folder counts leave pinned sessions out.
   - An archive or read change from the list is sent to the session
     channel without subscribing; the row moves only when the host's
     catalogue update arrives (the root catalogue is not written ahead). A

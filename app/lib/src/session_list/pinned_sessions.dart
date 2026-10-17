@@ -1,12 +1,32 @@
-/// Pinned sessions (AV-028): the set of pinned sessions and its storage
-/// format. AHP has no pin field, so pins are kept on this device.
+/// Pinned sessions (AV-028): the set of pinned sessions, its storage
+/// format, and the split of the listed sessions into the sidebar's
+/// "Pinned" section and the rest. AHP has no pin field, so pins are kept
+/// on this device.
 library;
 
 import 'dart:convert';
 
 import '../hosts/open_hosts.dart';
 
-/// [pins] with [session] added ([pinned] true) or removed.
+/// The sessions of [sessions] that are in [pins], in the order of [pins]
+/// (the order they were pinned in), and the other sessions in their
+/// order. Pins of sessions that are not in [sessions] (filtered out, on
+/// a closed host, or gone) are skipped.
+({List<HostSession> pinned, List<HostSession> rest}) splitPinned(
+  Set<SessionRef> pins,
+  Iterable<HostSession> sessions,
+) {
+  final byRef = {for (final s in sessions) s.ref: s};
+  return (
+    pinned: [for (final p in pins) ?byRef[p]],
+    rest: [
+      for (final s in sessions)
+        if (!pins.contains(s.ref)) s,
+    ],
+  );
+}
+
+/// [pins] with [session] added at the end ([pinned] true) or removed.
 Set<SessionRef> withPinned(
   Set<SessionRef> pins,
   SessionRef session, {

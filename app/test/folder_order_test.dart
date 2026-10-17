@@ -15,7 +15,6 @@ import 'package:shireitou/src/hosts/open_hosts.dart';
 import 'package:shireitou/src/prefs.dart';
 import 'package:shireitou/src/session_list/folder_grouping.dart';
 import 'package:shireitou/src/session_list/folder_order.dart';
-import 'package:shireitou/src/session_list/pinned_sessions.dart';
 
 import 'fake_connection.dart';
 import 'fixtures.dart';
@@ -99,19 +98,6 @@ void main() {
         _paths(orderFolders(_groups, [_id('h', '/src/c'), _id('h', '/src/b')])),
         ['/src/c', '/src/b', '/src/a', '/src/d'],
       );
-    });
-
-    test('a placed folder stays above a folder with a pinned session', () {
-      final pinned = groupHostSessions(
-        [for (final s in _sessions) HostSession('h', s)],
-        pinned: {(host: 'h', session: 'pi:/c')},
-      );
-      expect(_paths(pinned).first, '/src/c');
-      expect(_paths(orderFolders(pinned, [_id('h', '/src/b')])), [
-        '/src/b',
-        '/src/c',
-        '/src/a',
-      ]);
     });
 
     test('ignores ids of folders that are not shown', () {
@@ -272,12 +258,9 @@ void main() {
       saved: {
         'folder_order': encodeIds([_id(testHost.key, '/src/b')]),
         'sidebar_collapsed': encodeIds([_id(testHost.key, '/src/c')]),
-        'pinned_sessions': encodePinned({
-          (host: testHost.key, session: 'pi:/a'),
-        }),
       },
     );
-    // The placed folder comes before the one with a pinned session.
+    // The placed folder comes before the more recent one.
     expect(_shown(tester), ['b', 'a', 'c']);
     expect(find.text('session c'), findsNothing);
 

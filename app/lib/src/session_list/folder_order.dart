@@ -11,8 +11,7 @@ import 'folder_grouping.dart';
 
 /// [groups] with the folders whose [FolderGroup.id] is in [order] first,
 /// in that order, then the others in their order in [groups]. A placed
-/// folder keeps its place over the sort and pins (pinned sessions still
-/// come first inside it).
+/// folder keeps its place over the sort.
 List<FolderGroup> orderFolders(List<FolderGroup> groups, List<String> order) {
   final rank = {for (final (i, id) in order.indexed) id: i};
   final placed = [

@@ -126,22 +126,15 @@ List<FolderGroup> groupSessionsByFolder(
 /// same path on two hosts is two folders, and worktrees of one repository
 /// stay separate folders. Sessions in a folder are ordered by [sort], and
 /// folders by their first session (by default the most recently modified
-/// one); the "No folder" groups sort the same way (AV-026). Sessions in
-/// [pinned] come first in their folder, so folders holding a pinned
-/// session come first too (AV-028). A folder's repository and branch come
-/// from its most recent session.
+/// one); the "No folder" groups sort the same way (AV-026). Pinned
+/// sessions (AV-028) are left out by the caller (`splitPinned`). A
+/// folder's repository and branch come from its most recent session.
 List<FolderGroup> groupHostSessions(
   Iterable<HostSession> sessions, {
   SessionSort sort = SessionSort.recent,
-  Set<SessionRef> pinned = const {},
 }) {
-  int compare(String host, SessionSummary a, SessionSummary b) =>
-      compareHostSessions(
-        sort,
-        pinned,
-        HostSession(host, a),
-        HostSession(host, b),
-      );
+  int compare(SessionSummary a, SessionSummary b) =>
+      compareSessions(sort, a, b);
   final byKey = <(String, String?), List<SessionSummary>>{};
   for (final HostSession(:host, :summary) in sessions) {
     (byKey[(host, folderKeyOf(summary))] ??= []).add(summary);
@@ -149,7 +142,7 @@ List<FolderGroup> groupHostSessions(
   final groups = [
     for (final MapEntry(key: (host, key), :value) in byKey.entries)
       () {
-        final sorted = [...value]..sort((a, b) => compare(host, a, b));
+        final sorted = [...value]..sort(compare);
         final latest = [...value]..sort(_byModifiedDesc);
         final (:repo, :branch) = worktreeInfoOf(latest.first);
         return FolderGroup(
@@ -163,14 +156,7 @@ List<FolderGroup> groupHostSessions(
         );
       }(),
   ];
-  return groups..sort(
-    (a, b) => compareHostSessions(
-      sort,
-      pinned,
-      HostSession(a.host, a.sessions.first),
-      HostSession(b.host, b.sessions.first),
-    ),
-  );
+  return groups..sort((a, b) => compare(a.sessions.first, b.sessions.first));
 }
 
 /// The folders of [host]'s sessions, most recently used first, for the

@@ -53,6 +53,16 @@ void main() {
       );
     });
 
+    test('a host whose sessions are all pinned gets no empty text', () {
+      final tree = sessionTree(
+        [_laptop],
+        const [],
+        hostsWithSessions: {'ws://a'},
+        hostsWithPinned: {'ws://a'},
+      );
+      expect(tree.single.emptyText, isNull);
+    });
+
     test('hosts other than the filter get no empty text', () {
       final tree = sessionTree([_laptop, _box], const [], hostFilter: 'ws://b');
       expect([for (final n in tree) n.emptyText], [null, noSessionsText]);
@@ -89,6 +99,45 @@ void main() {
       expect((rows.last as HostRow).collapsed, isTrue);
     });
 
+    final pinned = [
+      HostSession('ws://b', session('9', directory: 'file:///src/web')),
+      HostSession('ws://a', session('8')),
+    ];
+
+    test('puts the Pinned section first, naming host and folder', () {
+      final rows = sidebarRows(tree, const {}, pinned: pinned);
+      expect(
+        [for (final r in rows.take(4)) r.runtimeType],
+        [PinnedRow, SessionItem, SessionItem, HostRow],
+      );
+      expect((rows.first as PinnedRow).sessions, hasLength(2));
+      expect(
+        [for (final r in rows.skip(1).take(2)) (r as SessionItem).place],
+        ['build box · web', 'laptop · $noFolderLabel'],
+      );
+      expect((rows[1] as SessionItem).ref, (host: 'ws://b', session: 'pi:/9'));
+      expect([
+        for (final r in rows.skip(3))
+          if (r is SessionItem) r.place,
+      ], everyElement(isNull));
+    });
+
+    test('names only the folder with one host', () {
+      final rows = sidebarRows(
+        sessionTree([_laptop], _groups),
+        const {},
+        pinned: [pinned.last],
+      );
+      expect((rows[1] as SessionItem).place, noFolderLabel);
+    });
+
+    test('collapses the Pinned section, and has none with no pins', () {
+      final rows = sidebarRows(tree, {pinnedNodeId}, pinned: pinned);
+      expect((rows.first as PinnedRow).collapsed, isTrue);
+      expect(rows[1], isA<HostRow>());
+      expect(sidebarRows(tree, const {}).first, isA<HostRow>());
+    });
+
     test('shows the empty text under its host', () {
       final rows = sidebarRows(
         sessionTree([_laptop], const [], hostsWithSessions: {}),
@@ -110,6 +159,19 @@ void main() {
         {'ws://a', 'ws://b', folder.id},
         _groups,
         (host: 'ws://b', session: 'pi:/3'),
+      ),
+      {'ws://a'},
+    );
+  });
+
+  test('revealSession expands the Pinned section for a pinned session', () {
+    const pinned = (host: 'ws://a', session: 'pi:/8');
+    expect(
+      revealSession(
+        {pinnedNodeId, 'ws://a'},
+        _groups,
+        pinned,
+        pinned: [pinned],
       ),
       {'ws://a'},
     );

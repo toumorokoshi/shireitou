@@ -1,20 +1,22 @@
-/// Pinned sessions (AV-028): the pin set and its storage, ordering pinned
-/// sessions and their folders first, and pinning from the row menu and
+/// Pinned sessions (AV-028): the pin set and its storage, the "Pinned"
+/// section at the top of the sidebar, and pinning from the row menu and
 /// the session header.
 library;
 
 import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shireitou/src/app.dart';
 import 'package:shireitou/src/hosts/open_hosts.dart';
 import 'package:shireitou/src/prefs.dart';
-import 'package:shireitou/src/session_list/folder_grouping.dart';
+import 'package:shireitou/src/session_detail/session_detail_view.dart';
+import 'package:shireitou/src/session_list/folder_order.dart';
 import 'package:shireitou/src/session_list/pinned_sessions.dart';
-import 'package:shireitou/src/session_list/session_query.dart';
+import 'package:shireitou/src/session_list/session_tree.dart';
 
 import 'fake_connection.dart';
 import 'fixtures.dart';
@@ -81,6 +83,16 @@ void main() {
       expect(withPinned(pins, _older, pinned: false), isEmpty);
     });
 
+    test('keeps the order pinned in, through storage', () {
+      const newer = (host: 'h', session: 'pi:/b');
+      final pins = withPinned(
+        withPinned(const {}, newer, pinned: true),
+        _older,
+        pinned: true,
+      );
+      expect([...decodePinned(encodePinned(pins))], [newer, _older]);
+    });
+
     test('skips malformed storage', () {
       expect(decodePinned(null), isEmpty);
       expect(decodePinned('not json'), isEmpty);
@@ -92,55 +104,48 @@ void main() {
     });
   });
 
-  group('ordering', () {
+  group('splitPinned', () {
     final sessions = [for (final s in _sessions) HostSession('h', s)];
 
-    test('pinned sessions come first in their folder, and their folder '
-        'first in the list, for every sort', () {
-      for (final sort in SessionSort.values) {
-        final groups = groupHostSessions(
-          sessions,
-          sort: sort,
-          pinned: {_older},
-        );
-        expect(groups.first.key, '/src/app', reason: sort.label);
-        expect(groups.first.sessions.first.title, 'Older one');
-      }
-    });
-
-    test('a pin on another host does not count', () {
-      final groups = groupHostSessions(
-        sessions,
-        pinned: {(host: 'other', session: 'pi:/a')},
+    test('takes pinned sessions out, in the order pinned', () {
+      final (:pinned, :rest) = splitPinned({
+        (host: 'h', session: 'pi:/c'),
+        _older,
+      }, sessions);
+      expect(
+        [for (final s in pinned) s.summary.title],
+        ['Newest elsewhere', 'Older one'],
       );
-      expect(groups.first.key, '/src/other');
-      expect(groups.last.sessions.first.title, 'Newer one');
+      expect([for (final s in rest) s.summary.title], ['Newer one']);
     });
 
-    test('pinned sessions sort among themselves by the sort', () {
-      final both = {_older, (host: 'h', session: 'pi:/b')};
-      final groups = groupHostSessions(sessions, pinned: both);
-      expect(groups.first.sessions.map((s) => s.title), [
-        'Newer one',
-        'Older one',
-      ]);
+    test('skips pins of sessions not listed, or on another host', () {
+      final (:pinned, :rest) = splitPinned({
+        (host: 'other', session: 'pi:/a'),
+        (host: 'h', session: 'pi:/gone'),
+      }, sessions);
+      expect(pinned, isEmpty);
+      expect(rest, hasLength(3));
     });
   });
 
-  testWidgets('the row menu pins a session to the top and saves it', (
-    tester,
-  ) async {
+  testWidgets('the row menu moves a session into the Pinned section at '
+      'the top, and saves it', (tester) async {
     final prefs = await _pump(tester);
-    double top(String text) => tester.getTopLeft(find.text(text)).dy;
-    expect(top('Newest elsewhere'), lessThan(top('Older one')));
+    double top(Finder finder) => tester.getTopLeft(finder).dy;
+    expect(find.text('Pinned'), findsNothing);
     expect(find.byIcon(Icons.push_pin), findsNothing);
 
     await tester.tap(find.text('Older one'), buttons: kSecondaryButton);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Pin to top'));
     await tester.pumpAndSettle();
-    expect(top('Older one'), lessThan(top('Newer one')));
-    expect(top('Older one'), lessThan(top('Newest elsewhere')));
+    // Above every host and folder, listed once, with its folder's name.
+    expect(top(find.text('Pinned')), lessThan(top(find.text('Older one'))));
+    expect(top(find.text('Older one')), lessThan(top(find.text('other'))));
+    expect(top(find.text('Older one')), lessThan(top(find.text('app'))));
+    expect(find.text('Older one'), findsOneWidget);
+    expect(find.textContaining('app · pi'), findsOneWidget);
     expect(find.byIcon(Icons.push_pin), findsOneWidget);
     expect(decodePinned(prefs.values['pinned_sessions']), {
       (host: testHost.key, session: 'pi:/a'),
@@ -150,8 +155,51 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Unpin'));
     await tester.pumpAndSettle();
-    expect(top('Newest elsewhere'), lessThan(top('Older one')));
+    expect(find.text('Pinned'), findsNothing);
+    expect(
+      top(find.text('Newest elsewhere')),
+      lessThan(top(find.text('Older one'))),
+    );
     expect(decodePinned(prefs.values['pinned_sessions']), isEmpty);
+  });
+
+  testWidgets('the Pinned section collapses, follows the search, and comes '
+      'first for next session', (tester) async {
+    reduceMotion(tester);
+    final prefs = await _pump(
+      tester,
+      saved: {
+        'pinned_sessions': encodePinned({
+          (host: testHost.key, session: 'pi:/a'),
+        }),
+      },
+    );
+    await tester.tap(find.text('Pinned'));
+    await tester.pumpAndSettle();
+    expect(find.text('Older one'), findsNothing);
+    expect(decodeIds(prefs.values['sidebar_collapsed']), [pinnedNodeId]);
+
+    // Next session opens the pinned one first and expands the section.
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<SessionDetailView>(find.byType(SessionDetailView)).session,
+      'pi:/a',
+    );
+    expect(decodeIds(prefs.values['sidebar_collapsed']), isEmpty);
+
+    await tester.enterText(
+      find.byWidgetPredicate(
+        (w) =>
+            w is TextField &&
+            (w.decoration?.hintText ?? '').startsWith('Search'),
+      ),
+      'newest',
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Pinned'), findsNothing);
   });
 
   testWidgets('saved pins load on start; the header menu unpins', (
@@ -166,6 +214,7 @@ void main() {
       },
     );
     double top(String text) => tester.getTopLeft(find.text(text)).dy;
+    expect(top('Pinned'), lessThan(top('Older one')));
     expect(top('Older one'), lessThan(top('Newest elsewhere')));
 
     await tester.tap(find.text('Older one'));

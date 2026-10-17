@@ -24,7 +24,8 @@ with a UX modeled on the GitHub Agents view and Cursor's Agents Window.
 > canvases and session details, and starts new sessions (host, agent,
 > model and its options such as the thinking level, a folder browsed on
 > the host, and the agent's settings such as the mode). The inbox has
-> filters, search, sort, pins, rename, archive and mark read from a row's menu, a
+> filters, search, sort, a "Pinned" section at the top, rename, archive
+> and mark read from a row's menu, a
 > swipe or multi-select, folders reordered by drag and drop (the order
 > and collapsed folders remembered), and the attention count in the window title; keyboard
 > shortcuts start sessions, search, step through sessions, stop turns and

@@ -1,5 +1,36 @@
 # Design Decision Log
 
+## 2026-10-16: One shared Pinned section at the top of the sidebar (AV-028)
+
+This reverses the earlier "pins lead their folder" decision (see
+"Pinned sessions (AV-028)" below) because of user feedback: pinned
+sessions should sit together above every host and workspace.
+
+- **Pinned sessions move, not copy.** A pinned session is listed only
+  in the "Pinned" section, as GitHub's and Slack's pinned sections do,
+  so the list has no duplicate rows, next and previous session
+  (Alt+↓/↑) visit each session once, and multi-select has one checkbox
+  per session. `splitPinned` takes the pinned sessions out before
+  `groupHostSessions`, so a folder holding only pinned sessions is not
+  shown, and the "folder with a pinned session first" rule and the
+  pin-first sort inside folders (`compareHostSessions`) are gone.
+- **The order pinned, not drag and not the sort.** The stored pin set
+  is already an insertion-ordered list, so keeping that order needs no
+  new storage and the `pinned_sessions` key and format stay the same.
+  The folder drag code (`_FolderHeader`, `movedFolder`) is built around
+  folder rows within one host; reusing it for session rows across
+  hosts was not cheap, so drag reordering is left as a gap. Using the
+  active sort was rejected because pinned rows would jump as sessions
+  update.
+- **A compact place label.** Pinned rows from several hosts and
+  folders need context, so the row's second line starts with the
+  host's label (only when several hosts are open) and the folder name
+  (`pinnedPlace`).
+- **One more collapsed id.** The section collapses like hosts and
+  folders, stored as `pinned` in `sidebar_collapsed`; host keys are URLs
+  and folder ids contain `|`, so the id cannot clash. Opening a pinned
+  session expands the section instead of its host and folder.
+
 ## 2026-10-16: `/` completions in the composer and follow-up box (AV-044)
 
 - **The host's `completions` first, the session's skills second.** AHP
@@ -287,6 +318,8 @@
 ## 2026-10-16: Pinned sessions (AV-028)
 
 - **Pinned sessions lead their folder, and that folder leads the list.**
+  (Superseded the same day by "One shared Pinned section at the top of
+  the sidebar (AV-028)" above.)
   The list is always grouped by working directory (AV-025), so a
   separate "Pinned" section would show a session away from its folder
   and break the one-folder-per-directory rule. Instead the sort puts

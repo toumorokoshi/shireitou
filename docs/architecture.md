@@ -272,16 +272,17 @@ Dart source); `bin/generate.dart` does the file I/O. See
   `badgesFor` / `needsAttention` (AV-021), `filterSessions` (Active,
   Needs attention, Done, Archived, All; AV-022), `attentionCount` and
   `windowTitle` (AV-120), `session_query.dart` (`SessionSort` and
-  `compareSessions`, AV-026; `compareHostSessions`, which puts pinned
-  sessions first, AV-028; `parseSessionQuery` and `matchesQuery` for
+  `compareSessions`, AV-026; `parseSessionQuery` and `matchesQuery` for
   title words and `agent:`, `status:`, `repo:`, `host:` qualifiers,
-  AV-027), `pinned_sessions.dart` (`withPinned` and the pin set's JSON,
+  AV-027), `pinned_sessions.dart` (`withPinned`, the pin set's JSON, and
+  `splitPinned`, which takes the shown pinned sessions out in pin order,
   AV-028), and `formatRelativeTime`. `pinned_store.dart` keeps the pinned
   sessions (by host and session) on this device with `PrefsStore`.
   `session_tree.dart` builds the sidebar tree: `sessionTree` puts each
-  open host's folders under it, `sidebarRows` flattens it into host,
-  folder, session and empty rows while skipping collapsed hosts and
-  folders, and `revealSession` expands the ones holding an opened
+  open host's folders under it, `sidebarRows` flattens the "Pinned"
+  section (its sessions labeled by `pinnedPlace`) and the tree into
+  pinned, host, folder, session and empty rows while skipping collapsed
+  nodes, and `revealSession` expands the ones holding an opened
   session. `folder_order.dart` orders folders by the user's order
   (`orderFolders`) and moves one (`movedFolder`); `sidebar_store.dart`
   keeps that order and the collapsed hosts and folders on this device

@@ -48,7 +48,8 @@ class SessionRowActions {
   final ValueChanged<SessionRef>? onRename;
 }
 
-/// Shows the sidebar [tree] (AV-012, AV-025): each host with its status,
+/// Shows the sidebar: the [pinned] sessions in a "Pinned" section at the
+/// top (AV-028), then the [tree] (AV-012, AV-025): each host with its status,
 /// Retry and Remove when it is not connected, then its workspace folders
 /// and their session rows, and "Add host…" last. Hosts and folders
 /// collapse; tapping a host narrows the list to it (or back to every
@@ -80,18 +81,19 @@ class SessionListView extends StatelessWidget {
     this.actions,
     this.selection,
     this.runLabels = const {},
-    this.pinned = const {},
+    this.pinned = const [],
     this.dense = true,
   });
 
   /// The hosts with their folders, already grouped and sorted.
   final List<HostNode> tree;
 
-  /// Ids of the collapsed hosts and folders ([sidebarRows]).
+  /// Ids of the collapsed "Pinned" section, hosts and folders
+  /// ([sidebarRows]).
   final Set<String> collapsed;
 
-  /// Collapses or expands the host or folder with an id; they do not
-  /// collapse when null.
+  /// Collapses or expands the "Pinned" section, host or folder with an
+  /// id; they do not collapse when null.
   final ValueChanged<String>? onToggle;
 
   /// The selected session, highlighted in the list.
@@ -150,8 +152,9 @@ class SessionListView extends StatelessWidget {
   /// AV-045), by session.
   final Map<SessionRef, String> runLabels;
 
-  /// The pinned sessions (AV-028), shown with a pin marker.
-  final Set<SessionRef> pinned;
+  /// The pinned sessions (AV-028), in the order shown in the "Pinned"
+  /// section; not shown in their folders.
+  final List<HostSession> pinned;
 
   /// Whether rows are thin ([denseHeaderHeight], [denseSessionHeight])
   /// rather than [kMinInteractiveDimension] high.
@@ -197,6 +200,15 @@ class SessionListView extends StatelessWidget {
           ? null
           : (from, to) => onMoveFolder!(folders[group.host]!, from, to),
     ),
+    PinnedRow(:final sessions, :final collapsed, :final attentionCount) =>
+      _PinnedHeader(
+        key: const ValueKey('pinned'),
+        count: sessions.length,
+        attention: attentionCount,
+        collapsed: collapsed,
+        dense: dense,
+        onToggle: onToggle == null ? null : () => onToggle!(pinnedNodeId),
+      ),
     EmptyRow(:final host, :final text) => Padding(
       key: ValueKey(('empty', host)),
       padding: EdgeInsetsDirectional.fromSTEB(
@@ -211,15 +223,16 @@ class SessionListView extends StatelessWidget {
             ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
       ),
     ),
-    SessionItem(:final session, :final ref) => _SessionRow(
+    SessionItem(:final session, :final ref, :final place) => _SessionRow(
       key: ValueKey(('session', ref)),
       session: session,
       ref: ref,
+      place: place,
       now: clock,
       dense: dense,
       selected: selected == ref,
       checked: selection?.contains(ref),
-      pinned: pinned.contains(ref),
+      pinned: place != null,
       actions: actions,
       onOpen: onSelect,
       runLabel: runLabels[ref],
@@ -229,7 +242,7 @@ class SessionListView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clock = now ?? DateTime.now();
-    final rows = sidebarRows(tree, collapsed);
+    final rows = sidebarRows(tree, collapsed, pinned: pinned);
     final folders = {for (final node in tree) node.host.key: node.folders};
     final addHost = onAddHost;
     return ListView.builder(
@@ -254,8 +267,8 @@ const denseHeaderHeight = 28.0;
 /// Height of a session row in a dense sidebar.
 const denseSessionHeight = 32.0;
 
-/// Start padding of a row at tree [depth] (0 hosts, 1 folders, 2
-/// sessions).
+/// Start padding of a row at tree [depth] (0 hosts and the "Pinned"
+/// section, 1 folders and pinned sessions, 2 sessions in folders).
 double _indent(int depth) => 8.0 + 14.0 * depth;
 
 double _iconSize(bool dense) => dense ? 16 : 20;
@@ -292,7 +305,7 @@ class _TreeRow extends StatelessWidget {
     this.semanticsActions,
   });
 
-  /// Tree depth: 0 hosts, 1 folders, 2 sessions.
+  /// Tree depth ([_indent]).
   final int depth;
 
   /// Minimum row height.
@@ -829,10 +842,14 @@ class _SessionRow extends StatelessWidget {
     required this.pinned,
     required this.actions,
     required this.onOpen,
+    this.place,
     this.runLabel,
   });
 
   final SessionSummary session;
+
+  /// Where a pinned session lives ([pinnedPlace]); null in its folder.
+  final String? place;
   final String? runLabel;
   final SessionRef ref;
   final DateTime now;
@@ -899,6 +916,8 @@ class _SessionRow extends StatelessWidget {
       session: session,
       now: now,
       runLabel: runLabel,
+      place: place,
+      depth: place == null ? 2 : 1,
       pinned: pinned,
       dense: dense,
       selected: selected || (checked ?? false),
@@ -975,6 +994,59 @@ class _SessionRow extends StatelessWidget {
   }
 }
 
+/// The "Pinned" section's row (AV-028): collapse marker, pin icon,
+/// "Pinned", and the session and attention counts. Tapping it collapses
+/// or expands the section.
+class _PinnedHeader extends StatelessWidget {
+  const _PinnedHeader({
+    super.key,
+    required this.count,
+    required this.attention,
+    required this.collapsed,
+    required this.dense,
+    this.onToggle,
+  });
+
+  /// Number of pinned sessions shown.
+  final int count;
+
+  /// Number of them that need attention.
+  final int attention;
+
+  /// Whether the pinned sessions are hidden.
+  final bool collapsed;
+
+  /// Whether the row is thin ([denseHeaderHeight]).
+  final bool dense;
+
+  /// Collapses or expands the section; it does not collapse when null.
+  final VoidCallback? onToggle;
+
+  @override
+  Widget build(BuildContext context) => _TreeRow(
+    depth: 0,
+    height: dense ? denseHeaderHeight : kMinInteractiveDimension,
+    onTap: onToggle,
+    expanded: onToggle == null ? null : !collapsed,
+    leading: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          collapsed ? Icons.chevron_right : Icons.expand_more,
+          size: _iconSize(dense),
+        ),
+        Icon(Icons.push_pin_outlined, size: _iconSize(dense)),
+      ],
+    ),
+    title: Text(
+      'Pinned',
+      maxLines: 1,
+      style: _titleStyle(context, dense)?.copyWith(fontWeight: FontWeight.w600),
+    ),
+    trailing: _Counts(count: count, attention: attention, dense: dense),
+  );
+}
+
 /// The pin action's label for a session that is [pinned] or not
 /// (AV-028).
 String pinLabel({required bool pinned}) => pinned ? 'Unpin' : 'Pin to top';
@@ -1033,12 +1105,22 @@ class SessionTile extends StatelessWidget {
     this.selected = false,
     this.leading,
     this.runLabel,
+    this.place,
     this.pinned = false,
+    this.depth = 2,
     this.dense = true,
   });
 
   /// The session to show.
   final SessionSummary session;
+
+  /// Where the session lives (host and folder, [pinnedPlace]), shown
+  /// first on the second line of a row in the "Pinned" section.
+  final String? place;
+
+  /// Tree depth of the row ([_indent]): 2 in a folder, 1 in the "Pinned"
+  /// section.
+  final int depth;
 
   /// "Run 2 of 3" when the session is one of several parallel runs
   /// (AV-045).
@@ -1069,6 +1151,7 @@ class SessionTile extends StatelessWidget {
     final modified = DateTime.tryParse(session.modifiedAt);
     final changes = session.changes;
     final details = [
+      ?place,
       ?runLabel,
       session.provider,
       if (modified != null) formatRelativeTime(modified, now),
@@ -1079,7 +1162,7 @@ class SessionTile extends StatelessWidget {
     ];
     final badges = badgesFor(session.status);
     return _TreeRow(
-      depth: 2,
+      depth: depth,
       height: dense ? denseSessionHeight : kMinInteractiveDimension,
       selected: selected,
       onTap: onTap,

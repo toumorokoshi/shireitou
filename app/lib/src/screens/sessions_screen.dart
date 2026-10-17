@@ -16,6 +16,7 @@ import '../layout.dart';
 import '../session_detail/editable_title.dart';
 import '../session_detail/session_detail_view.dart';
 import '../session_list/folder_grouping.dart';
+import '../session_list/pinned_sessions.dart';
 import '../session_list/pinned_store.dart';
 import '../session_list/session_filter.dart';
 import '../session_list/session_list_view.dart';
@@ -66,6 +67,9 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
 
   /// The shown folders, to reveal a selected session's folder.
   List<FolderGroup> _groups = const [];
+
+  /// The shown pinned sessions, to reveal a selected pinned session.
+  List<SessionRef> _pinned = const [];
 
   /// The shown sessions in list order, for next/previous (AV-140).
   List<SessionRef> _order = const [];
@@ -155,10 +159,13 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
   void _select(SessionRef session) {
     setState(() => _selected = session);
     final groups = _groups;
+    final pinned = _pinned;
     unawaited(
       ref
           .read(collapsedNodesProvider.notifier)
-          .change((ids) => revealSession({...ids}, groups, session)),
+          .change(
+            (ids) => revealSession({...ids}, groups, session, pinned: pinned),
+          ),
     );
     if (_tier != LayoutTier.compact) return;
     final route = MaterialPageRoute<void>(builder: (_) => _detailPage(session));
@@ -346,18 +353,24 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
             matchesQuery(s, query, hostLabel: labels[s.host]))
           s,
     ];
-    final pinned = ref.watch(pinnedSessionsProvider);
+    final (:pinned, :rest) = splitPinned(
+      ref.watch(pinnedSessionsProvider),
+      shown,
+    );
     final groups = _groups = orderFolders(
-      groupHostSessions(shown, sort: _sort, pinned: pinned),
+      groupHostSessions(rest, sort: _sort),
       ref.watch(folderOrderProvider),
     );
     final tree = sessionTree(
       hosts,
       groups,
       hostsWithSessions: {for (final s in onHost) s.host},
+      hostsWithPinned: {for (final s in pinned) s.host},
       hostFilter: hostFilter,
     );
+    _pinned = [for (final s in pinned) s.ref];
     _order = [
+      ..._pinned,
       for (final g in groups)
         for (final s in g.sessions) (host: g.host, session: s.resource),
     ];
