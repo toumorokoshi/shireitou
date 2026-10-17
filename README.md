@@ -23,7 +23,7 @@ with a UX modeled on the GitHub Agents view and Cursor's Agents Window.
 > canvases and session details, and starts new sessions (host, agent,
 > model and its options such as the thinking level, a folder browsed on
 > the host, and the agent's settings such as the mode). The inbox has
-> filters, search, sort, pins, archive and mark read from a row's menu, a
+> filters, search, sort, pins, rename, archive and mark read from a row's menu, a
 > swipe or multi-select, and the attention count in the window title; keyboard
 > shortcuts start sessions, search, step through sessions, stop turns and
 > focus the composer (in the macOS menu bar too), and the hosts open at
@@ -147,8 +147,9 @@ just run chrome 'ws://127.0.0.1:63877?tkn=...'   # prefill the host URL
    Cmd/Ctrl+K search sessions (with `agent:`, `status:`, `repo:` and
    `host:` qualifiers), Alt+↓/↑ next and previous session, Cmd/Ctrl+.
    stop, Cmd/Ctrl+L focus the follow-up box. Right-click or long-press a
-   session to archive it, mark it read or unread, or select several;
-   swipe it left to archive it.
+   session to rename it, archive it, mark it read or unread, or select several;
+   swipe it left to archive it. Click a session's title in its header to
+   rename it.
 
 `just test-integration` launches pi-agent-host-protocol from
 `PI_AHP_HOST_DIR` (default: `../pi-agent-host-protocol`, a sibling of this

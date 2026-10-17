@@ -12,6 +12,7 @@ import '../connection_notices.dart';
 import '../host_connection.dart';
 import '../hosts/open_hosts.dart';
 import '../layout.dart';
+import '../session_detail/editable_title.dart';
 import '../session_detail/session_detail_view.dart';
 import '../session_list/folder_grouping.dart';
 import '../session_list/pinned_store.dart';
@@ -19,6 +20,7 @@ import '../session_list/session_filter.dart';
 import '../session_list/session_list_view.dart';
 import '../session_list/session_query.dart';
 import '../session_list/session_tree.dart';
+import '../session_title.dart';
 import '../shortcuts.dart';
 import '../notifications/notification_menu.dart';
 import '../notifications/notifications.dart';
@@ -274,6 +276,22 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
     }
   }
 
+  /// Asks for a new title and renames [session] (AV-073).
+  Future<void> _rename(SessionRef session) async {
+    final current = ref
+        .read(allSessionsProvider)
+        .where((s) => s.ref == session)
+        .firstOrNull
+        ?.summary
+        .title;
+    if (current == null) return;
+    final typed = await showRenameDialog(context, current);
+    if (typed == null || !mounted) return;
+    if (renameAction(current, typed) case final action?) {
+      _dispatchToSession(session, action);
+    }
+  }
+
   void _toggleSelected(SessionRef session) => setState(() {
     final selection = {...?_selection};
     if (!selection.remove(session)) selection.add(session);
@@ -456,6 +474,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                         .read(pinnedSessionsProvider.notifier)
                         .setPinned(s, pinned: pin),
                     onCompare: _compare,
+                    onRename: _rename,
                   ),
                 ),
               ),

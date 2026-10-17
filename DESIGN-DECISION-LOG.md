@@ -1,5 +1,32 @@
 # Design Decision Log
 
+## 2026-10-16: Rename a session (AV-073)
+
+- **The protocol's `session/titleChanged`, not a local title.** AHP
+  1.0.0 documents `session/titleChanged` as "dispatched by a client to
+  rename a session", and 0.9.0 has it too, so the rename goes to the
+  host through the existing write-ahead `dispatch`: the session channel
+  shows it at once, and a rejection, no echo, or a dropped connection
+  rolls it back and shows a notice. No device-local title override is
+  needed, and other clients see the new title.
+- **The open session's row shows its channel's title.** The list reads
+  the catalogue, which changes only when the host sends
+  `root/sessionSummaryChanged`. `allSessionsProvider` now overlays the
+  title of a mirrored session channel (`withMirroredTitle`), so a
+  pending rename shows in the list and the header together. It watches
+  `sessionChannels`, which changes with session actions, not with chat
+  streaming.
+- **Inline in the header, a dialog in the list.** The header title is a
+  click target (pointer cursor, "Click to rename" tooltip) that becomes
+  a text field with the title selected; Enter or losing focus saves, Esc
+  cancels. A list row is dense and tap opens the session, so its
+  "Rename…" asks in a dialog instead.
+- **The typed text wins over a host title change while editing.** The
+  field's text is set only when editing starts, so an auto-generated
+  title arriving meanwhile does not overwrite what the user types.
+- **Nothing is sent for an empty or unchanged title** (`renameAction`
+  trims and compares), so leaving the field without changes is free.
+
 ## 2026-10-16: Hosts and workspaces in a dense sidebar tree (AV-012, AV-025)
 
 - **A tree replaces the host dropdown.** The sidebar lists every open

@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 
 import '../host_connection.dart';
+import '../session_title.dart';
 import 'host_store.dart';
 import 'saved_hosts.dart';
 
@@ -284,17 +285,26 @@ class HostSession {
   int get hashCode => Object.hash(host, summary);
 }
 
-/// The sessions of every live host, merged into one inbox (AV-012).
-final allSessionsProvider = Provider<List<HostSession>>(
-  (ref) => [
-    for (final info in ref.watch(hostInfosProvider))
-      if (info.live)
-        for (final summary
-            in ref
-                .watch(
-                  hostConnectionProvider(info.key).select((s) => s.sessions),
-                )
-                .values)
-          HostSession(info.key, summary),
-  ],
-);
+/// The sessions of every live host, merged into one inbox (AV-012). An
+/// open session shows its channel's title, so a pending rename (AV-073)
+/// shows before the host updates its catalogue.
+final allSessionsProvider = Provider<List<HostSession>>((ref) {
+  final all = <HostSession>[];
+  for (final info in ref.watch(hostInfosProvider)) {
+    if (!info.live) continue;
+    // The session channels change with session actions, not chat streaming.
+    final (sessions, channels) = ref.watch(
+      hostConnectionProvider(info.key)
+          .select((s) => (s.sessions, s.sessionChannels)),
+    );
+    for (final summary in sessions.values) {
+      all.add(
+        HostSession(
+          info.key,
+          withMirroredTitle(summary, channels[summary.resource]?.state),
+        ),
+      );
+    }
+  }
+  return all;
+});

@@ -626,6 +626,32 @@ void main() {
     expect(replies(), contains('hello again'));
   });
 
+  test('a rename updates the session and the catalogue (AV-073)', () async {
+    client.dispatch(
+      seededSession,
+      const SessionTitleChangedAction(title: 'Renamed').toJson(),
+    );
+    // Write-ahead: the session channel shows it before the echo.
+    expect(sessionState().title, 'Renamed');
+    await until((s) => s.sessions[seededSession]!.title == 'Renamed');
+    expect(client.state.sessionChannels[seededSession]!.pending, isEmpty);
+  });
+
+  test('a refused rename is rolled back', () async {
+    host.rejectTypes.add('session/titleChanged');
+    final original = sessionState().title;
+    final failures = client.failures.first;
+    client.dispatch(
+      seededSession,
+      const SessionTitleChangedAction(title: 'Refused').toJson(),
+    );
+    expect(sessionState().title, 'Refused');
+    final failure = await failures.timeout(_timeout);
+    expect(failure.kind, ActionFailureKind.rejected);
+    expect(sessionState().title, original);
+    expect(client.state.sessions[seededSession]!.title, original);
+  });
+
   test('unknown client actions are rejected', () async {
     final failures = client.failures.first;
     client.dispatch(seededSession, {

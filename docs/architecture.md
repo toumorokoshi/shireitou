@@ -261,15 +261,18 @@ Dart source); `bin/generate.dart` does the file I/O. See
   session. `session_list_view.dart` renders the rows lazily (thin rows
   on medium and wide layouts, touch-sized ones on compact layouts);
   host rows show the status with Retry and Remove, and each session row has a menu
-  (right-click, long-press, and screen reader actions) to archive, mark
-  read or unread, pin or unpin and select, swipes left to archive or
+  (right-click, long-press, and screen reader actions) to rename (a
+  dialog, AV-073), archive, mark read or unread, pin or unpin and select,
+  swipes left to archive or
   unarchive, shows a pin marker on pinned rows, and shows checkboxes while
   selecting (AV-024, AV-028, AV-029). The sessions screen adds the search field, sort menu, filter
   chips (with the attention count) and the bulk action bar.
 - `lib/src/session_detail/`: the session view. `timeline_items.dart` and
   `chat_commands.dart` are pure: `timelineItems(ChatState)` flattens turns
   into rows, and the command builders return the chat actions to dispatch.
-  `session_detail_view.dart` holds the header (status, activity, Stop,
+  `session_detail_view.dart` holds the header (the title, which
+  `editable_title.dart` turns into a text field when clicked or on
+  "Rename…", AV-073; status, activity, Stop,
   archive, mark unread, pin, session details, change counts, background work,
   canvases and MCP server alerts), the chat switcher, the "Waiting for
   you" panel, the reversed timeline that follows new output (AV-066), the
@@ -359,6 +362,13 @@ Dart source); `bin/generate.dart` does the file I/O. See
   `review_logic.dart` is pure (which changesets to offer, the URI for the
   chosen turn, counts); `changes_pane.dart` lists files with their change
   kind, counts and "reviewed" boxes and runs host operations.
+- `lib/src/session_title.dart` (pure): `renameAction` builds the
+  `session/titleChanged` action for a typed title (null when it is empty
+  or unchanged), `sessionTitleOf` picks the title to show (the session
+  channel's, which carries a pending rename, then the catalogue's), and
+  `withMirroredTitle` gives an open session's row that title, so
+  `allSessionsProvider` shows a rename in the list before the host
+  updates its catalogue (AV-073).
 - `lib/src/channels.dart`: `ChannelSubscriber`, which keeps a channel
   subscribed while a widget is mounted, and `resourceTextProvider`, which
   reads `ContentRef` text with `resourceRead`.

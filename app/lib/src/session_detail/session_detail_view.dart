@@ -25,9 +25,11 @@ import '../review/review_logic.dart';
 import '../runs/compare_screen.dart';
 import '../runs/run_group_store.dart';
 import '../runs/run_groups.dart';
+import '../session_title.dart';
 import 'chat_commands.dart';
 import '../composer/config_fields.dart';
 import 'chat_switcher.dart';
+import 'editable_title.dart';
 import 'message_settings.dart';
 import 'pending_messages.dart';
 import 'session_info.dart';
@@ -97,6 +99,9 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
 
   /// Asks the follow-up box to take focus (Cmd/Ctrl+L, AV-140).
   final _composerFocus = ValueNotifier<int>(0);
+
+  /// Opens the title's text field (the "Rename…" menu item, AV-073).
+  final _renameRequests = ValueNotifier<int>(0);
   StreamSubscription<AppCommand>? _commands;
 
   String? get _chat => _selectedChat ?? _defaultChat;
@@ -239,6 +244,7 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
       timer.cancel();
     }
     _composerFocus.dispose();
+    _renameRequests.dispose();
     if (!_opening) _connection.closeSession(widget.session, _defaultChat);
     super.dispose();
   }
@@ -269,6 +275,14 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
     widget.session,
     SessionIsArchivedChangedAction(isArchived: archived).toJson(),
   );
+
+  /// Renames the session from [current] to [typed] (`session/titleChanged`,
+  /// write-ahead: shown at once, rolled back if the host refuses it).
+  void _rename(String current, String typed) {
+    if (renameAction(current, typed) case final action?) {
+      _dispatch(widget.session, action);
+    }
+  }
 
   void _selectChat(String chat) =>
       setState(() => _selectedChat = chat == _defaultChat ? null : chat);
@@ -515,6 +529,11 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
       session: widget.session,
     ));
     final sessionRef = (host: context.host, session: widget.session);
+    final title = sessionTitleOf(
+      session: sessionState,
+      summary: summary,
+      chat: chat,
+    );
     final pinned = ref.watch(pinnedSessionsProvider).contains(sessionRef);
     final header = _Header(
       pinned: pinned,
@@ -534,6 +553,9 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
                 builder: (_) => CompareRunsScreen(groupId: runGroup.id),
               ),
             ),
+      title: title,
+      onRename: (typed) => _rename(title, typed),
+      renameRequests: _renameRequests,
       summary: summary,
       chat: chat,
       backgroundWork: supports(ProtocolFeature.backgroundWork)
@@ -621,6 +643,9 @@ class _Header extends StatelessWidget {
     required this.onPin,
     required this.runLabel,
     required this.onCompareRuns,
+    required this.title,
+    required this.onRename,
+    required this.renameRequests,
     required this.summary,
     required this.chat,
     required this.backgroundWork,
@@ -646,6 +671,15 @@ class _Header extends StatelessWidget {
   /// "Run 2 of 3" for a parallel run (AV-045).
   final String? runLabel;
   final VoidCallback? onCompareRuns;
+
+  /// The session's title (see [sessionTitleOf]).
+  final String title;
+
+  /// Renames the session to the typed text (AV-073).
+  final ValueChanged<String> onRename;
+
+  /// Opens the title's text field when it notifies.
+  final ValueNotifier<int> renameRequests;
   final SessionSummary? summary;
   final ChatState? chat;
   final List<BackgroundWork> backgroundWork;
@@ -689,11 +723,11 @@ class _Header extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  summary?.title ?? chat?.title ?? 'Session',
+                EditableTitle(
+                  title: title,
+                  onRename: onRename,
+                  editRequests: renameRequests,
                   style: theme.textTheme.titleLarge,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -776,6 +810,10 @@ class _Header extends StatelessWidget {
             tooltip: 'Session actions',
             onSelected: (action) => action(),
             itemBuilder: (_) => [
+              PopupMenuItem(
+                value: () => renameRequests.value++,
+                child: const Text('Rename…'),
+              ),
               PopupMenuItem(
                 value: () => onArchive(!archived),
                 child: Text(archived ? 'Unarchive' : 'Archive'),

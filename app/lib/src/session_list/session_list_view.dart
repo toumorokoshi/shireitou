@@ -22,6 +22,7 @@ class SessionRowActions {
     required this.onSelect,
     this.onPin,
     this.onCompare,
+    this.onRename,
   });
 
   /// Archives the session (true) or unarchives it (false).
@@ -41,14 +42,18 @@ class SessionRowActions {
   /// Opens the comparison of the session's parallel runs (AV-045); only
   /// offered for sessions with a run label.
   final ValueChanged<SessionRef>? onCompare;
+
+  /// Asks for a new title and renames the session (AV-073); not offered
+  /// when null.
+  final ValueChanged<SessionRef>? onRename;
 }
 
 /// Shows the sidebar [tree] (AV-012, AV-025): each host with its status,
 /// Retry and Remove when it is not connected, then its workspace folders
 /// and their session rows, and "Add host…" last. Hosts and folders
 /// collapse; tapping a host narrows the list to it (or back to every
-/// host). Rows have a menu (right-click or long-press) to archive, mark
-/// read or unread, pin or unpin, and select; swiping a row to the left
+/// host). Rows have a menu (right-click or long-press) to rename, archive,
+/// mark read or unread, pin or unpin, and select; swiping a row to the left
 /// archives (or unarchives) it. While [selection] is set, rows show
 /// checkboxes and tapping toggles them. [dense] rows are thin, for
 /// pointers; otherwise rows keep touch-sized targets.
@@ -613,6 +618,11 @@ class _SessionRow extends StatelessWidget {
         Offset.zero & overlay.size,
       ),
       items: [
+        if (actions.onRename case final onRename?)
+          PopupMenuItem(
+            value: () => onRename(ref),
+            child: const Text('Rename…'),
+          ),
         PopupMenuItem(
           value: () => actions.onArchive(ref, !_archived),
           child: Text(_archived ? 'Unarchive' : 'Archive'),
@@ -674,6 +684,8 @@ class _SessionRow extends StatelessWidget {
         if (actions.onPin case final onPin?)
           CustomSemanticsAction(label: pinLabel(pinned: pinned)): () =>
               onPin(ref, !pinned),
+        if (actions.onRename case final onRename?)
+          const CustomSemanticsAction(label: 'Rename'): () => onRename(ref),
       },
       child: GestureDetector(
         onSecondaryTapUp: (details) =>

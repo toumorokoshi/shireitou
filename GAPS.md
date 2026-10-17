@@ -52,14 +52,20 @@ AppImage and the release workflow (see
 - **Highest priority (user feedback, 2026-10-16):** do these before the
   items below.
 
-  - **Rename a session:** clicking the session's title in the header
-    should let the user edit it in place.
   - **Reorder workspaces:** drag and drop workspace folders in the
     sidebar to reorder them, with the order remembered.
   - **Collapsible right-hand pane (AV-003):** on wide layouts the review
     pane beside the timeline is always open. Make it collapsible,
     closed by default, so the timeline gets the space.
 
+- **Renaming a session (AV-073), remaining details:** the session list
+  renames in a dialog, not in place. A rename from the list of a session
+  that is not open is not shown until the host updates its catalogue
+  (the client mirrors only open sessions' channels), and a host that
+  rejects it reports the rejection only to subscribers of the session's
+  channel, so the list may not hear of it. Renaming is verified against
+  the scripted fake host only; pi's support for a client
+  `session/titleChanged` is untested.
 - **Editing queued messages in place (AV-081), remaining details:** when
   the host sends or removes a message while it is open in the editor, the
   editor closes with a notice and the typed text is lost (it is not

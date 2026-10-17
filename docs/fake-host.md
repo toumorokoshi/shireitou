@@ -22,8 +22,9 @@ exercised against a real host.
   `TerminalState`, `ChangesetState`, `CanvasState`, catalogue
   `SessionSummary`s) and advances it with the client package's own
   reducers, so its envelopes are what a reducer-faithful host would send. Catalogue entries follow the default
-  chat's status and the session's `inputNeeded` list
-  (`root/sessionSummaryChanged`).
+  chat's status, the session's `inputNeeded` list and its title, so a
+  client's `session/titleChanged` (a rename, AV-073) reaches the
+  catalogue too (`root/sessionSummaryChanged`).
 - Client actions from `clientDispatchable` are echoed with their
   `origin`; anything else (or an unknown channel, or a second
   `chat/turnStarted` while a turn runs, or a type in the mutable
