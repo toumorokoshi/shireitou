@@ -527,8 +527,12 @@ AppImage and the release workflow (see
   certificate and an Apple ID with an app-specific password, which need
   a paid Apple Developer account), the Windows `.zip` is unsigned and the
   `.msix` left out of releases (needs a code signing certificate), the
-  APK is debug-signed (needs a release keystore) and `SHA256SUMS` is not
-  GPG-signed. No apt repository, Flathub or Snap package, Homebrew cask,
+  APK has no release key yet (`scripts/android-keystore --upload` makes
+  one; a tag is refused until it exists, and the signing path has only
+  run in CI with a throwaway key) and `SHA256SUMS` is not GPG-signed. The
+  APK is one universal file (about three ABIs' worth of native code);
+  per-ABI APKs would be smaller. The release is all or nothing: a
+  failing macOS or Windows build blocks the Android APK too. No apt repository, Flathub or Snap package, Homebrew cask,
   winget manifest, Play Store bundle (`.aab`) or auto-update. The
   AppImage uses the system's GTK 3 and libsecret and carries no update
   information (zsync).

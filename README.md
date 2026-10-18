@@ -115,6 +115,7 @@ just test-model          # a real model turn through pi (costs tokens)
 just test-desktop linux  # desktop smoke test against pi (see docs/desktop.md)
 just test-mobile <id>    # mobile smoke test on an emulator/simulator (docs/mobile.md)
 just icons               # re-render the app icons (see docs/packaging.md)
+just android-keystore <file.jks>   # create the Android release key and its secrets
 just codegen             # regenerate the wire types (and freezed code)
 just fetch-schema        # re-download the vendored AHP 1.0.0 JSON Schemas
 just run                 # flutter run -d chrome

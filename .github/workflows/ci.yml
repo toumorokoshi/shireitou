@@ -273,8 +273,14 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      - name: Build APK (debug-signed)
-        run: scripts/package-android
+      - name: Build APK (signed with a throwaway release key)
+        run: |
+          keystore="$RUNNER_TEMP/ci-release.jks"
+          scripts/android-keystore "$keystore"
+          ANDROID_KEYSTORE="$(base64 -w0 "$keystore")" \
+            ANDROID_KEYSTORE_PASSWORD="$(cat "$keystore.password")" \
+            ANDROID_KEY_ALIAS=shireitou \
+            scripts/package-android
       - uses: actions/upload-artifact@v4
         with:
           name: shireitou-android

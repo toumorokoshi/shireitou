@@ -104,6 +104,11 @@ test-mobile device:
 icons:
     scripts/render-icon
 
+# Create the Android release keystore and store it in the repository's
+# Actions secrets (needs a JDK 17 and gh); see docs/packaging.md.
+android-keystore keystore:
+    scripts/android-keystore --upload {{keystore}}
+
 # Regenerate the AHP wire types from the vendored JSON Schemas (see
 # packages/ahp_wire_gen), then the freezed code in ahp_client. CI fails when
 # the committed output differs.

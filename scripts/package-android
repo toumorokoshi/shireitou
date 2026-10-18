@@ -34,8 +34,36 @@ else
 fi
 
 (cd "$app" && flutter build apk --release)
+apk="$app/build/app/outputs/flutter-apk/app-release.apk"
+
+# The Gradle build falls back to the debug key without a word, so a
+# keystore that was given must be the one that signed the APK.
+sdk="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/Library/Android/sdk}}"
+apksigner="$(find "$sdk/build-tools" -name apksigner -type f 2>/dev/null | sort -V | tail -1)"
+if [[ -z "$apksigner" ]]; then
+  if [[ -n "${ANDROID_KEYSTORE:-}" ]]; then
+    echo "apksigner not found in $sdk/build-tools; cannot check the signature" >&2
+    exit 1
+  fi
+  echo "apksigner not found; the signature is not checked" >&2
+else
+  "$apksigner" verify --print-certs "$apk"
+  if [[ -n "${ANDROID_KEYSTORE:-}" ]]; then
+    expected="$(KEYSTORE_PASSWORD="$ANDROID_KEYSTORE_PASSWORD" keytool -list -v \
+      -keystore "$work/release.jks" -storepass:env KEYSTORE_PASSWORD \
+      -alias "$ANDROID_KEY_ALIAS" |
+      sed -n 's/^[[:space:]]*SHA256: //p' | tr -d ':' | tr '[:upper:]' '[:lower:]')"
+    actual="$("$apksigner" verify --print-certs "$apk" |
+      sed -n 's/^Signer #1 certificate SHA-256 digest: //p')"
+    if [[ -z "$expected" || "$actual" != "$expected" ]]; then
+      echo "the APK is not signed with the release key (got ${actual:-nothing}, want ${expected:-?})" >&2
+      exit 1
+    fi
+    echo "signed with the release key (SHA-256 $actual)"
+  fi
+fi
+
 rm -rf "$dist"
 mkdir -p "$dist"
-cp "$app/build/app/outputs/flutter-apk/app-release.apk" \
-  "$dist/shireitou-$version-android.apk"
+cp "$apk" "$dist/shireitou-$version-android.apk"
 ls -l "$dist"

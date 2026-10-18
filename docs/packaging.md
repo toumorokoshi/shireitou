@@ -19,17 +19,43 @@ an Apple Developer account (see GAPS.md).
 
 ## Making a release
 
-1. Set `version:` in `app/pubspec.yaml` (for example `0.2.0+2`; the build
-   number is Android's `versionCode` and iOS's build number) and commit.
-2. Tag the commit `v<version>` (`git tag v0.2.0 && git push origin v0.2.0`).
-3. The Release workflow checks the tag matches the pubspec version, builds
-   Linux x64 and arm64, macOS, Windows and Android, writes `SHA256SUMS`
-   (and `SHA256SUMS.asc` when a GPG key is set), and publishes a GitHub
-   Release with generated release notes.
+Once, before the first release, create the Android release key (needs a
+JDK 17, e.g. `brew install --cask temurin@17`, and `gh` signed in):
+
+```sh
+just android-keystore ~/secrets/shireitou-release.jks
+```
+
+`scripts/android-keystore` writes the keystore and a `.password` file
+next to it, prints the certificate's SHA-256 fingerprint and sets the
+`ANDROID_KEYSTORE`, `ANDROID_KEYSTORE_PASSWORD` and `ANDROID_KEY_ALIAS`
+secrets. Back up both files (a password manager holds them well) and
+keep them out of the repository: they are the only copies, and Android
+only installs an update signed with the same key. The release workflow
+refuses to publish a tag without the keystore.
+
+Then, for each release:
+
+1. Set `version:` in `app/pubspec.yaml` (for example `0.2.0+2`) and
+   commit. The build number after `+` is Android's `versionCode` and
+   iOS's build number; it must be above the previous release's, or
+   Android refuses the update.
+2. Optionally, run the Release workflow on `main` from the Actions tab
+   (or `gh workflow run release.yml`): it builds everything without
+   publishing, and the APK is in the `release-android` artifact.
+3. Tag the commit `v<version>` (`git tag v0.2.0 && git push origin v0.2.0`).
+4. The Release workflow checks the tag matches the pubspec version and
+   the build number went up, builds Linux x64 and arm64, macOS, Windows
+   and Android (checking the APK is signed with the release key), writes
+   `SHA256SUMS` (and `SHA256SUMS.asc` when a GPG key is set), and
+   publishes a GitHub Release with generated release notes. The APK is
+   `shireitou-<v>-android.apk` among its assets.
 
 Pushes to `main` that change the release workflow, a packaging script,
 `app/pubspec.yaml` or the icon run the same builds without publishing, so
-a broken release shows up before tagging.
+a broken release shows up before tagging. CI's `android` job signs its
+APK with a throwaway key made by `scripts/android-keystore`, so the
+release signing path runs on every push.
 
 ## Signing secrets
 
@@ -71,11 +97,16 @@ What each produces:
   `WINDOWS_PUBLISHER`. Without it, the `.zip` is unsigned (SmartScreen
   warns once) and the unsigned `.msix`, which Windows refuses to install,
   is built in CI to check the packaging but left out of releases.
-- **Android:** with the keystore, the APK is release-signed. Without it,
-  it is signed with the runner's debug key, which installs (allow unknown
-  sources) but cannot update, or be updated by, a release-signed install.
-  Keep the keystore safe: Android only accepts updates signed with the
-  same key.
+- **Android:** with the keystore, the APK is release-signed, and
+  `scripts/package-android` fails unless `apksigner` shows the keystore's
+  certificate signed it (Gradle would otherwise fall back to the debug
+  key silently). Without it, it is signed with the runner's debug key,
+  which installs but cannot update, or be updated by, any other build;
+  such APKs come only from builds on `main`, never from a tag. Keep the
+  keystore safe: Android only accepts updates signed with the same key.
+  To check a download, `apksigner verify --print-certs` shows the
+  certificate's SHA-256, which should match the fingerprint
+  `scripts/android-keystore` printed.
 - **Linux:** the `.deb` and AppImage are not signed themselves (apt
   verifies repositories, not `.deb` files, and AppImage signatures are
   rarely checked); `SHA256SUMS.asc` covers every file instead.

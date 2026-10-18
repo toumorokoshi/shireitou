@@ -16,6 +16,18 @@ simulator.
   (`ios/Runner.xcworkspace` > Signing & Capabilities); there is no
   App Store or TestFlight build yet (see GAPS.md).
 
+## Installing the Android APK
+
+Releases attach `shireitou-<v>-android.apk` (one APK for arm64, 32-bit
+ARM and x86_64 devices) to the GitHub Release; see
+[packaging.md](packaging.md) for how they are made. Download it on the
+phone and open it, allowing the browser to install unknown apps when
+Android asks, or install it from a computer with
+`adb install shireitou-<v>-android.apk`. Later releases install over it
+and keep the saved hosts, because they are signed with the same key.
+APKs from CI runs on `main` are signed with other keys and cannot
+update a release install (uninstall it first, losing the saved hosts).
+
 ## Connecting to hosts
 
 - Hosts on a LAN, `localhost` or a VPN address are usually plain `ws://`,

@@ -1,5 +1,33 @@
 # Design Decision Log
 
+## 2026-10-18: Android releases are signed with one kept key
+
+The release workflow already attached an APK to a `v*` tag's GitHub
+Release, but no keystore secret was set, so the APK would have been
+signed with the runner's throwaway debug key: it installs, but no later
+release could update it, and the Gradle fallback to the debug key is
+silent.
+
+- `scripts/android-keystore` (`just android-keystore <file>`) creates a
+  PKCS12 RSA 4096 keystore with a random password and uploads it, its
+  password and alias as Actions secrets through stdin. The owner keeps
+  the only copies; nothing is committed. keytool, not openssl, because
+  the build already needs a JDK 17 and keytool's PKCS12 is what Gradle
+  and apksigner expect.
+- A tag fails without `ANDROID_KEYSTORE`, rather than publishing an APK
+  that strands its users. Builds on `main` still fall back to the debug
+  key, so the workflow stays testable without secrets.
+- `scripts/package-android` compares the APK's signer (apksigner) with
+  the keystore's certificate, so a misconfigured signing config fails
+  the build instead of shipping a debug-signed APK.
+- A tag's build number (Android's `versionCode`) must be above the
+  previous tag's, since Android refuses a downgrade; on `main` this is
+  a warning.
+- CI's `android` job signs with a throwaway key from the same script,
+  so the release signing path runs on every push.
+- One universal APK, not per-ABI ones: one file to download is simpler
+  for a sideloaded app, at the cost of size.
+
 ## 2026-10-18: Edit the latest message and restart from it (AV-088)
 
 Recalling a message with ↑ (AV-087) sends the edit as a new turn, so the

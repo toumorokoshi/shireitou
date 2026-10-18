@@ -13,6 +13,7 @@ on:
     paths:
       - .github/workflows/release.yml
       - scripts/package-*
+      - scripts/android-keystore
       - app/pubspec.yaml
       - app/assets/icon/**
   workflow_dispatch:
@@ -27,6 +28,8 @@ jobs:
       version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - id: version
         name: The tag matches the app version
         run: |
@@ -35,6 +38,26 @@ jobs:
           if [[ "$GITHUB_REF_TYPE" == tag && "$GITHUB_REF_NAME" != "v$version" ]]; then
             echo "::error::tag $GITHUB_REF_NAME does not match app/pubspec.yaml version $version"
             exit 1
+          fi
+      # The build number is Android's versionCode, and Android refuses an
+      # update whose versionCode is lower than the installed one.
+      - name: The build number is above the previous release's
+        run: |
+          build_of() { sed -n 's/^version: [0-9.]*+\([0-9]*\).*/\1/p'; }
+          build="$(build_of < app/pubspec.yaml)"
+          if [[ -z "$build" ]]; then
+            echo "::error::app/pubspec.yaml version has no build number (+N)"
+            exit 1
+          fi
+          previous="$(git tag --list 'v*' --sort=-v:refname | grep -vx "${GITHUB_REF_NAME}" | head -1 || true)"
+          if [[ -n "$previous" ]]; then
+            previous_build="$(git show "$previous:app/pubspec.yaml" | build_of)"
+            echo "build $build, $previous had ${previous_build:-none}"
+            if (( build <= ${previous_build:-0} )); then
+              message="build number $build is not above $previous's ${previous_build}"
+              if [[ "$GITHUB_REF_TYPE" == tag ]]; then echo "::error::$message"; exit 1; fi
+              echo "::warning::$message; raise it before tagging"
+            fi
           fi
 
   linux:
@@ -136,6 +159,17 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
+      # A debug-signed APK cannot update, or be updated by, any other
+      # build, so a release needs the release key.
+      - name: A release has the Android signing secrets
+        if: github.ref_type == 'tag'
+        env:
+          ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
+        run: |
+          if [[ -z "$ANDROID_KEYSTORE" ]]; then
+            echo "::error::ANDROID_KEYSTORE is not set; run scripts/android-keystore --upload (docs/packaging.md)"
+            exit 1
+          fi
       - name: Build APK (release-signed when the secrets are set)
         run: scripts/package-android
         env:
