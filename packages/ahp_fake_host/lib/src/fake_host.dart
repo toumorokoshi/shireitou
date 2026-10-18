@@ -44,6 +44,7 @@ const clientDispatchable = <String>{
   'chat/turnStarted',
   'chat/turnCancelled',
   'chat/turnResume',
+  'chat/truncated',
   'chat/pendingMessageSet',
   'chat/pendingMessageRemoved',
   'chat/queuedMessagesReordered',
@@ -932,6 +933,8 @@ class FakeAhpHost {
         ? 'unknown channel $channel'
         : type == 'chat/turnStarted' && _chats[channel]!.activeTurn != null
         ? 'a turn is already running'
+        : type == 'chat/truncated' && !_knownTurn(channel, action['turnId'])
+        ? 'unknown turn'
         : type == 'session/configChanged'
         ? _configRejection(channel, action)
         : rejectTypes.contains(type)
@@ -957,6 +960,12 @@ class FakeAhpHost {
       unawaited(_runTurn(channel, started.turnId, started.message.text));
     }
   }
+
+  /// Whether `chat/truncated` may keep turns up to [turnId] on [chat]: no
+  /// [turnId] (drop every turn), or one of the chat's turns.
+  bool _knownTurn(String chat, Object? turnId) =>
+      turnId == null ||
+      (_chats[chat]?.turns.any((t) => t.id == turnId) ?? false);
 
   /// Why a `session/configChanged` on [session] is refused: only settings
   /// the schema marks `sessionMutable` may change.

@@ -157,14 +157,23 @@ AppImage and the release workflow (see
   it before the edit is saved.
 - **↑ to edit the previous message (AV-087), remaining details:** a
   recalled message is sent as a new turn; the earlier turn and its reply
-  stay in the history. Rewriting history (`chat/truncated` to the turn
-  before, then `chat/turnStarted` with the edit) would need hosts to
-  accept `chat/truncated` from clients; pi and the fake host do not.
-  ↑ steps from the composer into only the newest queued message; ↑ and
+  stay in the history (the edit button, AV-088, replaces the latest
+  message instead). ↑ steps from the composer into only the newest queued message; ↑ and
   ↓ inside the inline editor do not move to other queued messages.
   Recall uses the loaded turns only (older windowed turns are not paged
   in), the composer's current model rather than the recalled message's,
   and drops its attachments. The new-session draft has no recall.
+- **Edit and restart from the latest message (AV-088), remaining
+  details:** only the latest message has the button; editing an earlier
+  one (truncating several turns) is not offered. AHP has no capability
+  for `chat/truncated`, so the button shows on every host: one that
+  rejects it (older pi-agent-host-protocol, other hosts) rolls the drop
+  back with a notice, and the edited `chat/turnStarted` then runs as a
+  new turn when no turn was running. pi rejects it while a pi terminal
+  drives the session. On pi the dropped turns stay in the session file
+  on an abandoned branch (pi's `/tree` shows them); file changes the
+  dropped turn made are not undone. The ↑ shortcut does not open this
+  editor.
 - **Approvals and input against a real host:** tool approvals (AV-083)
   with host options, risk assessments, edited input and result
   confirmation, input requests (AV-084) with synced drafts,

@@ -5,9 +5,9 @@ library;
 
 import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import 'chat_commands.dart';
+import 'inline_message_editor.dart';
 import 'timeline_items.dart';
 
 /// The chat's steering and queued messages, editable and reorderable.
@@ -216,9 +216,10 @@ class _PendingRow extends StatelessWidget {
     final position = this.position;
     final icon = Icon(steering ? Icons.bolt : Icons.schedule, size: 18);
     if (editing) {
-      return _InlineEditor(
+      return InlineMessageEditor(
         icon: icon,
         initial: item.pending.message.text,
+        helperText: 'Enter saves, Esc cancels; empty removes it',
         onSave: onSave,
         onCancel: onCancel,
       );
@@ -274,92 +275,4 @@ class _PendingRow extends StatelessWidget {
       ],
     );
   }
-}
-
-/// A pending message's text in an editor: Enter saves, Shift+Enter adds a
-/// line, Escape cancels.
-class _InlineEditor extends StatefulWidget {
-  const _InlineEditor({
-    required this.icon,
-    required this.initial,
-    required this.onSave,
-    required this.onCancel,
-  });
-
-  /// The steering or queued icon.
-  final Widget icon;
-
-  /// The message's text when the editor opened.
-  final String initial;
-
-  /// Saves the edited text.
-  final ValueChanged<String> onSave;
-
-  /// Closes the editor without saving.
-  final VoidCallback onCancel;
-
-  @override
-  State<_InlineEditor> createState() => _InlineEditorState();
-}
-
-class _InlineEditorState extends State<_InlineEditor> {
-  late final _text = TextEditingController(text: widget.initial);
-  late final _focus = FocusNode(onKeyEvent: _onKey);
-
-  KeyEventResult _onKey(FocusNode node, KeyEvent event) {
-    if (event is! KeyDownEvent) return KeyEventResult.ignored;
-    final key = event.logicalKey;
-    if (key == LogicalKeyboardKey.escape) {
-      widget.onCancel();
-      return KeyEventResult.handled;
-    }
-    if ((key == LogicalKeyboardKey.enter ||
-            key == LogicalKeyboardKey.numpadEnter) &&
-        !HardwareKeyboard.instance.isShiftPressed) {
-      widget.onSave(_text.text);
-      return KeyEventResult.handled;
-    }
-    return KeyEventResult.ignored;
-  }
-
-  @override
-  void dispose() {
-    _text.dispose();
-    _focus.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 4),
-    child: Row(
-      children: [
-        Padding(padding: const EdgeInsets.only(right: 16), child: widget.icon),
-        Expanded(
-          child: TextField(
-            controller: _text,
-            focusNode: _focus,
-            autofocus: true,
-            minLines: 1,
-            maxLines: 4,
-            decoration: const InputDecoration(
-              isDense: true,
-              labelText: 'Edit message',
-              helperText: 'Enter saves, Esc cancels; empty removes it',
-            ),
-          ),
-        ),
-        IconButton(
-          tooltip: 'Save',
-          icon: const Icon(Icons.check),
-          onPressed: () => widget.onSave(_text.text),
-        ),
-        IconButton(
-          tooltip: 'Cancel',
-          icon: const Icon(Icons.close),
-          onPressed: widget.onCancel,
-        ),
-      ],
-    ),
-  );
 }

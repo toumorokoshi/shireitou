@@ -275,6 +275,28 @@ void main() {
     expect(copied, 'void main() {}');
   });
 
+  testWidgets('the latest message is edited in place to restart from it '
+      '(AV-088)', (tester) async {
+    final connection = await _pump(tester, _state(chat: chatFixture()));
+    // Only the running message has the button.
+    expect(find.byTooltip('Edit and restart from here'), findsOneWidget);
+    await tester.tap(find.byTooltip('Edit and restart from here'));
+    await tester.pumpAndSettle();
+    final editor = find.widgetWithText(TextField, 'Edit message');
+    expect(editor, findsOneWidget);
+    await tester.enterText(editor, 'Delete it, carefully');
+    await tester.tap(find.byTooltip('Restart from here'));
+    await tester.pumpAndSettle();
+
+    final [truncated, started] = [
+      for (final (_, action) in connection.dispatched.reversed.take(2)) action,
+    ].reversed.toList();
+    expect(truncated, {'type': 'chat/truncated', 'turnId': 'turn-1'});
+    expect(started['type'], 'chat/turnStarted');
+    expect((started['message']! as JsonMap)['text'], 'Delete it, carefully');
+    expect(editor, findsNothing);
+  });
+
   testWidgets('user bubbles sit on the right; steps collapse but calls that '
       'need attention stay expanded (AV-095)', (tester) async {
     final semantics = tester.ensureSemantics();

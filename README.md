@@ -162,7 +162,10 @@ just run chrome 'ws://127.0.0.1:63877?tkn=...'   # prefill the host URL
    send arrow while the agent works and the box is empty) cancels the
    turn. ↑ in the empty box edits the newest queued message (Enter
    re-queues it), or else recalls your earlier messages to edit and send
-   again; ↓ steps back.
+   again; ↓ steps back. The pencil beside your latest message (running or
+   finished) edits it in place and restarts from it, dropping that turn
+   and its reply (the host must accept `chat/truncated`, as
+   pi-agent-host-protocol does).
 
    Shortcuts (Cmd on macOS, Ctrl elsewhere): Cmd/Ctrl+N new session,
    Cmd/Ctrl+K show and focus the search field (with `agent:`, `status:`, `repo:` and

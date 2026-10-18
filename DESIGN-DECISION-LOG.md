@@ -1,5 +1,36 @@
 # Design Decision Log
 
+## 2026-10-18: Edit the latest message and restart from it (AV-088)
+
+Recalling a message with ↑ (AV-087) sends the edit as a new turn, so the
+agent still sees the message it replaces, and a wrong instruction the
+agent is already working on has to be stopped and then corrected.
+
+- **`chat/truncated`, then `chat/turnStarted`**, as AHP describes for
+  editing a message: truncate back to the turn before the edited one
+  (which also drops it if it is running), then start a turn with the
+  edited text, keeping the original's model and attachments. Both are
+  write-ahead, so the timeline changes at once.
+- **The host does the real work.** A truncation that only changed the
+  client's view would leave the dropped turn in the model's context.
+  pi-agent-host-protocol (the host we use) rejected `chat/truncated`, so
+  it learned it in the same change: it aborts a running turn and moves
+  pi's session leaf back with pi's own `navigateTree` (what pi's `/tree`
+  re-edit does), so nothing is deleted from the session file. The fake
+  host accepts it too, and an integration test checks what pi's model
+  sees afterwards (the faux model's new `history` keyword).
+- **Only the latest message** (the running turn, else the latest) gets
+  the button: that is the asked-for case, it keeps the timeline quiet,
+  and it avoids truncating a long tail by accident. Not the oldest loaded
+  turn while older turns are unloaded, since a truncation without a
+  `turnId` would drop those too.
+- **No capability check.** AHP has none for truncation; a host that
+  rejects it rolls the drop back with a notice (`Restarting from your
+edited message was undone`). Hiding the button per host would need a
+  host-specific guess.
+- **One inline editor** (`InlineMessageEditor`) now serves queued
+  messages and this, instead of a second copy.
+
 ## 2026-10-18: ↑ edits the queued or previous message (AV-087)
 
 Fixing a typo in a message just sent, or in one waiting in the queue,

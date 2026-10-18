@@ -71,6 +71,7 @@ The model replies by keyword in the newest user message:
 | ---------------- | ----------------------------------------------------------------------------------------------------------- |
 | `tool`           | "Running a command." and a `bash` call of `echo hello from pi`, then "The bash tool printed: hello from pi" |
 | `slow`           | "Counting slowly: word1 … word3000 done.", about 12 s of streaming (to stop, queue behind or reconnect)     |
+| `history`        | "pi faux history: <each user message in context, joined by `\|`>" (to check what a truncation dropped)      |
 | `think`          | Reasoning, then "Thought about: <message>"                                                                  |
 | anything else    | "pi faux reply: <message>"                                                                                  |
 

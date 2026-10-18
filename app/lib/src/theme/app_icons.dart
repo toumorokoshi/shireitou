@@ -92,6 +92,9 @@ abstract final class AppIcons {
   /// Sends the message now, steering the running turn.
   static const IconData sendNow = Codicons.zap;
 
+  /// Edit the latest message and restart from it (AV-088).
+  static const IconData edit = Codicons.edit;
+
   /// Scrolls the timeline to the latest message.
   static const IconData jumpToLatest = Codicons.chevronDown;
 

@@ -100,6 +100,10 @@ function respond(context: { messages: Message[] }) {
 		const words = Array.from({ length: 3000 }, (_, i) => `word${i + 1}`).join(" ");
 		return fauxAssistantMessage(`Counting slowly: ${words} done.`);
 	}
+	if (lower.includes("history")) {
+		const users = context.messages.filter((m) => m.role === "user").map((m) => textOf(m.content).trim());
+		return fauxAssistantMessage(`pi faux history: ${users.join(" | ")}`);
+	}
 	if (lower.includes("think")) {
 		return fauxAssistantMessage([fauxThinking("The user wants me to think first."), fauxText(`Thought about: ${said}`)]);
 	}

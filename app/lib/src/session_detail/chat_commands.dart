@@ -36,6 +36,54 @@ JsonMap sendMessageAction(
   return action.toJson();
 }
 
+/// The turn whose message can be edited to restart from it (AV-088): the
+/// running turn, else the latest. Null when there is none, its message is
+/// not the user's, or it is the oldest loaded turn while older ones are not
+/// loaded (truncating before it would drop them too).
+String? editableTurnId(ChatState chat) {
+  final (id, message, earlier) = switch (chat.activeTurn) {
+    final active? => (active.id, active.message, chat.turns.length),
+    null when chat.turns.isNotEmpty => (
+      chat.turns.last.id,
+      chat.turns.last.message,
+      chat.turns.length - 1,
+    ),
+    null => (null, null, 0),
+  };
+  if (id == null || message?.origin.kind != MessageKind.user) return null;
+  if (earlier == 0 && chat.turnsNextCursor != null) return null;
+  return id;
+}
+
+/// The actions that restart [chat] from turn [turnId] with [text] in place
+/// of its message (AV-088): `chat/truncated` back to the turn before it
+/// (which also ends it if it is running), then `chat/turnStarted` [id]
+/// with the edited message, keeping the original's model and attachments.
+/// Null when [text] is blank or [turnId] is not [editableTurnId].
+List<JsonMap>? restartActions(
+  ChatState chat, {
+  required String turnId,
+  required String text,
+  required String id,
+  required DateTime now,
+}) {
+  final trimmed = text.trim();
+  if (trimmed.isEmpty || editableTurnId(chat) != turnId) return null;
+  final running = chat.activeTurn?.id == turnId;
+  final kept = running
+      ? chat.turns
+      : chat.turns.sublist(0, chat.turns.length - 1);
+  final original = running ? chat.activeTurn!.message : chat.turns.last.message;
+  return [
+    ChatTruncatedAction(turnId: kept.lastOrNull?.id).toJson(),
+    ChatTurnStartedAction(
+      turnId: id,
+      startedAt: now.toUtc().toIso8601String(),
+      message: original.copyWith(text: trimmed),
+    ).toJson(),
+  ];
+}
+
 /// The action that cancels the running turn (AV-082), or null when idle.
 JsonMap? stopAction(ChatState chat, DateTime now) {
   final active = chat.activeTurn;

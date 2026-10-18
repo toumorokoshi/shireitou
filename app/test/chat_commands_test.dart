@@ -40,6 +40,56 @@ void main() {
     });
   });
 
+  group('editing the latest message (AV-088)', () {
+    test('the running turn, else the latest, is editable', () {
+      expect(editableTurnId(active), 'turn-2');
+      expect(editableTurnId(idle), 'turn-1');
+      expect(editableTurnId(idle.copyWith(turns: const [])), isNull);
+      // Truncating before the oldest loaded turn would drop unloaded ones.
+      expect(editableTurnId(idle.copyWith(turnsNextCursor: 'c')), isNull);
+      expect(editableTurnId(active.copyWith(turnsNextCursor: 'c')), 'turn-2');
+    });
+
+    test('a running message is dropped and sent again edited', () {
+      final actions = restartActions(
+        active,
+        turnId: 'turn-2',
+        text: ' Delete it, carefully ',
+        id: 't3',
+        now: now,
+      )!;
+      expect(actions.first, {'type': 'chat/truncated', 'turnId': 'turn-1'});
+      expect(actions.last['type'], 'chat/turnStarted');
+      expect(actions.last['turnId'], 't3');
+      expect(
+        (actions.last['message']! as JsonMap)['text'],
+        'Delete it, carefully',
+      );
+    });
+
+    test('the first message truncates every turn', () {
+      final actions = restartActions(
+        idle,
+        turnId: 'turn-1',
+        text: 'List all files',
+        id: 't2',
+        now: now,
+      )!;
+      expect(actions.first, {'type': 'chat/truncated'});
+    });
+
+    test('blank text or another turn sends nothing', () {
+      expect(
+        restartActions(active, turnId: 'turn-2', text: ' ', id: 'x', now: now),
+        isNull,
+      );
+      expect(
+        restartActions(active, turnId: 'turn-1', text: 'a', id: 'x', now: now),
+        isNull,
+      );
+    });
+  });
+
   test('stopAction cancels the active turn with its duration', () {
     expect(stopAction(active, now), {
       'type': 'chat/turnCancelled',

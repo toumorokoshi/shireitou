@@ -27,7 +27,8 @@ exercised against a real host.
   catalogue too (`root/sessionSummaryChanged`).
 - Client actions from `clientDispatchable` are echoed with their
   `origin`; anything else (or an unknown channel, or a second
-  `chat/turnStarted` while a turn runs, or a type in the mutable
+  `chat/turnStarted` while a turn runs, or a `chat/truncated` to a turn
+  the chat does not have, or a type in the mutable
   `rejectTypes` set, which tests use to check a client's rollback) is
   echoed with a `rejectionReason` to the sender only.
 - A token, when set, is accepted in the `tkn` query parameter or an

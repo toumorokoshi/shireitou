@@ -124,6 +124,22 @@ void main() {
     );
   });
 
+  test('editing the running message restarts from it (AV-088)', () async {
+    final (_, chat) = await newSession();
+    send(chat, 'one', id: 'one');
+    await finished(chat, 1);
+    send(chat, 'slow', id: 'slow');
+    await until((s) => activeText(s, chat).contains('word10 '));
+    client.dispatch(chat, const ChatTruncatedAction(turnId: 'one').toJson());
+    send(chat, 'history please');
+    final edited = await finished(chat, 2);
+    expect(
+      [for (final t in chatOf(client.state, chat).turns) t.message.text],
+      ['one', 'history please'],
+    );
+    expect(replyOf(edited), 'pi faux history: one | history please');
+  });
+
   test('cancels a running turn', () async {
     final (_, chat) = await newSession();
     send(chat, 'slow', id: 'slow');

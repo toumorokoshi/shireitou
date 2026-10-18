@@ -626,6 +626,46 @@ void main() {
     expect(replies(), contains('hello again'));
   });
 
+  test('truncating restarts from an edited message (AV-088)', () async {
+    await send('tool');
+    await until((_) => sessionState().inputNeeded != null);
+    // Editing the running message: drop it, then send the edit.
+    client.dispatch(chat, const ChatTruncatedAction().toJson());
+    await send('hello');
+    await until(
+      (_) => chatState().turns.length == 1 && chatState().activeTurn == null,
+    );
+    expect(chatState().turns.single.message.text, 'hello');
+    expect(replies(), contains('You said: hello'));
+    expect(sessionState().inputNeeded, isNull);
+
+    // Editing the latest finished message keeps the turns before it.
+    await send('second');
+    await until((_) => chatState().turns.length == 2);
+    await turnDone();
+    client.dispatch(
+      chat,
+      ChatTruncatedAction(turnId: chatState().turns.first.id).toJson(),
+    );
+    await send('second, edited');
+    await until(
+      (_) =>
+          chatState().activeTurn == null &&
+          chatState().turns.last.message.text == 'second, edited',
+    );
+    expect(
+      [for (final t in chatState().turns) t.message.text],
+      ['hello', 'second, edited'],
+    );
+  });
+
+  test('truncating to an unknown turn is rejected', () async {
+    final failures = client.failures.first;
+    client.dispatch(chat, const ChatTruncatedAction(turnId: 'nope').toJson());
+    final failure = await failures.timeout(_timeout);
+    expect(failure.kind, ActionFailureKind.rejected);
+  });
+
   test('a rename updates the session and the catalogue (AV-073)', () async {
     client.dispatch(
       seededSession,

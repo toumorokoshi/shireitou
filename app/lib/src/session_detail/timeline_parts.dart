@@ -16,6 +16,7 @@ import '../theme/app_icons.dart';
 import 'approval_bar.dart';
 import 'chat_commands.dart';
 import 'code_highlight.dart';
+import 'inline_message_editor.dart';
 import 'timeline_items.dart';
 import 'todo_list.dart';
 import 'todo_widgets.dart';
@@ -25,7 +26,9 @@ import 'tool_previews.dart';
 /// [onSignIn] signs a tool call in to its MCP server; [onOpenChat]
 /// opens a subagent's chat; [onLoadOlder] pages in older turns. A
 /// [StepsItem] is expanded when its key is in [expandedSteps];
-/// [onToggleSteps] is called with the key to expand or collapse it.
+/// [onToggleSteps] is called with the key to expand or collapse it. The
+/// message of turn [editableTurn] gets an edit button that calls
+/// [onEditMessage] with the turn and the edited text (AV-088).
 Widget buildTimelineItem(
   TimelineItem item,
   ValueChanged<JsonMap> onAction, {
@@ -34,8 +37,15 @@ Widget buildTimelineItem(
   VoidCallback? onLoadOlder,
   Set<String> expandedSteps = const {},
   ValueChanged<String>? onToggleSteps,
+  String? editableTurn,
+  void Function(String turnId, String text)? onEditMessage,
 }) => switch (item) {
-  UserMessageItem(:final message) => UserMessageBubble(message: message),
+  UserMessageItem(:final turnId, :final message) => UserMessageBubble(
+    message: message,
+    onEdit: turnId == editableTurn && onEditMessage != null
+        ? (text) => onEditMessage(turnId, text)
+        : null,
+  ),
   StepsItem() => StepsRow(
     item: item,
     expanded: expandedSteps.contains(item.key),
@@ -215,37 +225,98 @@ class _WorkingIndicatorRowState extends State<WorkingIndicatorRow>
 }
 
 /// The user's message (AV-095): a right-aligned bubble with a light fill,
-/// at most three quarters of the timeline wide.
-class UserMessageBubble extends StatelessWidget {
+/// at most nine tenths of the timeline wide. With [onEdit], an edit button
+/// beside it opens the text in an inline editor, and Enter restarts from
+/// the edited message (AV-088).
+class UserMessageBubble extends StatefulWidget {
   /// Creates a [UserMessageBubble].
-  const UserMessageBubble({super.key, required this.message});
+  const UserMessageBubble({super.key, required this.message, this.onEdit});
 
   /// The message.
   final Message message;
 
+  /// Restarts from this message with the edited text; no edit button when
+  /// null.
+  final ValueChanged<String>? onEdit;
+
+  @override
+  State<UserMessageBubble> createState() => _UserMessageBubbleState();
+}
+
+class _UserMessageBubbleState extends State<UserMessageBubble> {
+  bool _editing = false;
+
+  @override
+  void didUpdateWidget(UserMessageBubble old) {
+    super.didUpdateWidget(old);
+    // The message is no longer the latest (or the chat became read-only).
+    if (widget.onEdit == null) _editing = false;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final onEdit = widget.onEdit;
+    if (_editing && onEdit != null) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 24, bottom: 28),
+        child: InlineMessageEditor(
+          initial: widget.message.text,
+          helperText: 'Enter restarts from this message, Esc cancels',
+          saveTooltip: 'Restart from here',
+          onSave: (text) {
+            setState(() => _editing = false);
+            if (text.trim().isNotEmpty) onEdit(text);
+          },
+          onCancel: () => setState(() => _editing = false),
+        ),
+      );
+    }
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final colors = AppColors.of(context);
     return LayoutBuilder(
       builder: (context, constraints) => Align(
         alignment: Alignment.centerRight,
-        child: Container(
-          constraints: BoxConstraints(maxWidth: constraints.maxWidth * 0.9),
-          margin: const EdgeInsets.only(top: 24, bottom: 28),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: colors.bubbleFill,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            message.text,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: scheme.onSurface,
-              height: 1.5,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (onEdit != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 24, right: 4),
+                child: IconButton(
+                  tooltip: 'Edit and restart from here',
+                  iconSize: 16,
+                  visualDensity: VisualDensity.compact,
+                  color: colors.mutedText,
+                  icon: const Icon(AppIcons.edit),
+                  onPressed: () => setState(() => _editing = true),
+                ),
+              ),
+            Flexible(
+              child: Container(
+                constraints: BoxConstraints(
+                  maxWidth: constraints.maxWidth * 0.9,
+                ),
+                margin: const EdgeInsets.only(top: 24, bottom: 28),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: colors.bubbleFill,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  widget.message.text,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: scheme.onSurface,
+                    height: 1.5,
+                  ),
+                ),
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );

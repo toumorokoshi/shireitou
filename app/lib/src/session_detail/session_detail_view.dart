@@ -424,6 +424,20 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
         onSignIn: _signIn,
         onOpenChat: _selectChat,
         onLoadOlder: () => _loadOlder(chatUri!),
+        onEditMessage: readOnly || missing
+            ? null
+            : (turnId, text) {
+                final actions = restartActions(
+                  chat,
+                  turnId: turnId,
+                  text: text,
+                  id: const Uuid().v4(),
+                  now: DateTime.now(),
+                );
+                for (final action in actions ?? const <JsonMap>[]) {
+                  _dispatch(chatUri!, action);
+                }
+              },
       ),
     };
     final pending = chat == null
@@ -1096,6 +1110,7 @@ class _Timeline extends ConsumerStatefulWidget {
     required this.onSignIn,
     required this.onOpenChat,
     required this.onLoadOlder,
+    this.onEditMessage,
   });
 
   final ChatState chat;
@@ -1103,6 +1118,10 @@ class _Timeline extends ConsumerStatefulWidget {
   final SignIn onSignIn;
   final OpenChat onOpenChat;
   final Future<void> Function() onLoadOlder;
+
+  /// Restarts from the latest message with edited text (AV-088); no edit
+  /// button when null.
+  final void Function(String turnId, String text)? onEditMessage;
 
   @override
   ConsumerState<_Timeline> createState() => _TimelineState();
@@ -1251,6 +1270,7 @@ class _TimelineState extends ConsumerState<_Timeline> {
       return const Center(child: Text('No messages yet. Say something.'));
     }
     final markers = turnMarkers(widget.chat, rows);
+    final editableTurn = editableTurnId(widget.chat);
     // Paged-in rows move the turns without changing the visible range.
     _scheduleCurrentTurn();
     // A reversed list keeps the newest row in view as it grows, and stays
@@ -1295,6 +1315,8 @@ class _TimelineState extends ConsumerState<_Timeline> {
                         onSignIn: widget.onSignIn,
                         onOpenChat: widget.onOpenChat,
                         onLoadOlder: widget.onLoadOlder,
+                        editableTurn: editableTurn,
+                        onEditMessage: widget.onEditMessage,
                         expandedSteps: _expandedSteps,
                         onToggleSteps: (key) => setState(
                           () => _expandedSteps.contains(key)

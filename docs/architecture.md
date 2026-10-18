@@ -447,8 +447,12 @@ Dart source); `bin/generate.dart` does the file I/O. See
   panel (AV-081; clicking a message opens an inline editor, saved with
   the pure `savePendingEditAction`; ↑ in the empty composer opens the
   newest message through `editNewestRequests`, AV-087) and the session
-  details page (working directories,
-  canvases, customizations, server tools, active clients).
+  details page. `inline_message_editor.dart` is the inline editor shared
+  by queued messages and the latest user message, whose edit button
+  (AV-088) restarts from it with the pure `editableTurnId` and
+  `restartActions` (`chat/truncated`, then `chat/turnStarted`) in
+  `chat_commands.dart`. The session details page lists working
+  directories, canvases, customizations, server tools and active clients.
   `session_inputs.dart` is pure: `sessionPrompts` picks the session's `inputNeeded` entries the
   open chat does not already show (requests from other chats, or not yet
   mirrored), and `mcpServerAlerts` the MCP servers that need sign-in or

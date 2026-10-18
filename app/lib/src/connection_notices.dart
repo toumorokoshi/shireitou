@@ -10,6 +10,7 @@ String describeActionType(JsonMap action) => switch (action['type']) {
   'chat/pendingMessageSet' => 'Your queued message',
   'chat/pendingMessageRemoved' => 'Removing the queued message',
   'chat/turnCancelled' => 'Stop',
+  'chat/truncated' => 'Restarting from your edited message',
   'chat/toolCallConfirmed' ||
   'chat/toolCallResultConfirmed' => 'Your tool approval',
   'chat/inputCompleted' => 'Your answer',
