@@ -47,14 +47,16 @@ if [[ -z "$apksigner" ]]; then
   fi
   echo "apksigner not found; the signature is not checked" >&2
 else
-  "$apksigner" verify --print-certs "$apk"
+  certificates="$("$apksigner" verify --print-certs "$apk")"
+  echo "$certificates"
   if [[ -n "${ANDROID_KEYSTORE:-}" ]]; then
     expected="$(KEYSTORE_PASSWORD="$ANDROID_KEYSTORE_PASSWORD" keytool -list -v \
       -keystore "$work/release.jks" -storepass:env KEYSTORE_PASSWORD \
       -alias "$ANDROID_KEY_ALIAS" |
       sed -n 's/^[[:space:]]*SHA256: //p' | tr -d ':' | tr '[:upper:]' '[:lower:]')"
-    actual="$("$apksigner" verify --print-certs "$apk" |
-      sed -n 's/^Signer #1 certificate SHA-256 digest: //p')"
+    # "Signer #1 certificate …" or, with only a v2 signature, "V2 Signer:
+    # certificate …"; there is a single signer.
+    actual="$(sed -n 's/.*certificate SHA-256 digest: //p' <<<"$certificates" | head -1)"
     if [[ -z "$expected" || "$actual" != "$expected" ]]; then
       echo "the APK is not signed with the release key (got ${actual:-nothing}, want ${expected:-?})" >&2
       exit 1
