@@ -307,11 +307,16 @@ class _UserMessageBubbleState extends State<UserMessageBubble> {
                   color: colors.bubbleFill,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Text(
-                  widget.message.text,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: scheme.onSurface,
-                    height: 1.5,
+                // A leaf of its own: next to the edit button, Flutter web
+                // would expose the text only as the row's aria-label.
+                child: Semantics(
+                  container: true,
+                  child: Text(
+                    widget.message.text,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: scheme.onSurface,
+                      height: 1.5,
+                    ),
                   ),
                 ),
               ),
