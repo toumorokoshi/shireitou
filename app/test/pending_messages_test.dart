@@ -20,12 +20,19 @@ Future<List<JsonMap>> _pump(
   WidgetTester tester,
   List<PendingMessageItem> pending, {
   List<JsonMap>? actions,
+  Listenable? editNewestRequests,
+  VoidCallback? onEditorClosed,
 }) async {
   final dispatched = actions ?? <JsonMap>[];
   await tester.pumpWidget(
     MaterialApp(
       home: Scaffold(
-        body: PendingMessagesPanel(pending: pending, onAction: dispatched.add),
+        body: PendingMessagesPanel(
+          pending: pending,
+          onAction: dispatched.add,
+          editNewestRequests: editNewestRequests,
+          onEditorClosed: onEditorClosed,
+        ),
       ),
     ),
   );
@@ -52,6 +59,30 @@ void main() {
     expect(actions.single['type'], 'chat/pendingMessageSet');
     expect(actions.single['id'], 'q2');
     expect((actions.single['message']! as JsonMap)['text'], 'second, edited');
+  });
+
+  testWidgets('a request (↑ in the composer) edits the newest message; '
+      'Enter re-queues it and hands focus back', (tester) async {
+    final requests = ValueNotifier<int>(0);
+    addTearDown(requests.dispose);
+    var closed = 0;
+    final actions = await _pump(
+      tester,
+      _both,
+      editNewestRequests: requests,
+      onEditorClosed: () => closed++,
+    );
+    requests.value++;
+    await tester.pumpAndSettle();
+    expect(_editor, findsOneWidget);
+    expect(find.text('first'), findsOneWidget);
+
+    await tester.enterText(_editor, 'second, edited');
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+    expect(actions.single['id'], 'q2');
+    expect((actions.single['message']! as JsonMap)['text'], 'second, edited');
+    expect(closed, 1);
   });
 
   testWidgets('Escape cancels without sending', (tester) async {

@@ -251,7 +251,11 @@ Dart source); `bin/generate.dart` does the file I/O. See
   placeholder (`composerPlaceholder`), the model chip's text
   (`modelChipLabel`), the reasoning option (`isEffortField`) and the
   effort and context chip's text (`effortChipLabel`,
-  `contextWindowLabel`). `session_detail/message_settings.dart` holds
+  `contextWindowLabel`). `message_history.dart` is pure (AV-087): the
+  chat's sent messages (`sentMessages`), the steps ↑ and ↓ take through
+  them (`olderIndex`, `newerIndex`) and the caret's line
+  (`caretOnFirstLine`, `caretOnLastLine`).
+  `session_detail/message_settings.dart` holds
   the chips (`ComposerChip`, a `MenuAnchor` with a flat, muted label;
   `pickerChip`; `MessageSettingsBar`).
   `config_form.dart` renders them (dropdowns, switches, text, and host
@@ -441,7 +445,9 @@ Dart source); `bin/generate.dart` does the file I/O. See
   plain text. `chat_switcher.dart`, `pending_messages.dart` and
   `session_info.dart` are the chat switcher (AV-069), the queued messages
   panel (AV-081; clicking a message opens an inline editor, saved with
-  the pure `savePendingEditAction`) and the session details page (working directories,
+  the pure `savePendingEditAction`; ↑ in the empty composer opens the
+  newest message through `editNewestRequests`, AV-087) and the session
+  details page (working directories,
   canvases, customizations, server tools, active clients).
   `session_inputs.dart` is pure: `sessionPrompts` picks the session's `inputNeeded` entries the
   open chat does not already show (requests from other chats, or not yet

@@ -160,7 +160,9 @@ just run chrome 'ws://127.0.0.1:63877?tkn=...'   # prefill the host URL
    follow-up (or queues it while the agent works), Cmd/Ctrl+Enter steers the
    running turn, Shift+Enter adds a newline, and the stop square (the
    send arrow while the agent works and the box is empty) cancels the
-   turn.
+   turn. ↑ in the empty box edits the newest queued message (Enter
+   re-queues it), or else recalls your earlier messages to edit and send
+   again; ↓ steps back.
 
    Shortcuts (Cmd on macOS, Ctrl elsewhere): Cmd/Ctrl+N new session,
    Cmd/Ctrl+K show and focus the search field (with `agent:`, `status:`, `repo:` and

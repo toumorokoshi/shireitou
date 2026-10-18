@@ -40,6 +40,7 @@ import '../composer/completion_popup.dart';
 import '../composer/completions.dart';
 import '../composer/composer_labels.dart';
 import '../composer/config_fields.dart';
+import '../composer/message_history.dart';
 import 'chat_switcher.dart';
 import 'editable_title.dart';
 import 'message_settings.dart';
@@ -120,6 +121,10 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
 
   /// Asks the follow-up box to take focus (Cmd/Ctrl+L, AV-140).
   final _composerFocus = ValueNotifier<int>(0);
+
+  /// Opens the newest queued message in its inline editor (↑ in the
+  /// composer, AV-087).
+  final _editQueued = ValueNotifier<int>(0);
 
   /// Opens the title's text field (the "Rename…" menu item, AV-073).
   final _renameRequests = ValueNotifier<int>(0);
@@ -275,6 +280,7 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
       timer.cancel();
     }
     _composerFocus.dispose();
+    _editQueued.dispose();
     _renameRequests.dispose();
     if (!_opening) _connection.closeSession(widget.session, _defaultChat);
     super.dispose();
@@ -507,6 +513,8 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
                       PendingMessagesPanel(
                         pending: pending,
                         onAction: (action) => _dispatch(chatUri!, action),
+                        editNewestRequests: _editQueued,
+                        onEditorClosed: () => _composerFocus.value++,
                       ),
                     if (chat != null && readOnly)
                       const Padding(
@@ -529,6 +537,12 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
                           if (action != null) _dispatch(chatUri!, action);
                         },
                         draft: chat.draft,
+                        history: sentMessages(chat),
+                        onEditQueued: () {
+                          if (pending.isEmpty) return false;
+                          _editQueued.value++;
+                          return true;
+                        },
                         models: models,
                         initialModel: lastModelSelection(chat),
                         sessionFields: sessionFields,
@@ -1422,8 +1436,11 @@ double timelineEndInset(double paneWidth) =>
 /// The chips pick the model (and its options) for the next message,
 /// starting from [initialModel], and change the session's mutable
 /// settings. Typing one of [completionTriggers] at the start of a word
-/// opens [CompletionPopup] (AV-044). The new-session draft (AV-040) uses
-/// it as its prompt, with its own [controller].
+/// opens [CompletionPopup] (AV-044). In an empty box, ↑ opens the newest
+/// queued message for editing ([onEditQueued]), or else recalls the
+/// chat's earlier messages ([history]) to edit and send again; ↓ steps
+/// back towards an empty box (AV-087). The new-session draft (AV-040)
+/// uses it as its prompt, with its own [controller].
 class FollowUpInput extends StatefulWidget {
   /// Creates a [FollowUpInput].
   const FollowUpInput({
@@ -1445,7 +1462,17 @@ class FollowUpInput extends StatefulWidget {
     this.hintText,
     this.sendTooltip,
     this.onStop,
+    this.history = const [],
+    this.onEditQueued,
   });
+
+  /// The texts of the messages sent in the chat, oldest first, which ↑
+  /// and ↓ recall (see `sentMessages`).
+  final List<String> history;
+
+  /// Opens the newest queued (or steering) message for editing, when ↑
+  /// is pressed in the empty box; returns whether there was one.
+  final bool Function()? onEditQueued;
 
   /// The box's text, owned by the caller, who then also clears it after
   /// a send; null for a box that owns its text and clears it on send.
@@ -1526,6 +1553,10 @@ class _FollowUpInputState extends State<FollowUpInput> {
   late ModelSelection? _model = widget.initialModel;
   bool _pickedModel = false;
 
+  /// The index in [FollowUpInput.history] of the message recalled into the
+  /// box, while the box still holds it unchanged.
+  int? _recalled;
+
   @override
   void initState() {
     super.initState();
@@ -1570,6 +1601,10 @@ class _FollowUpInputState extends State<FollowUpInput> {
   }
 
   void _onChanged() {
+    if (_recalled case final i?
+        when i >= widget.history.length || widget.history[i] != _text.text) {
+      _recalled = null;
+    }
     if (widget.onDraftChanged == null || _text.text == _synced) return;
     _draftTimer?.cancel();
     _draftTimer = Timer(widget.draftDelay, _flushDraft);
@@ -1588,16 +1623,76 @@ class _FollowUpInputState extends State<FollowUpInput> {
     if (_completions.currentState?.handleKey(event) == KeyEventResult.handled) {
       return KeyEventResult.handled;
     }
-    if (event is! KeyDownEvent ||
-        (event.logicalKey != LogicalKeyboardKey.enter &&
-            event.logicalKey != LogicalKeyboardKey.numpadEnter)) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
     }
     final keyboard = HardwareKeyboard.instance;
-    if (keyboard.isShiftPressed) return KeyEventResult.ignored;
-    _send(steer: keyboard.isMetaPressed || keyboard.isControlPressed);
-    return KeyEventResult.handled;
+    final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.numpadEnter) {
+      if (event is! KeyDownEvent || keyboard.isShiftPressed) {
+        return KeyEventResult.ignored;
+      }
+      _send(steer: keyboard.isMetaPressed || keyboard.isControlPressed);
+      return KeyEventResult.handled;
+    }
+    final handled =
+        !_modified(keyboard) &&
+        switch (key) {
+          LogicalKeyboardKey.arrowUp => _recallOlder(),
+          LogicalKeyboardKey.arrowDown => _recallNewer(),
+          _ => false,
+        };
+    return handled ? KeyEventResult.handled : KeyEventResult.ignored;
   }
+
+  static bool _modified(HardwareKeyboard keyboard) =>
+      keyboard.isShiftPressed ||
+      keyboard.isAltPressed ||
+      keyboard.isMetaPressed ||
+      keyboard.isControlPressed;
+
+  /// ↑: the newest queued message in the inline editor, else the message
+  /// before the recalled one (or the newest) in the box. Only from an
+  /// empty box, or one holding a recalled message with the caret on its
+  /// first line, so typed text is never replaced.
+  bool _recallOlder() {
+    final selection = _text.selection;
+    final recalling = _recalled != null;
+    if (!(_text.text.isEmpty ||
+        (recalling &&
+            selection.isCollapsed &&
+            caretOnFirstLine(_text.text, selection.baseOffset)))) {
+      return false;
+    }
+    if (!recalling && (widget.onEditQueued?.call() ?? false)) return true;
+    final index = olderIndex(widget.history.length, _recalled);
+    if (index == null) return false;
+    _show(widget.history[index]);
+    _recalled = index;
+    return true;
+  }
+
+  /// ↓ while a message is recalled, with the caret on its last line: the
+  /// next newer message, or an empty box past the newest.
+  bool _recallNewer() {
+    final recalled = _recalled;
+    final selection = _text.selection;
+    if (recalled == null ||
+        !selection.isCollapsed ||
+        !caretOnLastLine(_text.text, selection.baseOffset)) {
+      return false;
+    }
+    final index = newerIndex(widget.history.length, recalled);
+    _show(index == null ? '' : widget.history[index]);
+    _recalled = index;
+    return true;
+  }
+
+  void _show(String text) => _text.value = TextEditingValue(
+    text: text,
+    selection: TextSelection.collapsed(offset: text.length),
+  );
 
   void _send({required bool steer}) {
     final text = _text.text.trim();

@@ -5,6 +5,7 @@ library;
 
 import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shireitou/src/composer/composer_labels.dart';
 import 'package:shireitou/src/composer/config_fields.dart';
@@ -56,7 +57,12 @@ class _Calls {
   var stops = 0;
 }
 
-Future<_Calls> _pump(WidgetTester tester, {bool working = false}) async {
+Future<_Calls> _pump(
+  WidgetTester tester, {
+  bool working = false,
+  List<String> history = const [],
+  bool Function()? onEditQueued,
+}) async {
   final calls = _Calls();
   tester.view.physicalSize = const Size(1200, 800);
   tester.view.devicePixelRatio = 1;
@@ -68,6 +74,8 @@ Future<_Calls> _pump(WidgetTester tester, {bool working = false}) async {
           alignment: Alignment.bottomCenter,
           child: FollowUpInput(
             working: working,
+            history: history,
+            onEditQueued: onEditQueued,
             hintText: composerPlaceholder(agent: 'Pi', folder: 'cruise'),
             models: const [_opus, _fast],
             initialModel: const ModelSelection(id: 'anthropic/claude-opus-5-5'),
@@ -228,6 +236,65 @@ void main() {
     expect(calls.sent.single.steer, isTrue);
     // Sent, so the box is empty and stops again.
     expect(find.byTooltip('Stop'), findsOneWidget);
+  });
+
+  group('↑ and ↓ (AV-087)', () {
+    String boxText(WidgetTester tester) =>
+        tester.widget<TextField>(find.byType(TextField)).controller!.text;
+
+    testWidgets('recall earlier messages; Enter sends the edit again', (
+      tester,
+    ) async {
+      final calls = await _pump(tester, history: ['first', 'second']);
+      await tester.tap(find.byType(TextField));
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      expect(boxText(tester), 'second');
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      expect(boxText(tester), 'first');
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      expect(boxText(tester), 'first');
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      expect(boxText(tester), 'second');
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      expect(boxText(tester), isEmpty);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await tester.enterText(find.byType(TextField), 'second, edited');
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      expect(calls.sent.single.text, 'second, edited');
+      expect(boxText(tester), isEmpty);
+    });
+
+    testWidgets('typed text is never replaced', (tester) async {
+      await _pump(tester, history: ['first']);
+      await tester.enterText(find.byType(TextField), 'my draft');
+      await tester.pump();
+      expect(boxText(tester), 'my draft');
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      expect(boxText(tester), 'my draft');
+    });
+
+    testWidgets('a queued message is edited before history is recalled', (
+      tester,
+    ) async {
+      var queuedEdits = 0;
+      await _pump(
+        tester,
+        working: true,
+        history: ['first'],
+        onEditQueued: () {
+          queuedEdits++;
+          return true;
+        },
+      );
+      await tester.tap(find.byType(TextField));
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      expect(queuedEdits, 1);
+      expect(boxText(tester), isEmpty);
+    });
   });
 }
 

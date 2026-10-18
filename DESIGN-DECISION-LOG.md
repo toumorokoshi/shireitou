@@ -1,5 +1,32 @@
 # Design Decision Log
 
+## 2026-10-18: ↑ edits the queued or previous message (AV-087)
+
+Fixing a typo in a message just sent, or in one waiting in the queue,
+meant retyping it or reaching for the mouse to click the queued row.
+
+- **Queued messages first.** ↑ in an empty box opens the newest pending
+  message (the last queued, else the steering one) in the existing AV-081
+  inline editor, so Enter re-queues it with `chat/pendingMessageSet`
+  under the same ID and its place in the queue is kept. The composer
+  asks the panel through a counter (`editNewestRequests`), as the
+  Cmd/Ctrl+L focus request already does, and the panel hands focus back
+  when its editor closes.
+- **Sent messages are recalled, not rewritten.** With nothing pending, ↑
+  steps back through the chat's sent messages like a shell history, and
+  Enter sends the edit as a new message. AHP's `chat/truncated` followed
+  by `chat/turnStarted` would replace the earlier turn, but neither pi
+  nor the fake host accepts `chat/truncated` from a client, and a
+  rejected optimistic truncation would briefly wipe the history, so it
+  is left for when hosts support it (see `GAPS.md`).
+- **Typed text is never replaced.** Recall starts only from an empty box,
+  and continues only while the box holds the recalled text unchanged and
+  the caret is on its first (↑) or last (↓) line; otherwise the keys
+  move the caret. Modified arrows keep their shortcuts (Alt+↑/↓,
+  Cmd/Ctrl+Alt+↑/↓), and the open completion popup keeps ↑/↓.
+- **Pure helpers** (`composer/message_history.dart`) hold the history and
+  the steps; the widget holds only the recalled index.
+
 ## 2026-10-17: Reconnects that do not get stuck (AHP-004)
 
 A host that dropped could stay disconnected for good. The reconnect loop

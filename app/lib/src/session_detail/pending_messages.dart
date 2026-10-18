@@ -17,6 +17,8 @@ class PendingMessagesPanel extends StatefulWidget {
     super.key,
     required this.pending,
     required this.onAction,
+    this.editNewestRequests,
+    this.onEditorClosed,
   });
 
   /// The steering message first, then the queue (see `pendingMessages`).
@@ -24,6 +26,15 @@ class PendingMessagesPanel extends StatefulWidget {
 
   /// Dispatches a chat action.
   final ValueChanged<JsonMap> onAction;
+
+  /// Opens the newest message (the last queued one, else the steering
+  /// one) in the inline editor whenever this changes (↑ in the composer,
+  /// AV-087).
+  final Listenable? editNewestRequests;
+
+  /// Called when the inline editor closes (saved, cancelled, or the
+  /// message left the queue).
+  final VoidCallback? onEditorClosed;
 
   @override
   State<PendingMessagesPanel> createState() => _PendingMessagesPanelState();
@@ -42,14 +53,42 @@ class _PendingMessagesPanelState extends State<PendingMessagesPanel> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    widget.editNewestRequests?.addListener(_editNewest);
+  }
+
+  @override
+  void dispose() {
+    widget.editNewestRequests?.removeListener(_editNewest);
+    super.dispose();
+  }
+
+  void _editNewest() {
+    if (widget.pending.lastOrNull case final newest?) {
+      setState(() => _editingId = newest.pending.id);
+    }
+  }
+
+  void _close() {
+    setState(() => _editingId = null);
+    widget.onEditorClosed?.call();
+  }
+
+  @override
   void didUpdateWidget(PendingMessagesPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.editNewestRequests != widget.editNewestRequests) {
+      oldWidget.editNewestRequests?.removeListener(_editNewest);
+      widget.editNewestRequests?.addListener(_editNewest);
+    }
     final id = _editingId;
     if (id == null || _find(id) != null) return;
     // The host sent or removed the message while it was being edited.
     _editingId = null;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      widget.onEditorClosed?.call();
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
         const SnackBar(
           content: Text(
@@ -74,7 +113,7 @@ class _PendingMessagesPanelState extends State<PendingMessagesPanel> {
         widget.onAction(action);
       }
     }
-    setState(() => _editingId = null);
+    _close();
   }
 
   Widget _row(PendingMessageItem item, {Key? key, int? position}) {
@@ -89,7 +128,7 @@ class _PendingMessagesPanelState extends State<PendingMessagesPanel> {
       editing: _editingId == id,
       onEdit: () => setState(() => _editingId = id),
       onSave: (text) => _save(id, text),
-      onCancel: () => setState(() => _editingId = null),
+      onCancel: _close,
     );
   }
 

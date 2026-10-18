@@ -155,6 +155,16 @@ AppImage and the release workflow (see
   client while it is being edited is not shown; saving overwrites it.
   Clicking the steering message also edits it, though the agent may take
   it before the edit is saved.
+- **↑ to edit the previous message (AV-087), remaining details:** a
+  recalled message is sent as a new turn; the earlier turn and its reply
+  stay in the history. Rewriting history (`chat/truncated` to the turn
+  before, then `chat/turnStarted` with the edit) would need hosts to
+  accept `chat/truncated` from clients; pi and the fake host do not.
+  ↑ steps from the composer into only the newest queued message; ↑ and
+  ↓ inside the inline editor do not move to other queued messages.
+  Recall uses the loaded turns only (older windowed turns are not paged
+  in), the composer's current model rather than the recalled message's,
+  and drops its attachments. The new-session draft has no recall.
 - **Approvals and input against a real host:** tool approvals (AV-083)
   with host options, risk assessments, edited input and result
   confirmation, input requests (AV-084) with synced drafts,
