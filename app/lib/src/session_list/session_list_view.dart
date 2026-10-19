@@ -13,6 +13,7 @@ import '../theme/app_theme.dart';
 import 'folder_grouping.dart';
 import 'relative_time.dart';
 import 'session_tree.dart';
+import 'session_status_indicator.dart';
 import 'status_badges.dart';
 import '../theme/app_icons.dart';
 import '../agent_names.dart';
@@ -1119,21 +1120,7 @@ class SessionTile extends StatelessWidget {
       onTap: onTap,
       leading:
           leading ??
-          ExcludeSemantics(
-            child: SizedBox(
-              width: 12,
-              child: Icon(
-                Icons.circle,
-                size: 6,
-                color: statusDotColor(
-                  dotBadgeFor(status),
-                  colors.statusColors,
-                  unread: theme.colorScheme.onSurface,
-                ),
-                semanticLabel: statusLabel,
-              ),
-            ),
-          ),
+          SessionStatusLeading(status: status, semanticLabel: statusLabel),
       title: content,
       trailing: trailing.isEmpty
           ? null

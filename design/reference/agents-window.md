@@ -41,10 +41,10 @@ What to match, by area:
   working directory, AV-025) labelled "folder [repo]" with a folder
   icon. Headers are an icon and text; no counts, only a small attention
   dot. Hosts are not a level of their own.
-- Rows are two lines, about 56 px: a small status dot and the title in
-  regular weight; then a folder icon, "folder [repo]", the host's label
-  when more than one host is connected, and the relative time. No status
-  chips or change stats.
+- Rows are two lines, about 56 px: a small status dot (a spinner while
+  the session is working) and the title in regular weight; then a folder
+  icon, "folder [repo]", the host's label when more than one host is
+  connected, and the relative time. No status chips or change stats.
 - Hovering a row shows pin and "mark done" (archive) icons on its right.
   A longer hover shows a card: the title in bold, "· agent · workspace",
   and "Workspace · full path". The selected row has a subtle fill.

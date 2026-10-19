@@ -21,6 +21,7 @@ import '../layout.dart';
 import '../session_list/folder_grouping.dart';
 import '../session_list/pinned_store.dart';
 import '../session_list/session_list_view.dart';
+import '../session_list/session_status_indicator.dart';
 import '../session_list/status_badges.dart';
 import '../shortcuts.dart';
 import '../theme/app_colors.dart';
@@ -953,6 +954,21 @@ class _Header extends StatelessWidget {
             ),
           ),
           // What needs the user stays in view (AV-094).
+          if (isSessionWorking(
+            status: status,
+            hasActiveTurn: chat?.activeTurn != null,
+          ))
+            Tooltip(
+              message: SessionBadge.working.label,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: SessionWorkingIcon(
+                  size: 18,
+                  color: AppColors.of(context).statusColors.running,
+                  semanticLabel: SessionBadge.working.label,
+                ),
+              ),
+            ),
           if (status?.isError ?? false)
             Tooltip(
               message: 'The last turn failed',

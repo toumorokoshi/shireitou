@@ -163,6 +163,7 @@ void main() {
     tester.view.physicalSize = const Size(1400, 1000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
+    reduceMotion(tester);
     final notifier = _RecordingNotifier();
     final prefs = MemoryPrefsStore();
     HostState host(int status) => HostState(
@@ -228,6 +229,7 @@ void main() {
     tester.view.physicalSize = const Size(1400, 1000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
+    reduceMotion(tester);
     final notifier = _RecordingNotifier(granted: false);
     HostState host(int one, int two) => HostState(
       status: ConnectionStatus.connected,

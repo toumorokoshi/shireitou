@@ -1,5 +1,19 @@
 # Design Decision Log
 
+## 2026-10-19: Working sessions show a spinner in the list and header
+
+Working sessions used the same small coloured dot as idle ones, so a
+running agent was easy to miss in the inbox. The reference Agents view
+and Cursor's Agents Window use a spinner on running rows instead.
+
+`SessionStatusLeading` (in `session_status_indicator.dart`) replaces
+the row's status dot with a 12 px `CircularProgressIndicator` in the
+theme's running colour while `isSessionWorking` is true (`InProgress`,
+or an open chat's active turn before the catalogue sets the bit; not
+while `InputNeeded`). Reduced motion shows a static `Icons.autorenew`
+icon; both have a "Working" tooltip. The session header shows the same
+icon at 18 px beside the title (alongside the existing error icon).
+
 ## 2026-10-19: Selected code copies as written
 
 Copying text selected in a code block pasted the wrong text. Flutter's
