@@ -46,6 +46,9 @@ abstract final class AppIcons {
   /// The filter menu while a filter other than the default is on.
   static const IconData filterActive = Codicons.filterFilled;
 
+  /// Opens a session's folder in VS Code.
+  static const IconData vscode = Codicons.vscode;
+
   /// A "…" menu.
   static const IconData more = Codicons.ellipsis;
 

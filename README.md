@@ -44,7 +44,8 @@ with a UX modeled on the GitHub Agents view and Cursor's Agents Window.
 > compare and pick from, and the desktop apps (and the web app, where
 > the browser allows) notify when a session needs input, finishes or
 > fails. A host's menu and a session's menu open an SSH terminal on the
-> host (desktop and mobile apps). Push notifications for a closed app
+> host (desktop and mobile apps), and a session's header opens its
+> folder in VS Code (locally, or over Remote - SSH). Push notifications for a closed app
 > are not built; see [GAPS.md](GAPS.md).
 
 ## Layout
@@ -84,6 +85,8 @@ so one `flutter pub get` at the root resolves every package.
   colours come from, and how to add one.
 - [docs/ssh-terminal.md](docs/ssh-terminal.md): SSH terminals to a host
   (settings, host keys, the terminals screen).
+- [docs/vscode.md](docs/vscode.md): opening a session's folder in VS
+  Code, locally or over Remote - SSH.
 - [docs/packaging.md](docs/packaging.md): packages, the app icon, the
   release workflow and the signing secrets it uses.
 - [specs/agents-view.md](specs/agents-view.md): UI and feature requirements.

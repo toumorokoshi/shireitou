@@ -1,5 +1,25 @@
 # Design Decision Log
 
+## 2026-10-19: "Open in VS Code" opens the session folder over Remote - SSH
+
+There was no way to open a session's code in an editor; the SSH
+terminal was the closest. The session header now has an "Open in VS
+Code" icon button beside its "…" menu (an exception to the header
+holding only the title, what needs the user, and the menu, since it is
+a frequent action), and the menu has the same item (AV-015).
+
+The app does not run VS Code itself: it opens a `vscode://` link with
+`url_launcher`, which works the same on macOS, Linux, Windows and the
+web. A loopback AHP host gets `vscode://file/<folder>`; any other host
+gets `vscode://vscode-remote/ssh-remote+<authority>/<folder>`, with the
+authority from the host's SSH terminal settings (`user@host`, or
+hex-encoded JSON for a port other than 22), so one set of SSH settings
+serves both. Without settings it falls back to the AHP URL's host and
+lets `~/.ssh/config` fill in the rest instead of asking for them. The
+link logic is pure (`vscode/vscode_link.dart`); the launcher is a
+provider so tests can record the links. iOS and Android have no VS
+Code, so the button is hidden there.
+
 ## 2026-10-19: Working sessions show a spinner in the list and header
 
 Working sessions used the same small coloured dot as idle ones, so a

@@ -244,6 +244,10 @@ Dart source); `bin/generate.dart` does the file I/O. See
   `ssh_terminal.dart` holds the open terminals (`sshTerminalsProvider`);
   `ssh_store.dart` keeps settings and host keys in secure storage. See
   [ssh-terminal.md](ssh-terminal.md).
+- `lib/src/vscode/`: "Open in VS Code" (AV-015). `vscode_link.dart` is
+  pure (the `vscode://` link for a folder, local or over Remote - SSH);
+  `open_in_vscode.dart` reads the host's SSH settings and opens the
+  link with `vscodeLauncherProvider`. See [vscode.md](vscode.md).
 - `lib/src/composer/`: `config_fields.dart` is pure: a model's
   `configSchema` and a session config schema become `ConfigField`s, with
   `configValues`, `modelSelection`, `isPickerField` and

@@ -36,6 +36,7 @@ import '../session_title.dart';
 import '../hosts/open_hosts.dart';
 import '../ssh/ssh_settings.dart';
 import '../ssh/ssh_terminal_screen.dart';
+import '../vscode/open_in_vscode.dart';
 import 'chat_commands.dart';
 import '../composer/completion_popup.dart';
 import '../composer/completions.dart';
@@ -632,6 +633,11 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
       chat: chat,
     );
     final pinned = ref.watch(pinnedSessionsProvider).contains(sessionRef);
+    final openHost = ref
+        .watch(openHostsProvider)
+        .where((h) => h.key == context.host)
+        .firstOrNull;
+    final directory = sessionDirectory(summary);
     final header = _Header(
       showBackButton: widget.showBackButton,
       pinned: pinned,
@@ -682,19 +688,17 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
       },
       onDetails: () =>
           showSessionInfo(context, session: widget.session, chat: chatUri),
-      onSshTerminal: switch (ref
-          .watch(openHostsProvider)
-          .where((h) => h.key == context.host)
-          .firstOrNull) {
+      onSshTerminal: switch (openHost) {
         final host? => () => unawaited(
-          openSshTerminal(
-            context,
-            ref,
-            host,
-            directory: sessionDirectory(summary),
-          ),
+          openSshTerminal(context, ref, host, directory: directory),
         ),
         null => null,
+      },
+      onOpenInVsCode: switch ((openHost, directory)) {
+        (final host?, final directory?) when vscodeSupported => () => unawaited(
+          openInVsCode(context, ref, host, directory),
+        ),
+        _ => null,
       },
     );
     if (widget.reviewAsPane) {
@@ -800,6 +804,7 @@ class _Header extends StatelessWidget {
     required this.onMarkUnread,
     required this.onDetails,
     required this.onSshTerminal,
+    required this.onOpenInVsCode,
   });
 
   /// Whether the title follows a back button ([SessionDetailView]).
@@ -844,6 +849,10 @@ class _Header extends StatelessWidget {
   /// Opens an SSH terminal to the host in the session's folder (AV-014);
   /// no menu item when null.
   final VoidCallback? onSshTerminal;
+
+  /// Opens the session's folder in VS Code (AV-015); no button or menu
+  /// item when null.
+  final VoidCallback? onOpenInVsCode;
 
   /// The "Details" popover: the [sessionDetailLines] and chips for the
   /// status, background work, the parallel run, the pull request and
@@ -984,6 +993,12 @@ class _Header extends StatelessWidget {
             ),
           if (mcpAlerts.isNotEmpty)
             McpServerAlertChips(alerts: mcpAlerts, onSignIn: onSignIn),
+          if (onOpenInVsCode case final open?)
+            IconButton(
+              tooltip: openInVsCodeLabel,
+              icon: const Icon(AppIcons.vscode, size: 18),
+              onPressed: open,
+            ),
           // The "…" menu's "Details…" opens the popover anchored here.
           MenuAnchor(
             controller: detailsController,
@@ -1051,6 +1066,11 @@ class _Header extends StatelessWidget {
                   PopupMenuItem(
                     value: ssh,
                     child: const Text(openSshTerminalLabel),
+                  ),
+                if (onOpenInVsCode case final open?)
+                  PopupMenuItem(
+                    value: open,
+                    child: const Text(openInVsCodeLabel),
                   ),
               ],
             ),

@@ -112,6 +112,14 @@ AppImage and the release workflow (see
   message text (no attachments). The rail shows on hover but has no
   keyboard focus of its own; the Cmd/Ctrl+Alt+↑/↓ shortcuts and the
   screen reader buttons are the non-pointer ways in.
+- **Open in VS Code (AV-015):** only VS Code (not Insiders, Cursor or
+  other forks with their own URL schemes; no setting picks the editor).
+  A host on another machine needs the Remote - SSH extension and an SSH
+  login VS Code can make on its own (the app's saved password or key is
+  not passed on). The links are not opened against a real VS Code in
+  tests, and a host reached through a tunnel or a forwarded port on
+  `localhost` is taken as local. The link is not offered for files
+  (a diff or a tool call's file), only the session's folder.
 - **SSH terminal (AV-014), remaining details:** no terminal on the web
   (browsers have no TCP sockets; a WebSocket-to-SSH bridge on the host
   would be needed). The SSH agent works only on Linux: not in the
