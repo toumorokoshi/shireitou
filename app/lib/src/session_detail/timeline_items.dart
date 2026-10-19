@@ -21,13 +21,16 @@ sealed class TimelineItem {
 /// The user's message that started turn [turnId].
 class UserMessageItem extends TimelineItem {
   /// Creates a [UserMessageItem].
-  const UserMessageItem(this.turnId, this.message);
+  const UserMessageItem(this.turnId, this.message, {this.startedAt});
 
   /// Turn ID.
   final String turnId;
 
   /// The message.
   final Message message;
+
+  /// ISO 8601 timestamp at which the turn started, when the host sent it.
+  final String? startedAt;
 
   @override
   String get key => '$turnId/message';
@@ -385,7 +388,7 @@ final _turnRows = Expando<List<TimelineItem>>('turn rows');
 /// immutable, so a turn the reducer did not touch keeps its rows).
 List<TimelineItem> turnItems(Turn turn) =>
     _turnRows[turn] ??= List.unmodifiable([
-      UserMessageItem(turn.id, turn.message),
+      UserMessageItem(turn.id, turn.message, startedAt: turn.startedAt),
       ...turnPartItems(
         turn.id,
         turn.responseParts,
@@ -464,7 +467,7 @@ TimelineRows timelineItems(ChatState chat) {
   };
   final live = [
     if (chat.activeTurn case final active?) ...[
-      UserMessageItem(active.id, active.message),
+      UserMessageItem(active.id, active.message, startedAt: active.startedAt),
       ...turnPartItems(
         active.id,
         active.responseParts,
