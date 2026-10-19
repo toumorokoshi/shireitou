@@ -12,6 +12,7 @@ import '../theme/app_colors.dart';
 import 'code_highlight.dart';
 import 'diff_view.dart';
 import 'terminal_text.dart';
+import 'timeline_selection.dart';
 
 /// Opens a chat of the session (a subagent's, for example).
 typedef OpenChat = void Function(String chat);
@@ -98,10 +99,12 @@ class TerminalBox extends StatelessWidget {
     final colors = AppColors.of(context);
     final style = codeStyle(context)
         .copyWith(color: colors.terminal.foreground);
-    final body = SingleChildScrollView(
-      reverse: true,
-      padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-      child: Text(output.isEmpty ? ' ' : output, style: style),
+    final body = ScrollSelection(
+      child: SingleChildScrollView(
+        reverse: true,
+        padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+        child: Text(output.isEmpty ? ' ' : output, style: style),
+      ),
     );
     return Container(
       decoration: BoxDecoration(

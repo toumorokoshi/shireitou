@@ -34,6 +34,7 @@ import 'package:re_highlight/re_highlight.dart';
 
 import '../theme/app_colors.dart';
 import 'copy_button.dart';
+import 'timeline_selection.dart';
 
 /// The languages this app highlights, a common subset of highlight.js
 /// (the full set would add every grammar to the web build).
@@ -145,25 +146,30 @@ class CodeBlock extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 12),
-            child: Row(
-              children: [
-                Text(language ?? 'code', style: theme.textTheme.labelSmall),
-                const Spacer(),
-                CopyButton(text: () => code, tooltip: 'Copy code'),
-              ],
+          // The label is not part of the code a selection copies.
+          SelectionContainer.disabled(
+            child: Padding(
+              padding: const EdgeInsets.only(left: 12),
+              child: Row(
+                children: [
+                  Text(language ?? 'code', style: theme.textTheme.labelSmall),
+                  const Spacer(),
+                  CopyButton(text: () => code, tooltip: 'Copy code'),
+                ],
+              ),
             ),
           ),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-            child: Text.rich(
-              highlightCode(
-                code,
-                language: language,
-                base: base,
-                theme: AppColors.of(context).syntax,
+          ScrollSelection(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              child: Text.rich(
+                highlightCode(
+                  code,
+                  language: language,
+                  base: base,
+                  theme: AppColors.of(context).syntax,
+                ),
               ),
             ),
           ),

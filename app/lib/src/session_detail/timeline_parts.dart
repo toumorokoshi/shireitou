@@ -18,6 +18,7 @@ import 'code_highlight.dart';
 import 'copy_button.dart';
 import 'inline_message_editor.dart';
 import 'timeline_items.dart';
+import 'timeline_selection.dart';
 import 'todo_list.dart';
 import 'todo_widgets.dart';
 import 'tool_previews.dart';
@@ -714,12 +715,14 @@ class _CodeBlock extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Text(label, style: theme.textTheme.labelMedium),
-              const Spacer(),
-              CopyButton(text: () => text, tooltip: 'Copy $label'),
-            ],
+          SelectionContainer.disabled(
+            child: Row(
+              children: [
+                Text(label, style: theme.textTheme.labelMedium),
+                const Spacer(),
+                CopyButton(text: () => text, tooltip: 'Copy $label'),
+              ],
+            ),
           ),
           Container(
             constraints: const BoxConstraints(maxHeight: 320),
@@ -728,11 +731,13 @@ class _CodeBlock extends StatelessWidget {
               color: theme.colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(6),
             ),
-            child: SingleChildScrollView(
-              child: Text(
-                text,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  fontFamily: 'monospace',
+            child: ScrollSelection(
+              child: SingleChildScrollView(
+                child: Text(
+                  text,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontFamily: 'monospace',
+                  ),
                 ),
               ),
             ),

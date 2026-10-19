@@ -276,6 +276,100 @@ void main() {
     expect(copied, 'void main() {}');
   });
 
+  testWidgets('selected code pastes as written, on its own lines (AV-061)', (
+    tester,
+  ) async {
+    String? copied;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied = (call.arguments as Map)['text'] as String?;
+        }
+        return null;
+      },
+    );
+    await _pump(
+      tester,
+      _state(
+        chat: _chatWith(const [
+          ToolCallResponsePart(
+            toolCall: ToolCallCompletedState(
+              toolCallId: 'echo',
+              toolName: 'bash',
+              displayName: 'Bash',
+              invocationMessage: PlainString('Running echo'),
+              pastTenseMessage: PlainString('Ran echo'),
+              toolInput: InlineToolInput('{"command":"echo"}'),
+              confirmed: ToolCallConfirmationReason.notNeeded,
+              success: true,
+              content: [ToolResultTextContent(text: 'said "hi"')],
+            ),
+          ),
+          MarkdownResponsePart(
+            id: 'm',
+            content: 'Here:\n\n```python\nprint("hi")\n```\n\nDone.',
+          ),
+        ]),
+      ),
+    );
+    await tester.tap(find.text('Completed 1 step'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ran echo'));
+    await tester.pumpAndSettle();
+
+    Rect at(String text) =>
+        tester.getRect(find.textContaining(text, findRichText: true).last);
+    Future<String?> dragCopy(Offset from, Offset to) async {
+      copied = null;
+      final gesture = await tester.startGesture(
+        from,
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+      await gesture.moveTo(to);
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyC);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pump();
+      return copied;
+    }
+
+    // The code and the paragraph below it start left of the indented
+    // tool output and code above them, which stay out of the selection.
+    final code = at('print');
+    expect(
+      await dragCopy(code.topLeft + const Offset(1, 2), code.bottomRight),
+      'print("hi")',
+    );
+    final done = at('Done.');
+    expect(
+      await dragCopy(done.topLeft + const Offset(1, 2), done.bottomRight),
+      'Done.',
+    );
+    // From the paragraph above, over the block's "python" label, to the
+    // one below: the label stays out and each block keeps its own line.
+    expect(
+      await dragCopy(
+        at('Here:').topLeft + const Offset(1, 2),
+        at('Done.').bottomRight,
+      ),
+      'Here:\nprint("hi")\nDone.',
+    );
+    // The tool call's "Input" and "Output" labels stay out too.
+    final output = at('said');
+    expect(
+      await dragCopy(
+        at('"command"').topLeft + const Offset(1, 2),
+        output.bottomRight,
+      ),
+      '{\n  "command": "echo"\n}\nsaid "hi"',
+    );
+  });
+
   testWidgets('a finished turn copies its reply as markdown (AV-071)', (
     tester,
   ) async {

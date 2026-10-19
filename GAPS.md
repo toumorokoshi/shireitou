@@ -614,3 +614,13 @@ AppImage and the release workflow (see
 - Themes without a Base16/Base24 port beyond the four written by hand
   (Monokai Pro, Night Owl, Andromeda, Nightfox's other styles) are not
   included.
+
+## Selecting text in the timeline (AV-061)
+
+- A selection across several timeline rows (a user message and the
+  reply below it) still joins the rows with nothing between them:
+  `LineSelection` only adds newlines within a row, because the list's
+  own selection delegate (Flutter's scrollable one) concatenates rows.
+- The selection workarounds in `timeline_selection.dart` should be
+  dropped once Flutter fixes nested scroll views' selection edges and
+  adds separators between selected widgets.

@@ -51,6 +51,7 @@ import 'session_status_widgets.dart';
 import 'source_links.dart';
 import 'timeline_items.dart';
 import 'timeline_parts.dart';
+import 'timeline_selection.dart';
 import 'todo_list.dart';
 import 'todo_widgets.dart';
 import 'tool_previews.dart';
@@ -1309,19 +1310,21 @@ class _TimelineState extends ConsumerState<_Timeline> {
                     // list's, so notes and bubbles keep their alignment.
                     child: SizedBox(
                       width: double.infinity,
-                      child: buildTimelineItem(
-                        item,
-                        widget.onAction,
-                        onSignIn: widget.onSignIn,
-                        onOpenChat: widget.onOpenChat,
-                        onLoadOlder: widget.onLoadOlder,
-                        editableTurn: editableTurn,
-                        onEditMessage: widget.onEditMessage,
-                        expandedSteps: _expandedSteps,
-                        onToggleSteps: (key) => setState(
-                          () => _expandedSteps.contains(key)
-                              ? _expandedSteps.remove(key)
-                              : _expandedSteps.add(key),
+                      child: LineSelection(
+                        child: buildTimelineItem(
+                          item,
+                          widget.onAction,
+                          onSignIn: widget.onSignIn,
+                          onOpenChat: widget.onOpenChat,
+                          onLoadOlder: widget.onLoadOlder,
+                          editableTurn: editableTurn,
+                          onEditMessage: widget.onEditMessage,
+                          expandedSteps: _expandedSteps,
+                          onToggleSteps: (key) => setState(
+                            () => _expandedSteps.contains(key)
+                                ? _expandedSteps.remove(key)
+                                : _expandedSteps.add(key),
+                          ),
                         ),
                       ),
                     ),

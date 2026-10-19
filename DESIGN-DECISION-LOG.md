@@ -1,5 +1,28 @@
 # Design Decision Log
 
+## 2026-10-19: Selected code copies as written
+
+Copying text selected in a code block pasted the wrong text. Flutter's
+`SelectionArea` has two gaps that caused it, and both are worked around
+in the app (`timeline_selection.dart`) rather than by replacing the
+selection system:
+
+- A scroll view nested in a selection (code blocks scroll sideways,
+  tool output up and down) treats any drag point left of it as before
+  it, even when the point is below it. Code blocks and tool output are
+  indented, so a drag starting at the left of the code or text below
+  them also selected them from their start. `ScrollSelection` wraps
+  those scroll views and, for a drag that started outside, moves an
+  edge above or below the view to before its start or past its end, so
+  only the row decides.
+- The selection joins the text of each widget with nothing between, so
+  code pasted glued to its "python" label and the paragraphs around it.
+  The labels are excluded with `SelectionContainer.disabled`, and
+  `LineSelection` (one per timeline row) starts a new line between
+  pieces whose bounds are on different lines, which keeps a list's
+  bullet on the same line as its text. Rows are still joined with
+  nothing between them (see GAPS.md).
+
 ## 2026-10-19: Copying a reply works like VS Code's chat "Copy"
 
 AV-071 asked to copy a turn as markdown. VS Code's agents view has a

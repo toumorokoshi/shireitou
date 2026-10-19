@@ -491,6 +491,14 @@ Dart source); `bin/generate.dart` does the file I/O. See
   working indicator (pulsing dots, a static "…" when
   `MediaQuery.disableAnimationsOf` asks for reduced motion);
   markdown code blocks go through `code_highlight.dart`.
+  `timeline_selection.dart` fixes copying a selection in the timeline:
+  `LineSelection` (around each row) starts a new line between selected
+  widgets on different lines, as Flutter joins them with nothing, and
+  `ScrollSelection` (around the code, tool output, terminal and diff
+  scroll views) places a drag edge above or below a scroll view by its
+  row alone, as Flutter treats any point left of a nested scroll view as
+  before it. Code block labels are kept out with
+  `SelectionContainer.disabled`.
 - `lib/src/session_detail/todo_list.dart` (pure) recognizes todo tools
   (`TodoWrite`, `update_todo`, `manage_todo_list`, `update_plan`) and
   parses their input into a `TodoList`; `latestTodoList` finds the

@@ -13,6 +13,7 @@ import '../host_connection.dart';
 import '../theme/app_colors.dart';
 import 'code_highlight.dart';
 import 'diff_lines.dart';
+import 'timeline_selection.dart';
 
 /// Widths at or above which the full diff viewer offers side by side.
 const sideBySideMinWidth = 900.0;
@@ -206,12 +207,14 @@ class _CodeArea extends StatelessWidget {
       color: Theme.of(context).colorScheme.surfaceContainerLow,
       borderRadius: BorderRadius.circular(6),
     ),
-    child: SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: children,
+    child: ScrollSelection(
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: children,
+        ),
       ),
     ),
   );
