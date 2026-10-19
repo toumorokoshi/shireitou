@@ -117,6 +117,17 @@ codegen:
     dart format packages/ahp_client/lib/src/generated
     cd packages/ahp_client && dart run build_runner build
 
+# Regenerate the colour themes (app/lib/src/theme/generated/themes.g.dart)
+# from app/themes/manifest.yaml. See docs/themes.md.
+themes:
+    cd app && dart run tool/gen_themes.dart
+    dart format app/lib/src/theme/generated
+
+# Re-download the manifest's tinted-theming schemes, then regenerate.
+fetch-themes:
+    cd app && dart run tool/gen_themes.dart fetch
+    dart format app/lib/src/theme/generated
+
 # Download the JSON Schemas of an AHP release into packages/ahp_wire_gen.
 # Generation stays pinned to 1.0.0 until the config and codegen recipe move.
 fetch-schema version="1.0.0":

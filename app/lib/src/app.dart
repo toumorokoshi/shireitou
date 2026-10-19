@@ -46,8 +46,8 @@ class _ShireitouAppState extends ConsumerState<ShireitouApp> {
       navigatorKey: rootNavigatorKey,
       debugShowCheckedModeBanner: false,
       title: title,
-      theme: buildTheme(Brightness.light, palette: appearance.palette),
-      darkTheme: buildTheme(Brightness.dark, palette: appearance.palette),
+      theme: buildTheme(appearance.light),
+      darkTheme: buildTheme(appearance.dark),
       themeMode: appearance.mode,
       builder: (context, child) => AttentionNotifications(
         child: AppShortcuts(

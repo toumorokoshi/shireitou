@@ -12,6 +12,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shireitou/src/app.dart';
 import 'package:shireitou/src/prefs.dart';
+import 'package:shireitou/src/theme/app_colors.dart';
 import 'package:shireitou/src/review/changes_pane.dart';
 import 'package:shireitou/src/review/review_logic.dart';
 import 'package:shireitou/src/review/review_pane_store.dart';
@@ -267,7 +268,7 @@ void main() {
       'void main() {}',
       language: 'dart',
       base: const TextStyle(),
-      brightness: Brightness.light,
+      theme: AppColors.light.syntax,
     );
     expect(span.children, isNotEmpty);
     await tester.tap(find.byTooltip('Copy code'));

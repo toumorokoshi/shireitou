@@ -163,7 +163,6 @@ class _LineRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final base = codeStyle(context);
     final colors = AppColors.of(context);
     final muted = base.copyWith(color: colors.diffGutterText);
@@ -185,7 +184,7 @@ class _LineRow extends StatelessWidget {
               line.text,
               language: language,
               base: base,
-              brightness: theme.brightness,
+              theme: AppColors.of(context).syntax,
             ),
             softWrap: false,
           ),

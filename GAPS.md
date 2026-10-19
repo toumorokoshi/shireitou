@@ -591,8 +591,17 @@ AppImage and the release workflow (see
   cannot be changed from the connect screen before a host is open, and
   the macOS menu bar's View menu has no entry for it (`PlatformMenuItem`
   has no checked state to show the current choice).
-- The colour schemes are fixed; there is no custom accent or
-  user-defined palette, and the code highlighting and terminal ANSI
-  colours stay VS Code's Dark+/Light+ and terminal palettes in every
-  scheme.
-- `just screenshots` renders only the default scheme.
+- Themes are mapped from Base24 palettes, so a theme's own highlight
+  rules (Doom One's blue keywords and magenta functions, say) are
+  approximated by the Base16 styling roles, and its UI colours (VS
+  Code's `sideBar.background` and so on) are derived rather than taken
+  from the original theme files.
+- Colours under WCAG AA are adjusted, so low-contrast themes (Zenburn,
+  Solarized, Rosé Pine Dawn) look slightly crisper than the originals.
+  There is no setting to show them unadjusted.
+- No custom or imported themes: adding one needs a manifest entry and
+  `just themes`. Loading a user's Base16/Base24 YAML at run time would
+  fit the same `ThemeSpec`.
+- Themes without a Base16/Base24 port beyond the four written by hand
+  (Monokai Pro, Night Owl, Andromeda, Nightfox's other styles) are not
+  included.

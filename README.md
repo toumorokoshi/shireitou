@@ -80,6 +80,8 @@ so one `flutter pub get` at the root resolves every package.
   dependencies, window behavior and the desktop smoke test.
 - [docs/mobile.md](docs/mobile.md): iOS and Android builds, permissions,
   secure storage, sign-in and the mobile smoke test.
+- [docs/themes.md](docs/themes.md): the colour themes, where their
+  colours come from, and how to add one.
 - [docs/ssh-terminal.md](docs/ssh-terminal.md): SSH terminals to a host
   (settings, host keys, the terminals screen).
 - [docs/packaging.md](docs/packaging.md): packages, the app icon, the
@@ -115,6 +117,7 @@ just test-model          # a real model turn through pi (costs tokens)
 just test-desktop linux  # desktop smoke test against pi (see docs/desktop.md)
 just test-mobile <id>    # mobile smoke test on an emulator/simulator (docs/mobile.md)
 just icons               # re-render the app icons (see docs/packaging.md)
+just themes              # regenerate the colour themes (see docs/themes.md)
 just android-keystore <file.jks>   # create the Android release key and its secrets
 just codegen             # regenerate the wire types (and freezed code)
 just fetch-schema        # re-download the vendored AHP 1.0.0 JSON Schemas
@@ -178,7 +181,9 @@ just run chrome 'ws://127.0.0.1:63877?tkn=...'   # prefill the host URL
    or select several; swipe it left to archive it, or hover it and click
    the check to mark it done. The filter icon above the list picks the
    filter and sort; the "…" menu holds Select, Add host…, Disconnect,
-   Appearance (light, dark or the system's setting, and a colour scheme)
+   Appearance (light, dark or the system's setting, and a dark and a
+   light colour theme from VS Code, Neovim and Emacs favourites such as
+   Dracula, Catppuccin, Tokyo Night, Gruvbox, Solarized and Nord)
    and each host's status, Retry and SSH terminal. Click a session's
    title in its header to rename it.
 

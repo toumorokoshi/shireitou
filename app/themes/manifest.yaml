@@ -1,0 +1,72 @@
+# The colour themes of the Appearance menu (AV-097). `just themes`
+# regenerates lib/src/theme/generated/themes.g.dart from this list;
+# `just fetch-themes` re-downloads the vendored schemes first.
+#
+# `scheme` is a Base16 or Base24 scheme from tinted-theming/schemes (MIT,
+# see vendor/LICENSE) at `tinted_commit`, kept in vendor/. `file` is a
+# scheme in the same format written here, for themes with no port
+# (local/). `name` overrides the scheme's own name in the menu.
+tinted_commit: 3ac91137e879502c442ab89ba0f1a98077d0da9d
+
+themes:
+  # The app's own theme, the default.
+  graphite-dark: { file: local/graphite-dark.yaml }
+  graphite-light: { file: local/graphite-light.yaml }
+
+  # VS Code
+  one-dark: { scheme: base24/one-dark }
+  one-light: { scheme: base24/one-light }
+  github-dark: { scheme: base24/github-dark, name: GitHub Dark }
+  github-dark-dimmed:
+    { scheme: base24/github-dark-dimmed, name: GitHub Dark Dimmed }
+  github-light: { scheme: base24/github, name: GitHub Light }
+  dracula: { scheme: base24/dracula }
+  ayu-dark: { scheme: base24/ayu-dark }
+  ayu-mirage: { scheme: base24/ayu-mirage }
+  ayu-light: { scheme: base24/ayu-light }
+  monokai: { scheme: base16/monokai }
+  material-palenight: { scheme: base16/material-palenight }
+  material-lighter: { scheme: base16/material-lighter }
+  nord: { scheme: base16/nord }
+
+  # Neovim
+  catppuccin-mocha: { scheme: base24/catppuccin-mocha }
+  catppuccin-macchiato: { scheme: base24/catppuccin-macchiato }
+  catppuccin-frappe: { scheme: base24/catppuccin-frappe, name: Catppuccin Frappé }
+  catppuccin-latte: { scheme: base24/catppuccin-latte }
+  tokyo-night: { scheme: base24/tokyo-night-dark, name: Tokyo Night }
+  tokyo-night-storm: { scheme: base24/tokyo-night-storm }
+  tokyo-night-moon: { scheme: base24/tokyo-night-moon }
+  tokyo-night-day: { scheme: base24/tokyo-night-light, name: Tokyo Night Day }
+  kanagawa: { scheme: base16/kanagawa }
+  kanagawa-dragon: { scheme: base24/kanagawa-dragon }
+  rose-pine: { scheme: base16/rose-pine }
+  rose-pine-moon: { scheme: base16/rose-pine-moon }
+  rose-pine-dawn: { scheme: base16/rose-pine-dawn }
+  nightfox: { file: local/nightfox.yaml }
+  everforest-dark: { scheme: base16/everforest, name: Everforest Dark }
+  everforest-light:
+    { scheme: base16/everforest-light-medium, name: Everforest Light }
+  gruvbox-material-dark:
+    { scheme: base16/gruvbox-material-dark-medium, name: Gruvbox Material Dark }
+  gruvbox-material-light:
+    {
+      scheme: base16/gruvbox-material-light-medium,
+      name: Gruvbox Material Light,
+    }
+  oxocarbon-dark: { scheme: base16/oxocarbon-dark }
+  oxocarbon-light: { scheme: base16/oxocarbon-light }
+
+  # Emacs (and Vim)
+  doom-one: { file: local/doom-one.yaml }
+  modus-vivendi: { file: local/modus-vivendi.yaml }
+  modus-operandi: { file: local/modus-operandi.yaml }
+  zenburn: { scheme: base24/zenburn }
+  solarized-dark: { scheme: base16/solarized-dark }
+  solarized-light: { scheme: base16/solarized-light }
+  gruvbox-dark: { scheme: base24/gruvbox-dark }
+  gruvbox-light: { scheme: base24/gruvbox-light }
+  tomorrow-night: { scheme: base24/tomorrow-night }
+  tomorrow-night-eighties: { scheme: base16/tomorrow-night-eighties }
+  tomorrow: { scheme: base16/tomorrow }
+  spacemacs: { scheme: base16/spacemacs }

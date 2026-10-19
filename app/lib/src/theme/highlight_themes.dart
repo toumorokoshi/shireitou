@@ -1,13 +1,12 @@
-/// Syntax highlight themes for `re_highlight` (AV-061, AV-101) based on
-/// VS Code's Dark+ and Light+ colours. A few colours are darkened or
-/// lightened so code keeps 4.5:1 contrast on the code block and diff
-/// backgrounds of every palette (`test/contrast_test.dart` checks this).
+/// Syntax highlight themes for `re_highlight` (AV-061, AV-101): each
+/// colour theme (AV-097) supplies [SyntaxColors], mapped from its Base16
+/// colours in `themes.dart`.
 library;
 
 import 'package:flutter/painting.dart';
 
 /// The colours of one theme, by the role a highlight.js scope plays.
-typedef _SyntaxColors = ({
+typedef SyntaxColors = ({
   Color keyword,
   Color control,
   Color string,
@@ -24,48 +23,9 @@ typedef _SyntaxColors = ({
   Color removed,
 });
 
-/// Dark+; the comment and regexp colours are lightened (Dark+ uses
-/// #6A9955 and #D16969, under 4.5:1 on the code block fill).
-const _dark = (
-  keyword: Color(0xFF569CD6),
-  control: Color(0xFFC586C0),
-  string: Color(0xFFCE9178),
-  number: Color(0xFFB5CEA8),
-  comment: Color(0xFF73A65D),
-  function: Color(0xFFDCDCAA),
-  type: Color(0xFF4EC9B0),
-  variable: Color(0xFF9CDCFE),
-  regexp: Color(0xFFDC7C7C),
-  tag: Color(0xFF569CD6),
-  attribute: Color(0xFF9CDCFE),
-  meta: Color(0xFF9B9B9B),
-  added: Color(0xFFB5CEA8),
-  removed: Color(0xFFCE9178),
-);
-
-/// Light+; the comment, number, type and attribute colours are darkened
-/// (Light+ uses #008000, #098658, #267F99 and #E50000, under 4.5:1 on
-/// the code block fill).
-const _light = (
-  keyword: Color(0xFF0000FF),
-  control: Color(0xFFAF00DB),
-  string: Color(0xFFA31515),
-  number: Color(0xFF067350),
-  comment: Color(0xFF007800),
-  function: Color(0xFF795E26),
-  type: Color(0xFF1F7189),
-  variable: Color(0xFF001080),
-  regexp: Color(0xFF811F3F),
-  tag: Color(0xFF800000),
-  attribute: Color(0xFFD00000),
-  meta: Color(0xFF616161),
-  added: Color(0xFF067350),
-  removed: Color(0xFFA31515),
-);
-
 /// A `re_highlight` theme (highlight.js scope to style) from [c]. It has
 /// no `root` entry: code takes its base colour from the app's text.
-Map<String, TextStyle> _theme(_SyntaxColors c) {
+Map<String, TextStyle> syntaxTheme(SyntaxColors c) {
   TextStyle color(Color color) => TextStyle(color: color);
   return {
     for (final scope in ['keyword', 'literal', 'symbol', 'built_in'])
@@ -106,9 +66,3 @@ Map<String, TextStyle> _theme(_SyntaxColors c) {
     'strong': const TextStyle(fontWeight: FontWeight.bold),
   };
 }
-
-/// VS Code's Dark+ highlight theme.
-final Map<String, TextStyle> darkHighlightTheme = _theme(_dark);
-
-/// VS Code's Light+ highlight theme.
-final Map<String, TextStyle> lightHighlightTheme = _theme(_light);

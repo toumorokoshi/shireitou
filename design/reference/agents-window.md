@@ -18,8 +18,9 @@ What to match, by area:
   (the default "Graphite" scheme) rather than VS Code's near-black,
   slightly blue greys, with a steel-blue accent instead of VS Code's
   blue. The light theme mirrors it, also a touch greyer than white.
-- Other colour schemes (Slate, Moss, Dusk, Ember) tint the same grey
-  ramp towards a hue and change the accent.
+- The other colour themes are the popular VS Code, Neovim and Emacs
+  themes (see [docs/themes.md](../../docs/themes.md)): the same layout,
+  with each theme's backgrounds, accent, syntax and terminal colours.
 
 ## Title bar
 

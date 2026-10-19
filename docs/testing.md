@@ -31,14 +31,16 @@ sessions, Chats, two workspaces, an open session with a 25-step turn, a
 markdown table and the composer's chips) and writes PNGs to
 `app/build/screenshots/`:
 
-| File                | What                                                         |
-| ------------------- | ------------------------------------------------------------ |
-| `dark.png`          | Desktop, dark, at the reference's scale                      |
-| `light.png`         | Desktop, light                                               |
-| `compact.png`       | A phone (390×844), the open session                          |
-| `compact-list.png`  | A phone, the session list                                    |
-| `dark-hover.png`    | Desktop, a row hovered: its buttons and hover card           |
-| `dark-scrolled.png` | Desktop, scrolled up: the jump-to-latest button and the rail |
+| File                  | What                                                         |
+| --------------------- | ------------------------------------------------------------ |
+| `dark.png`            | Desktop, dark, at the reference's scale                      |
+| `light.png`           | Desktop, light                                               |
+| `compact.png`         | A phone (390×844), the open session                          |
+| `compact-list.png`    | A phone, the session list                                    |
+| `dark-hover.png`      | Desktop, a row hovered: its buttons and hover card           |
+| `dark-scrolled.png`   | Desktop, scrolled up: the jump-to-latest button and the rail |
+| `theme-<id>.png`      | Desktop, in a sample of the colour themes (AV-097)           |
+| `appearance-menu.png` | Desktop, the Appearance menu's dark themes                   |
 
 The desktop shots are 1781×1112 pixels at a 1.2 pixel ratio (1484×927
 logical pixels), because the reference was taken at 120% zoom; they are

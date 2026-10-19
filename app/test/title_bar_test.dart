@@ -22,7 +22,10 @@ Future<void> _pumpTitleBar(
 }) async {
   await tester.pumpWidget(
     MaterialApp(
-      theme: buildTheme(Brightness.dark, platform: TargetPlatform.macOS),
+      theme: buildTheme(
+        defaultTheme(Brightness.dark),
+        platform: TargetPlatform.macOS,
+      ),
       home: Scaffold(
         body: TitleBar(
           title: title,

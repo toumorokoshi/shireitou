@@ -293,37 +293,42 @@ Dart source); `bin/generate.dart` does the file I/O. See
   while its route is on top.
 - `lib/src/app.dart`: `MaterialApp` with light and dark themes in the
   user's appearance (`appearanceProvider`: the mode, by default the
-  system's, and the colour scheme, AV-097), titled with the attention count (`windowTitle`, AV-120).
-  Shows the connect screen until connected, and restores the hosts that
-  were open.
-- `lib/src/theme/`: the light and dark themes (AV-090) and the chrome's
+  system's, and a dark and a light colour theme, AV-097), titled with
+  the attention count (`windowTitle`, AV-120). Shows the connect screen
+  until connected, and restores the hosts that were open.
+- `lib/src/theme/`: the colour themes (AV-090, AV-097) and the chrome's
   icons: `app_icons.dart` (`AppIcons`) names the title bar, sidebar,
   session header and composer icons, VS Code's codicons from
-  `vscode_codicons`, so the icon set changes in one place. `app_theme.dart`
-  builds them (`buildTheme`: a colour scheme's greys in the `ColorScheme`,
-  no elevation or `surfaceTint`, hairline borders, 6 px radii, and on
-  desktop `VisualDensity.compact` and 13 px body text, in the platform's
-  system font). `app_colors.dart` is the `AppColors` `ThemeExtension`
-  with the tokens `ColorScheme` has no slot for: `sidebarBackground`,
-  `titleBarBackground`, `raisedSurface`, `hairline`, `mutedText`,
-  `bubbleFill`, `selectedFill`, `hoverFill`, `statusColors` (running,
-  attention, done, error, idle), the diff's `diffAddedFill`,
-  `diffRemovedFill` and `diffGutterText`, and `terminal`, xterm.dart's
-  `TerminalTheme` with VS Code's terminal palette, used by the AHP
-  terminal preview and the SSH terminal. Widgets read them with
-  `AppColors.of(context)`, which falls back to values derived from the
-  `ColorScheme` under a theme without the extension; use these instead
-  of hard-coded colours. `highlight_themes.dart` holds the code
-  highlighting themes (VS Code's Dark+ and Light+), and `contrast.dart`
-  the WCAG contrast ratio that `test/contrast_test.dart` uses to check
-  the tokens of both themes of every colour scheme (4.5:1 for text, 3:1
-  for status dots). `palettes.dart` defines the colour schemes
-  (`AppPalette`): one grey ramp per brightness tinted towards each
-  scheme's hue, plus its accent; `AppColors.forPalette` turns a scheme
-  into tokens. `appearance.dart` holds the user's choice (the
-  `AppearanceNotifier`, kept in `PrefsStore` under `theme_mode` and
-  `color_scheme`) and the "Appearance" submenu of the sidebar's "…"
-  menu.
+  `vscode_codicons`, so the icon set changes in one place. The themes
+  are Base24 palettes (`ThemeSpec`, `theme_spec.dart`) generated into
+  `generated/themes.g.dart` from `app/themes/manifest.yaml` (see
+  [themes.md](themes.md)); `themes.dart` lists them (`themesFor`,
+  `themeById`, `defaultTheme`) and derives the app's colours from one
+  (`themeColors`, pure and cached). `app_theme.dart` builds the
+  `ThemeData` (`buildTheme(theme)`: the theme's colours in the
+  `ColorScheme`, no elevation or `surfaceTint`, hairline borders, 6 px
+  radii, and on desktop `VisualDensity.compact` and 13 px body text, in
+  the platform's system font). `app_colors.dart` is the `AppColors`
+  `ThemeExtension` (`AppColors.forTheme`) with the tokens `ColorScheme`
+  has no slot for: `sidebarBackground`, `titleBarBackground`,
+  `raisedSurface`, `hairline`, `mutedText`, `bubbleFill`,
+  `selectedFill`, `hoverFill`, `statusColors` (running, attention,
+  done, error, idle), the diff's `diffAddedFill`, `diffRemovedFill` and
+  `diffGutterText`, `terminal` (xterm.dart's `TerminalTheme` with the
+  theme's ANSI colours, used by the AHP terminal preview and the SSH
+  terminal) and `syntax`, the code highlighting theme
+  (`highlight_themes.dart` maps the theme's colours to highlight.js
+  scopes). Widgets read them with `AppColors.of(context)`, which falls
+  back to values derived from the `ColorScheme` under a theme without
+  the extension; use these instead of hard-coded colours.
+  `contrast.dart` has the WCAG contrast ratio and `readable`, which
+  moves a theme's colour only as far as AA needs;
+  `test/contrast_test.dart` checks every theme (4.5:1 for text, 3:1 for
+  status dots). `appearance.dart` holds the user's choice (the
+  `AppearanceNotifier`, kept in `PrefsStore` under `theme_mode`,
+  `dark_theme` and `light_theme`; `withTheme` is pure) and the
+  "Appearance" submenu of the sidebar's "…" menu, with a `ThemeSwatch`
+  per theme.
 - `lib/src/screens/`: the connect screen and the sessions screen. The
   sessions screen picks a layout tier with `layoutTierFor(width)`:
   compact (< 700 dp) pushes the session onto a page of its own whose

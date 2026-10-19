@@ -6,7 +6,8 @@ library;
 import 'package:flutter/material.dart';
 import 'package:xterm/ui.dart' show TerminalTheme;
 
-import 'palettes.dart';
+import 'highlight_themes.dart';
+import 'themes.dart';
 
 /// Colours for session states (status dots, connection icons).
 @immutable
@@ -66,6 +67,7 @@ class AppColors extends ThemeExtension<AppColors> {
     required this.diffRemovedFill,
     required this.diffGutterText,
     required this.terminal,
+    required this.syntax,
   });
 
   /// The sidebar (session list) background.
@@ -96,73 +98,64 @@ class AppColors extends ThemeExtension<AppColors> {
   final StatusColors statusColors;
 
   /// The translucent fill of an added diff line, drawn over the diff's
-  /// background (VS Code's `diffEditor.insertedLineBackground`).
+  /// background (the theme's green).
   final Color diffAddedFill;
 
-  /// The translucent fill of a removed diff line (VS Code's
-  /// `diffEditor.removedLineBackground`).
+  /// The translucent fill of a removed diff line (the theme's red).
   final Color diffRemovedFill;
 
-  /// Line numbers and +/− markers in a diff's gutter (VS Code's
-  /// `editorLineNumber.foreground`).
+  /// Line numbers and +/− markers in a diff's gutter.
   final Color diffGutterText;
 
   /// The colours of terminals: the AHP terminal preview and the SSH
-  /// terminal. VS Code's integrated terminal palette on the sidebar's
-  /// background, as xterm.dart's [TerminalTheme] so the SSH terminal
-  /// uses it as is.
+  /// terminal. The theme's ANSI colours on the sidebar's background, as
+  /// xterm.dart's [TerminalTheme] so the SSH terminal uses it as is.
   final TerminalTheme terminal;
 
-  /// The dark tokens of the default palette.
-  static final dark = forPalette(AppPalette.graphite, Brightness.dark);
+  /// The code highlighting theme (highlight.js scope to style).
+  final Map<String, TextStyle> syntax;
 
-  /// The light tokens of the default palette, mirroring [dark].
-  static final light = forPalette(AppPalette.graphite, Brightness.light);
+  /// The dark tokens of the default theme.
+  static final dark = forBrightness(Brightness.dark);
 
-  /// The tokens of [palette] in [brightness]: its surfaces and accent,
-  /// with the status, diff and terminal colours shared by every palette.
-  static AppColors forPalette(AppPalette palette, Brightness brightness) =>
-      _byPalette.putIfAbsent((
-        palette,
-        brightness,
-      ), () => _build(palette, brightness));
+  /// The light tokens of the default theme, mirroring [dark].
+  static final light = forBrightness(Brightness.light);
 
-  static final _byPalette = <(AppPalette, Brightness), AppColors>{};
+  /// The tokens of [theme] (built once per theme).
+  static AppColors forTheme(ThemeSpec theme) =>
+      _byTheme.putIfAbsent(theme.id, () => _build(theme));
 
-  static AppColors _build(AppPalette palette, Brightness brightness) {
-    final dark = brightness == Brightness.dark;
-    final s = paletteSurfaces(palette, brightness);
-    final status = dark ? _darkStatus : _lightStatus;
+  static final _byTheme = <String, AppColors>{};
+
+  static AppColors _build(ThemeSpec theme) {
+    final c = themeColors(theme);
     return AppColors(
-      sidebarBackground: s.sidebar,
-      titleBarBackground: s.sidebar,
-      raisedSurface: s.raised,
-      hairline: s.hairline,
-      mutedText: s.mutedText,
-      bubbleFill: s.bubble,
-      selectedFill: s.selected,
-      hoverFill: s.hover,
+      sidebarBackground: c.sidebar,
+      titleBarBackground: c.sidebar,
+      raisedSurface: c.raised,
+      hairline: c.hairline,
+      mutedText: c.mutedText,
+      bubbleFill: c.bubble,
+      selectedFill: c.selected,
+      hoverFill: c.hover,
       statusColors: StatusColors(
-        running: s.accent,
-        attention: status.attention,
-        done: status.done,
-        error: status.error,
-        idle: status.idle,
+        running: c.accent,
+        attention: c.attention,
+        done: c.done,
+        error: c.error,
+        idle: c.idle,
       ),
-      diffAddedFill: const Color(0x339BB955),
-      diffRemovedFill: const Color(0x33FF0000),
-      diffGutterText: dark ? const Color(0xFF8A8A8A) : const Color(0xFF237893),
-      terminal: terminalOn(
-        dark ? _darkTerminal : _lightTerminal,
-        background: s.sidebar,
-        foreground: s.text,
-      ),
+      diffAddedFill: c.diffAddedFill,
+      diffRemovedFill: c.diffRemovedFill,
+      diffGutterText: c.diffGutter,
+      terminal: terminalTheme(theme, background: c.sidebar, foreground: c.text),
+      syntax: syntaxTheme(c.syntax),
     );
   }
 
-  /// The tokens for [brightness] in the default palette.
+  /// The tokens of the default theme for [brightness].
   static AppColors forBrightness(Brightness brightness) =>
-      brightness == Brightness.dark ? dark : light;
+      forTheme(defaultTheme(brightness));
 
   /// Tokens derived from [scheme], for themes without the extension.
   static AppColors fromScheme(ColorScheme scheme) {
@@ -181,6 +174,7 @@ class AppColors extends ThemeExtension<AppColors> {
       diffRemovedFill: tokens.diffRemovedFill,
       diffGutterText: tokens.diffGutterText,
       terminal: tokens.terminal,
+      syntax: tokens.syntax,
     );
   }
 
@@ -205,6 +199,7 @@ class AppColors extends ThemeExtension<AppColors> {
     Color? diffRemovedFill,
     Color? diffGutterText,
     TerminalTheme? terminal,
+    Map<String, TextStyle>? syntax,
   }) => AppColors(
     sidebarBackground: sidebarBackground ?? this.sidebarBackground,
     titleBarBackground: titleBarBackground ?? this.titleBarBackground,
@@ -219,6 +214,7 @@ class AppColors extends ThemeExtension<AppColors> {
     diffRemovedFill: diffRemovedFill ?? this.diffRemovedFill,
     diffGutterText: diffGutterText ?? this.diffGutterText,
     terminal: terminal ?? this.terminal,
+    syntax: syntax ?? this.syntax,
   );
 
   @override
@@ -238,79 +234,44 @@ class AppColors extends ThemeExtension<AppColors> {
       diffAddedFill: mix(diffAddedFill, other.diffAddedFill),
       diffRemovedFill: mix(diffRemovedFill, other.diffRemovedFill),
       diffGutterText: mix(diffGutterText, other.diffGutterText),
-      // xterm.dart's theme has no lerp; a terminal switches at halfway.
+      // xterm.dart's theme and text styles of code switch at halfway.
       terminal: t < 0.5 ? terminal : other.terminal,
+      syntax: t < 0.5 ? syntax : other.syntax,
     );
   }
 }
 
-const _darkStatus = StatusColors(
-  running: Color(0xFF3794FF),
-  attention: Color(0xFFCCA700),
-  done: Color(0xFF3FB950),
-  error: Color(0xFFF65F5F),
-  idle: Color(0xFF858585),
-);
-
-const _lightStatus = StatusColors(
-  running: Color(0xFF0066CC),
-  attention: Color(0xFF9A6700),
-  done: Color(0xFF1A7F37),
-  error: Color(0xFFCF222E),
-  idle: Color(0xFF757575),
-);
-
-/// VS Code's dark terminal palette; [AppColors.forPalette] replaces the
-/// background and foreground.
-const _darkTerminal = TerminalTheme(
-  cursor: Color(0xAAAEAFAD),
-  selection: Color(0x99264F78),
-  foreground: Color(0xFFCCCCCC),
-  background: Color(0xFF121314),
-  black: Color(0xFF000000),
-  red: Color(0xFFCD3131),
-  green: Color(0xFF0DBC79),
-  yellow: Color(0xFFE5E510),
-  blue: Color(0xFF2472C8),
-  magenta: Color(0xFFBC3FBC),
-  cyan: Color(0xFF11A8CD),
-  white: Color(0xFFE5E5E5),
-  brightBlack: Color(0xFF666666),
-  brightRed: Color(0xFFF14C4C),
-  brightGreen: Color(0xFF23D18B),
-  brightYellow: Color(0xFFF5F543),
-  brightBlue: Color(0xFF3B8EEA),
-  brightMagenta: Color(0xFFD670D6),
-  brightCyan: Color(0xFF29B8DB),
-  brightWhite: Color(0xFFFFFFFF),
-  searchHitBackground: Color(0xFFFFFF2B),
-  searchHitBackgroundCurrent: Color(0xFF31FF26),
-  searchHitForeground: Color(0xFF000000),
-);
-
-/// VS Code's light terminal palette.
-const _lightTerminal = TerminalTheme(
-  cursor: Color(0x99333333),
-  selection: Color(0x99ADD6FF),
-  foreground: Color(0xFF333333),
-  background: Color(0xFFF7F7F8),
-  black: Color(0xFF000000),
-  red: Color(0xFFCD3131),
-  green: Color(0xFF107C10),
-  yellow: Color(0xFF949800),
-  blue: Color(0xFF0451A5),
-  magenta: Color(0xFFBC05BC),
-  cyan: Color(0xFF0598BC),
-  white: Color(0xFF555555),
-  brightBlack: Color(0xFF666666),
-  brightRed: Color(0xFFCD3131),
-  brightGreen: Color(0xFF14CE14),
-  brightYellow: Color(0xFFB5BA00),
-  brightBlue: Color(0xFF0451A5),
-  brightMagenta: Color(0xFFBC05BC),
-  brightCyan: Color(0xFF0598BC),
-  brightWhite: Color(0xFFA5A5A5),
-  searchHitBackground: Color(0xFFFFFF2B),
-  searchHitBackgroundCurrent: Color(0xFF31FF26),
-  searchHitForeground: Color(0xFF000000),
-);
+/// The terminal colours of [theme] (Base24's ANSI mapping) on
+/// [background] with [foreground] text.
+TerminalTheme terminalTheme(
+  ThemeSpec theme, {
+  required Color background,
+  required Color foreground,
+}) {
+  Color c(int index) => theme.base(index);
+  return TerminalTheme(
+    cursor: foreground,
+    selection: c(0x02).withAlpha(0x99),
+    foreground: foreground,
+    background: background,
+    black: c(0x01),
+    red: c(0x08),
+    green: c(0x0B),
+    yellow: c(0x0A),
+    blue: c(0x0D),
+    magenta: c(0x0E),
+    cyan: c(0x0C),
+    white: c(0x05),
+    brightBlack: c(0x03),
+    brightRed: c(0x12),
+    brightGreen: c(0x14),
+    brightYellow: c(0x13),
+    brightBlue: c(0x16),
+    brightMagenta: c(0x17),
+    brightCyan: c(0x15),
+    brightWhite: c(0x07),
+    searchHitBackground: const Color(0xFFFFFF2B),
+    searchHitBackgroundCurrent: const Color(0xFF31FF26),
+    searchHitForeground: const Color(0xFF000000),
+  );
+}

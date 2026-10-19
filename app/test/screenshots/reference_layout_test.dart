@@ -18,6 +18,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shireitou/src/app.dart';
 import 'package:shireitou/src/prefs.dart';
+import 'package:shireitou/src/theme/appearance.dart';
+import 'package:shireitou/src/theme/themes.dart';
 import 'package:shireitou/src/session_list/pinned_sessions.dart';
 
 import '../fake_connection.dart';
@@ -306,12 +308,14 @@ HostState get _host => HostState(
 );
 
 /// Pumps the app on [screen] in [brightness] and, when [open], opens
-/// the reference session.
+/// the reference session. [prefs] are added to the stored settings (such
+/// as a colour theme, AV-097).
 Future<void> _pump(
   WidgetTester tester, {
   required ({Size size, double pixelRatio}) screen,
   required Brightness brightness,
   bool open = true,
+  Map<String, String> prefs = const {},
 }) async {
   tester.view.physicalSize = screen.size;
   tester.view.devicePixelRatio = screen.pixelRatio;
@@ -324,7 +328,7 @@ Future<void> _pump(
       overrides: [
         ...hostOverrides(connection: FakeHostConnection(_host)),
         prefsStoreProvider.overrideWithValue(
-          MemoryPrefsStore({'pinned_sessions': encodePinned(_pins)}),
+          MemoryPrefsStore({'pinned_sessions': encodePinned(_pins), ...prefs}),
         ),
       ],
       child: const ShireitouApp(),
@@ -405,5 +409,39 @@ void main() {
     await tester.drag(find.text('Time by category'), const Offset(0, 500));
     await tester.pumpAndSettle();
     await _capture(tester, 'dark-scrolled');
+  });
+
+  // A sample of the colour themes (AV-097), as theme-<id>.png.
+  for (final theme in [
+    'dracula',
+    'tokyo-night',
+    'gruvbox-dark',
+    'nord',
+    'solarized-light',
+    'catppuccin-latte',
+  ]) {
+    testWidgets('$theme, desktop', skip: skip, variant: _macOS, (tester) async {
+      final light = themeById(theme, Brightness.light).id == theme;
+      await _pump(
+        tester,
+        screen: _desktop,
+        brightness: light ? Brightness.light : Brightness.dark,
+        prefs: {light ? lightThemeKey : darkThemeKey: theme},
+      );
+      await _capture(tester, 'theme-$theme');
+    });
+  }
+
+  testWidgets('the Appearance menu', skip: skip, variant: _macOS, (
+    tester,
+  ) async {
+    await _pump(tester, screen: _desktop, brightness: Brightness.dark);
+    await tester.tap(find.byTooltip('More actions'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Appearance'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Dark theme · Graphite'));
+    await tester.pumpAndSettle();
+    await _capture(tester, 'appearance-menu');
   });
 }

@@ -4,11 +4,9 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shireitou/src/session_detail/code_highlight.dart';
 import 'package:shireitou/src/session_detail/tool_previews.dart';
 import 'package:shireitou/src/theme/app_theme.dart';
 import 'package:shireitou/src/theme/contrast.dart';
-import 'package:shireitou/src/theme/highlight_themes.dart';
 
 /// Fails with the pair's name and ratio when [foreground] on any of
 /// [backgrounds] is under [minimum].
@@ -61,17 +59,50 @@ void main() {
     });
   });
 
-  for (final palette in AppPalette.values) {
+  group('readable', () {
+    const dark = Color(0xFF202020);
+    test('keeps a colour that already passes', () {
+      const white = Color(0xFFFFFFFF);
+      expect(readable(white, [dark], minimum: 4.5, dark: true), white);
+    });
+
+    test('lightens a dim colour on a dark theme just enough', () {
+      const dim = Color(0xFF555555);
+      final fixed = readable(dim, [dark], minimum: 4.5, dark: true);
+      expect(contrastRatio(fixed, dark), greaterThanOrEqualTo(4.5));
+      expect(contrastRatio(fixed, dark), lessThan(5));
+      expect(fixed.computeLuminance(), greaterThan(dim.computeLuminance()));
+    });
+
+    test('darkens a pale colour on a light theme', () {
+      const light = Color(0xFFF6F6F6);
+      final fixed = readable(
+        const Color(0xFFBBBBBB),
+        [light],
+        minimum: 4.5,
+        dark: false,
+      );
+      expect(contrastRatio(fixed, light), greaterThanOrEqualTo(4.5));
+    });
+  });
+
+  test('every theme has a unique id and the defaults exist', () {
+    expect(allThemes.map((t) => t.id).toSet(), hasLength(allThemes.length));
+    expect(allThemes.every((t) => t.colors.length == 24), isTrue);
     for (final brightness in Brightness.values) {
-      _paletteGroup(palette, brightness);
+      expect(themesFor(brightness).first, defaultTheme(brightness));
     }
+  });
+
+  for (final theme in allThemes) {
+    _themeGroup(theme);
   }
 
   testWidgets('the terminal box follows the theme', (tester) async {
-    for (final brightness in Brightness.values) {
+    for (final theme in [defaultTheme(Brightness.light), allThemes.last]) {
       await tester.pumpWidget(
         MaterialApp(
-          theme: buildTheme(brightness),
+          theme: buildTheme(theme),
           home: const Scaffold(
             body: TerminalBox(title: 'bash', status: 'Running', output: 'hi'),
           ),
@@ -90,7 +121,7 @@ void main() {
             .first,
       );
       final decoration = box.decoration! as BoxDecoration;
-      final terminal = AppColors.forBrightness(brightness).terminal;
+      final terminal = AppColors.forTheme(theme).terminal;
       expect(decoration.color, terminal.background);
       expect(
         tester.widget<Text>(find.text('hi')).style?.color,
@@ -100,16 +131,12 @@ void main() {
   });
 }
 
-/// The WCAG checks of [palette]'s tokens in [brightness].
-void _paletteGroup(AppPalette palette, Brightness brightness) {
-  group('${palette.name} $brightness tokens', () {
-    final theme = buildTheme(
-      brightness,
-      palette: palette,
-      platform: TargetPlatform.macOS,
-    );
+/// The WCAG checks of [spec]'s tokens.
+void _themeGroup(ThemeSpec spec) {
+  group('${spec.id} tokens', () {
+    final theme = buildTheme(spec, platform: TargetPlatform.macOS);
     final scheme = theme.colorScheme;
-    final tokens = AppColors.forPalette(palette, brightness);
+    final tokens = AppColors.forTheme(spec);
     // The surfaces text, dots and icons are drawn on.
     final surfaces = {
       'background': scheme.surface,
@@ -194,13 +221,8 @@ void _paletteGroup(AppPalette palette, Brightness brightness) {
     });
 
     test('highlight colours are 4.5:1 on code, 3:1 on diff fills', () {
-      final highlight = highlightTheme(brightness);
-      expect(
-        highlight,
-        brightness == Brightness.dark
-            ? darkHighlightTheme
-            : lightHighlightTheme,
-      );
+      final highlight = tokens.syntax;
+      expect(theme.extension<AppColors>()!.syntax, same(highlight));
       for (final MapEntry(key: scope, value: style) in highlight.entries) {
         if (style.color case final color?) {
           _expectContrast(scope, color, codeSurfaces, textContrast);

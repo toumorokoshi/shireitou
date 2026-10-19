@@ -1,5 +1,38 @@
 # Design Decision Log
 
+## 2026-10-19: The colour schemes are the popular editor themes, from Base24
+
+The first colour schemes only tinted one grey ramp, which was too subtle
+to notice. Users know and want the themes they use in their editors.
+
+- The themes are the most used ones in VS Code (Marketplace installs),
+  Neovim (Dotfyle) and Emacs (MELPA) in 2026: 47 in all, light and
+  dark, plus Graphite, the app's own default (the previous greys).
+- Each theme is a Base24 palette rather than a hand-written set of app
+  tokens. Base16/Base24 is the common format that ports exist in for
+  nearly every editor theme ([tinted-theming/schemes](https://github.com/tinted-theming/schemes),
+  MIT), with a defined styling guide for syntax and ANSI colours, so one
+  mapping (`themeColors`) covers every theme and adding one is a line in
+  a manifest. The ports are vendored at a pinned commit and turned into
+  a `const` Dart table by a generator, like the AHP wire types: no
+  runtime asset loading or YAML parsing, and a test fails when the table
+  is stale. Themes without a port (Doom One, Modus, Nightfox) are
+  written in the same format from their upstream palettes.
+- A theme now sets the syntax highlighting and terminal colours too, not
+  only surfaces, so code looks like it does in the editor. The VS Code
+  Dark+/Light+ highlight themes are gone.
+- WCAG AA (AV-141) still holds for every theme: colours under it are
+  moved along their lightness only as far as needed (`readable`), and a
+  mid-tone selection fill is pulled towards the background. This keeps
+  the existing contrast test meaningful across 47 themes, at the cost of
+  low-contrast themes looking a little crisper than the originals.
+- Light and dark get separate theme choices, like VS Code's preferred
+  light and dark themes, so "System" keeps working with custom themes.
+  Picking a theme of the other brightness switches the mode to it, so a
+  pick is always visible.
+- Prefs moved from `color_scheme` to `dark_theme` and `light_theme`; the
+  old key (released the same day) is ignored.
+
 ## 2026-10-19: Selectable colour schemes, and greyer default greys
 
 The theme always followed the system light or dark setting, with one

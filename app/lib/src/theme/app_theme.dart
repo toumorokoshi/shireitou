@@ -1,5 +1,5 @@
-/// Light and dark themes in the layout of the reference UI (AV-004,
-/// AV-090), in the colour scheme the user picks (AV-097): flat greys,
+/// The app's `ThemeData` in the layout of the reference UI (AV-004,
+/// AV-090), in the colour theme the user picks (AV-097): flat surfaces,
 /// no elevation or Material tints, hairline borders, small radii, and a
 /// compact density and 13 px body text on desktop. Extra tokens are in
 /// [AppColors].
@@ -10,10 +10,11 @@ import 'package:flutter/material.dart';
 
 import 'app_colors.dart';
 import 'contrast.dart';
-import 'palettes.dart';
+import 'themes.dart';
 
 export 'app_colors.dart';
-export 'palettes.dart' show AppPalette;
+export 'themes.dart'
+    show ThemeSpec, allThemes, defaultTheme, themeById, themesFor;
 
 /// The corner radius of buttons, fields, cards and menus.
 const appRadius = 6.0;
@@ -28,44 +29,39 @@ bool isDesktopPlatform(TargetPlatform platform) => switch (platform) {
   TargetPlatform.fuchsia => false,
 };
 
-/// The color scheme of [palette] in [brightness]: its accent, with the
-/// surfaces, text and outlines replaced by its greys.
-ColorScheme appColorScheme(
-  Brightness brightness, {
-  AppPalette palette = AppPalette.graphite,
-}) {
-  final s = paletteSurfaces(palette, brightness);
-  final tokens = AppColors.forPalette(palette, brightness);
+/// The color scheme of [theme]: its accent, with the surfaces, text and
+/// outlines replaced by its colours.
+ColorScheme appColorScheme(ThemeSpec theme) {
+  final c = themeColors(theme);
+  final tokens = AppColors.forTheme(theme);
   return ColorScheme.fromSeed(
-    seedColor: s.accent,
-    brightness: brightness,
+    seedColor: c.accent,
+    brightness: theme.brightness,
   ).copyWith(
-    primary: s.accent,
-    onPrimary: onColor(s.accent),
-    surface: s.background,
-    onSurface: s.text,
+    primary: c.accent,
+    onPrimary: onColor(c.accent),
+    surface: c.background,
+    onSurface: c.text,
     onSurfaceVariant: tokens.mutedText,
-    surfaceContainerLowest: s.background,
+    surfaceContainerLowest: c.background,
     surfaceContainerLow: tokens.sidebarBackground,
     surfaceContainer: tokens.raisedSurface,
     surfaceContainerHigh: tokens.hoverFill,
     surfaceContainerHighest: tokens.bubbleFill,
     secondaryContainer: tokens.selectedFill,
-    onSecondaryContainer: s.text,
-    outline: s.outline,
+    onSecondaryContainer: c.text,
+    outline: c.outline,
     outlineVariant: tokens.hairline,
     error: tokens.statusColors.error,
     surfaceTint: Colors.transparent,
   );
 }
 
-/// White or near-black, whichever reads better on [fill].
+/// White or black, whichever reads better on [fill] (at least 4.58:1).
 Color onColor(Color fill) =>
-    contrastRatio(Colors.white, fill) >= contrastRatio(_onLight, fill)
+    contrastRatio(Colors.white, fill) >= contrastRatio(Colors.black, fill)
     ? Colors.white
-    : _onLight;
-
-const _onLight = Color(0xFF141414);
+    : Colors.black;
 
 /// [base] with 13 px body text and 14 px titles, for desktop.
 TextTheme _compactText(TextTheme base) => base.copyWith(
@@ -78,17 +74,13 @@ TextTheme _compactText(TextTheme base) => base.copyWith(
   labelMedium: base.labelMedium?.copyWith(fontSize: 12),
 );
 
-/// Builds the app theme for [brightness] in [palette] on [platform] (the
-/// running platform by default). The font is the platform's system font.
-ThemeData buildTheme(
-  Brightness brightness, {
-  AppPalette palette = AppPalette.graphite,
-  TargetPlatform? platform,
-}) {
+/// Builds the app theme in [theme] on [platform] (the running platform
+/// by default). The font is the platform's system font.
+ThemeData buildTheme(ThemeSpec theme, {TargetPlatform? platform}) {
   final target = platform ?? defaultTargetPlatform;
   final desktop = isDesktopPlatform(target);
-  final scheme = appColorScheme(brightness, palette: palette);
-  final tokens = AppColors.forPalette(palette, brightness);
+  final scheme = appColorScheme(theme);
+  final tokens = AppColors.forTheme(theme);
   final radius = BorderRadius.circular(appRadius);
   final hairline = BorderSide(color: tokens.hairline);
   final base = ThemeData(colorScheme: scheme, platform: target);

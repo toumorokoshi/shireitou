@@ -34,7 +34,6 @@ import 'package:re_highlight/languages/yaml.dart';
 import 'package:re_highlight/re_highlight.dart';
 
 import '../theme/app_colors.dart';
-import '../theme/highlight_themes.dart';
 
 /// The languages this app highlights, a common subset of highlight.js
 /// (the full set would add every grammar to the web build).
@@ -94,21 +93,18 @@ String? languageForPath(String path) {
   return canHighlight(language) ? language : null;
 }
 
-/// The highlight theme for [brightness]: VS Code's Dark+ or Light+.
-Map<String, TextStyle> highlightTheme(Brightness brightness) =>
-    brightness == Brightness.dark ? darkHighlightTheme : lightHighlightTheme;
-
-/// [code] as styled spans for [language] on [brightness], or plain text in
-/// [base] when the language is unknown.
+/// [code] as styled spans for [language] in the highlight [theme] (the
+/// colour theme's `AppColors.syntax`), or plain text in [base] when the
+/// language is unknown.
 TextSpan highlightCode(
   String code, {
   required String? language,
   required TextStyle base,
-  required Brightness brightness,
+  required Map<String, TextStyle> theme,
 }) {
   if (!canHighlight(language)) return TextSpan(text: code, style: base);
   final result = _highlighter.highlight(code: code, language: language!);
-  final renderer = TextSpanRenderer(base, highlightTheme(brightness));
+  final renderer = TextSpanRenderer(base, theme);
   result.render(renderer);
   return renderer.span ?? TextSpan(text: code, style: base);
 }
@@ -180,7 +176,7 @@ class CodeBlock extends StatelessWidget {
                 code,
                 language: language,
                 base: base,
-                brightness: theme.brightness,
+                theme: AppColors.of(context).syntax,
               ),
             ),
           ),
