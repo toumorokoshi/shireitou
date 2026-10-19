@@ -454,7 +454,10 @@ Dart source); `bin/generate.dart` does the file I/O. See
   `diffutil_dart`) and `diff_view.dart` show diffs, unified or side by
   side, with collapsible unchanged lines; `code_highlight.dart`
   highlights code with `re_highlight` and renders markdown code blocks
-  with a copy button; `terminal_text.dart` turns terminal output into
+  with a copy button (`copy_button.dart`, which shows a check and
+  "Copied" for 1.2 s); `turn_markdown.dart` (pure) turns a finished
+  turn's reply into the markdown its footer's "Copy reply" button copies
+  (AV-071); `terminal_text.dart` turns terminal output into
   plain text. `chat_switcher.dart`, `pending_messages.dart` and
   `session_info.dart` are the chat switcher (AV-069), the queued messages
   panel (AV-081; clicking a message opens an inline editor, saved with

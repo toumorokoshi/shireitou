@@ -273,6 +273,15 @@ AppImage and the release workflow (see
   (AV-005); widths are changed by pointer only (no keyboard or screen
   reader action, and no menu item). The header's details
   still list the change counts, which the pane's toggle also shows.
+- **Copy and find in conversation (AV-071):** each finished turn's
+  footer has a "Copy reply" button (the reply as markdown, like VS Code's
+  "Copy"). Not built: find in conversation (Cmd/Ctrl+F); copying the
+  running turn (it has no footer until it finishes); VS Code's context
+  menu actions "Copy All" (the whole chat), "Copy Final Response" and
+  copying a user message; copying only the selected text. Link labels
+  keep their markdown (`[**a**](/x)` becomes `` `**a**` ``, where VS Code
+  writes the plain text), reference-style links and indented code blocks
+  are not recognized, and a resource part is shown by its file name only.
 - **Todo lists and plans (AV-070, AV-046):** todo tools are recognized
   by name (`TodoWrite`, `todo_write`, `update_todo`, `manage_todo_list`,
   `update_plan`); a host that renames them, or an agent with another todo

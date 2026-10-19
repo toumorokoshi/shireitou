@@ -1,5 +1,33 @@
 # Design Decision Log
 
+## 2026-10-19: Copying a reply works like VS Code's chat "Copy"
+
+AV-071 asked to copy a turn as markdown. VS Code's agents view has a
+copy button in each response's footer, so its source
+(`chatCopyActions.ts`, `chatModel.ts`, `chatClipboard.ts`) was read to
+see what it copies rather than guessing.
+
+- The button copies the reply only, not the user's message, as VS
+  Code's footer button does. It sits at the start of the finished turn's
+  footer; the running turn has none, as in VS Code.
+- The text is markdown built from the response parts: markdown as
+  written, each tool call's past-tense summary (plus its error when it
+  failed or was cancelled) as its own paragraph, errors and system
+  notes. Reasoning is left out, as VS Code drops thinking parts. VS
+  Code joins adjacent markdown parts with nothing between them; AHP
+  hosts send separate parts for separate messages, so each part is a
+  paragraph here.
+- Links to absolute paths and non-web schemes become their label as
+  inline code (VS Code's `toPortableMarkdown`), since agents link to
+  files on the host and a pasted link would be broken and would leak
+  the path. The rewrite is a small pure function over the source (code
+  fences and spans skipped) rather than a markdown round trip, which
+  would reformat the rest of the text.
+- The feedback is VS Code's: a check icon and "Copied" tooltip for
+  1.2 s and a "Copied to clipboard" announcement. The code block and tool
+  input/output copy buttons use the same `CopyButton`, replacing the
+  code block's "Copied" snack bar.
+
 ## 2026-10-19: The colour schemes are the popular editor themes, from Base24
 
 The first colour schemes only tinted one grey ramp, which was too subtle

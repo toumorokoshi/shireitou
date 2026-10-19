@@ -4,7 +4,6 @@
 library;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:markdown/markdown.dart' as md;
 import 'package:re_highlight/languages/bash.dart';
@@ -34,6 +33,7 @@ import 'package:re_highlight/languages/yaml.dart';
 import 'package:re_highlight/re_highlight.dart';
 
 import '../theme/app_colors.dart';
+import 'copy_button.dart';
 
 /// The languages this app highlights, a common subset of highlight.js
 /// (the full set would add every grammar to the web build).
@@ -151,20 +151,7 @@ class CodeBlock extends StatelessWidget {
               children: [
                 Text(language ?? 'code', style: theme.textTheme.labelSmall),
                 const Spacer(),
-                IconButton(
-                  tooltip: 'Copy code',
-                  iconSize: 16,
-                  visualDensity: VisualDensity.compact,
-                  icon: const Icon(Icons.copy),
-                  onPressed: () async {
-                    await Clipboard.setData(ClipboardData(text: code));
-                    if (context.mounted) {
-                      ScaffoldMessenger.maybeOf(
-                        context,
-                      )?.showSnackBar(const SnackBar(content: Text('Copied')));
-                    }
-                  },
-                ),
+                CopyButton(text: () => code, tooltip: 'Copy code'),
               ],
             ),
           ),

@@ -276,6 +276,31 @@ void main() {
     expect(copied, 'void main() {}');
   });
 
+  testWidgets('a finished turn copies its reply as markdown (AV-071)', (
+    tester,
+  ) async {
+    String? copied;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied = (call.arguments as Map)['text'] as String?;
+        }
+        return null;
+      },
+    );
+    await _pump(tester, _state(chat: chatFixture()));
+    // Only the finished turn has a footer.
+    expect(find.byTooltip('Copy reply'), findsOneWidget);
+    await tester.tap(find.byTooltip('Copy reply'));
+    await tester.pump();
+    expect(copied, 'Ran `ls`\n\nThere is **one** file.');
+    expect(find.byTooltip('Copied'), findsOneWidget);
+    expect(find.byIcon(Icons.check), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 1300));
+    expect(find.byTooltip('Copy reply'), findsOneWidget);
+  });
+
   testWidgets('the latest message is edited in place to restart from it '
       '(AV-088)', (tester) async {
     final connection = await _pump(tester, _state(chat: chatFixture()));

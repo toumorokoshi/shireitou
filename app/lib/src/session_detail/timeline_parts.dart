@@ -6,7 +6,6 @@ import 'dart:async';
 
 import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -16,11 +15,13 @@ import '../theme/app_icons.dart';
 import 'approval_bar.dart';
 import 'chat_commands.dart';
 import 'code_highlight.dart';
+import 'copy_button.dart';
 import 'inline_message_editor.dart';
 import 'timeline_items.dart';
 import 'todo_list.dart';
 import 'todo_widgets.dart';
 import 'tool_previews.dart';
+import 'turn_markdown.dart';
 
 /// Builds the widget for one [item]. [onAction] dispatches a chat action;
 /// [onSignIn] signs a tool call in to its MCP server; [onOpenChat]
@@ -92,7 +93,7 @@ Widget buildTimelineItem(
       'Unsupported response part: $kind',
     ),
   },
-  TurnFooterItem(:final turn) => _TurnFooter(turnFooterText(turn)),
+  TurnFooterItem(:final turn) => _TurnFooter(turn),
 };
 
 /// The oldest row while the host holds older turns back (AV-068): it asks
@@ -717,13 +718,7 @@ class _CodeBlock extends StatelessWidget {
             children: [
               Text(label, style: theme.textTheme.labelMedium),
               const Spacer(),
-              IconButton(
-                tooltip: 'Copy $label',
-                iconSize: 16,
-                visualDensity: VisualDensity.compact,
-                icon: const Icon(Icons.copy),
-                onPressed: () => Clipboard.setData(ClipboardData(text: text)),
-              ),
+              CopyButton(text: () => text, tooltip: 'Copy $label'),
             ],
           ),
           Container(
@@ -1198,23 +1193,35 @@ class _Note extends StatelessWidget {
   }
 }
 
-/// A finished turn's footer (AV-067): the end state, duration and tokens
-/// in the smallest muted text, so it reads as metadata under the reply
-/// rather than part of it (the reference UI has no footer at all).
+/// A finished turn's footer (AV-067): a button that copies the reply as
+/// markdown (AV-071), then the end state, duration and tokens in the
+/// smallest muted text, so it reads as metadata under the reply rather
+/// than part of it (the reference UI has no footer at all).
 class _TurnFooter extends StatelessWidget {
-  const _TurnFooter(this.text);
+  const _TurnFooter(this.turn);
 
-  final String text;
+  final Turn turn;
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(top: 2, bottom: 4),
-    child: Text(
-      text,
-      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-        color: AppColors.of(context).mutedText,
-        fontWeight: FontWeight.w400,
-      ),
+    padding: const EdgeInsets.only(bottom: 4),
+    child: Row(
+      children: [
+        CopyButton(
+          text: () => turnMarkdown(turn),
+          tooltip: 'Copy reply',
+          iconSize: 14,
+        ),
+        Flexible(
+          child: Text(
+            turnFooterText(turn),
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: AppColors.of(context).mutedText,
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+        ),
+      ],
     ),
   );
 }
