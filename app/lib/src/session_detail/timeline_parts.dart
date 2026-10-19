@@ -1213,11 +1213,16 @@ class _TurnFooter extends StatelessWidget {
           iconSize: 14,
         ),
         Flexible(
-          child: Text(
-            turnFooterText(turn),
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: AppColors.of(context).mutedText,
-              fontWeight: FontWeight.w400,
+          // Its own node, so screen readers (and the web's text) do not
+          // fold the button into the footer's label.
+          child: Semantics(
+            container: true,
+            child: Text(
+              turnFooterText(turn),
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: AppColors.of(context).mutedText,
+                fontWeight: FontWeight.w400,
+              ),
             ),
           ),
         ),
