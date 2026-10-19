@@ -16,8 +16,10 @@ import 'screens/sessions_screen.dart';
 import 'session_list/session_filter.dart';
 import 'shortcuts.dart';
 import 'theme/app_theme.dart';
+import 'theme/appearance.dart';
 
-/// The shireitou app: follows the system light/dark setting, and shows
+/// The shireitou app: in the user's appearance (AV-097; by default the
+/// system light/dark setting), and shows
 /// the attention count in the window or tab title (AV-120).
 class ShireitouApp extends ConsumerStatefulWidget {
   /// Creates the app.
@@ -39,13 +41,14 @@ class _ShireitouAppState extends ConsumerState<ShireitouApp> {
       _windowTitle = title;
       unawaited(setWindowTitle(title));
     }
+    final appearance = ref.watch(appearanceProvider);
     return MaterialApp(
       navigatorKey: rootNavigatorKey,
       debugShowCheckedModeBanner: false,
       title: title,
-      theme: buildTheme(Brightness.light),
-      darkTheme: buildTheme(Brightness.dark),
-      themeMode: ThemeMode.system,
+      theme: buildTheme(Brightness.light, palette: appearance.palette),
+      darkTheme: buildTheme(Brightness.dark, palette: appearance.palette),
+      themeMode: appearance.mode,
       builder: (context, child) => AttentionNotifications(
         child: AppShortcuts(
           enabled: !hasNativeMenuBar,

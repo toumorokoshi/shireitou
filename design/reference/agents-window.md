@@ -11,9 +11,15 @@ What to match, by area:
 
 ## Theme
 
-- Follow the system light or dark setting. The dark theme matches the
-  screenshot: near-black greys, flat surfaces, no cards or elevation,
-  hairline borders, muted secondary text. The light theme mirrors it.
+- Follow the system light or dark setting unless the user picks one
+  (AV-097). The dark theme follows the screenshot's layout: flat
+  surfaces, no cards or elevation, hairline borders, muted secondary
+  text. Its greys are deliberately a little lighter and fully neutral
+  (the default "Graphite" scheme) rather than VS Code's near-black,
+  slightly blue greys, with a steel-blue accent instead of VS Code's
+  blue. The light theme mirrors it, also a touch greyer than white.
+- Other colour schemes (Slate, Moss, Dusk, Ember) tint the same grey
+  ramp towards a hue and change the accent.
 
 ## Title bar
 

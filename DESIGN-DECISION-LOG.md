@@ -1,5 +1,33 @@
 # Design Decision Log
 
+## 2026-10-19: Selectable colour schemes, and greyer default greys
+
+The theme always followed the system light or dark setting, with one
+set of greys and an accent sampled from VS Code, so the app looked like
+VS Code and its forks and could not be changed.
+
+- The user picks light, dark or the system's setting, and a colour
+  scheme, from "Appearance" in the sidebar's "…" menu; both are kept in
+  `PrefsStore` per device, like the pane widths.
+- A scheme is not a full list of tokens but a hue, a tint and an accent
+  applied to one grey ramp per brightness (`paletteSurfaces`). New
+  schemes are a line each and keep the same surface hierarchy, and the
+  contrast test checks every scheme instead of two hand-picked sets.
+- The default, "Graphite", is neutral grey (equal RGB) and a little
+  lighter than before in dark mode (background #1C1C1C, was #191A1B)
+  and a little greyer in light mode (background #F6F6F6, was white),
+  with a steel-blue accent (#7AA7E0 dark, #2F64A8 light) instead of VS
+  Code's #3794FF/#0066CC, to set the app apart from VS Code.
+- The running status dot follows the scheme's accent; attention, done,
+  error and idle stay the same in every scheme so their meaning does
+  not shift. The dark error red is lightened (#F65F5F) to keep 4.5:1 on
+  the lighter raised surface.
+- The filled button text picks white or near-black by contrast
+  (`onColor`), since light accents in dark mode cannot carry white text.
+- The greyer code fills pushed a few Light+/Dark+ highlight colours
+  under 4.5:1; they are darkened or lightened slightly (light comment,
+  number, added; dark regexp) instead of keeping lighter fills.
+
 ## 2026-10-18: Android releases are signed with one kept key
 
 The release workflow already attached an APK to a `v*` tag's GitHub

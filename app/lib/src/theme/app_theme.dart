@@ -1,31 +1,22 @@
-/// Light and dark themes that match the reference UI (AV-004, AV-090):
-/// flat greys, no elevation or Material tints, hairline borders, small
-/// radii, and a compact density and 13 px body text on desktop. Extra
-/// tokens are in [AppColors].
+/// Light and dark themes in the layout of the reference UI (AV-004,
+/// AV-090), in the colour scheme the user picks (AV-097): flat greys,
+/// no elevation or Material tints, hairline borders, small radii, and a
+/// compact density and 13 px body text on desktop. Extra tokens are in
+/// [AppColors].
 library;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'app_colors.dart';
+import 'contrast.dart';
+import 'palettes.dart';
 
 export 'app_colors.dart';
+export 'palettes.dart' show AppPalette;
 
 /// The corner radius of buttons, fields, cards and menus.
 const appRadius = 6.0;
-
-/// The main pane background, the text colour and the accent, by
-/// brightness.
-const _dark = (
-  background: Color(0xFF191A1B),
-  text: Color(0xFFCCCCCC),
-  accent: Color(0xFF3794FF),
-);
-const _light = (
-  background: Color(0xFFFFFFFF),
-  text: Color(0xFF1F1F1F),
-  accent: Color(0xFF0066CC),
-);
 
 /// Whether [platform] is a desktop OS (also for the web on a desktop).
 bool isDesktopPlatform(TargetPlatform platform) => switch (platform) {
@@ -37,34 +28,44 @@ bool isDesktopPlatform(TargetPlatform platform) => switch (platform) {
   TargetPlatform.fuchsia => false,
 };
 
-/// The color scheme for [brightness]: the accent from the reference
-/// with the surfaces, text and outlines replaced by its greys.
-ColorScheme appColorScheme(Brightness brightness) {
-  final dark = brightness == Brightness.dark;
-  final base = dark ? _dark : _light;
-  final tokens = AppColors.forBrightness(brightness);
+/// The color scheme of [palette] in [brightness]: its accent, with the
+/// surfaces, text and outlines replaced by its greys.
+ColorScheme appColorScheme(
+  Brightness brightness, {
+  AppPalette palette = AppPalette.graphite,
+}) {
+  final s = paletteSurfaces(palette, brightness);
+  final tokens = AppColors.forPalette(palette, brightness);
   return ColorScheme.fromSeed(
-    seedColor: base.accent,
+    seedColor: s.accent,
     brightness: brightness,
   ).copyWith(
-    primary: base.accent,
-    onPrimary: Colors.white,
-    surface: base.background,
-    onSurface: base.text,
+    primary: s.accent,
+    onPrimary: onColor(s.accent),
+    surface: s.background,
+    onSurface: s.text,
     onSurfaceVariant: tokens.mutedText,
-    surfaceContainerLowest: base.background,
+    surfaceContainerLowest: s.background,
     surfaceContainerLow: tokens.sidebarBackground,
     surfaceContainer: tokens.raisedSurface,
     surfaceContainerHigh: tokens.hoverFill,
     surfaceContainerHighest: tokens.bubbleFill,
     secondaryContainer: tokens.selectedFill,
-    onSecondaryContainer: base.text,
-    outline: dark ? const Color(0xFF3C3C3C) : const Color(0xFFCDCDD1),
+    onSecondaryContainer: s.text,
+    outline: s.outline,
     outlineVariant: tokens.hairline,
     error: tokens.statusColors.error,
     surfaceTint: Colors.transparent,
   );
 }
+
+/// White or near-black, whichever reads better on [fill].
+Color onColor(Color fill) =>
+    contrastRatio(Colors.white, fill) >= contrastRatio(_onLight, fill)
+    ? Colors.white
+    : _onLight;
+
+const _onLight = Color(0xFF141414);
 
 /// [base] with 13 px body text and 14 px titles, for desktop.
 TextTheme _compactText(TextTheme base) => base.copyWith(
@@ -77,13 +78,17 @@ TextTheme _compactText(TextTheme base) => base.copyWith(
   labelMedium: base.labelMedium?.copyWith(fontSize: 12),
 );
 
-/// Builds the app theme for [brightness] on [platform] (the running
-/// platform by default). The font is the platform's system font.
-ThemeData buildTheme(Brightness brightness, {TargetPlatform? platform}) {
+/// Builds the app theme for [brightness] in [palette] on [platform] (the
+/// running platform by default). The font is the platform's system font.
+ThemeData buildTheme(
+  Brightness brightness, {
+  AppPalette palette = AppPalette.graphite,
+  TargetPlatform? platform,
+}) {
   final target = platform ?? defaultTargetPlatform;
   final desktop = isDesktopPlatform(target);
-  final scheme = appColorScheme(brightness);
-  final tokens = AppColors.forBrightness(brightness);
+  final scheme = appColorScheme(brightness, palette: palette);
+  final tokens = AppColors.forPalette(palette, brightness);
   final radius = BorderRadius.circular(appRadius);
   final hairline = BorderSide(color: tokens.hairline);
   final base = ThemeData(colorScheme: scheme, platform: target);

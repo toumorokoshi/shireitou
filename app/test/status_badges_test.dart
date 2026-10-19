@@ -45,7 +45,7 @@ void main() {
     });
 
     test('statusDotColor takes the theme\'s status colours', () {
-      const status = AppColors.dark;
+      final status = AppColors.dark;
       const unread = Color(0xFFFFFFFF);
       Color dot(SessionBadge badge) =>
           statusDotColor(badge, status.statusColors, unread: unread);

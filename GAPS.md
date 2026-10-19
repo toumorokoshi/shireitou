@@ -584,3 +584,15 @@ AppImage and the release workflow (see
 - Everything else in [specs/agents-view.md](specs/agents-view.md) and
   [specs/agent-host-protocol-client.md](specs/agent-host-protocol-client.md)
   not listed as done in their status sections.
+
+## Appearance (AV-097)
+
+- The "Appearance" submenu is only in the sidebar's "…" menu, so it
+  cannot be changed from the connect screen before a host is open, and
+  the macOS menu bar's View menu has no entry for it (`PlatformMenuItem`
+  has no checked state to show the current choice).
+- The colour schemes are fixed; there is no custom accent or
+  user-defined palette, and the code highlighting and terminal ANSI
+  colours stay VS Code's Dark+/Light+ and terminal palettes in every
+  scheme.
+- `just screenshots` renders only the default scheme.

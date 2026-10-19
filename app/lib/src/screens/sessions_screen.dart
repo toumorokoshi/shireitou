@@ -41,6 +41,7 @@ import '../review/changes_pane.dart';
 import '../review/review_pane_store.dart';
 import '../title_bar/session_history.dart';
 import '../theme/app_colors.dart';
+import '../theme/appearance.dart';
 import '../title_bar/title_bar.dart';
 import '../pane_resize_handle.dart';
 import 'connect_screen.dart';
@@ -992,7 +993,8 @@ class _SidebarHeader extends StatelessWidget {
 }
 
 /// The sidebar header's "…" menu (AV-092): "Select" (AV-029), "Add
-/// host…", "Disconnect", and a submenu per open host with its status
+/// host…", "Disconnect", "Appearance" (AV-097), and a submenu per open
+/// host with its status
 /// (AV-011), "Show only this host" with several hosts, Retry and Remove
 /// for a host that is not connected, and the SSH terminal (AV-014). The
 /// icon has a dot while a host is not connected.
@@ -1123,6 +1125,7 @@ class _HostsMenu extends StatelessWidget {
                 : 'Disconnect ${narrowed.label}',
           ),
         ),
+        const AppearanceMenu(),
         if (hosts.isNotEmpty) const Divider(height: 8),
         for (final host in hosts) _hostMenu(context, host),
       ],

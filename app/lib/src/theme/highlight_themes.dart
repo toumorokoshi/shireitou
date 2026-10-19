@@ -1,8 +1,7 @@
-/// Syntax highlight themes for `re_highlight` (AV-061, AV-101) in VS
-/// Code's Dark+ and Light+ colours, to match the VS Code greys of the
-/// app's theme. A few colours are darkened or lightened so code keeps
-/// 4.5:1 contrast on the code block and diff backgrounds
-/// (`test/theme_test.dart` checks this).
+/// Syntax highlight themes for `re_highlight` (AV-061, AV-101) based on
+/// VS Code's Dark+ and Light+ colours. A few colours are darkened or
+/// lightened so code keeps 4.5:1 contrast on the code block and diff
+/// backgrounds of every palette (`test/contrast_test.dart` checks this).
 library;
 
 import 'package:flutter/painting.dart';
@@ -36,7 +35,7 @@ const _dark = (
   function: Color(0xFFDCDCAA),
   type: Color(0xFF4EC9B0),
   variable: Color(0xFF9CDCFE),
-  regexp: Color(0xFFD97474),
+  regexp: Color(0xFFDC7C7C),
   tag: Color(0xFF569CD6),
   attribute: Color(0xFF9CDCFE),
   meta: Color(0xFF9B9B9B),
@@ -44,15 +43,15 @@ const _dark = (
   removed: Color(0xFFCE9178),
 );
 
-/// Light+; the number, type and attribute colours are darkened (Light+
-/// uses #098658, #267F99 and #E50000, under 4.5:1 on the code block
-/// fill).
+/// Light+; the comment, number, type and attribute colours are darkened
+/// (Light+ uses #008000, #098658, #267F99 and #E50000, under 4.5:1 on
+/// the code block fill).
 const _light = (
   keyword: Color(0xFF0000FF),
   control: Color(0xFFAF00DB),
   string: Color(0xFFA31515),
-  number: Color(0xFF077A50),
-  comment: Color(0xFF008000),
+  number: Color(0xFF067350),
+  comment: Color(0xFF007800),
   function: Color(0xFF795E26),
   type: Color(0xFF1F7189),
   variable: Color(0xFF001080),
@@ -60,7 +59,7 @@ const _light = (
   tag: Color(0xFF800000),
   attribute: Color(0xFFD00000),
   meta: Color(0xFF616161),
-  added: Color(0xFF077A50),
+  added: Color(0xFF067350),
   removed: Color(0xFFA31515),
 );
 

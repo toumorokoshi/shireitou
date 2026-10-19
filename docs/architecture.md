@@ -291,15 +291,16 @@ Dart source); `bin/generate.dart` does the file I/O. See
   next/previous, the visible session view handles stop and focus
   composer (the new-session draft focuses its prompt), and its timeline previous and next turn (AV-074), each only
   while its route is on top.
-- `lib/src/app.dart`: `MaterialApp` with light and dark themes that follow
-  the system, titled with the attention count (`windowTitle`, AV-120).
+- `lib/src/app.dart`: `MaterialApp` with light and dark themes in the
+  user's appearance (`appearanceProvider`: the mode, by default the
+  system's, and the colour scheme, AV-097), titled with the attention count (`windowTitle`, AV-120).
   Shows the connect screen until connected, and restores the hosts that
   were open.
 - `lib/src/theme/`: the light and dark themes (AV-090) and the chrome's
   icons: `app_icons.dart` (`AppIcons`) names the title bar, sidebar,
   session header and composer icons, VS Code's codicons from
   `vscode_codicons`, so the icon set changes in one place. `app_theme.dart`
-  builds them (`buildTheme`: the reference's greys in the `ColorScheme`,
+  builds them (`buildTheme`: a colour scheme's greys in the `ColorScheme`,
   no elevation or `surfaceTint`, hairline borders, 6 px radii, and on
   desktop `VisualDensity.compact` and 13 px body text, in the platform's
   system font). `app_colors.dart` is the `AppColors` `ThemeExtension`
@@ -315,7 +316,14 @@ Dart source); `bin/generate.dart` does the file I/O. See
   of hard-coded colours. `highlight_themes.dart` holds the code
   highlighting themes (VS Code's Dark+ and Light+), and `contrast.dart`
   the WCAG contrast ratio that `test/contrast_test.dart` uses to check
-  the tokens of both themes (4.5:1 for text, 3:1 for status dots).
+  the tokens of both themes of every colour scheme (4.5:1 for text, 3:1
+  for status dots). `palettes.dart` defines the colour schemes
+  (`AppPalette`): one grey ramp per brightness tinted towards each
+  scheme's hue, plus its accent; `AppColors.forPalette` turns a scheme
+  into tokens. `appearance.dart` holds the user's choice (the
+  `AppearanceNotifier`, kept in `PrefsStore` under `theme_mode` and
+  `color_scheme`) and the "Appearance" submenu of the sidebar's "…"
+  menu.
 - `lib/src/screens/`: the connect screen and the sessions screen. The
   sessions screen picks a layout tier with `layoutTierFor(width)`:
   compact (< 700 dp) pushes the session onto a page of its own whose

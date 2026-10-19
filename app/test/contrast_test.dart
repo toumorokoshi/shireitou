@@ -61,112 +61,10 @@ void main() {
     });
   });
 
-  for (final brightness in Brightness.values) {
-    group('$brightness tokens', () {
-      final theme = buildTheme(brightness, platform: TargetPlatform.macOS);
-      final scheme = theme.colorScheme;
-      final tokens = AppColors.forBrightness(brightness);
-      // The surfaces text, dots and icons are drawn on.
-      final surfaces = {
-        'background': scheme.surface,
-        'sidebar': tokens.sidebarBackground,
-        'raised surface': tokens.raisedSurface,
-        'selected row': tokens.selectedFill,
-        'hovered row': tokens.hoverFill,
-        'bubble': tokens.bubbleFill,
-      };
-      final textSurfaces = {
-        'background': scheme.surface,
-        'sidebar': tokens.sidebarBackground,
-        'raised surface': tokens.raisedSurface,
-      };
-      // Diff lines are drawn on the diff area (the sidebar's grey) with
-      // the added or removed fill over it.
-      final area = tokens.sidebarBackground;
-      final diffSurfaces = {
-        'diff area': area,
-        'added line': Color.alphaBlend(tokens.diffAddedFill, area),
-        'removed line': Color.alphaBlend(tokens.diffRemovedFill, area),
-      };
-      // Code blocks in replies use the bubble fill.
-      final codeSurfaces = {'code block': tokens.bubbleFill, 'diff area': area};
-
-      test('text and muted text are 4.5:1 on every surface', () {
-        _expectContrast('text', scheme.onSurface, surfaces, textContrast);
-        _expectContrast('muted text', tokens.mutedText, surfaces, textContrast);
-      });
-
-      test('status dots are 3:1 on every surface', () {
-        final status = tokens.statusColors;
-        for (final (name, color) in [
-          ('running', status.running),
-          ('attention', status.attention),
-          ('done', status.done),
-          ('error', status.error),
-          ('idle', status.idle),
-        ]) {
-          _expectContrast(name, color, surfaces, uiContrast);
-        }
-      });
-
-      test('error text and links are 4.5:1 where they are shown', () {
-        _expectContrast('error', scheme.error, textSurfaces, textContrast);
-        _expectContrast('accent', scheme.primary, textSurfaces, textContrast);
-      });
-
-      test('hairlines are decorative but visible on the main surfaces', () {
-        // Dividers and box borders are not needed to identify a control
-        // (WCAG 1.4.11), so they are kept faint like the reference; the
-        // focused field border is the accent, which is checked above.
-        _expectContrast('hairline', tokens.hairline, textSurfaces, 1.1);
-        _expectContrast(
-          'focused border',
-          scheme.primary,
-          textSurfaces,
-          uiContrast,
-        );
-      });
-
-      test('diff text is 4.5:1 and the gutter 3:1 on every diff line', () {
-        _expectContrast('code', scheme.onSurface, diffSurfaces, textContrast);
-        // Line numbers repeat what the position shows: secondary text.
-        _expectContrast(
-          'gutter',
-          tokens.diffGutterText,
-          diffSurfaces,
-          uiContrast,
-        );
-      });
-
-      test('the terminal foreground and header are 4.5:1', () {
-        final background = {'terminal': tokens.terminal.background};
-        _expectContrast(
-          'terminal text',
-          tokens.terminal.foreground,
-          background,
-          textContrast,
-        );
-        _expectContrast('header', tokens.mutedText, background, textContrast);
-      });
-
-      test('highlight colours are 4.5:1 on code, 3:1 on diff fills', () {
-        final highlight = highlightTheme(brightness);
-        expect(
-          highlight,
-          brightness == Brightness.dark
-              ? darkHighlightTheme
-              : lightHighlightTheme,
-        );
-        for (final MapEntry(key: scope, value: style) in highlight.entries) {
-          if (style.color case final color?) {
-            _expectContrast(scope, color, codeSurfaces, textContrast);
-            // A tinted diff line keeps its syntax colours readable but
-            // below 4.5:1, as in VS Code; the plain text is checked above.
-            _expectContrast(scope, color, diffSurfaces, uiContrast);
-          }
-        }
-      });
-    });
+  for (final palette in AppPalette.values) {
+    for (final brightness in Brightness.values) {
+      _paletteGroup(palette, brightness);
+    }
   }
 
   testWidgets('the terminal box follows the theme', (tester) async {
@@ -199,5 +97,124 @@ void main() {
         terminal.foreground,
       );
     }
+  });
+}
+
+/// The WCAG checks of [palette]'s tokens in [brightness].
+void _paletteGroup(AppPalette palette, Brightness brightness) {
+  group('${palette.name} $brightness tokens', () {
+    final theme = buildTheme(
+      brightness,
+      palette: palette,
+      platform: TargetPlatform.macOS,
+    );
+    final scheme = theme.colorScheme;
+    final tokens = AppColors.forPalette(palette, brightness);
+    // The surfaces text, dots and icons are drawn on.
+    final surfaces = {
+      'background': scheme.surface,
+      'sidebar': tokens.sidebarBackground,
+      'raised surface': tokens.raisedSurface,
+      'selected row': tokens.selectedFill,
+      'hovered row': tokens.hoverFill,
+      'bubble': tokens.bubbleFill,
+    };
+    final textSurfaces = {
+      'background': scheme.surface,
+      'sidebar': tokens.sidebarBackground,
+      'raised surface': tokens.raisedSurface,
+    };
+    // Diff lines are drawn on the diff area (the sidebar's grey) with
+    // the added or removed fill over it.
+    final area = tokens.sidebarBackground;
+    final diffSurfaces = {
+      'diff area': area,
+      'added line': Color.alphaBlend(tokens.diffAddedFill, area),
+      'removed line': Color.alphaBlend(tokens.diffRemovedFill, area),
+    };
+    // Code blocks in replies use the bubble fill.
+    final codeSurfaces = {'code block': tokens.bubbleFill, 'diff area': area};
+
+    test('text and muted text are 4.5:1 on every surface', () {
+      _expectContrast('text', scheme.onSurface, surfaces, textContrast);
+      _expectContrast('muted text', tokens.mutedText, surfaces, textContrast);
+    });
+
+    test('status dots are 3:1 on every surface', () {
+      final status = tokens.statusColors;
+      for (final (name, color) in [
+        ('running', status.running),
+        ('attention', status.attention),
+        ('done', status.done),
+        ('error', status.error),
+        ('idle', status.idle),
+      ]) {
+        _expectContrast(name, color, surfaces, uiContrast);
+      }
+    });
+
+    test('error text and links are 4.5:1 where they are shown', () {
+      _expectContrast('error', scheme.error, textSurfaces, textContrast);
+      _expectContrast('accent', scheme.primary, textSurfaces, textContrast);
+    });
+
+    test('hairlines are decorative but visible on the main surfaces', () {
+      // Dividers and box borders are not needed to identify a control
+      // (WCAG 1.4.11), so they are kept faint like the reference; the
+      // focused field border is the accent, which is checked above.
+      _expectContrast('hairline', tokens.hairline, textSurfaces, 1.1);
+      _expectContrast(
+        'focused border',
+        scheme.primary,
+        textSurfaces,
+        uiContrast,
+      );
+    });
+
+    test('diff text is 4.5:1 and the gutter 3:1 on every diff line', () {
+      _expectContrast('code', scheme.onSurface, diffSurfaces, textContrast);
+      // Line numbers repeat what the position shows: secondary text.
+      _expectContrast(
+        'gutter',
+        tokens.diffGutterText,
+        diffSurfaces,
+        uiContrast,
+      );
+    });
+
+    test('the terminal foreground and header are 4.5:1', () {
+      final background = {'terminal': tokens.terminal.background};
+      _expectContrast(
+        'terminal text',
+        tokens.terminal.foreground,
+        background,
+        textContrast,
+      );
+      _expectContrast('header', tokens.mutedText, background, textContrast);
+    });
+
+    test('highlight colours are 4.5:1 on code, 3:1 on diff fills', () {
+      final highlight = highlightTheme(brightness);
+      expect(
+        highlight,
+        brightness == Brightness.dark
+            ? darkHighlightTheme
+            : lightHighlightTheme,
+      );
+      for (final MapEntry(key: scope, value: style) in highlight.entries) {
+        if (style.color case final color?) {
+          _expectContrast(scope, color, codeSurfaces, textContrast);
+          // A tinted diff line keeps its syntax colours readable but
+          // below 4.5:1, as in VS Code; the plain text is checked above.
+          _expectContrast(scope, color, diffSurfaces, uiContrast);
+        }
+      }
+    });
+
+    test('the filled button text is 4.5:1 on the accent', () {
+      _expectContrast('on accent', scheme.onPrimary, {
+        'accent': scheme.primary,
+      }, textContrast);
+    });
   });
 }
