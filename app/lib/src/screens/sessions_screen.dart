@@ -30,8 +30,9 @@ import '../session_list/sidebar_store.dart';
 import '../session_list/folder_order.dart';
 import '../session_title.dart';
 import '../shortcuts.dart';
-import '../ssh/ssh_connect.dart';
-import '../ssh/ssh_terminal_screen.dart';
+import '../editor/editor_store.dart';
+import '../editor/editor_target.dart';
+import '../editor/open_in_editor.dart';
 import '../notifications/notification_menu.dart';
 import '../notifications/notifications.dart';
 import '../runs/compare_screen.dart';
@@ -583,14 +584,10 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                       ref.read(openHostsProvider.notifier).retry(host),
                   onRemove: (host) =>
                       ref.read(openHostsProvider.notifier).disconnect(host),
-                  onSshTerminal: (key) => _withOpenHost(
-                    key,
-                    (host) => openSshTerminal(context, ref, host),
-                  ),
-                  onSshSettings: sshSupported
+                  onEditorSettings: editorSupported
                       ? (key) => _withOpenHost(
                           key,
-                          (host) => editSshSettings(context, ref, host),
+                          (host) => editEditorSettings(context, ref, host),
                         )
                       : null,
                 ),
@@ -651,6 +648,17 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                   onSelect: _select,
                   onNewSession: (group) =>
                       _newSession(host: group.host, directory: group.key),
+                  openInEditor: editorSupported
+                      ? (
+                          label: openInEditorLabel(
+                            ref.watch(codeEditorProvider),
+                          ),
+                          open: (group, folder) => _withOpenHost(
+                            group.host,
+                            (host) => openInEditor(context, ref, host, folder),
+                          ),
+                        )
+                      : null,
                   selection: selection,
                   runLabels: runLabels,
                   dense: tier != LayoutTier.compact,
@@ -996,7 +1004,7 @@ class _SidebarHeader extends StatelessWidget {
 /// host…", "Disconnect", "Appearance" (AV-097), and a submenu per open
 /// host with its status
 /// (AV-011), "Show only this host" with several hosts, Retry and Remove
-/// for a host that is not connected, and the SSH terminal (AV-014). The
+/// for a host that is not connected, and its editor settings (AV-015). The
 /// icon has a dot while a host is not connected.
 class _HostsMenu extends StatelessWidget {
   const _HostsMenu({
@@ -1008,8 +1016,7 @@ class _HostsMenu extends StatelessWidget {
     required this.onShowOnly,
     required this.onRetry,
     required this.onRemove,
-    required this.onSshTerminal,
-    this.onSshSettings,
+    this.onEditorSettings,
   });
 
   /// The open hosts.
@@ -1036,18 +1043,16 @@ class _HostsMenu extends StatelessWidget {
   /// Closes a host that is not connected, by key.
   final ValueChanged<String> onRemove;
 
-  /// Opens an SSH terminal to a host, by key.
-  final ValueChanged<String> onSshTerminal;
-
-  /// Edits a host's SSH settings, by key; no item when null.
-  final ValueChanged<String>? onSshSettings;
+  /// Edits the editor a host's folders open in, by key; no item when
+  /// null.
+  final ValueChanged<String>? onEditorSettings;
 
   Widget _hostMenu(BuildContext context, HostInfo host) {
     final status = AppColors.of(context).statusColors;
     final idle =
         host.status == ConnectionStatus.failed ||
         host.status == ConnectionStatus.disconnected;
-    final onSshSettings = this.onSshSettings;
+    final onEditorSettings = this.onEditorSettings;
     return SubmenuButton(
       leadingIcon: Icon(
         Icons.circle,
@@ -1078,15 +1083,11 @@ class _HostsMenu extends StatelessWidget {
             child: Text('Remove ${host.label}'),
           ),
         ],
-        MenuItemButton(
-          leadingIcon: const Icon(Icons.terminal),
-          onPressed: () => onSshTerminal(host.key),
-          child: const Text(openSshTerminalLabel),
-        ),
-        if (onSshSettings != null)
+        if (onEditorSettings != null)
           MenuItemButton(
-            onPressed: () => onSshSettings(host.key),
-            child: const Text('SSH settings…'),
+            leadingIcon: const Icon(AppIcons.vscode),
+            onPressed: () => onEditorSettings(host.key),
+            child: const Text(editorSettingsLabel),
           ),
       ],
       child: ConstrainedBox(

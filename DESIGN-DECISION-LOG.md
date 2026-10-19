@@ -1,5 +1,61 @@
 # Design Decision Log
 
+## 2026-10-19: Open in VS Code, Insiders or Cursor replaces the SSH terminal (AV-014, AV-015)
+
+The in-app SSH terminal (dartssh2 and xterm.dart) gave a bare shell on
+the host. It also kept passwords and private keys in the app, and could
+not use `~/.ssh/config`, jump hosts or (outside Linux) the SSH agent.
+Users who want to work on an agent's folder by hand already have an
+editor that does remote work better. The same day, "Open in VS Code"
+(AV-015, below) was added to the session header, building its URL from
+the SSH terminal's settings. Now it is the only remote feature: the
+terminal (AV-014) is removed, and the module is `editor/` instead of
+`vscode/`.
+
+- **A URL, not an SSH client.** "Open in VS Code" hands
+  `vscode://vscode-remote/ssh-remote+<authority><folder>` to the system
+  with `url_launcher`. VS Code's Remote - SSH extension connects with
+  the system `ssh`, so the user's config, keys, agent and host key
+  checks apply, and the app keeps no SSH secrets. The alternative,
+  running `code --remote ssh-remote+… <folder>`, needs the `code`
+  command on the PATH, a process spawn (not possible in the macOS
+  sandbox or on the web) and a different command per editor. The URL
+  works the same in the sandbox, on Windows and in the browser.
+- **The authority survives lowercasing.** VS Code lowercases URL
+  authorities. So `user@host` is used only when it is already lowercase,
+  on port 22 and not IPv6. Otherwise the authority is the hex-encoded
+  JSON (`hostName`, `user`, `port`) that Remote - SSH also accepts.
+- **The editor is a choice.** VS Code, VS Code Insiders and Cursor
+  handle the same URLs under their own schemes, so the choice is just
+  the scheme. It applies to every host.
+- **Loopback hosts open locally.** A host on `127.0.0.1`, `localhost` or
+  `::1` opens `vscode://file<folder>` without asking. A host reached
+  through a forwarded loopback port can be switched to SSH in its
+  editor settings.
+- **Folders only; no host-level open.** The session header (a button
+  and a menu item) and folder headers (a hover button and a menu item)
+  open a path. The host menu only has "Editor settings…", since it has
+  no folder to open.
+- **Prefs, not secure storage.** With no secrets left, the targets
+  (location, host, port, user) and the editor go in the prefs store. On
+  first load, a host's old `ssh:<host key>` entry is copied over (host,
+  port, user only) and deleted from secure storage, along with
+  `ssh_known_hosts`. This way old passwords and keys do not stay
+  behind.
+- **Not on iOS or Android.** No desktop editor runs there, so the
+  buttons and settings are hidden. The web app keeps them, because the
+  browser can hand the URL to an installed editor.
+- **The SSH host is asked for, not guessed.** The first AV-015 used the
+  AHP URL's host and let `~/.ssh/config` fill in the rest. Now, the
+  first time a non-loopback host is opened, the editor settings dialog
+  appears, starting from that same guess. The user confirms the host
+  and can add a port or user, and the dialog is also where the editor
+  is picked.
+- **Dependencies removed:** dartssh2, file_selector (it loaded key
+  files), async, the macOS user-selected file entitlement and the CI
+  `sshd` install. xterm stays: the colour themes (AV-097) describe the
+  AHP terminal preview's ANSI colours as its `TerminalTheme`.
+
 ## 2026-10-19: "Open in VS Code" opens the session folder over Remote - SSH
 
 There was no way to open a session's code in an editor; the SSH

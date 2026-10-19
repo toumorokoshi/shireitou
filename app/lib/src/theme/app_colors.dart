@@ -107,9 +107,8 @@ class AppColors extends ThemeExtension<AppColors> {
   /// Line numbers and +/− markers in a diff's gutter.
   final Color diffGutterText;
 
-  /// The colours of terminals: the AHP terminal preview and the SSH
-  /// terminal. The theme's ANSI colours on the sidebar's background, as
-  /// xterm.dart's [TerminalTheme] so the SSH terminal uses it as is.
+  /// The colours of the AHP terminal preview: the theme's ANSI colours on
+  /// the sidebar's background, as xterm.dart's [TerminalTheme].
   final TerminalTheme terminal;
 
   /// The code highlighting theme (highlight.js scope to style).

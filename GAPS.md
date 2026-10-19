@@ -112,26 +112,17 @@ AppImage and the release workflow (see
   message text (no attachments). The rail shows on hover but has no
   keyboard focus of its own; the Cmd/Ctrl+Alt+↑/↓ shortcuts and the
   screen reader buttons are the non-pointer ways in.
-- **Open in VS Code (AV-015):** only VS Code (not Insiders, Cursor or
-  other forks with their own URL schemes; no setting picks the editor).
-  A host on another machine needs the Remote - SSH extension and an SSH
-  login VS Code can make on its own (the app's saved password or key is
-  not passed on). The links are not opened against a real VS Code in
-  tests, and a host reached through a tunnel or a forwarded port on
-  `localhost` is taken as local. The link is not offered for files
-  (a diff or a tool call's file), only the session's folder.
-- **SSH terminal (AV-014), remaining details:** no terminal on the web
-  (browsers have no TCP sockets; a WebSocket-to-SSH bridge on the host
-  would be needed). The SSH agent works only on Linux: not in the
-  sandboxed macOS app, on Windows (named pipe) or on mobile, and agent
-  login is not tested against a real agent. Keyboard-interactive login
-  only answers prompts with the saved password (no one-time codes or
-  2FA prompts), there is no jump host, port forwarding or
-  `~/.ssh/config`, and the host key is trusted on first use without
-  asking. Terminals are tabs on one screen; they cannot be split or
-  moved to their own window, and the screen can only be reopened by
-  opening another terminal. They are not driven on iOS or Android or in
-  the desktop smoke tests.
+- **Open in VS Code (AV-015), remaining details:** the `vscode://`
+  URLs are tested only against a fake launcher. No test opens a real
+  VS Code or Cursor, and the hex-encoded Remote - SSH authority (used
+  for ports other than 22, capitals and IPv6) has not been checked in a
+  real editor. Windows paths on a host (`C:\…`) are not opened, only
+  POSIX paths. Hosts are not detected as WSL or dev containers (no
+  `wsl+` or `dev-container+` authorities). A host reached through a
+  forwarded loopback port is taken to be this computer until its editor
+  settings say otherwise. The host menu cannot open the host without a
+  folder. There is no editor on iOS or Android, and no shell on the
+  host from the app at all now that the SSH terminal is gone.
 - **`/` completions (AV-044), remaining details:** the new-session
   draft has no chat to send `completions` for, so it offers the skills
   and prompts the agent lists in `AgentInfo.customizations` (parsed

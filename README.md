@@ -43,9 +43,9 @@ with a UX modeled on the GitHub Agents view and Cursor's Agents Window.
 > `completions`), one prompt can start several runs to
 > compare and pick from, and the desktop apps (and the web app, where
 > the browser allows) notify when a session needs input, finishes or
-> fails. A host's menu and a session's menu open an SSH terminal on the
-> host (desktop and mobile apps), and a session's header opens its
-> folder in VS Code (locally, or over Remote - SSH). Push notifications for a closed app
+> fails. A session's header and a folder's header open the folder in
+> VS Code, VS Code Insiders or Cursor (over Remote - SSH for a remote
+> host; desktop and web apps). Push notifications for a closed app
 > are not built; see [GAPS.md](GAPS.md).
 
 ## Layout
@@ -83,10 +83,8 @@ so one `flutter pub get` at the root resolves every package.
   secure storage, sign-in and the mobile smoke test.
 - [docs/themes.md](docs/themes.md): the colour themes, where their
   colours come from, and how to add one.
-- [docs/ssh-terminal.md](docs/ssh-terminal.md): SSH terminals to a host
-  (settings, host keys, the terminals screen).
-- [docs/vscode.md](docs/vscode.md): opening a session's folder in VS
-  Code, locally or over Remote - SSH.
+- [docs/open-in-editor.md](docs/open-in-editor.md): opening a session's
+  folder in VS Code (editor settings, the Remote - SSH URLs).
 - [docs/packaging.md](docs/packaging.md): packages, the app icon, the
   release workflow and the signing secrets it uses.
 - [specs/agents-view.md](specs/agents-view.md): UI and feature requirements.
@@ -187,7 +185,7 @@ just run chrome 'ws://127.0.0.1:63877?tkn=...'   # prefill the host URL
    Appearance (light, dark or the system's setting, and a dark and a
    light colour theme from VS Code, Neovim and Emacs favourites such as
    Dracula, Catppuccin, Tokyo Night, Gruvbox, Solarized and Nord)
-   and each host's status, Retry and SSH terminal. Click a session's
+   and each host's status, Retry and Editor settings…. Click a session's
    title in its header to rename it.
 
 `just test-integration` launches pi-agent-host-protocol from

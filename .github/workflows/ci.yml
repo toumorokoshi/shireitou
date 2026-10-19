@@ -30,8 +30,6 @@ jobs:
           git status --porcelain
           test -z "$(git status --porcelain)"
       - run: just lint
-      - name: Install sshd for the SSH terminal test
-        run: test -x /usr/sbin/sshd || (sudo apt-get update && sudo apt-get install -y --no-install-recommends openssh-server)
       - run: just test
       - name: Build web
         run: cd app && flutter build web

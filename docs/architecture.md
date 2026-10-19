@@ -237,17 +237,12 @@ Dart source); `bin/generate.dart` does the file I/O. See
   redirect on a `BroadcastChannel`, on the web. `HostConnection` creates
   a `HostAuthenticator` per connection with a `HostTokenStore` (tokens
   per host in the `HostStore`'s secure storage).
-- `lib/src/ssh/`: the SSH terminal (AV-014) on dartssh2 and xterm.dart.
-  `ssh_settings.dart` and `ssh_agent_codec.dart` are pure (settings,
-  trust on first use, `cd` commands, agent messages); `ssh_connect.dart`
-  picks `connectSsh` by conditional import (none on the web);
-  `ssh_terminal.dart` holds the open terminals (`sshTerminalsProvider`);
-  `ssh_store.dart` keeps settings and host keys in secure storage. See
-  [ssh-terminal.md](ssh-terminal.md).
-- `lib/src/vscode/`: "Open in VS Code" (AV-015). `vscode_link.dart` is
-  pure (the `vscode://` link for a folder, local or over Remote - SSH);
-  `open_in_vscode.dart` reads the host's SSH settings and opens the
-  link with `vscodeLauncherProvider`. See [vscode.md](vscode.md).
+- `lib/src/editor/`: opening a folder in VS Code (AV-015).
+  `editor_target.dart` is pure (the editors, a host's target, the
+  Remote - SSH authority and the `vscode://` URL); `editor_store.dart`
+  keeps the chosen editor and each host's target in the prefs store and
+  holds the launcher tests replace; `open_in_editor.dart` opens a folder
+  and holds the settings dialog. See [open-in-editor.md](open-in-editor.md).
 - `lib/src/composer/`: `config_fields.dart` is pure: a model's
   `configSchema` and a session config schema become `ConfigField`s, with
   `configValues`, `modelSelection`, `isPickerField` and
@@ -319,8 +314,7 @@ Dart source); `bin/generate.dart` does the file I/O. See
   `selectedFill`, `hoverFill`, `statusColors` (running, attention,
   done, error, idle), the diff's `diffAddedFill`, `diffRemovedFill` and
   `diffGutterText`, `terminal` (xterm.dart's `TerminalTheme` with the
-  theme's ANSI colours, used by the AHP terminal preview and the SSH
-  terminal) and `syntax`, the code highlighting theme
+  theme's ANSI colours, used by the AHP terminal preview) and `syntax`, the code highlighting theme
   (`highlight_themes.dart` maps the theme's colours to highlight.js
   scopes). Widgets read them with `AppColors.of(context)`, which falls
   back to values derived from the `ColorScheme` under a theme without

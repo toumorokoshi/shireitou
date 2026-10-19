@@ -41,14 +41,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.7.0"
-  asn1lib:
-    dependency: transitive
-    description:
-      name: asn1lib
-      sha256: "9a8f69025044eb466b9b60ef3bc3ac99b4dc6c158ae9c56d25eeccf5bc56d024"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.6.5"
   async:
     dependency: transitive
     description:
@@ -193,14 +185,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.15.1"
-  cross_file:
-    dependency: transitive
-    description:
-      name: cross_file
-      sha256: f141ea4f277af142a0356955707f6556f37b03947d39d55585981a06ca437bd6
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.3.5+5"
   crypto:
     dependency: transitive
     description:
@@ -217,14 +201,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.1.14"
-  dartssh2:
-    dependency: transitive
-    description:
-      name: dartssh2
-      sha256: "39359aceafcf5940b868249e3c9c6d86e4e0f989eec7417d033c943157c84c51"
-      url: "https://pub.dev"
-    source: hosted
-    version: "4.1.0"
   dbus:
     dependency: transitive
     description:
@@ -281,70 +257,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "7.0.1"
-  file_selector:
-    dependency: transitive
-    description:
-      name: file_selector
-      sha256: bd15e43e9268db636b53eeaca9f56324d1622af30e5c34d6e267649758c84d9a
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.1.0"
-  file_selector_android:
-    dependency: transitive
-    description:
-      name: file_selector_android
-      sha256: d670cd0ce77a2e785b18d8b4d0a8d6a222d6a813ec9b7ddf2790a1b4fb6fa92c
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.5.2+11"
-  file_selector_ios:
-    dependency: transitive
-    description:
-      name: file_selector_ios
-      sha256: "5b42ec0ef7626124b4624ea244341e9df780406793c204e89fa68a2e71af115c"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.5.3+7"
-  file_selector_linux:
-    dependency: transitive
-    description:
-      name: file_selector_linux
-      sha256: da76400e7872ce7637ffdce12749ec24169c25f6195c28372208e65a24bcd2ab
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.9.4+1"
-  file_selector_macos:
-    dependency: transitive
-    description:
-      name: file_selector_macos
-      sha256: d57c62362766b5e7ae739448650b66c6aab7a68ba7ecc65e04018652645ae0f4
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.9.5+1"
-  file_selector_platform_interface:
-    dependency: transitive
-    description:
-      name: file_selector_platform_interface
-      sha256: "35e0bd61ebcdb91a3505813b055b09b79dfdc7d0aee9c09a7ba59ae4bb13dc85"
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.7.0"
-  file_selector_web:
-    dependency: transitive
-    description:
-      name: file_selector_web
-      sha256: "73181fbc5257776d8ecaa6a94ab3c8e920ad143b9132a6d984a9271dfc6928d3"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.9.5"
-  file_selector_windows:
-    dependency: transitive
-    description:
-      name: file_selector_windows
-      sha256: fbefc5fb92c6d3cbe8d284a2cd971b593bb07d2cd6da8557b81a862250b4acec
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.9.3+6"
   fixnum:
     dependency: transitive
     description:
@@ -823,14 +735,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "7.1.0"
-  pinenacl:
-    dependency: transitive
-    description:
-      name: pinenacl
-      sha256: "57e907beaacbc3c024a098910b6240758e899674de07d6949a67b52fd984cbdf"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.6.0"
   platform:
     dependency: transitive
     description:
@@ -847,14 +751,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.1.8"
-  pointycastle:
-    dependency: transitive
-    description:
-      name: pointycastle
-      sha256: "92aa3841d083cc4b0f4709b5c74fd6409a3e6ba833ffc7dc6a8fee096366acf5"
-      url: "https://pub.dev"
-    source: hosted
-    version: "4.0.0"
   pool:
     dependency: transitive
     description:
@@ -1398,4 +1294,4 @@ packages:
     version: "0.0.6"
 sdks:
   dart: ">=3.13.5 <4.0.0"
-  flutter: ">=3.47.0"
+  flutter: ">=3.44.0"

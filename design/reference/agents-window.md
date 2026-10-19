@@ -53,7 +53,8 @@ What to match, by area:
 ## Session pane
 
 - Header: the session title on one line and a "…" menu holding
-  everything else (model, tokens, details, SSH, rename, pin, archive).
+  everything else (model, tokens, details, open in VS Code, rename, pin,
+  archive).
   Clicking the title still renames it.
 - The user's messages are right-aligned bubbles with a light fill; the
   agent's replies are full-width markdown with no bubble. Markdown tables

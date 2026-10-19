@@ -8,6 +8,7 @@ import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 
+import '../editor/editor_target.dart';
 import '../hosts/open_hosts.dart';
 import '../theme/app_theme.dart';
 import 'folder_grouping.dart';
@@ -86,6 +87,7 @@ class SessionListView extends StatelessWidget {
     this.onToggle,
     this.selected,
     this.onNewSession,
+    this.openInEditor,
     this.onMoveFolder,
     this.now,
     this.actions,
@@ -130,6 +132,12 @@ class SessionListView extends StatelessWidget {
   /// Starts a session in a folder (the header's "+" button); no button
   /// when null.
   final ValueChanged<FolderGroup>? onNewSession;
+
+  /// Opens a folder (with its absolute path) in the code editor (AV-015),
+  /// with the button's and menu item's label; neither shows when null or
+  /// for a folder that is not a path.
+  final ({String label, void Function(FolderGroup group, String folder) open})?
+  openInEditor;
 
   /// Moves `folders[from]` to index `to` of `folders`, the shown folders
   /// of every host in list order: a folder header dragged onto another
@@ -183,6 +191,13 @@ class SessionListView extends StatelessWidget {
         dense: dense,
         onToggle: onToggle == null ? null : () => onToggle!(group.id),
         onNewSession: onNewSession == null ? null : () => onNewSession!(group),
+        openInEditor: switch ((openInEditor, editorFolder(group.key))) {
+          ((:final label, :final open), final folder?) => (
+            label: label,
+            open: () => open(group, folder),
+          ),
+          _ => null,
+        },
         index: folders.indexOf(group),
         count: folders.length,
         onMove: onMoveFolder == null
@@ -587,6 +602,7 @@ class _FolderHeader extends StatelessWidget {
     this.hostLabel,
     this.onToggle,
     this.onNewSession,
+    this.openInEditor,
     this.onMove,
   });
 
@@ -614,9 +630,19 @@ class _FolderHeader extends StatelessWidget {
   /// Starts a session in the folder (the "+" button).
   final VoidCallback? onNewSession;
 
+  /// Opens the folder in the code editor (a hover button and a menu
+  /// item), with their label.
+  final ({String label, VoidCallback open})? openInEditor;
+
   /// Moves the folder at the first index among the shown folders to the
   /// second.
   final void Function(int from, int to)? onMove;
+
+  /// The items of the folder's menu: [openInEditor] and [_moves].
+  Map<String, VoidCallback> get _menu => {
+    if (openInEditor case (:final label, :final open)) label: open,
+    ..._moves,
+  };
 
   /// "Move up" and "Move down", where the folder can move that way.
   Map<String, VoidCallback> get _moves {
@@ -630,8 +656,8 @@ class _FolderHeader extends StatelessWidget {
   }
 
   Future<void> _showMenu(BuildContext context, Offset position) async {
-    final moves = _moves;
-    if (moves.isEmpty) return;
+    final menu = _menu;
+    if (menu.isEmpty) return;
     final overlay =
         Overlay.of(context).context.findRenderObject()! as RenderBox;
     final action = await showMenu<VoidCallback>(
@@ -641,8 +667,8 @@ class _FolderHeader extends StatelessWidget {
         Offset.zero & overlay.size,
       ),
       items: [
-        for (final MapEntry(key: label, value: move) in moves.entries)
-          PopupMenuItem(value: move, child: Text(label)),
+        for (final MapEntry(key: label, value: item) in menu.entries)
+          PopupMenuItem(value: item, child: Text(label)),
       ],
     );
     action?.call();
@@ -650,6 +676,7 @@ class _FolderHeader extends StatelessWidget {
 
   Widget _row({required bool interactive, bool active = false}) {
     final onNewSession = this.onNewSession;
+    final openInEditor = this.openInEditor;
     final movable = interactive && _moves.isNotEmpty;
     // Touch layouts have no hover, so their "+" always shows.
     final showActions = interactive && (active || !dense);
@@ -663,8 +690,15 @@ class _FolderHeader extends StatelessWidget {
       dense: dense,
       onToggle: interactive ? onToggle : null,
       mouseCursor: movable && dense ? SystemMouseCursors.grab : null,
-      semanticsActions: movable ? _moves : null,
+      semanticsActions: interactive && _menu.isNotEmpty ? _menu : null,
       actions: [
+        if (showActions && dense && openInEditor != null)
+          _RowButton(
+            tooltip: openInEditor.label,
+            icon: AppIcons.vscode,
+            dense: dense,
+            onPressed: openInEditor.open,
+          ),
         if (showActions && onNewSession != null)
           _RowButton(
             tooltip: 'New session in ${group.label}',
@@ -697,13 +731,16 @@ class _FolderHeader extends StatelessWidget {
     final hoverable = _HoverRegion(
       builder: (_, active) => _row(interactive: true, active: active),
     );
-    if (onMove == null || count < 2) return hoverable;
+    final interactiveRow = _menu.isEmpty
+        ? hoverable
+        : GestureDetector(
+            onSecondaryTapUp: (details) =>
+                _showMenu(context, details.globalPosition),
+            child: hoverable,
+          );
+    if (onMove == null || count < 2) return interactiveRow;
     final data = _DraggedFolder(index);
     final dimmed = Opacity(opacity: 0.4, child: _row(interactive: false));
-    final interactiveRow = GestureDetector(
-      onSecondaryTapUp: (details) => _showMenu(context, details.globalPosition),
-      child: hoverable,
-    );
     return LayoutBuilder(
       builder: (context, constraints) {
         final colors = AppColors.of(context);

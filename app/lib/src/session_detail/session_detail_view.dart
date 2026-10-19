@@ -34,9 +34,9 @@ import '../runs/run_group_store.dart';
 import '../runs/run_groups.dart';
 import '../session_title.dart';
 import '../hosts/open_hosts.dart';
-import '../ssh/ssh_settings.dart';
-import '../ssh/ssh_terminal_screen.dart';
-import '../vscode/open_in_vscode.dart';
+import '../editor/editor_store.dart';
+import '../editor/editor_target.dart';
+import '../editor/open_in_editor.dart';
 import 'chat_commands.dart';
 import '../composer/completion_popup.dart';
 import '../composer/completions.dart';
@@ -688,15 +688,10 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
       },
       onDetails: () =>
           showSessionInfo(context, session: widget.session, chat: chatUri),
-      onSshTerminal: switch (openHost) {
-        final host? => () => unawaited(
-          openSshTerminal(context, ref, host, directory: directory),
-        ),
-        null => null,
-      },
-      onOpenInVsCode: switch ((openHost, directory)) {
-        (final host?, final directory?) when vscodeSupported => () => unawaited(
-          openInVsCode(context, ref, host, directory),
+      openInEditor: switch ((openHost, directory)) {
+        (final host?, final folder?) when editorSupported => (
+          label: openInEditorLabel(ref.watch(codeEditorProvider)),
+          open: () => unawaited(openInEditor(context, ref, host, folder)),
         ),
         _ => null,
       },
@@ -803,8 +798,7 @@ class _Header extends StatelessWidget {
     required this.onArchive,
     required this.onMarkUnread,
     required this.onDetails,
-    required this.onSshTerminal,
-    required this.onOpenInVsCode,
+    required this.openInEditor,
   });
 
   /// Whether the title follows a back button ([SessionDetailView]).
@@ -846,13 +840,9 @@ class _Header extends StatelessWidget {
   final VoidCallback onMarkUnread;
   final VoidCallback onDetails;
 
-  /// Opens an SSH terminal to the host in the session's folder (AV-014);
-  /// no menu item when null.
-  final VoidCallback? onSshTerminal;
-
-  /// Opens the session's folder in VS Code (AV-015); no button or menu
-  /// item when null.
-  final VoidCallback? onOpenInVsCode;
+  /// Opens the session's folder in the chosen editor (AV-015), with the
+  /// button's and menu item's label; neither shows when null.
+  final ({String label, VoidCallback open})? openInEditor;
 
   /// The "Details" popover: the [sessionDetailLines] and chips for the
   /// status, background work, the parallel run, the pull request and
@@ -993,9 +983,9 @@ class _Header extends StatelessWidget {
             ),
           if (mcpAlerts.isNotEmpty)
             McpServerAlertChips(alerts: mcpAlerts, onSignIn: onSignIn),
-          if (onOpenInVsCode case final open?)
+          if (openInEditor case (:final label, :final open))
             IconButton(
-              tooltip: openInVsCodeLabel,
+              tooltip: label,
               icon: const Icon(AppIcons.vscode, size: 18),
               onPressed: open,
             ),
@@ -1062,16 +1052,8 @@ class _Header extends StatelessWidget {
                     value: compare,
                     child: const Text('Compare runs'),
                   ),
-                if (onSshTerminal case final ssh?)
-                  PopupMenuItem(
-                    value: ssh,
-                    child: const Text(openSshTerminalLabel),
-                  ),
-                if (onOpenInVsCode case final open?)
-                  PopupMenuItem(
-                    value: open,
-                    child: const Text(openInVsCodeLabel),
-                  ),
+                if (openInEditor case (:final label, :final open))
+                  PopupMenuItem(value: open, child: Text(label)),
               ],
             ),
           ),
