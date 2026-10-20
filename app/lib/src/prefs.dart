@@ -103,18 +103,24 @@ class StoredFlag extends Notifier<bool> {
   }
 }
 
-/// A pane's width (AV-005) kept with [prefsStoreProvider] under [key];
-/// [defaultWidth] until it loads, when unset and after [reset]. Widths are
-/// kept within [clampedPaneWidth].
+/// A pane's width (AV-005), or the terminal panel's height (AV-016), kept
+/// with [prefsStoreProvider] under [key]; [defaultWidth] until it loads,
+/// when unset and after [reset]. Sizes are kept within [clamp]
+/// ([clampedPaneWidth] by default).
 class StoredWidth extends Notifier<double> {
-  /// Creates the width stored under [key].
-  StoredWidth(this.key, this.defaultWidth);
+  /// Creates the size stored under [key].
+  StoredWidth(this.key, this.defaultWidth, {this.clamp = _paneWidth});
+
+  static double _paneWidth(double width) => clampedPaneWidth(width);
 
   /// The [PrefsStore] key.
   final String key;
 
-  /// The width when none is saved.
+  /// The size when none is saved.
   final double defaultWidth;
+
+  /// Keeps a size within its bounds.
+  final double Function(double) clamp;
 
   Future<void>? _loading;
 
@@ -128,12 +134,12 @@ class StoredWidth extends Notifier<double> {
     final saved = double.tryParse(
       await ref.read(prefsStoreProvider).read(key) ?? '',
     );
-    if (saved != null) state = clampedPaneWidth(saved);
+    if (saved != null) state = clamp(saved);
   }
 
   /// Widens it by [delta] (narrows it when negative) without saving, so a
   /// drag does not write on every pointer move; [save] when it ends.
-  void resize(double delta) => state = clampedPaneWidth(state + delta);
+  void resize(double delta) => state = clamp(state + delta);
 
   /// Saves the current width.
   Future<void> save() async {

@@ -243,6 +243,13 @@ Dart source); `bin/generate.dart` does the file I/O. See
   keeps the chosen editor and each host's target in the prefs store and
   holds the launcher tests replace; `open_in_editor.dart` opens a folder
   and holds the settings dialog. See [open-in-editor.md](open-in-editor.md).
+- `lib/src/terminal/`: the terminal panel (AV-016). `ssh_command.dart` is
+  pure (the SSH host, the `ssh` arguments and environment, the `ssh://`
+  link); `pty_process.dart` is the pty interface tests replace (on
+  `packages/flutter_pty` through `pty_process_io.dart`, a conditional
+  import); `terminal_session.dart` wires an xterm `Terminal` to `ssh` and
+  holds the open terminals per host; `terminal_panel.dart` is the panel,
+  `TerminalDock` and the actions. See [terminal.md](terminal.md).
 - `lib/src/composer/`: `config_fields.dart` is pure: a model's
   `configSchema` and a session config schema become `ConfigField`s, with
   `configValues`, `modelSelection`, `isPickerField` and

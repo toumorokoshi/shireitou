@@ -49,6 +49,18 @@ abstract final class AppIcons {
   /// Opens a session's folder in VS Code.
   static const IconData vscode = Codicons.vscode;
 
+  /// Opens or closes the terminal panel (AV-016).
+  static const IconData terminal = Codicons.terminal;
+
+  /// Makes the terminal panel fill the session pane.
+  static const IconData maximize = Codicons.screenFull;
+
+  /// Gives the maximized terminal panel its height back.
+  static const IconData restore = Codicons.screenNormal;
+
+  /// Runs an exited terminal again.
+  static const IconData restart = Codicons.debugRestart;
+
   /// A "…" menu.
   static const IconData more = Codicons.ellipsis;
 

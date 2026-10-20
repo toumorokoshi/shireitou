@@ -65,7 +65,12 @@ List<PlatformMenuItem> sessionMenuItems({
     PlatformMenuItemGroup(
       members: [item(AppCommand.previousTurn), item(AppCommand.nextTurn)],
     ),
-    PlatformMenuItemGroup(members: [item(AppCommand.toggleReviewPane)]),
+    PlatformMenuItemGroup(
+      members: [
+        item(AppCommand.toggleReviewPane),
+        item(AppCommand.toggleTerminal),
+      ],
+    ),
   ];
 }
 

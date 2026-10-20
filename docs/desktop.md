@@ -16,7 +16,9 @@ sudo apt-get install clang cmake ninja-build pkg-config libgtk-3-dev libsecret-1
 cd app && flutter build linux --release
 ```
 
-The bundle is in `app/build/linux/<x64|arm64>/release/bundle/`.
+The terminal panel's pty (`packages/flutter_pty`) is compiled by a Dart
+build hook with the same C compiler; macOS uses Xcode's and Windows
+Visual Studio's. The bundle is in `app/build/linux/<x64|arm64>/release/bundle/`.
 `scripts/package-linux` turns it into a `.tar.gz`, a `.deb` and an AppImage
 in `app/build/dist/` (CI uploads them as the `shireitou-linux` artifact; see
 [packaging.md](packaging.md)).
@@ -56,11 +58,16 @@ arm64 machine):
   when the signing secrets are set ([packaging.md](packaging.md));
   otherwise Gatekeeper blocks it on other Macs (right-click > Open, or
   `xattr -d com.apple.quarantine`).
-- Entitlements: both `DebugProfile.entitlements` and `Release.entitlements`
-  have `com.apple.security.network.client`, which the app sandbox needs for
-  outgoing WebSocket connections to hosts, and
-  `com.apple.security.network.server`, which the loopback server that
-  receives the browser's OAuth redirect needs (MCP sign-in, AHP-060).
+- The app is not sandboxed (no `com.apple.security.app-sandbox`): the
+  terminal panel (AV-016) runs the system `ssh`, which inherits the
+  sandbox and could not read `~/.ssh` or reach the SSH agent there. The
+  `.dmg` is signed with the hardened runtime and notarized, which do not
+  need the sandbox; only the Mac App Store does. Both
+  `DebugProfile.entitlements` and `Release.entitlements` keep
+  `com.apple.security.network.client` and
+  `com.apple.security.network.server` (the loopback server for the
+  browser's OAuth redirect, AHP-060), which matter again if the sandbox
+  comes back.
 - Secure storage: `flutter_secure_storage` is configured with
   `MacOsOptions(usesDataProtectionKeychain: false)`, so tokens go in the
   login keychain. That needs no `keychain-access-groups` entitlement and so

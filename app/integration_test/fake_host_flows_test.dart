@@ -11,12 +11,16 @@
 /// filters, archiving from the list, multi-select), keyboard shortcuts,
 /// a rejected answer in the "Waiting for you" panel, client tool
 /// executions, and the open hosts coming back after a restart; and `/`
-/// completions in the follow-up box.
+/// completions in the follow-up box. Last, the terminal panel's pty runs
+/// the system `ssh` (AV-016).
 ///
 /// ```sh
 /// flutter test integration_test/fake_host_flows_test.dart -d linux
 /// ```
 library;
+
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:ahp_client/ahp_client.dart';
 import 'package:ahp_fake_host/ahp_fake_host.dart';
@@ -29,6 +33,8 @@ import 'package:shireitou/src/session_detail/code_highlight.dart';
 import 'package:shireitou/src/session_detail/session_detail_view.dart';
 import 'package:shireitou/src/session_detail/session_status_widgets.dart';
 import 'package:shireitou/src/shortcuts.dart';
+import 'package:shireitou/src/terminal/pty_process_io.dart';
+import 'package:shireitou/src/terminal/ssh_command.dart';
 
 import 'harness.dart';
 
@@ -764,4 +770,29 @@ void main() {
       find.text('This session is no longer available on the host.'),
     );
   }, timeout: const Timeout(Duration(minutes: 3)));
+
+  testWidgets('the terminal panel runs the system ssh in a pty', (
+    tester,
+  ) async {
+    final (code, output) = (await tester.runAsync(() async {
+      final pty = startPty(
+        sshExecutable,
+        ['-V'],
+        environment: sshEnvironment(Platform.environment),
+        rows: 24,
+        columns: 80,
+      );
+      final text = StringBuffer();
+      final reading = pty.output.listen(
+        (data) => text.write(utf8.decode(data, allowMalformed: true)),
+      );
+      final code = await pty.exitCode.timeout(const Duration(seconds: 30));
+      // The last output can arrive after the exit code.
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      await reading.cancel();
+      return (code, '$text');
+    }))!;
+    expect(output, contains('OpenSSH'));
+    expect(code, 0);
+  });
 }

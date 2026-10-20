@@ -1,0 +1,20 @@
+name: flutter_pty
+description: >-
+  Processes in a pseudo-terminal on macOS, Linux and Windows. Vendored from
+  flutter_pty 0.4.2 (MIT) and built with a Dart build hook.
+version: 0.4.2+shireitou.1
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.13.5
+
+dependencies:
+  code_assets: ^2.1.0
+  ffi: ^2.1.4
+  hooks: ^2.2.0
+  native_toolchain_c: ^0.19.5
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.31.1

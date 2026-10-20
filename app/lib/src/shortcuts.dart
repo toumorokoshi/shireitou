@@ -44,7 +44,11 @@ enum AppCommand {
 
   /// Opens or closes the review pane on wide layouts (Cmd/Ctrl+Alt+B,
   /// AV-003).
-  toggleReviewPane('Toggle Review Pane');
+  toggleReviewPane('Toggle Review Pane'),
+
+  /// Opens or closes the terminal panel (Ctrl+` everywhere, as in VS
+  /// Code, AV-016).
+  toggleTerminal('Toggle Terminal');
 
   const AppCommand(this.label);
 
@@ -94,6 +98,10 @@ SingleActivator activatorFor(AppCommand command, {bool? apple}) {
       meta: cmd,
       control: !cmd,
       alt: true,
+    ),
+    AppCommand.toggleTerminal => const SingleActivator(
+      LogicalKeyboardKey.backquote,
+      control: true,
     ),
   };
 }

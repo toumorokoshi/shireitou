@@ -9,6 +9,7 @@ lint:
     cd packages/ahp_client && dart analyze --fatal-infos
     cd packages/ahp_wire_gen && dart analyze --fatal-infos
     cd packages/ahp_fake_host && dart analyze --fatal-infos
+    cd packages/flutter_pty && dart analyze --fatal-infos
     cd app && flutter analyze --fatal-infos
 
 # Format markdown and Dart files.
@@ -21,6 +22,7 @@ fix:
     cd packages/ahp_client && dart fix --apply
     cd packages/ahp_wire_gen && dart fix --apply
     cd packages/ahp_fake_host && dart fix --apply
+    cd packages/flutter_pty && dart fix --apply
     cd app && dart fix --apply
     just format
 
@@ -30,6 +32,7 @@ test:
     cd packages/ahp_wire_gen && dart test
     cd packages/ahp_client && dart test -x integration
     cd packages/ahp_fake_host && dart test -x integration
+    cd packages/flutter_pty && dart test
     cd app && flutter test -x screenshots
 
 # Run the scripted fake AHP host (asks for approvals, input and sign-in;

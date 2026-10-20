@@ -37,6 +37,7 @@ import '../hosts/open_hosts.dart';
 import '../editor/editor_store.dart';
 import '../editor/editor_target.dart';
 import '../editor/open_in_editor.dart';
+import '../terminal/terminal_panel.dart';
 import 'chat_commands.dart';
 import '../composer/completion_popup.dart';
 import '../composer/completions.dart';
@@ -263,6 +264,23 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
         if (widget.reviewAsPane) {
           unawaited(ref.read(reviewPaneOpenProvider.notifier).toggle());
         }
+      case AppCommand.toggleTerminal:
+        final host = ref
+            .read(openHostsProvider)
+            .where((h) => h.key == context.host)
+            .firstOrNull;
+        if (host == null) return;
+        final summary = ref
+            .read(hostConnectionProvider(context.host))
+            .sessions[widget.session];
+        unawaited(
+          toggleTerminalPanel(
+            context,
+            ref,
+            host,
+            directory: sessionDirectory(summary),
+          ),
+        );
       case AppCommand.newSession ||
           AppCommand.searchSessions ||
           AppCommand.nextSession ||
@@ -695,7 +713,28 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
         ),
         _ => null,
       },
+      terminal: switch (openHost) {
+        final host? => (
+          toggle: () => unawaited(
+            toggleTerminalPanel(context, ref, host, directory: directory),
+          ),
+          open: () => unawaited(
+            openNewTerminal(context, ref, host, directory: directory),
+          ),
+        ),
+        null => null,
+      },
     );
+    final conversationWithTerminal = switch (openHost) {
+      final host? => TerminalDock(
+        hostKey: host.key,
+        onNewTerminal: () => unawaited(
+          openNewTerminal(context, ref, host, directory: directory),
+        ),
+        child: conversation,
+      ),
+      null => conversation,
+    };
     if (widget.reviewAsPane) {
       final open = ref.watch(reviewPaneOpenProvider);
       final reviewWidth = ref.watch(reviewPaneWidthProvider);
@@ -708,7 +747,7 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   header,
-                  Expanded(child: conversation),
+                  Expanded(child: conversationWithTerminal),
                 ],
               ),
             ),
@@ -742,7 +781,7 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           header,
-          Expanded(child: conversation),
+          Expanded(child: conversationWithTerminal),
         ],
       );
     }
@@ -761,7 +800,7 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
           Expanded(
             child: TabBarView(
               physics: const NeverScrollableScrollPhysics(),
-              children: [conversation, review],
+              children: [conversationWithTerminal, review],
             ),
           ),
         ],
@@ -799,6 +838,7 @@ class _Header extends StatelessWidget {
     required this.onMarkUnread,
     required this.onDetails,
     required this.openInEditor,
+    required this.terminal,
   });
 
   /// Whether the title follows a back button ([SessionDetailView]).
@@ -843,6 +883,11 @@ class _Header extends StatelessWidget {
   /// Opens the session's folder in the chosen editor (AV-015), with the
   /// button's and menu item's label; neither shows when null.
   final ({String label, VoidCallback open})? openInEditor;
+
+  /// Opens or closes the terminal panel (AV-016) from the header's
+  /// terminal button, and opens another terminal from the menu; neither
+  /// shows when null.
+  final ({VoidCallback toggle, VoidCallback open})? terminal;
 
   /// The "Details" popover: the [sessionDetailLines] and chips for the
   /// status, background work, the parallel run, the pull request and
@@ -989,6 +1034,12 @@ class _Header extends StatelessWidget {
               icon: const Icon(AppIcons.vscode, size: 18),
               onPressed: open,
             ),
+          if (terminal case (:final toggle, open: _))
+            IconButton(
+              tooltip: toggleTerminalLabel,
+              icon: const Icon(AppIcons.terminal, size: 18),
+              onPressed: toggle,
+            ),
           // The "…" menu's "Details…" opens the popover anchored here.
           MenuAnchor(
             controller: detailsController,
@@ -1054,6 +1105,8 @@ class _Header extends StatelessWidget {
                   ),
                 if (openInEditor case (:final label, :final open))
                   PopupMenuItem(value: open, child: Text(label)),
+                if (terminal case (toggle: _, :final open))
+                  PopupMenuItem(value: open, child: Text(newTerminalMenuLabel)),
               ],
             ),
           ),

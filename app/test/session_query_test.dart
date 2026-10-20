@@ -166,6 +166,8 @@ void main() {
       expect(shortcutLabel(AppCommand.newSession, apple: true), '⌘N');
       expect(shortcutLabel(AppCommand.stop, apple: false), 'Ctrl+.');
       expect(shortcutLabel(AppCommand.nextSession, apple: false), 'Alt+↓');
+      expect(shortcutLabel(AppCommand.toggleTerminal, apple: true), 'Ctrl+`');
+      expect(shortcutLabel(AppCommand.toggleTerminal, apple: false), 'Ctrl+`');
       expect(shortcutLabel(AppCommand.previousSession, apple: true), '⌥↑');
       expect(
         shortcutLabel(AppCommand.toggleReviewPane, apple: false),
@@ -196,7 +198,7 @@ void main() {
         LogicalKeyboardKey.keyN,
       );
       items.last.onSelected!();
-      expect(sent, [AppCommand.toggleReviewPane]);
+      expect(sent, [AppCommand.toggleTerminal]);
       final disabled = flatten(
         sessionMenuItems(connected: false, onCommand: sent.add),
       );

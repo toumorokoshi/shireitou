@@ -45,7 +45,9 @@ with a UX modeled on the GitHub Agents view and Cursor's Agents Window.
 > the browser allows) notify when a session needs input, finishes or
 > fails. A session's header and a folder's header open the folder in
 > VS Code, VS Code Insiders or Cursor (over Remote - SSH for a remote
-> host; desktop and web apps). Push notifications for a closed app
+> host; desktop and web apps), and a VS Code-style terminal panel under
+> the session runs the system `ssh` to the host in the session's folder
+> (Ctrl+\`; desktop apps). Push notifications for a closed app
 > are not built; see [GAPS.md](GAPS.md).
 
 ## Layout
@@ -62,6 +64,9 @@ with a UX modeled on the GitHub Agents view and Cursor's Agents Window.
 - [`packages/ahp_wire_gen/`](packages/ahp_wire_gen/): generates the client's
   wire types from the vendored AHP 1.0.0 JSON Schemas (see
   [docs/wire-types.md](docs/wire-types.md)).
+- [`packages/flutter_pty/`](packages/flutter_pty/): flutter_pty 0.4.2
+  vendored, built by a Dart build hook: processes in a pseudo-terminal
+  for the terminal panel (see [docs/terminal.md](docs/terminal.md)).
 - [`app/`](app/): the Flutter app (macOS, Windows, Linux, iOS, Android, web).
 - [`examples/`](examples/): recorded AHP traffic used by tests.
 
@@ -85,6 +90,8 @@ so one `flutter pub get` at the root resolves every package.
   colours come from, and how to add one.
 - [docs/open-in-editor.md](docs/open-in-editor.md): opening a session's
   folder in VS Code (editor settings, the Remote - SSH URLs).
+- [docs/terminal.md](docs/terminal.md): the terminal panel (the `ssh`
+  command, `~/.ssh/config`, the vendored pty).
 - [docs/packaging.md](docs/packaging.md): packages, the app icon, the
   release workflow and the signing secrets it uses.
 - [specs/agents-view.md](specs/agents-view.md): UI and feature requirements.

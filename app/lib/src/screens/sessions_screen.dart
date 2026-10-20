@@ -323,7 +323,8 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
           AppCommand.focusComposer ||
           AppCommand.previousTurn ||
           AppCommand.nextTurn ||
-          AppCommand.toggleReviewPane:
+          AppCommand.toggleReviewPane ||
+          AppCommand.toggleTerminal:
         // The open session view handles these.
         break;
     }

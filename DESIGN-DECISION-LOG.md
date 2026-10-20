@@ -1,5 +1,44 @@
 # Design Decision Log
 
+## 2026-10-20: A VS Code-style terminal panel on the system `ssh` (AV-016)
+
+Opening a folder in an editor (AV-015) left no quick way to run a
+command on an agent's host from the app. The terminal removed the day
+before (AV-014) had its own SSH client, settings and secrets. The new
+panel instead runs the user's own `ssh` in a pseudo-terminal under the
+session, as VS Code's terminal panel does.
+
+- **The system `ssh`, configured by the user.** The destination is the
+  AHP URL's host and nothing else: the user, keys, port, jump hosts and
+  host key checks come from `~/.ssh/config`, `known_hosts` and the
+  agent. The app stores no SSH settings or secrets, and the arguments
+  are `-t -- <host> 'cd <folder> 2>/dev/null; exec "$SHELL" -l'`, with
+  hosts that could be read as options refused.
+- **A panel in the session pane, with terminals per host.** The panel
+  sits under the conversation (`TerminalDock`), resizes from its top
+  edge, maximizes over the conversation (kept mounted, so scroll
+  position and drafts survive) and hides without ending terminals.
+  Terminals belong to an AHP host, so switching between that host's
+  sessions keeps them. Ctrl+\` toggles it on every platform, as in VS
+  Code, and is caught inside the terminal, which otherwise takes every
+  key.
+- **The macOS sandbox is off.** A sandboxed child `ssh` cannot read
+  `~/.ssh` or reach the agent. The app ships as a notarized `.dmg`, which
+  needs the hardened runtime but not the sandbox. The alternative, the
+  `ssh://` link to Terminal.app, would not be inline.
+- **flutter_pty vendored and built by a build hook.** Of the pty
+  packages, flutter_pty (the xterm.dart authors') has small, readable C
+  that forks and execs in C. pty2 forks the Dart VM from Dart, and
+  portable_pty (WezTerm's Rust library) is at 0.0.x and needs Rust. The
+  published flutter_pty is 21 months old, builds through CocoaPods on
+  macOS (no Swift Package Manager), bundles into iOS and Android, and on
+  Windows repeated the executable on the command line without quoting.
+  The copy in `packages/flutter_pty` compiles its C with a Dart build
+  hook on the desktops only, calls it through `@Native` bindings, and
+  fixes the Windows command line. xterm.dart stays the emulator.
+- **No pty, an `ssh://` link.** The web, iOS and Android open
+  `ssh://<host>` in an installed SSH app instead.
+
 ## 2026-10-20: A starting session shows "Initializing…" instead of a progress bar (AV-040)
 
 Starting a session from the draft showed a thin progress bar above the

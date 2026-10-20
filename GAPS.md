@@ -121,8 +121,23 @@ AppImage and the release workflow (see
   `wsl+` or `dev-container+` authorities). A host reached through a
   forwarded loopback port is taken to be this computer until its editor
   settings say otherwise. The host menu cannot open the host without a
-  folder. There is no editor on iOS or Android, and no shell on the
-  host from the app at all now that the SSH terminal is gone.
+  folder. There is no editor on iOS or Android.
+- **Terminal panel (AV-016), remaining details:** the SSH host is always
+  the AHP URL's host, so a host reached through a tunnel or a forwarded
+  `127.0.0.1` port opens `ssh 127.0.0.1` (an alias in `~/.ssh/config`
+  is the way around it; there is no per-host setting). `ssh` asks for
+  passwords, passphrases and new host keys in the terminal itself; the
+  app adds nothing. The remote command assumes a POSIX shell (`cd`,
+  `$SHELL`) and a POSIX folder path. Terminals are not kept across app
+  restarts, cannot be split, renamed or moved to their own window, and
+  the panel has no find, links or zoom. On Windows the pty is only
+  exercised by `ssh -V` in CI, the environment and working folder are
+  passed as Latin-1 (non-ASCII values break), and starting a terminal
+  waits one second (flutter_pty's `Sleep(1000)` before `CreateProcess`).
+  Exit codes read 0 under `dart test` (the runner reaps children), so the
+  package tests do not check them. The web, iOS and Android only open an
+  `ssh://` link. Turning off the macOS sandbox rules out the Mac App
+  Store.
 - **`/` completions (AV-044), remaining details:** the new-session
   draft has no chat to send `completions` for, so it offers the skills
   and prompts the agent lists in `AgentInfo.customizations` (parsed
