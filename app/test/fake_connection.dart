@@ -260,6 +260,9 @@ class FakeHostConnection extends HostConnection {
   /// Thrown by [startSession] when set.
   Object? startError;
 
+  /// When set, [startSession] waits for it before answering.
+  Completer<void>? startGate;
+
   @override
   Future<String> startSession({
     required String provider,
@@ -277,9 +280,11 @@ class FakeHostConnection extends HostConnection {
       model: model,
       config: config,
     ));
-    if (startError case final error?) throw error;
     // pi:/1, then pi:/2, ... for parallel runs.
-    return 'pi:/${started.length}';
+    final session = 'pi:/${started.length}';
+    if (startGate case final gate?) await gate.future;
+    if (startError case final error?) throw error;
+    return session;
   }
 
   /// The `type`s of the dispatched actions.

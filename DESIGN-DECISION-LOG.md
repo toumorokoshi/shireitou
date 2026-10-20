@@ -1,5 +1,26 @@
 # Design Decision Log
 
+## 2026-10-20: A starting session shows "Initializing…" instead of a progress bar (AV-040)
+
+Starting a session from the draft showed a thin progress bar above the
+composer, with the prompt still in the box, until the host had created
+the session and accepted the first turn. It read as a stall, as if the
+app would not move on.
+
+- **Look started at once.** While the host works, the draft's timeline
+  is replaced by `StartingTimeline`: the prompt as the first message
+  (the timeline's `UserMessageBubble`) and the working dots
+  (`WorkingIndicatorRow`) reading "Initializing…". The pickers and the
+  hint go, and the prompt leaves the box, so the pane looks like the
+  session it is about to become.
+- **No fake session state.** The placeholder is the draft's own widget
+  state, not an optimistic session in the client's state: the session's
+  URI is not known until `createSession` answers, and a failed start
+  would otherwise need rolling back in the session list.
+- **Failures restore the draft.** On a failure the timeline goes back
+  to the draft, the prompt returns to the box and the error shows above
+  it, as before.
+
 ## 2026-10-19: Open in VS Code, Insiders or Cursor replaces the SSH terminal (AV-014, AV-015)
 
 The in-app SSH terminal (dartssh2 and xterm.dart) gave a bare shell on

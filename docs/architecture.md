@@ -565,7 +565,11 @@ Dart source); `bin/generate.dart` does the file I/O. See
   the composer's box (`FollowUpInput` with its own `controller`), whose
   chips pick the model, its options and the choice settings (such as
   `mode`). Sending starts the session (or runs) and calls `onStarted`;
-  the sessions screen then opens the session in place.
+  the sessions screen then opens the session in place. While the host
+  creates it, `StartingTimeline` replaces the timeline (and the pickers)
+  with the prompt's `UserMessageBubble` and a `WorkingIndicatorRow`
+  reading "Initializing…", so the session looks started at once; the
+  prompt leaves the box, and comes back to it if the start fails.
   `new_session_draft.dart` is pure: `NewSessionTarget` (the host and
   folder "New session" preselected), `NewSessionDraft` (what was picked
   and typed), `withDraft` and `initialDirectoryText`; the sessions screen

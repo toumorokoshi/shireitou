@@ -623,3 +623,13 @@ AppImage and the release workflow (see
 - The selection workarounds in `timeline_selection.dart` should be
   dropped once Flutter fixes nested scroll views' selection edges and
   adds separators between selected widgets.
+
+## Starting a session (AV-040)
+
+- "Initializing…" covers only the host's `createSession` and
+  `openSession`. Once the pane switches to the started session, its view
+  opens the session again and shows a centred spinner until the host
+  answers; handing the draft's subscription (and prompt) to the session
+  view would make the switch seamless.
+- The "Initializing…" timeline shows only the first run's prompt; the
+  other parallel runs (AV-045) have no placeholder until they start.

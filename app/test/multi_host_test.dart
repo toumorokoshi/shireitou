@@ -3,6 +3,8 @@
 /// AV-043), the follow-up model and mode pickers, and the storage banner.
 library;
 
+import 'dart:async';
+
 import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -309,6 +311,66 @@ void main() {
       findsOneWidget,
     );
     // The prompt is kept, to try again.
+    expect(find.widgetWithText(TextField, 'Go'), findsOneWidget);
+  });
+
+  testWidgets('a starting session shows the prompt and "Initializing…" '
+      'instead of a progress bar', (tester) async {
+    final (first, second) = await _pump(tester);
+    final gate = Completer<void>();
+    first.startGate = gate;
+    second.startGate = gate;
+    await tester.tap(find.byTooltip(RegExp(r'^New session \(')));
+    await tester.pumpAndSettle();
+    await tester.enterText(composerField, 'Go');
+    await tester.pump();
+    await tester.tap(find.byTooltip('Start session'));
+    await tester.pump();
+
+    final starting = find.byType(StartingTimeline);
+    expect(starting, findsOneWidget);
+    expect(
+      find.descendant(of: starting, matching: find.text('Go')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: starting, matching: find.text(initializingLabel)),
+      findsOneWidget,
+    );
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+    expect(find.textContaining('Write a prompt below'), findsNothing);
+    expect(find.widgetWithText(TextField, 'Go'), findsNothing);
+
+    gate.complete();
+    await tester.pumpAndSettle();
+    expect(find.byType(NewSessionView), findsNothing);
+  });
+
+  testWidgets('a session that fails after "Initializing…" puts the prompt '
+      'back', (tester) async {
+    final (first, second) = await _pump(tester);
+    final gate = Completer<void>();
+    const error = SessionCreationFailedError(
+      'ahp-session:/x',
+      ErrorInfo(errorType: 'creationFailed', message: 'No such folder'),
+    );
+    for (final connection in [first, second]) {
+      connection
+        ..startGate = gate
+        ..startError = error;
+    }
+    await tester.tap(find.byTooltip(RegExp(r'^New session \(')));
+    await tester.pumpAndSettle();
+    await tester.enterText(composerField, 'Go');
+    await tester.pump();
+    await tester.tap(find.byTooltip('Start session'));
+    await tester.pump();
+    expect(find.byType(StartingTimeline), findsOneWidget);
+
+    gate.complete();
+    await tester.pumpAndSettle();
+    expect(find.byType(StartingTimeline), findsNothing);
+    expect(find.textContaining('Write a prompt below'), findsOneWidget);
     expect(find.widgetWithText(TextField, 'Go'), findsOneWidget);
   });
 

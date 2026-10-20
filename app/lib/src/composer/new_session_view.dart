@@ -18,6 +18,7 @@ import '../runs/run_groups.dart';
 import '../runs/runs_editor.dart';
 import '../session_detail/message_settings.dart';
 import '../session_detail/session_detail_view.dart';
+import '../session_detail/timeline_parts.dart';
 import '../session_list/folder_grouping.dart';
 import '../shortcuts.dart';
 import '../theme/app_colors.dart';
@@ -36,8 +37,10 @@ const newSessionTitle = 'New session';
 /// A session not started yet: a header titled "New session", an empty
 /// timeline with a hint, and the follow-up box as the prompt, with the
 /// host, agent, folder, model and settings pickers inline. Sending starts
-/// the session (or parallel runs) and calls [onStarted]; a failure shows
-/// above the prompt and keeps it.
+/// the session (or parallel runs) and calls [onStarted]. Meanwhile the
+/// timeline shows the prompt as the first message and "Initializing…",
+/// as if the session had started; a failure puts the prompt back in the
+/// box and shows above it.
 class NewSessionView extends ConsumerStatefulWidget {
   /// Creates a [NewSessionView]. Give it a key per [target].
   const NewSessionView({
@@ -81,7 +84,10 @@ class _NewSessionViewState extends ConsumerState<NewSessionView> {
   String? _settingsError;
   int _resolveGeneration = 0;
   Timer? _resolveTimer;
-  bool _starting = false;
+
+  /// The prompt being started, shown as the first message until the
+  /// host has created the session.
+  Message? _sent;
   String? _error;
 
   /// Runs beyond the first, for best-of-N (AV-045): each an agent and a
@@ -249,7 +255,7 @@ class _NewSessionViewState extends ConsumerState<NewSessionView> {
     ModelSelection? model,
     List<MessageAttachment> attachments,
   ) async {
-    if (_starting) return;
+    if (_sent != null) return;
     final host = _host;
     final agents = _agentsOf(host);
     final agent =
@@ -282,10 +288,12 @@ class _NewSessionViewState extends ConsumerState<NewSessionView> {
           sameAgent: extra.provider == agent.provider,
         ),
     ];
+    final typed = _prompt.text;
     setState(() {
-      _starting = true;
+      _sent = userMessage(prompt, model: model, attachments: attachments);
       _error = null;
     });
+    _prompt.clear();
     final results = await Future.wait([
       for (final run in runs)
         connection
@@ -307,9 +315,10 @@ class _NewSessionViewState extends ConsumerState<NewSessionView> {
     );
     if (started.isEmpty) {
       setState(() {
-        _starting = false;
+        _sent = null;
         _error = failures.join('\n');
       });
+      _prompt.text = typed;
       return;
     }
     if (started.length > 1) {
@@ -406,7 +415,7 @@ class _NewSessionViewState extends ConsumerState<NewSessionView> {
         child: Text(newSessionTitle, style: theme.textTheme.titleSmall),
       ),
     );
-    final timeline = SingleChildScrollView(
+    final draftTimeline = SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Center(
         child: ConstrainedBox(
@@ -575,15 +584,13 @@ class _NewSessionViewState extends ConsumerState<NewSessionView> {
       children: [
         header,
         const Divider(height: 1),
-        Expanded(child: timeline),
-        pickers,
-        if (_starting)
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
-            child: LinearProgressIndicator(
-              semanticsLabel: 'Starting the session',
-            ),
-          ),
+        Expanded(
+          child: switch (_sent) {
+            final sent? => StartingTimeline(message: sent),
+            null => draftTimeline,
+          },
+        ),
+        if (_sent == null) pickers,
         if (_error case final error?)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
@@ -633,4 +640,39 @@ class _NewSessionViewState extends ConsumerState<NewSessionView> {
       ],
     );
   }
+}
+
+/// What the timeline says while the host creates the session.
+const initializingLabel = 'Initializing…';
+
+/// The timeline of a session the host is still creating: [message] as
+/// the first message and the working dots with [initializingLabel], laid
+/// out like an open session's timeline.
+class StartingTimeline extends StatelessWidget {
+  /// Creates a [StartingTimeline].
+  const StartingTimeline({super.key, required this.message});
+
+  /// The prompt being started.
+  final Message message;
+
+  @override
+  Widget build(BuildContext context) => SingleChildScrollView(
+    padding: const EdgeInsets.symmetric(
+      horizontal: timelineSidePadding,
+      vertical: 8,
+    ),
+    child: Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: timelineMaxWidth),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            UserMessageBubble(message: message),
+            const WorkingIndicatorRow(activity: initializingLabel),
+          ],
+        ),
+      ),
+    ),
+  );
 }
