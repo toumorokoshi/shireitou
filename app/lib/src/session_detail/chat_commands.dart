@@ -359,6 +359,21 @@ JsonMap editPendingAction(
 JsonMap removePendingAction(PendingMessageKind kind, String id) =>
     ChatPendingMessageRemovedAction(kind: kind, id: id).toJson();
 
+/// The actions that send queued [pending] at the agent's next step.
+///
+/// AHP has no action that changes a pending message's kind, so first set it
+/// as the steering message, preserving its model and attachments, then remove
+/// it from the queue. Setting first means a failed first dispatch leaves the
+/// original queue entry intact.
+List<JsonMap> sendQueuedNowActions(PendingMessage pending) => [
+  ChatPendingMessageSetAction(
+    kind: PendingMessageKind.steering,
+    id: pending.id,
+    message: pending.message,
+  ).toJson(),
+  removePendingAction(PendingMessageKind.queued, pending.id),
+];
+
 /// The action that saves an inline edit of [pending] as [text] (AV-081):
 /// an edit with the trimmed text, a removal when [text] is blank, or null
 /// when nothing is sent, because [text] is unchanged or [pending] is null

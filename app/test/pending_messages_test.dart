@@ -127,6 +127,24 @@ void main() {
     expect(_editor, findsOneWidget);
   });
 
+  testWidgets('Send now moves a queued message to steering', (tester) async {
+    final actions = await _pump(tester, _both);
+    await tester.tap(find.byTooltip('Message actions').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Send now'));
+    await tester.pumpAndSettle();
+
+    expect(actions, hasLength(2));
+    expect(actions.first['type'], 'chat/pendingMessageSet');
+    expect(actions.first['kind'], 'steering');
+    expect(actions.first['id'], 'q1');
+    expect(actions.last, {
+      'type': 'chat/pendingMessageRemoved',
+      'kind': 'queued',
+      'id': 'q1',
+    });
+  });
+
   testWidgets('a message the host sends while it is edited closes the editor', (
     tester,
   ) async {

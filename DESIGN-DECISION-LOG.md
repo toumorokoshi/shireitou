@@ -1,5 +1,22 @@
 # Design Decision Log
 
+## 2026-10-19: A queued message can be sent now (AV-081)
+
+A follow-up that was queued while the agent worked could be edited,
+reordered or removed, but changing its urgency required removing and
+retyping it in the composer.
+
+- **"Send now" is a queued-message action.** It is in the row's action
+  menu beside Edit, Move and Remove, and turns that message into the
+  steering message delivered at the agent's next step.
+- **Preserve the original message.** Its ID, model and attachments are
+  reused instead of rebuilding it from the visible text.
+- **Set steering before removing the queue entry.** AHP has separate
+  set/remove actions rather than an atomic change-kind action. Setting
+  first means rejection of that dispatch leaves the original queue entry
+  intact. As with sending typed text now, it replaces an existing steering
+  message.
+
 ## 2026-10-19: Open in VS Code, Insiders or Cursor replaces the SSH terminal (AV-014, AV-015)
 
 The in-app SSH terminal (dartssh2 and xterm.dart) gave a bare shell on

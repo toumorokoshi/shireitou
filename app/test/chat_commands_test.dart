@@ -103,6 +103,22 @@ void main() {
     final queued = PendingMessage(id: 'q1', message: userMessage('first'));
     const kind = PendingMessageKind.queued;
 
+    test('send now steers the queued message, then removes it', () {
+      final actions = sendQueuedNowActions(queued);
+      expect(actions, [
+        {
+          'type': 'chat/pendingMessageSet',
+          'kind': 'steering',
+          'id': 'q1',
+          'message': {
+            'text': 'first',
+            'origin': {'kind': 'user'},
+          },
+        },
+        {'type': 'chat/pendingMessageRemoved', 'kind': 'queued', 'id': 'q1'},
+      ]);
+    });
+
     test('sets the trimmed text', () {
       final action = savePendingEditAction(kind, queued, ' first, edited ')!;
       expect(action['type'], 'chat/pendingMessageSet');

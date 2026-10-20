@@ -116,6 +116,12 @@ class _PendingMessagesPanelState extends State<PendingMessagesPanel> {
     _close();
   }
 
+  void _sendNow(PendingMessage pending) {
+    for (final action in sendQueuedNowActions(pending)) {
+      widget.onAction(action);
+    }
+  }
+
   Widget _row(PendingMessageItem item, {Key? key, int? position}) {
     final id = item.pending.id;
     return _PendingRow(
@@ -127,6 +133,9 @@ class _PendingMessagesPanelState extends State<PendingMessagesPanel> {
       onMove: _move,
       editing: _editingId == id,
       onEdit: () => setState(() => _editingId = id),
+      onSendNow: item.kind == PendingMessageKind.queued
+          ? () => _sendNow(item.pending)
+          : null,
       onSave: (text) => _save(id, text),
       onCancel: _close,
     );
@@ -179,6 +188,7 @@ class _PendingRow extends StatelessWidget {
     required this.onMove,
     required this.editing,
     required this.onEdit,
+    required this.onSendNow,
     required this.onSave,
     required this.onCancel,
   });
@@ -203,6 +213,9 @@ class _PendingRow extends StatelessWidget {
 
   /// Opens the message in the inline editor.
   final VoidCallback onEdit;
+
+  /// Sends a queued message at the agent's next step.
+  final VoidCallback? onSendNow;
 
   /// Saves the editor's text.
   final ValueChanged<String> onSave;
@@ -246,6 +259,8 @@ class _PendingRow extends StatelessWidget {
           tooltip: 'Message actions',
           onSelected: (action) => action(),
           itemBuilder: (context) => [
+            if (onSendNow case final sendNow?)
+              PopupMenuItem(value: sendNow, child: const Text('Send now')),
             PopupMenuItem(value: onEdit, child: const Text('Edit')),
             if (position != null && position > 0)
               PopupMenuItem(

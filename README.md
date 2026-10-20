@@ -165,8 +165,9 @@ just run chrome 'ws://127.0.0.1:63877?tkn=...'   # prefill the host URL
    follow-up (or queues it while the agent works), Cmd/Ctrl+Enter steers the
    running turn, Shift+Enter adds a newline, and the stop square (the
    send arrow while the agent works and the box is empty) cancels the
-   turn. ↑ in the empty box edits the newest queued message (Enter
-   re-queues it), or else recalls your earlier messages to edit and send
+   turn. A queued message's menu can send it now instead. ↑ in the empty
+   box edits the newest queued message (Enter re-queues it), or else
+   recalls your earlier messages to edit and send
    again; ↓ steps back. The pencil beside your latest message (running or
    finished) edits it in place and restarts from it, dropping that turn
    and its reply (the host must accept `chat/truncated`, as
