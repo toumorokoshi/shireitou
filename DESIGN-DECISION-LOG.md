@@ -1,5 +1,25 @@
 # Design Decision Log
 
+## 2026-10-20: "Send now" for queued messages (AV-081)
+
+The composer's "Send now" steers only with newly typed text. Once a
+message was queued, the only way to deliver it sooner was to copy it,
+remove it and type it again. Queued rows now have a "Send now" button
+(the composer's lightning icon) and a matching menu item.
+
+- **Promote to steering, then dequeue.** It dispatches
+  `chat/pendingMessageSet` (steering) and then
+  `chat/pendingMessageRemoved` (queued), so a failure between the two
+  leaves a duplicate rather than losing the message. The steering
+  message reuses the queued message's ID.
+- **Merge into a waiting steering message.** The chat holds a single
+  steering message, and setting it again replaces the earlier one. When
+  one is already waiting, the queued text (after a blank line) and
+  attachments are appended to it, keeping its ID, model and agent.
+- **Idle chats start a turn.** With no turn running, steering means
+  nothing, so it sends `chat/turnStarted` with `queuedMessageId`, which
+  also takes the message out of the queue.
+
 ## 2026-10-20: A VS Code-style terminal panel on the system `ssh` (AV-016)
 
 Opening a folder in an editor (AV-015) left no quick way to run a

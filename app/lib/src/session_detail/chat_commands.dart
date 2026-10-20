@@ -376,6 +376,53 @@ JsonMap? savePendingEditAction(
   return editPendingAction(kind, pending, trimmed);
 }
 
+/// The actions that send queued message [queued] now (AV-081): with no
+/// turn running, `chat/turnStarted` [id] from it; otherwise it becomes the
+/// steering message, delivered at the agent's next step, then leaves the
+/// queue. A steering message already waiting is kept, with [queued]'s
+/// text and attachments appended to it, since the chat has one steering
+/// slot and setting it again would drop the earlier one.
+List<JsonMap> sendQueuedNowActions(
+  ChatState chat,
+  PendingMessage queued, {
+  required String id,
+  required DateTime now,
+}) {
+  if (chat.activeTurn == null) {
+    return [
+      ChatTurnStartedAction(
+        turnId: id,
+        startedAt: now.toUtc().toIso8601String(),
+        message: queued.message,
+        queuedMessageId: queued.id,
+      ).toJson(),
+    ];
+  }
+  final steering = switch (chat.steeringMessage) {
+    null => queued,
+    final current => PendingMessage(
+      id: current.id,
+      message: _appendMessage(current.message, queued.message),
+    ),
+  };
+  return [
+    ChatPendingMessageSetAction(
+      kind: PendingMessageKind.steering,
+      id: steering.id,
+      message: steering.message,
+    ).toJson(),
+    removePendingAction(PendingMessageKind.queued, queued.id),
+  ];
+}
+
+Message _appendMessage(Message first, Message second) {
+  final attachments = [...?first.attachments, ...?second.attachments];
+  return first.copyWith(
+    text: '${first.text}\n\n${second.text}',
+    attachments: attachments.isEmpty ? null : attachments,
+  );
+}
+
 /// The action that moves the queued message at [from] to position [to]
 /// (both indexes into [queued], [to] counted after the removal), or null
 /// when nothing moves (AV-081).

@@ -22,6 +22,7 @@ Future<List<JsonMap>> _pump(
   List<JsonMap>? actions,
   Listenable? editNewestRequests,
   VoidCallback? onEditorClosed,
+  ValueChanged<PendingMessage>? onSendNow,
 }) async {
   final dispatched = actions ?? <JsonMap>[];
   await tester.pumpWidget(
@@ -32,6 +33,7 @@ Future<List<JsonMap>> _pump(
           onAction: dispatched.add,
           editNewestRequests: editNewestRequests,
           onEditorClosed: onEditorClosed,
+          onSendNow: onSendNow,
         ),
       ),
     ),
@@ -125,6 +127,37 @@ void main() {
     await tester.tap(find.text('Edit'));
     await tester.pumpAndSettle();
     expect(_editor, findsOneWidget);
+  });
+
+  testWidgets('"Send now" on a queued message, by button or menu', (
+    tester,
+  ) async {
+    final sent = <String>[];
+    final actions = await _pump(tester, [
+      PendingMessageItem(
+        PendingMessageKind.steering,
+        PendingMessage(id: 's', message: userMessage('steer')),
+      ),
+      ..._both,
+    ], onSendNow: (message) => sent.add(message.id));
+    // Only the queued messages offer it, not the steering one.
+    expect(find.byTooltip('Send now'), findsNWidgets(2));
+    await tester.tap(find.byTooltip('Send now').last);
+    await tester.pumpAndSettle();
+    expect(sent, ['q2']);
+    expect(_editor, findsNothing);
+
+    await tester.tap(find.byTooltip('Message actions').at(1));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Send now'));
+    await tester.pumpAndSettle();
+    expect(sent, ['q2', 'q1']);
+    expect(actions, isEmpty);
+  });
+
+  testWidgets('no "Send now" without a handler', (tester) async {
+    await _pump(tester, _both);
+    expect(find.byTooltip('Send now'), findsNothing);
   });
 
   testWidgets('a message the host sends while it is edited closes the editor', (

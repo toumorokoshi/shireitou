@@ -777,6 +777,39 @@ void main() {
     });
   });
 
+  testWidgets('"Send now" steers with a queued message (AV-081)', (
+    tester,
+  ) async {
+    reduceMotion(tester);
+    final connection = await _pump(
+      tester,
+      _state(
+        chat: _chatWith(const [], active: true).copyWith(
+          queuedMessages: [
+            PendingMessage(id: 'q1', message: userMessage('first')),
+          ],
+        ),
+      ),
+    );
+    await tester.tap(find.byTooltip('Send now'));
+    await tester.pumpAndSettle();
+    expect(
+      [for (final (_, action) in connection.dispatched) action],
+      [
+        {
+          'type': 'chat/pendingMessageSet',
+          'kind': 'steering',
+          'id': 'q1',
+          'message': {
+            'text': 'first',
+            'origin': {'kind': 'user'},
+          },
+        },
+        {'type': 'chat/pendingMessageRemoved', 'kind': 'queued', 'id': 'q1'},
+      ],
+    );
+  });
+
   testWidgets('drafts are shown, synced and cleared on send', (tester) async {
     final connection = await _pump(
       tester,

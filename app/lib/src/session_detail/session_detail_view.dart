@@ -548,6 +548,17 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
                       PendingMessagesPanel(
                         pending: pending,
                         onAction: (action) => _dispatch(chatUri!, action),
+                        onSendNow: (queued) {
+                          final actions = sendQueuedNowActions(
+                            chat!,
+                            queued,
+                            id: const Uuid().v4(),
+                            now: DateTime.now(),
+                          );
+                          for (final action in actions) {
+                            _dispatch(chatUri!, action);
+                          }
+                        },
                         editNewestRequests: _editQueued,
                         onEditorClosed: () => _composerFocus.value++,
                       ),
