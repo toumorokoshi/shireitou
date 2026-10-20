@@ -124,6 +124,61 @@ void main() {
     });
   });
 
+  group('sendQueuedNowActions', () {
+    final first = PendingMessage(id: 'q1', message: userMessage('first'));
+    final second = PendingMessage(id: 'q2', message: userMessage('second'));
+    ChatState apply(ChatState chat, PendingMessage queued) =>
+        sendQueuedNowActions(
+          chat,
+          queued,
+          id: 't',
+          now: now,
+        ).fold(chat, reduceChatJson);
+
+    test('makes the message the steering one and drops it from the queue', () {
+      final chat = apply(
+        active.copyWith(queuedMessages: [first, second]),
+        second,
+      );
+      expect(chat.steeringMessage?.id, 'q2');
+      expect(chat.steeringMessage?.message.text, 'second');
+      expect(chat.queuedMessages, [first]);
+    });
+
+    test('appends to a steering message already waiting', () {
+      final steering = PendingMessage(
+        id: 's',
+        message: userMessage(
+          'steer',
+          attachments: const [SimpleMessageAttachment(label: 'a.dart')],
+        ),
+      );
+      final chat = apply(
+        active.copyWith(steeringMessage: steering, queuedMessages: [first]),
+        first,
+      );
+      expect(chat.steeringMessage?.id, 's');
+      expect(chat.steeringMessage?.message.text, 'steer\n\nfirst');
+      expect(chat.steeringMessage?.message.attachments, hasLength(1));
+      expect(chat.queuedMessages, isNull);
+    });
+
+    test('starts a turn from the message when idle', () {
+      final actions = sendQueuedNowActions(
+        idle.copyWith(queuedMessages: [first, second]),
+        first,
+        id: 't',
+        now: now,
+      );
+      expect(actions.single['type'], 'chat/turnStarted');
+      expect(actions.single['turnId'], 't');
+      expect(actions.single['queuedMessageId'], 'q1');
+      final chat = apply(idle.copyWith(queuedMessages: [first, second]), first);
+      expect(chat.activeTurn?.message.text, 'first');
+      expect(chat.queuedMessages, [second]);
+    });
+  });
+
   group('confirmToolCallAction', () {
     test('approve and deny', () {
       expect(confirmToolCallAction('turn-2', pendingTool, approve: true), {

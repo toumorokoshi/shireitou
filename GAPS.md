@@ -168,7 +168,12 @@ AppImage and the release workflow (see
   copied or re-queued). A change to the message's text from another
   client while it is being edited is not shown; saving overwrites it.
   Clicking the steering message also edits it, though the agent may take
-  it before the edit is saved.
+  it before the edit is saved. "Send now" on a queued message sends two
+  actions (set the steering message, then remove the queued one), so a
+  host that takes the steering message between them still shows the
+  queued copy until the removal lands; it is untested against pi, and a
+  steering message the agent takes just before the merge is sent again
+  with the queued text appended.
 - **↑ to edit the previous message (AV-087), remaining details:** a
   recalled message is sent as a new turn; the earlier turn and its reply
   stay in the history (the edit button, AV-088, replaces the latest

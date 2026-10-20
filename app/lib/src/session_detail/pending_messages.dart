@@ -1,11 +1,12 @@
 /// Queued and steering messages above the follow-up box (AV-081): click a
-/// message to edit it in place, remove it, and drag (or move) queued ones
-/// to reorder them.
+/// message to edit it in place, remove it, send a queued one now, and
+/// drag (or move) queued ones to reorder them.
 library;
 
 import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter/material.dart';
 
+import '../theme/app_icons.dart';
 import 'chat_commands.dart';
 import 'inline_message_editor.dart';
 import 'timeline_items.dart';
@@ -19,6 +20,7 @@ class PendingMessagesPanel extends StatefulWidget {
     required this.onAction,
     this.editNewestRequests,
     this.onEditorClosed,
+    this.onSendNow,
   });
 
   /// The steering message first, then the queue (see `pendingMessages`).
@@ -26,6 +28,10 @@ class PendingMessagesPanel extends StatefulWidget {
 
   /// Dispatches a chat action.
   final ValueChanged<JsonMap> onAction;
+
+  /// Sends a queued message now (see `sendQueuedNowActions`); null hides
+  /// the "Send now" buttons.
+  final ValueChanged<PendingMessage>? onSendNow;
 
   /// Opens the newest message (the last queued one, else the steering
   /// one) in the inline editor whenever this changes (↑ in the composer,
@@ -118,10 +124,14 @@ class _PendingMessagesPanelState extends State<PendingMessagesPanel> {
 
   Widget _row(PendingMessageItem item, {Key? key, int? position}) {
     final id = item.pending.id;
+    final sendNow = widget.onSendNow;
     return _PendingRow(
       key: key,
       item: item,
       onAction: widget.onAction,
+      onSendNow: sendNow == null || item.kind != PendingMessageKind.queued
+          ? null
+          : () => sendNow(item.pending),
       position: position,
       count: _queued.length,
       onMove: _move,
@@ -181,6 +191,7 @@ class _PendingRow extends StatelessWidget {
     required this.onEdit,
     required this.onSave,
     required this.onCancel,
+    this.onSendNow,
   });
 
   /// The message shown.
@@ -188,6 +199,9 @@ class _PendingRow extends StatelessWidget {
 
   /// Dispatches a chat action.
   final ValueChanged<JsonMap> onAction;
+
+  /// Sends the queued message now, or null for the steering message.
+  final VoidCallback? onSendNow;
 
   /// Index in the queue, or null for the steering message.
   final int? position;
@@ -214,6 +228,7 @@ class _PendingRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final steering = item.kind == PendingMessageKind.steering;
     final position = this.position;
+    final sendNow = onSendNow;
     final icon = Icon(steering ? Icons.bolt : Icons.schedule, size: 18);
     if (editing) {
       return InlineMessageEditor(
@@ -242,11 +257,21 @@ class _PendingRow extends StatelessWidget {
             subtitle: Text(steering ? 'Steering (next step)' : 'Queued'),
           ),
         ),
+        if (sendNow != null)
+          IconButton(
+            tooltip: 'Send now',
+            iconSize: 18,
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(AppIcons.sendNow),
+            onPressed: sendNow,
+          ),
         PopupMenuButton<VoidCallback>(
           tooltip: 'Message actions',
           onSelected: (action) => action(),
           itemBuilder: (context) => [
             PopupMenuItem(value: onEdit, child: const Text('Edit')),
+            if (sendNow != null)
+              PopupMenuItem(value: sendNow, child: const Text('Send now')),
             if (position != null && position > 0)
               PopupMenuItem(
                 value: () => onMove(position, position - 1),

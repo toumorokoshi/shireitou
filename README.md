@@ -15,7 +15,8 @@ with a UX modeled on the GitHub Agents view and Cursor's Agents Window.
 > replies with highlighted code, copies a reply as markdown, folds each turn's tool calls into one
 > "Completed N steps" line (grouping similar ones), shows live
 > terminal output and inline diffs, switches between a session's chats
-> (subagents, side chats), sends, queues, edits and reorders follow-ups,
+> (subagents, side chats), sends, queues, edits and reorders follow-ups
+> (or sends a queued one now),
 > syncs drafts, stops turns, answers tool approvals (with the host's
 > options, risk assessments, edited input and result confirmation), input
 > requests (also from other chats, with synced drafts) and sign-in
