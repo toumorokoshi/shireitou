@@ -5,6 +5,7 @@ library;
 
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,6 +20,7 @@ import '../theme/app_colors.dart';
 import '../theme/app_icons.dart';
 import 'pty_process.dart';
 import 'ssh_command.dart';
+import 'terminal_links.dart';
 import 'terminal_session.dart';
 
 /// The label of the button and menu item that open the `ssh://` link
@@ -439,7 +441,9 @@ class _Tab extends StatelessWidget {
 /// paste use the platform's keys (Cmd+C and Cmd+V on macOS, Ctrl+Shift+C
 /// and Ctrl+V elsewhere) or a right-click (copy the selection, else
 /// paste). Alt+T and Ctrl+` still toggle the panel while it has the
-/// focus, so Alt+T does not reach the shell.
+/// focus, so Alt+T does not reach the shell. Cmd+click (Ctrl+click off
+/// Apple platforms) opens an `http` or `https` link in the browser; with
+/// the key held, the link under the pointer is highlighted.
 class TerminalTabView extends ConsumerStatefulWidget {
   /// Creates the view of [session].
   const TerminalTabView({super.key, required this.session});
@@ -455,14 +459,67 @@ class _TerminalTabViewState extends ConsumerState<TerminalTabView> {
   final _controller = TerminalController();
   final _focus = FocusNode(debugLabel: 'terminal');
   late final _autofocus = widget.session.takeFocusRequest();
+  final _view = GlobalKey<TerminalViewState>();
+  Offset? _pointer;
+  TerminalLink? _hoveredLink;
+  TerminalLink? _pressedLink;
+  TerminalHighlight? _linkHighlight;
 
   Terminal get _terminal => widget.session.terminal;
 
   @override
+  void initState() {
+    super.initState();
+    HardwareKeyboard.instance.addHandler(_onModifier);
+  }
+
+  @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_onModifier);
+    _linkHighlight?.dispose();
     _controller.dispose();
     _focus.dispose();
     super.dispose();
+  }
+
+  bool get _linkKeyHeld => usesCommandKey
+      ? HardwareKeyboard.instance.isMetaPressed
+      : HardwareKeyboard.instance.isControlPressed;
+
+  bool _onModifier(KeyEvent _) {
+    _hoverLink();
+    return false;
+  }
+
+  TerminalLink? _linkUnder(Offset? position) {
+    final render = _view.currentState?.renderTerminal;
+    if (render == null || position == null || !_linkKeyHeld) return null;
+    return terminalLinkAt(
+      _terminal.buffer,
+      render.getCellOffset(render.globalToLocal(position)),
+    );
+  }
+
+  void _hoverLink() {
+    final link = _linkUnder(_pointer);
+    if (link == _hoveredLink) return;
+    _linkHighlight?.dispose();
+    _linkHighlight = link == null
+        ? null
+        : _controller.highlight(
+            p1: _terminal.buffer.createAnchorFromOffset(link.start),
+            p2: _terminal.buffer.createAnchorFromOffset(link.end),
+            color: AppColors.of(context).terminal.blue.withAlpha(0x55),
+          );
+    setState(() => _hoveredLink = link);
+  }
+
+  void _onPointerUp(PointerUpEvent event) {
+    final pressed = _pressedLink;
+    _pressedLink = null;
+    if (pressed != null && pressed == _linkUnder(event.position)) {
+      unawaited(ref.read(editorLauncherProvider)(pressed.uri));
+    }
   }
 
   Future<void> _copyOrPaste() async {
@@ -488,15 +545,35 @@ class _TerminalTabViewState extends ConsumerState<TerminalTabView> {
   }
 
   @override
-  Widget build(BuildContext context) => TerminalView(
-    _terminal,
-    controller: _controller,
-    focusNode: _focus,
-    autofocus: _autofocus,
-    keyboardAppearance: Theme.of(context).brightness,
-    theme: AppColors.of(context).terminal,
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-    onSecondaryTapDown: (_, _) => unawaited(_copyOrPaste()),
-    onKeyEvent: _onKey,
+  Widget build(BuildContext context) => Listener(
+    onPointerDown: (event) => _pressedLink = event.buttons == kPrimaryButton
+        ? _linkUnder(event.position)
+        : null,
+    onPointerUp: _onPointerUp,
+    child: MouseRegion(
+      onHover: (event) {
+        _pointer = event.position;
+        _hoverLink();
+      },
+      onExit: (_) {
+        _pointer = null;
+        _hoverLink();
+      },
+      child: TerminalView(
+        _terminal,
+        key: _view,
+        controller: _controller,
+        focusNode: _focus,
+        autofocus: _autofocus,
+        keyboardAppearance: Theme.of(context).brightness,
+        theme: AppColors.of(context).terminal,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        mouseCursor: _hoveredLink == null
+            ? SystemMouseCursors.text
+            : SystemMouseCursors.click,
+        onSecondaryTapDown: (_, _) => unawaited(_copyOrPaste()),
+        onKeyEvent: _onKey,
+      ),
+    ),
   );
 }

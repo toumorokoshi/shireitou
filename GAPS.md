@@ -141,7 +141,11 @@ AppImage and the release workflow (see
   The remote command assumes a POSIX shell (`cd`,
   `$SHELL`) and a POSIX folder path. Terminals are not kept across app
   restarts, cannot be split, renamed or moved to their own window, and
-  the panel has no find, links or zoom. On Windows the pty is only
+  the panel has no find or zoom. Links are only `http` and `https` URLs
+  found in the text: OSC 8 hyperlinks (xterm.dart 4.0 does not parse
+  them), file paths (on the remote host) and the hover tooltip VS Code
+  shows are not supported, and a click on the second cell of a wide
+  character in a link opens nothing. On Windows the pty is only
   exercised by `ssh -V` in CI, the environment and working folder are
   passed as Latin-1 (non-ASCII values break), and starting a terminal
   waits one second (flutter_pty's `Sleep(1000)` before `CreateProcess`).
