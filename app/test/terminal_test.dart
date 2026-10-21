@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:ahp_client/ahp_client.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,6 +14,7 @@ import 'package:shireitou/src/terminal/pty_process.dart';
 import 'package:shireitou/src/terminal/ssh_command.dart';
 import 'package:shireitou/src/terminal/terminal_panel.dart';
 import 'package:shireitou/src/terminal/terminal_session.dart';
+import 'package:xterm/xterm.dart';
 
 import 'fake_connection.dart';
 import 'fixtures.dart';
@@ -351,6 +353,58 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(TerminalPanel), findsNothing);
     expect(pty.killed, isFalse);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.linux));
+
+  testWidgets('Ctrl+click opens a link in the terminal', (tester) async {
+    final spawner = FakeSpawner();
+    final opened = <Uri>[];
+    await pumpApp(
+      tester,
+      spawner: spawner,
+      launcher: (uri) async {
+        opened.add(uri);
+        return true;
+      },
+    );
+    await tester.tap(find.byTooltip(toggleTerminalLabel));
+    await tester.pumpAndSettle();
+    spawner.started.single.emit('docs: https://example.com/docs.\r\n');
+    await tester.pumpAndSettle();
+
+    final view = tester.state<TerminalViewState>(find.byType(TerminalView));
+    final render = view.renderTerminal;
+    Offset cell(int x, int y) => render.localToGlobal(
+      Offset(
+        (x + 0.5) * render.cellSize.width,
+        (y + 0.5) * render.cellSize.height,
+      ),
+    );
+    MouseCursor cursor() =>
+        tester.widget<TerminalView>(find.byType(TerminalView)).mouseCursor;
+
+    await tester.tapAt(cell(10, 0));
+    await tester.pumpAndSettle();
+    expect(opened, isEmpty);
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: cell(0, 1));
+    await mouse.moveTo(cell(10, 0));
+    await tester.pump();
+    expect(cursor(), SystemMouseCursors.text);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pump();
+    expect(cursor(), SystemMouseCursors.click);
+    await mouse.moveTo(cell(2, 0));
+    await tester.pump();
+    expect(cursor(), SystemMouseCursors.text);
+
+    await tester.tapAt(cell(2, 0));
+    await tester.tapAt(cell(10, 0));
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+    expect(opened, [Uri.parse('https://example.com/docs')]);
+    await tester.pump(kDoubleTapTimeout);
   }, variant: TargetPlatformVariant.only(TargetPlatform.linux));
 
   testWidgets('without a pty the button opens an ssh link', (tester) async {
