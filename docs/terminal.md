@@ -39,6 +39,13 @@ keys, port, jump hosts and host key checks all come from your
   elsewhere, or a right-click (copy the selection, or paste when nothing
   is selected). The terminal uses the colour theme's terminal colours
   and keeps 10,000 lines of scrollback.
+- Links: Cmd+click (Ctrl+click on Linux and Windows) on an `http` or
+  `https` URL opens it in the browser, as in VS Code. While the key is
+  held, the link under the pointer is highlighted and the pointer turns
+  into a hand. A URL the terminal wrapped onto the next line is one
+  link, and trailing punctuation (`.`, `,`, `)` without its `(`) is left
+  out. A plain click still goes to the terminal (selection, or the
+  program when it reads the mouse).
 
 ## The command
 
@@ -98,6 +105,9 @@ Package Manager. Its README lists the changes.
 - `terminal_session.dart`: `TerminalSession` (an xterm `Terminal` wired to
   `ssh` in a pty: start, restart, resize, close) and `terminalsProvider`
   (the open terminals and the one shown per host).
+- `terminal_links.dart` (pure): `linkAt` (the URL in a string at an
+  index) and `terminalLinkAt` (the URL in the xterm buffer at a cell,
+  across wrapped lines).
 - `terminal_panel.dart`: `toggleTerminalPanel`, `openNewTerminal`, the
   panel's open, height and maximized providers, `TerminalDock` (the
   conversation with the panel under it), `TerminalPanel` and
@@ -108,8 +118,10 @@ Package Manager. Its README lists the changes.
 - `app/test/terminal_test.dart`: the pure logic, `TerminalSession` and
   `terminalsProvider` against a fake pty, the app flow on Linux (the
   button, a second terminal from the menu, exit and restart, closing a
-  tab, maximize, Alt+T and Ctrl+\` from inside and outside the terminal, hide) and the
-  `ssh://` link on Android.
+  tab, maximize, Alt+T and Ctrl+\` from inside and outside the terminal, hide,
+  Ctrl+click on a link) and the `ssh://` link on Android.
+- `app/test/terminal_links_test.dart`: finding links in text and in the
+  buffer (trailing punctuation, wrapped lines, wide characters).
 - `packages/flutter_pty/test/`: the Windows quoting, and a real pty
   (argv, `TERM`, typed input, the size and the environment).
 - `app/integration_test/fake_host_flows_test.dart`: the built app runs

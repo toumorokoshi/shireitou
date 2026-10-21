@@ -1,5 +1,27 @@
 # Design Decision Log
 
+## 2026-10-21: Clickable links in the terminal panel (AV-016)
+
+URLs printed in the terminal panel could only be copied by selecting
+them; xterm.dart 4.0 has no link detection and does not parse OSC 8
+hyperlinks.
+
+- **Cmd+click (Ctrl+click elsewhere), as in VS Code.** A plain click
+  stays the terminal's (selection, or mouse reporting to programs such
+  as `vim` and `tmux`), so links never open by accident. With the key
+  held, the link under the pointer gets a highlight and a hand cursor.
+- **URLs are found in the buffer's text.** `terminal_links.dart` reads
+  the clicked line with the lines it wraps onto, maps each code unit
+  back to its cell (wide characters take two), and matches `http` and
+  `https` URLs, leaving out trailing punctuation and unbalanced closing
+  brackets. It is pure and tested apart from the view.
+- **Raw pointer events, not `TerminalView.onTapUp`.** xterm.dart 4.0
+  never calls `onTapUp`, so a `Listener` opens the link when the press
+  and the release land on the same link. It is outside the gesture
+  arena, so selection and mouse reporting are unchanged.
+- **Opened with `editorLauncherProvider`**, the app's existing external
+  URL opener, which tests replace.
+
 ## 2026-10-20: The "Marked as done" snackbar times out (AV-024)
 
 The snackbar shown after "Mark as done" never went away: Flutter's
