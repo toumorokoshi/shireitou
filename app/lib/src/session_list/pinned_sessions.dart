@@ -8,6 +8,9 @@ import 'dart:convert';
 
 import '../hosts/open_hosts.dart';
 
+/// The `PrefsStore` key the pins are kept under ([encodePinned]).
+const pinnedSessionsKey = 'pinned_sessions';
+
 /// The sessions of [sessions] that are in [pins], in the order of [pins]
 /// (the order they were pinned in), and the other sessions in their
 /// order. Pins of sessions that are not in [sessions] (filtered out, on
@@ -37,6 +40,11 @@ Set<SessionRef> withPinned(
         for (final p in pins)
           if (p != session) p,
       };
+
+/// The pins of [older] and then those of [newer] that [older] lacks, both
+/// in [encodePinned] form, encoded the same way.
+String mergePinned(String older, String newer) =>
+    encodePinned({...decodePinned(older), ...decodePinned(newer)});
 
 /// Encodes [pins] as a JSON list of `{host, session}` objects.
 String encodePinned(Set<SessionRef> pins) => jsonEncode([

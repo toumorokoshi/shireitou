@@ -68,6 +68,16 @@ arm64 machine):
   `com.apple.security.network.server` (the loopback server for the
   browser's OAuth redirect, AHP-060), which matter again if the sandbox
   comes back.
+- Settings from the sandboxed builds: a sandboxed app keeps its
+  `UserDefaults` (where `shared_preferences` writes) in
+  `~/Library/Containers/dev.shireitou.shireitou/Data/Library/Preferences`,
+  an unsandboxed one in `~/Library/Preferences`. So the pins, folder
+  order, theme and pane settings are not lost, the first start of an
+  unsandboxed build reads the container's plist (`plutil -convert json`)
+  and copies the settings the new location lacks, merging the pins
+  (`lib/src/desktop/sandbox_prefs.dart`, run from `main` before the
+  window is set up). It then sets `sandbox_prefs_migrated` and does not
+  run again; the container's plist is left in place.
 - Secure storage: `flutter_secure_storage` is configured with
   `MacOsOptions(usesDataProtectionKeychain: false)`, so tokens go in the
   login keychain. That needs no `keychain-access-groups` entitlement and so

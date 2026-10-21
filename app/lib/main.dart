@@ -5,6 +5,8 @@ import 'package:logging/logging.dart';
 
 import 'src/app.dart';
 import 'src/desktop/desktop_window.dart';
+import 'src/desktop/sandbox_prefs.dart';
+import 'src/prefs.dart';
 
 /// Keeps the semantics tree on for browser tests (`app/web_test`), which
 /// find widgets through it; built with `--dart-define=SHIREITOU_SEMANTICS=true`.
@@ -22,6 +24,7 @@ Future<void> main() async {
   if (const bool.fromEnvironment('SHIREITOU_SEMANTICS')) {
     testSemantics = SemanticsBinding.instance.ensureSemantics();
   }
+  await migrateSandboxPrefs(SharedPrefsStore());
   await setUpDesktopWindow();
   runApp(const ProviderScope(child: ShireitouApp()));
 }

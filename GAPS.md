@@ -138,6 +138,13 @@ AppImage and the release workflow (see
   package tests do not check them. The web, iOS and Android only open an
   `ssh://` link. Turning off the macOS sandbox rules out the Mac App
   Store.
+- **Settings from the sandboxed macOS builds:** they are copied once
+  into the unsandboxed location on the first start. A setting changed in
+  an unsandboxed build without the migration keeps its new value, except
+  the pins, which are merged, so pins removed there come back once.
+  Secure storage (hosts and tokens) was not affected and is not
+  migrated. Turning the sandbox back on would move the settings again,
+  with no migration the other way.
 - **`/` completions (AV-044), remaining details:** the new-session
   draft has no chat to send `completions` for, so it offers the skills
   and prompts the agent lists in `AgentInfo.customizations` (parsed
