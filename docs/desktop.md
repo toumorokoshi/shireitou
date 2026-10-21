@@ -194,20 +194,29 @@ changed, under the same rules (quiet for the session on screen in a
 focused window). It does not need the notification permission, so it
 still plays when the system refuses notifications or the ad hoc signed
 macOS app is not authorized. "Play a sound" in the bell menu turns it
-off. The chime is the system's own sound, played by the platform's
-player (`lib/src/notifications/chime.dart`), so no audio plugin or
-library is bundled:
+off. When the chime plays, the notification is posted silent, so the
+two never both make a sound.
 
-- macOS: `/usr/bin/afplay /System/Library/Sounds/Glass.aiff`.
-- Linux: the sound theme's `message-new-instant` through
-  `canberra-gtk-play`, else the freedesktop file through `paplay`
-  (PulseAudio) or `pw-play` (PipeWire), whichever is installed first.
-  With none of them the app logs `no program played the chime`.
-- Windows: `Windows Notify System Generic.wav` through PowerShell's
-  `Media.SoundPlayer`.
-- Web: two short notes from the Web Audio API.
-- iOS and Android: none from the app; their notifications make the
-  system's sound.
+The sound is Kenney's "confirmation_003" from
+[Interface Sounds](https://kenney.nl/assets/interface-sounds) (CC0,
+`assets/sounds/LICENSE-kenney.txt`), converted to a 28 KB mono WAV
+(`assets/sounds/chime.wav`) so every platform and browser decodes it.
+It plays through
+[`flutter_soloud`](https://pub.dev/packages/flutter_soloud)
+(`lib/src/notifications/chime_io.dart`), SoLoud on miniaudio, built by
+the package's native build hook:
+
+- The engine starts for each chime and stops 200 ms after it ends
+  (about 70 ms to start, 0.4 s the first time): an open output stream
+  would keep the audio hardware awake, and on macOS hold off idle
+  sleep, for an app that runs all day.
+- Linux: miniaudio loads ALSA (`libasound.so.2`) or PulseAudio at run
+  time, so the build needs no audio headers; the `.deb` depends on
+  `libasound2`.
+- Web: the browser's Web Audio API decodes and plays the same file
+  (`chime_web.dart`), so the web build does not load SoLoud's 1.9 MB
+  WebAssembly engine.
+- iOS and Android: see [mobile.md](mobile.md).
 
 Notifications come from this process, so they stop when the app quits;
 push for a closed app needs the relay in

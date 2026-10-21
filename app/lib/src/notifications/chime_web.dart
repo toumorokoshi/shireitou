@@ -1,10 +1,11 @@
-/// The chime in the web build: two short notes through the Web Audio
-/// API, so no sound file is downloaded.
+/// The chime in the web build: [chimeAsset] decoded and played by the
+/// browser's Web Audio API, which needs no WebAssembly audio engine.
 library;
 
 import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 
+import 'package:flutter/services.dart';
 import 'package:logging/logging.dart';
 import 'package:web/web.dart' as web;
 
@@ -21,32 +22,28 @@ Chime? platformChime() =>
 /// host always involves.
 class WebAudioChime implements Chime {
   web.AudioContext? _context;
+  Future<web.AudioBuffer>? _sound;
 
-  /// The notes (Hz) and when each starts (seconds after the first).
-  static const _notes = [(880.0, 0.0), (1318.5, 0.12)];
+  Future<web.AudioBuffer> _decode(web.AudioContext context) async {
+    final data = await rootBundle.load(chimeAsset);
+    final bytes = Uint8List.sublistView(data);
+    return context
+        .decodeAudioData(Uint8List.fromList(bytes).buffer.toJS)
+        .toDart;
+  }
 
   @override
   Future<void> play() async {
     try {
       final context = _context ??= web.AudioContext();
       if (context.state == 'suspended') await context.resume().toDart;
-      final now = context.currentTime;
-      for (final (frequency, offset) in _notes) {
-        final start = now + offset;
-        final gain = context.createGain();
-        gain.gain
-          ..setValueAtTime(0.0001, start)
-          ..exponentialRampToValueAtTime(0.2, start + 0.01)
-          ..exponentialRampToValueAtTime(0.0001, start + 0.6);
-        gain.connect(context.destination);
-        final oscillator = context.createOscillator()..type = 'sine';
-        oscillator.frequency.value = frequency;
-        oscillator
-          ..connect(gain)
-          ..start(start)
-          ..stop(start + 0.6);
-      }
+      final sound = await (_sound ??= _decode(context));
+      context.createBufferSource()
+        ..buffer = sound
+        ..connect(context.destination)
+        ..start();
     } on Object catch (error) {
+      _sound = null;
       _log.warning('could not play the chime: $error');
     }
   }

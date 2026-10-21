@@ -81,6 +81,13 @@ need you" channel and asks for permission on Android 13 and later; iOS
 asks when the app starts. Nothing arrives once the system suspends
 the app; that needs the push relay ([specs/push-relay.md](../specs/push-relay.md)).
 
+The chime (see [desktop.md](desktop.md)) plays only while the app is in
+the foreground, because a backgrounded app may be suspended mid-sound;
+in the background the notification makes the system's sound instead.
+On iOS the chime uses the `ambient` audio session category
+(`audio_session`), so it mixes with other apps' audio instead of
+stopping it, and the silent switch mutes it.
+
 ## Mobile smoke test
 
 `app/integration_test/mobile_smoke_test.dart` stores a host and a

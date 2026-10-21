@@ -115,7 +115,7 @@ What each produces:
 
 - `.deb`: the bundle in `/opt/shireitou`, `/usr/bin/shireitou`, the
   desktop entry `dev.shireitou.shireitou.desktop` and hicolor icons from 48
-  to 512 px. Depends on GTK 3 and libsecret, recommends gnome-keyring.
+  to 512 px. Depends on GTK 3, libsecret and ALSA (the chime), recommends gnome-keyring.
 - AppImage: the bundle at the AppDir's root, started by `AppRun`, made
   with [appimagetool](https://github.com/AppImage/appimagetool) 1.9.1
   (downloaded by the script, or `APPIMAGETOOL=/path/to/appimagetool`). GTK

@@ -1,5 +1,44 @@
 # Design Decision Log
 
+## 2026-10-20: A bundled CC0 chime through flutter_soloud (AV-121)
+
+The first chime ran each platform's sound player (`afplay`,
+`canberra-gtk-play`, PowerShell), so it sounded different everywhere,
+depended on programs a Linux desktop may not have, played nothing on
+mobile, and could sound together with the notification's own sound.
+
+- **`flutter_soloud`, not system players or `audioplayers`.** SoLoud on
+  miniaudio, through FFI and a native build hook, plays one bundled file
+  on all six platforms. On Linux it loads ALSA or PulseAudio at run time,
+  so it needs no GStreamer and no build headers (the reason
+  `audioplayers` was rejected); the `.deb` now depends on `libasound2`.
+  Rejected: Flutter's `SystemSound.alert` (the engine maps it to
+  `NSBeep`, `MessageBeep` and `gdk_display_beep`; nothing on mobile or the
+  web) and direct `dart:ffi` calls to `NSSound`, `PlaySoundW` and
+  libcanberra (three bindings to maintain, still desktop only).
+- **The engine runs only while it plays.** `SoLoudChime` starts SoLoud,
+  loads the asset, plays it and stops 200 ms after it ends. A stream
+  left open keeps the audio hardware awake, and on macOS holds off idle
+  sleep, for an app that runs all day. Starting takes about 70 ms
+  (0.4 s the first time), measured on macOS.
+- **Kenney's "confirmation_003" (CC0) as WAV.** Four rising pure tones
+  in 0.32 s, picked over the other confirmation sounds as the least
+  busy. Converted from OGG to a 28 KB mono WAV so every browser decodes
+  it; the licence sits beside it in `assets/sounds/`. Rejected: Material
+  product sounds (CC-BY 4.0 needs an attribution page this app does not
+  have).
+- **The web keeps Web Audio.** `WebAudioChime` decodes the same asset
+  with `decodeAudioData`. SoLoud's web build would load a 1.9 MB
+  WebAssembly engine and a script tag on every page load for one sound.
+- **No double sound.** When the chime plays, `OsNotifier.show` gets
+  `silent: true` (Android `silent`, Darwin `presentSound: false`, Linux
+  `suppressSound`, Windows silent audio, the web's `silent`). Mobile
+  chimes only in the foreground (`chimeNeedsForeground`), since a
+  backgrounded app may be suspended mid-sound; there the notification
+  keeps its sound. iOS uses the `ambient` session category through
+  `audio_session`, so the chime mixes with other audio and follows the
+  silent switch.
+
 ## 2026-10-20: Alt+T toggles the terminal panel (AV-016, AV-140)
 
 The terminal panel only toggled with Ctrl+\`, and Alt+T was asked for
@@ -15,6 +54,8 @@ as the key that opens and closes it in a session.
 - **The terminal swallows Alt+T.** Inside the terminal both keys toggle
   the panel instead of reaching the shell, so readline's Alt+T
   ("transpose words") is Esc then T there.
+
+||||||| parent of 7c48a72 (feat(notifications): play a bundled CC0 chime through flutter_soloud)
 
 ## 2026-10-20: A chime when it is the user's turn (AV-121)
 

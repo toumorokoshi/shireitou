@@ -68,7 +68,7 @@ Version: $version
 Architecture: $arch
 Maintainer: shireitou developers <noreply@github.com>
 Homepage: https://github.com/toumorokoshi/shireitou
-Depends: libgtk-3-0 | libgtk-3-0t64, libsecret-1-0
+Depends: libgtk-3-0 | libgtk-3-0t64, libsecret-1-0, libasound2 | libasound2t64
 Recommends: gnome-keyring
 Section: devel
 Priority: optional

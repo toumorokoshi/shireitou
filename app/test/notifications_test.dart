@@ -3,6 +3,7 @@ library;
 
 import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -35,7 +36,8 @@ class _RecordingNotifier implements OsNotifier {
   /// How many times permission was asked for.
   int requests = 0;
 
-  final shown = <({int id, String title, String body, String payload})>[];
+  final shown =
+      <({int id, String title, String body, String payload, bool silent})>[];
 
   @override
   Future<bool> requestPermission() async {
@@ -49,7 +51,14 @@ class _RecordingNotifier implements OsNotifier {
     required String title,
     required String body,
     required String payload,
-  }) async => shown.add((id: id, title: title, body: body, payload: payload));
+    bool silent = false,
+  }) async => shown.add((
+    id: id,
+    title: title,
+    body: body,
+    payload: payload,
+    silent: silent,
+  ));
 }
 
 class _RecordingChime implements Chime {
@@ -197,16 +206,31 @@ void main() {
       expect(shouldChime(events.take(1), finishedOff, focused: false), isFalse);
     });
 
-    test('each desktop platform has a system sound to play', () {
-      for (final platform in [
-        TargetPlatform.macOS,
-        TargetPlatform.linux,
-        TargetPlatform.windows,
-      ]) {
-        expect(chimeCommands(platform), isNotEmpty, reason: '$platform');
+    test('mobile chimes only in the foreground', () {
+      const settings = NotificationSettings();
+      final events = attentionEvents([_s('1', _working)], [_s('1', _idle)]);
+      for (final platform in TargetPlatform.values) {
+        final mobile =
+            platform == TargetPlatform.android ||
+            platform == TargetPlatform.iOS;
+        expect(chimeNeedsForeground(platform), mobile, reason: '$platform');
       }
-      expect(chimeCommands(TargetPlatform.android), isEmpty);
-      expect(chimeCommands(TargetPlatform.iOS), isEmpty);
+      expect(
+        shouldChime(events, settings, focused: false, needsForeground: true),
+        isFalse,
+      );
+      expect(
+        shouldChime(events, settings, focused: true, needsForeground: true),
+        isTrue,
+      );
+    });
+
+    test('the chime is a bundled asset', () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      final data = await rootBundle.load(chimeAsset);
+      // A RIFF/WAVE file, which every platform and browser decodes.
+      expect(String.fromCharCodes(data.buffer.asUint8List(0, 4)), 'RIFF');
+      expect(String.fromCharCodes(data.buffer.asUint8List(8, 4)), 'WAVE');
     });
   });
 
@@ -246,7 +270,9 @@ void main() {
     await tester.pump();
     expect(notifier.shown.single.title, 'Needs your input');
     expect(notifier.shown.single.body, 'Fix login');
+    // The chime played, so the notification makes no sound of its own.
     expect(chime.plays, 1);
+    expect(notifier.shown.single.silent, isTrue);
 
     // Clicking it opens the session.
     final container = ProviderScope.containerOf(
@@ -386,5 +412,7 @@ void main() {
     await tester.pump();
     expect(notifier.shown.single.title, 'Finished');
     expect(notifier.shown.single.body, 'Deploy');
+    // No chime in this app: the notification keeps its sound.
+    expect(notifier.shown.single.silent, isFalse);
   }, variant: TargetPlatformVariant.only(TargetPlatform.linux));
 }

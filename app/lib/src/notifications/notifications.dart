@@ -102,6 +102,7 @@ class LocalNotifier implements OsNotifier {
     required String title,
     required String body,
     required String payload,
+    bool silent = false,
   }) async {
     if (!await requestPermission()) return;
     try {
@@ -110,7 +111,7 @@ class LocalNotifier implements OsNotifier {
         title: title,
         body: body,
         payload: payload,
-        notificationDetails: _details,
+        notificationDetails: _details(silent: silent),
       );
     } on Object catch (error) {
       _log.warning('could not show a notification: $error');
@@ -118,8 +119,9 @@ class LocalNotifier implements OsNotifier {
   }
 }
 
-/// Android's notification channel; other platforms need no details.
-const _details = NotificationDetails(
+/// Android's notification channel, and each platform's switch for the
+/// notification's own sound.
+NotificationDetails _details({required bool silent}) => NotificationDetails(
   android: AndroidNotificationDetails(
     'attention',
     'Sessions that need you',
@@ -127,6 +129,13 @@ const _details = NotificationDetails(
         'A session needs input, finished its turn or failed (AV-121).',
     importance: Importance.high,
     priority: Priority.high,
+    silent: silent,
+  ),
+  macOS: DarwinNotificationDetails(presentSound: !silent),
+  iOS: DarwinNotificationDetails(presentSound: !silent),
+  linux: LinuxNotificationDetails(suppressSound: silent),
+  windows: WindowsNotificationDetails(
+    audio: silent ? WindowsNotificationAudio.silent() : null,
   ),
 );
 
@@ -174,10 +183,9 @@ final notifierProvider = Provider<OsNotifier?>((ref) {
       : LocalNotifier(onOpen: onOpen);
 });
 
-/// The app's [Chime], or null where it plays none (mobile, whose
-/// notifications make their own sound). It does not depend on the
-/// notification permission, so the chime still plays when the system
-/// refuses notifications.
+/// The app's [Chime], or null where it plays none. It does not depend
+/// on the notification permission, so the chime still plays when the
+/// system refuses notifications.
 final chimeProvider = Provider<Chime?>((ref) => platformChime());
 
 /// Whether the user allowed notifications: null until asked (at start,
@@ -303,10 +311,16 @@ class _AttentionNotificationsState
     final settings = ref.read(notificationSettingsProvider);
     final visible = ref.read(visibleSessionProvider);
     final events = attentionEvents(before, after);
-    if (chime != null &&
-        shouldChime(events, settings, focused: _focused, visible: visible)) {
-      unawaited(chime.play());
-    }
+    final chimed =
+        chime != null &&
+        shouldChime(
+          events,
+          settings,
+          focused: _focused,
+          visible: visible,
+          needsForeground: chimeNeedsForeground(defaultTargetPlatform),
+        );
+    if (chimed) unawaited(chime.play());
     if (notifier == null) return;
     final hosts = ref.read(hostInfosProvider);
     for (final event in events) {
@@ -325,6 +339,7 @@ class _AttentionNotificationsState
           title: text.title,
           body: text.body,
           payload: notificationPayload(event.session),
+          silent: chimed,
         ),
       );
     }

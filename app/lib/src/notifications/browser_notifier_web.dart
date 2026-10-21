@@ -51,13 +51,19 @@ class WebNotifier implements OsNotifier {
     required String title,
     required String body,
     required String payload,
+    bool silent = false,
   }) async {
     if (web.Notification.permission != 'granted') return;
     _shown.remove(id)?.close();
     try {
       final notification = web.Notification(
         title,
-        web.NotificationOptions(body: body, tag: '$id', icon: 'favicon.png'),
+        web.NotificationOptions(
+          body: body,
+          tag: '$id',
+          icon: 'favicon.png',
+          silent: silent,
+        ),
       );
       notification.onclick = ((web.Event _) {
         web.window.focus();

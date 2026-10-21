@@ -12,11 +12,13 @@ abstract interface class OsNotifier {
   Future<bool> requestPermission();
 
   /// Shows a notification with [payload], which comes back when it is
-  /// clicked. Dropped when permission is not granted.
+  /// clicked; [silent] ones make no sound (the app's chime played).
+  /// Dropped when permission is not granted.
   Future<void> show({
     required int id,
     required String title,
     required String body,
     required String payload,
+    bool silent = false,
   });
 }

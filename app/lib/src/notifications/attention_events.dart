@@ -181,15 +181,18 @@ bool shouldNotify(
 }) => settings.enabled(event.kind) && !(focused && visible == event.session);
 
 /// Whether [events] (one change of the session list) play the chime:
-/// the sound is on and at least one of them notifies. Several sessions
-/// changing at once chime once.
+/// the sound is on, at least one of them notifies, and the app is in
+/// the foreground when [needsForeground]. Several sessions changing at
+/// once chime once.
 bool shouldChime(
   Iterable<AttentionEvent> events,
   NotificationSettings settings, {
   required bool focused,
   SessionRef? visible,
+  bool needsForeground = false,
 }) =>
     settings.sound &&
+    (focused || !needsForeground) &&
     events.any(
       (e) => shouldNotify(e, settings, focused: focused, visible: visible),
     );
