@@ -368,7 +368,11 @@ Dart source); `bin/generate.dart` does the file I/O. See
   AV-027), `pinned_sessions.dart` (`withPinned`, the pin set's JSON, and
   `splitPinned`, which takes the shown pinned sessions out in pin order,
   AV-028), and `formatRelativeTime`. `pinned_store.dart` keeps the pinned
-  sessions (by host and session) on this device with `PrefsStore`.
+  sessions (by host and session) on this device with `PrefsStore`;
+  `pinnedSessionsKey` is their key and `mergePinned` unions two saved
+  pin lists (used by `desktop/sandbox_prefs.dart`, which on macOS brings
+  the settings kept while the app was sandboxed into the unsandboxed
+  `UserDefaults` once, before the app starts).
   `session_tree.dart` builds the sidebar's sections (AV-092; hosts are
   not a level): `chatSessions` picks the sessions with no folder,
   `sessionPlace` and `hostLabelsOf` label rows with their workspace

@@ -1,5 +1,26 @@
 # Design Decision Log
 
+## 2026-10-20: Restore the settings saved while the macOS app was sandboxed
+
+Pins disappeared after upgrading to the build that turned off the macOS
+sandbox (AV-016). The pins were still saved, but a sandboxed app's
+`UserDefaults` are in its container, so the unsandboxed build read an
+empty `~/Library/Preferences/dev.shireitou.shireitou.plist`. The folder
+order, theme and pane settings were lost the same way.
+
+- **Migrate once, at start.** `main` runs `migrateSandboxPrefs` before
+  the window and the providers read any setting. A
+  `sandbox_prefs_migrated` flag stops it running again, so a pin removed
+  later does not come back.
+- **Fill gaps, merge pins.** A setting that exists only in the container
+  is copied; one the user has set since keeps its new value; the pins
+  are merged (the old ones first, in order, then the new ones), since
+  users re-pin a few sessions after losing them. Non-string values
+  belong to plugins and are skipped.
+- **`plutil` over a plist parser.** The container's plist is binary.
+  `plutil -convert json` ships with macOS and needs no dependency, and
+  the app can run it now that it is not sandboxed.
+
 ## 2026-10-20: "Send now" for queued messages (AV-081)
 
 The composer's "Send now" steers only with newly typed text. Once a
