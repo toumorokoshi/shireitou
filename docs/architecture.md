@@ -532,7 +532,7 @@ Dart source); `bin/generate.dart` does the file I/O. See
   composer's "Add a run" section; `compare_screen.dart` shows the runs
   side by side (subscribing to each run's default chat), picks a winner
   and archives the others.
-- `lib/src/notifications/`: local notifications (AV-121).
+- `lib/src/notifications/`: local notifications and the chime (AV-121).
   `attention_events.dart` is pure (`attentionEvents` from two session
   lists, `NotificationSettings`, `shouldNotify`, `isForeground`,
   payloads); `os_notifier.dart` is the `OsNotifier` interface

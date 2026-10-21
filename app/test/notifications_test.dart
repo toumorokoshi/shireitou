@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shireitou/src/app.dart';
 import 'package:shireitou/src/hosts/open_hosts.dart';
 import 'package:shireitou/src/notifications/attention_events.dart';
+import 'package:shireitou/src/notifications/chime.dart';
 import 'package:shireitou/src/notifications/notifications.dart';
 import 'package:shireitou/src/prefs.dart';
 
@@ -49,6 +50,13 @@ class _RecordingNotifier implements OsNotifier {
     required String body,
     required String payload,
   }) async => shown.add((id: id, title: title, body: body, payload: payload));
+}
+
+class _RecordingChime implements Chime {
+  int plays = 0;
+
+  @override
+  Future<void> play() async => plays++;
 }
 
 void main() {
@@ -156,6 +164,50 @@ void main() {
       expect(sessionOfPayload(null), isNull);
       expect(notificationId(event), notificationId(event));
     });
+
+    test('the chime follows the notifications and its own switch', () {
+      const settings = NotificationSettings();
+      final events = attentionEvents(
+        [_s('1', _working), _s('2', _working)],
+        [_s('1', _idle), _s('2', _failed)],
+      );
+      expect(shouldChime(events, settings, focused: false), isTrue);
+      expect(shouldChime(const [], settings, focused: false), isFalse);
+      // The session on screen in a focused window: no notification, no
+      // chime.
+      expect(
+        shouldChime(
+          events.take(1),
+          settings,
+          focused: true,
+          visible: events.first.session,
+        ),
+        isFalse,
+      );
+      final quiet = settings.withSound(on: false);
+      expect(shouldChime(events, quiet, focused: false), isFalse);
+      expect(NotificationSettings.fromJson(quiet.toJson()), quiet);
+      expect(quiet.toggled(AttentionKind.failed, on: false).sound, isFalse);
+      // Settings saved before the chime existed keep it on.
+      expect(
+        NotificationSettings.fromJson('{"disabled":["failed"]}').sound,
+        isTrue,
+      );
+      final finishedOff = settings.toggled(AttentionKind.finished, on: false);
+      expect(shouldChime(events.take(1), finishedOff, focused: false), isFalse);
+    });
+
+    test('each desktop platform has a system sound to play', () {
+      for (final platform in [
+        TargetPlatform.macOS,
+        TargetPlatform.linux,
+        TargetPlatform.windows,
+      ]) {
+        expect(chimeCommands(platform), isNotEmpty, reason: '$platform');
+      }
+      expect(chimeCommands(TargetPlatform.android), isEmpty);
+      expect(chimeCommands(TargetPlatform.iOS), isEmpty);
+    });
   });
 
   testWidgets('status changes notify, a click opens the session, and the '
@@ -165,6 +217,7 @@ void main() {
     addTearDown(tester.view.reset);
     reduceMotion(tester);
     final notifier = _RecordingNotifier();
+    final chime = _RecordingChime();
     final prefs = MemoryPrefsStore();
     HostState host(int status) => HostState(
       status: ConnectionStatus.connected,
@@ -178,7 +231,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          ...hostOverrides(connection: connection),
+          ...hostOverrides(connection: connection, chime: chime),
           notifierProvider.overrideWithValue(notifier),
           prefsStoreProvider.overrideWithValue(prefs),
         ],
@@ -193,6 +246,7 @@ void main() {
     await tester.pump();
     expect(notifier.shown.single.title, 'Needs your input');
     expect(notifier.shown.single.body, 'Fix login');
+    expect(chime.plays, 1);
 
     // Clicking it opens the session.
     final container = ProviderScope.containerOf(
@@ -211,6 +265,7 @@ void main() {
     connection.state = host(_input);
     await tester.pump();
     expect(notifier.shown, hasLength(1));
+    expect(chime.plays, 1);
 
     // The menu turns "finishes its turn" off, and it is saved.
     await tester.tap(find.byTooltip('Notifications'));
@@ -222,6 +277,48 @@ void main() {
           .enabled(AttentionKind.finished),
       isFalse,
     );
+
+    // It turns the sound off too, keeping the events' settings.
+    await tester.tap(find.byTooltip('Notifications'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Play a sound'));
+    await tester.pumpAndSettle();
+    final saved = NotificationSettings.fromJson(
+      prefs.values['notification_settings'],
+    );
+    expect(saved.sound, isFalse);
+    expect(saved.enabled(AttentionKind.finished), isFalse);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.linux));
+
+  testWidgets('the chime plays when notifications are refused', (tester) async {
+    tester.view.physicalSize = const Size(1400, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    reduceMotion(tester);
+    final chime = _RecordingChime();
+    HostState host(int status) => HostState(
+      status: ConnectionStatus.connected,
+      sessions: catalogueFromSummaries([
+        session('1', title: 'Fix login', status: status),
+      ]),
+    );
+    final connection = FakeHostConnection(host(_working));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ...hostOverrides(connection: connection, chime: chime),
+          notifierProvider.overrideWithValue(
+            _RecordingNotifier(granted: false),
+          ),
+          prefsStoreProvider.overrideWithValue(MemoryPrefsStore()),
+        ],
+        child: const ShireitouApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    connection.state = host(_idle);
+    await tester.pump();
+    expect(chime.plays, 1);
   }, variant: TargetPlatformVariant.only(TargetPlatform.linux));
 
   testWidgets('another session notifies while the window has focus, and a '

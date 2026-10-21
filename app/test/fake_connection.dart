@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/misc.dart';
 import 'package:shireitou/src/host_connection.dart';
 import 'package:shireitou/src/hosts/open_hosts.dart';
 import 'package:shireitou/src/hosts/saved_hosts.dart';
+import 'package:shireitou/src/notifications/notifications.dart';
 
 /// The `clientId` of every [FakeHostConnection].
 const testClientId = 'test-client';
@@ -14,13 +15,15 @@ const testHost = SavedHost(url: 'ws://127.0.0.1:1', name: 'test host');
 
 /// Overrides that make [connections] (by host) the app's hosts, open
 /// when their state is connected or reconnecting. One [connection]
-/// stands for [testHost].
+/// stands for [testHost]. The app plays [chime], by default none.
 List<Override> hostOverrides({
   FakeHostConnection? connection,
   Map<SavedHost, FakeHostConnection> connections = const {},
+  Chime? chime,
 }) {
   final all = {...connections, testHost: ?connection};
   return [
+    chimeProvider.overrideWithValue(chime),
     hostConnectionProvider.overrideWith2(
       (key) =>
           all.entries.where((e) => e.key.key == key).firstOrNull?.value ??

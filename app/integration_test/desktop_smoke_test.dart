@@ -80,7 +80,10 @@ void main() {
     // No permission prompt: the app asks for one at start (AV-121), and
     // macOS's would stay up over the next test's app on the runner.
     final container = ProviderContainer(
-      overrides: [notifierProvider.overrideWithValue(null)],
+      overrides: [
+        notifierProvider.overrideWithValue(null),
+        chimeProvider.overrideWithValue(null),
+      ],
     );
     addTearDown(container.dispose);
     await tester.pumpWidget(

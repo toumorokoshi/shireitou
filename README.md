@@ -43,8 +43,8 @@ with a UX modeled on the GitHub Agents view and Cursor's Agents Window.
 > completes the agent's skills and commands (from the host's
 > `completions`), one prompt can start several runs to
 > compare and pick from, and the desktop apps (and the web app, where
-> the browser allows) notify when a session needs input, finishes or
-> fails. A session's header and a folder's header open the folder in
+> the browser allows) notify, with a chime, when a session needs input,
+> finishes or fails. A session's header and a folder's header open the folder in
 > VS Code, VS Code Insiders or Cursor (over Remote - SSH for a remote
 > host; desktop and web apps), and a VS Code-style terminal panel under
 > the session runs the system `ssh` to the host in the session's folder

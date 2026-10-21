@@ -146,6 +146,7 @@ class AppHarness {
           hostStoreProvider.overrideWithValue(store),
           // No OS notifications (or permission prompts) from the tests.
           notifierProvider.overrideWithValue(null),
+          chimeProvider.overrideWithValue(null),
           prefsStoreProvider.overrideWithValue(MemoryPrefsStore()),
           oauthBrowserProvider.overrideWithValue(testBrowser),
         ],

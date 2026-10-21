@@ -104,11 +104,13 @@ extension<T extends Object> on T? {
   };
 }
 
-/// Which events notify (AV-121: "configurable per event").
+/// Which events notify (AV-121: "configurable per event"), and whether
+/// they also chime.
 @immutable
 class NotificationSettings {
-  /// Creates [NotificationSettings]; every event notifies by default.
-  const NotificationSettings({this.disabled = const {}});
+  /// Creates [NotificationSettings]; every event notifies and chimes by
+  /// default.
+  const NotificationSettings({this.disabled = const {}, this.sound = true});
 
   /// Decodes settings saved with [toJson]; unknown or broken data gives
   /// the defaults.
@@ -116,12 +118,14 @@ class NotificationSettings {
     if (text == null) return const NotificationSettings();
     try {
       final json = jsonDecode(text);
-      final off = json is Map ? json['disabled'] : null;
+      if (json is! Map) return const NotificationSettings();
+      final off = json['disabled'];
       return NotificationSettings(
         disabled: {
           for (final name in off is List ? off : const [])
             ?AttentionKind.values.where((k) => k.name == name).firstOrNull,
         },
+        sound: json['sound'] != false,
       );
     } on FormatException {
       return const NotificationSettings();
@@ -131,6 +135,9 @@ class NotificationSettings {
   /// The events the user turned off.
   final Set<AttentionKind> disabled;
 
+  /// Whether the events that notify also play the chime.
+  final bool sound;
+
   /// Whether [kind] notifies.
   bool enabled(AttentionKind kind) => !disabled.contains(kind);
 
@@ -138,7 +145,12 @@ class NotificationSettings {
   NotificationSettings toggled(AttentionKind kind, {required bool on}) =>
       NotificationSettings(
         disabled: on ? ({...disabled}..remove(kind)) : {...disabled, kind},
+        sound: sound,
       );
+
+  /// A copy with the chime turned on or off.
+  NotificationSettings withSound({required bool on}) =>
+      NotificationSettings(disabled: disabled, sound: on);
 
   /// Encodes the settings.
   String toJson() => jsonEncode({
@@ -146,14 +158,17 @@ class NotificationSettings {
       for (final k in AttentionKind.values)
         if (disabled.contains(k)) k.name,
     ],
+    'sound': sound,
   });
 
   @override
   bool operator ==(Object other) =>
-      other is NotificationSettings && setEquals(other.disabled, disabled);
+      other is NotificationSettings &&
+      setEquals(other.disabled, disabled) &&
+      other.sound == sound;
 
   @override
-  int get hashCode => Object.hashAllUnordered(disabled);
+  int get hashCode => Object.hash(Object.hashAllUnordered(disabled), sound);
 }
 
 /// Whether [event] should notify: its kind is on, and the user is not
@@ -164,6 +179,20 @@ bool shouldNotify(
   required bool focused,
   SessionRef? visible,
 }) => settings.enabled(event.kind) && !(focused && visible == event.session);
+
+/// Whether [events] (one change of the session list) play the chime:
+/// the sound is on and at least one of them notifies. Several sessions
+/// changing at once chime once.
+bool shouldChime(
+  Iterable<AttentionEvent> events,
+  NotificationSettings settings, {
+  required bool focused,
+  SessionRef? visible,
+}) =>
+    settings.sound &&
+    events.any(
+      (e) => shouldNotify(e, settings, focused: focused, visible: visible),
+    );
 
 /// The notification's title and body for [event]; [hostLabel] is added
 /// when several hosts are open.

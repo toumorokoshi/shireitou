@@ -1,5 +1,35 @@
 # Design Decision Log
 
+## 2026-10-20: A chime when it is the user's turn (AV-121)
+
+The app posted notifications when a session needed input, finished or
+failed, but made no sound of its own, and when the system refused
+notifications (for example the ad hoc signed macOS app) nothing at all
+told the user it was their turn.
+
+- **The chime follows the notifications, not their permission.**
+  `shouldChime` is true when the sound is on and any event of one
+  catalogue change passes `shouldNotify`, so the per-event switches and
+  "quiet for the session on screen in a focused window" apply, and
+  several sessions changing at once chime once. It plays even when
+  notification permission is refused.
+- **The system's own sound, no audio plugin.** `chimeCommands` maps
+  each desktop platform to its sound player (`afplay` with Glass on
+  macOS; `canberra-gtk-play`, `paplay` or `pw-play` with the freedesktop
+  `message-new-instant` on Linux; PowerShell's `Media.SoundPlayer` on
+  Windows), and `ProcessChime` runs the first that succeeds. The web
+  build synthesizes two notes with Web Audio. Rejected: `audioplayers`
+  (its Linux backend needs GStreamer headers in CI and the release
+  build, and GStreamer in the `.deb` and AppImage) and `flutter_soloud`
+  (a native build and script tags in `index.html` for one sound).
+  Mobile plays none: its notifications already make the system sound.
+- **One switch.** `NotificationSettings.sound` (saved as `"sound"`;
+  missing means on, so existing settings keep the chime) is toggled by
+  "Play a sound" in the bell menu, which now also shows where there is
+  a chime but no notifier. Tests get no chime unless they pass one to
+  `hostOverrides`, and `platformChime` needs the real platform to match
+  the target, so a widget test pretending to be macOS plays nothing.
+
 ## 2026-10-20: Round send and stop buttons in the composer
 
 The composer's send and stop buttons were bare 18 px glyphs, unlike

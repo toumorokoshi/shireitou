@@ -363,6 +363,12 @@ AppImage and the release workflow (see
   app needs the relay in [specs/push-relay.md](specs/push-relay.md),
   which is not built (it needs Apple/Google push credentials and a
   signed app).
+  The chime (the system sound through `afplay`, `canberra-gtk-play`,
+  `paplay` or `pw-play`, or PowerShell) was only checked with widget
+  tests and by confirming macOS's `afplay` and `Glass.aiff` exist; on
+  Linux it needs one of those players (none is a `.deb` dependency),
+  and there is no choice of sound or volume. Mobile apps play none of
+  their own beyond the notification's sound.
 - **Web transport:** a browser reports every failed handshake the same
   way, so the web app lists likely causes instead of the real one. The
   mixed content check runs before connecting, but Chrome's local network

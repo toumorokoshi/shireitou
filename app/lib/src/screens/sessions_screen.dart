@@ -549,7 +549,9 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                 : 'Reconnecting…',
           ),
         ),
-      if (ref.watch(notifierProvider) != null) const NotificationsMenu(),
+      if (ref.watch(notifierProvider) != null ||
+          ref.watch(chimeProvider) != null)
+        const NotificationsMenu(),
     ];
     final sidebarCollapsed = ref.watch(sidebarCollapsedProvider);
     final history = _history;

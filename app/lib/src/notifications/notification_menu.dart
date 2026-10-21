@@ -10,8 +10,8 @@ import 'attention_events.dart';
 import 'notifications.dart';
 import '../theme/app_icons.dart';
 
-/// Turns notifications for each [AttentionKind] on or off, and asks for
-/// permission again when it was not granted.
+/// Turns notifications for each [AttentionKind] and the chime on or
+/// off, and asks for permission again when it was not granted.
 class NotificationsMenu extends ConsumerWidget {
   /// Creates a [NotificationsMenu].
   const NotificationsMenu({super.key});
@@ -19,8 +19,13 @@ class NotificationsMenu extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(notificationSettingsProvider);
+    final hasNotifier = ref.watch(notifierProvider) != null;
+    final hasChime = ref.watch(chimeProvider) != null;
     final blocked = ref.watch(notificationPermissionProvider) == false;
-    final anyOn = !blocked && AttentionKind.values.any(settings.enabled);
+    final heard = hasChime && settings.sound;
+    final anyOn =
+        (hasNotifier && !blocked || heard) &&
+        AttentionKind.values.any(settings.enabled);
     return PopupMenuButton<AttentionKind>(
       tooltip: 'Notifications',
       icon: Icon(anyOn ? AppIcons.notifications : AppIcons.notificationsOff),
@@ -49,6 +54,18 @@ class NotificationsMenu extends ConsumerWidget {
               AttentionKind.failed => 'fails',
             }),
           ),
+        if (hasChime) ...[
+          const PopupMenuDivider(),
+          CheckedPopupMenuItem<AttentionKind>(
+            checked: settings.sound,
+            onTap: () => unawaited(
+              ref
+                  .read(notificationSettingsProvider.notifier)
+                  .setSound(on: !settings.sound),
+            ),
+            child: const Text('Play a sound'),
+          ),
+        ],
       ],
     );
   }

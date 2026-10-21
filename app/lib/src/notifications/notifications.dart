@@ -24,8 +24,11 @@ import '../prefs.dart';
 import 'attention_events.dart';
 import 'browser_notifier_io.dart'
     if (dart.library.js_interop) 'browser_notifier_web.dart';
+import 'chime.dart';
+import 'chime_io.dart' if (dart.library.js_interop) 'chime_web.dart';
 import 'os_notifier.dart';
 
+export 'chime.dart' show Chime;
 export 'os_notifier.dart';
 
 final _log = Logger('notifications');
@@ -171,6 +174,12 @@ final notifierProvider = Provider<OsNotifier?>((ref) {
       : LocalNotifier(onOpen: onOpen);
 });
 
+/// The app's [Chime], or null where it plays none (mobile, whose
+/// notifications make their own sound). It does not depend on the
+/// notification permission, so the chime still plays when the system
+/// refuses notifications.
+final chimeProvider = Provider<Chime?>((ref) => platformChime());
+
 /// Whether the user allowed notifications: null until asked (at start,
 /// by [AttentionNotifications]), then the last answer.
 final notificationPermissionProvider =
@@ -234,13 +243,24 @@ class NotificationSettingsStore extends Notifier<NotificationSettings> {
   Future<void> set(AttentionKind kind, {required bool on}) async {
     _changed = true;
     state = state.toggled(kind, on: on);
-    await ref.read(prefsStoreProvider).write(_settingsKey, state.toJson());
+    await _save();
   }
+
+  /// Turns the chime on or off.
+  Future<void> setSound({required bool on}) async {
+    _changed = true;
+    state = state.withSound(on: on);
+    await _save();
+  }
+
+  Future<void> _save() =>
+      ref.read(prefsStoreProvider).write(_settingsKey, state.toJson());
 }
 
 /// Asks for permission to notify at start, then watches the merged
 /// session list while mounted and posts a notification for each
-/// [AttentionEvent] the user wants and is not already looking at.
+/// [AttentionEvent] the user wants and is not already looking at, with
+/// one chime per change.
 class AttentionNotifications extends ConsumerStatefulWidget {
   /// Creates an [AttentionNotifications] around [child].
   const AttentionNotifications({super.key, required this.child});
@@ -276,12 +296,20 @@ class _AttentionNotificationsState
   }
 
   void _onSessions(List<HostSession>? before, List<HostSession> after) {
+    if (before == null) return;
     final notifier = ref.read(notifierProvider);
-    if (notifier == null || before == null) return;
+    final chime = ref.read(chimeProvider);
+    if (notifier == null && chime == null) return;
     final settings = ref.read(notificationSettingsProvider);
     final visible = ref.read(visibleSessionProvider);
+    final events = attentionEvents(before, after);
+    if (chime != null &&
+        shouldChime(events, settings, focused: _focused, visible: visible)) {
+      unawaited(chime.play());
+    }
+    if (notifier == null) return;
     final hosts = ref.read(hostInfosProvider);
-    for (final event in attentionEvents(before, after)) {
+    for (final event in events) {
       if (!shouldNotify(event, settings, focused: _focused, visible: visible)) {
         continue;
       }

@@ -189,6 +189,26 @@ restart.
   "Allow notifications…" in the bell menu. Clicking one focuses the tab
   and opens the session.
 
+The same events play a chime, once per change however many sessions
+changed, under the same rules (quiet for the session on screen in a
+focused window). It does not need the notification permission, so it
+still plays when the system refuses notifications or the ad hoc signed
+macOS app is not authorized. "Play a sound" in the bell menu turns it
+off. The chime is the system's own sound, played by the platform's
+player (`lib/src/notifications/chime.dart`), so no audio plugin or
+library is bundled:
+
+- macOS: `/usr/bin/afplay /System/Library/Sounds/Glass.aiff`.
+- Linux: the sound theme's `message-new-instant` through
+  `canberra-gtk-play`, else the freedesktop file through `paplay`
+  (PulseAudio) or `pw-play` (PipeWire), whichever is installed first.
+  With none of them the app logs `no program played the chime`.
+- Windows: `Windows Notify System Generic.wav` through PowerShell's
+  `Media.SoundPlayer`.
+- Web: two short notes from the Web Audio API.
+- iOS and Android: none from the app; their notifications make the
+  system's sound.
+
 Notifications come from this process, so they stop when the app quits;
 push for a closed app needs the relay in
 [specs/push-relay.md](../specs/push-relay.md).
