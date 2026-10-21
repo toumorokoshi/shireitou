@@ -206,30 +206,59 @@ List<String> completionTriggers(
     ? const []
     : const ['/'];
 
-/// The completions for [token] in [text]: the host's answer to [request]
-/// (`completions`) when given, else, or when the host fails or answers
+/// [items] answered for another word, moved to replace the word of
+/// [token] (from its trigger to the cursor).
+List<ComposerCompletion> rebaseCompletions(
+  List<ComposerCompletion> items,
+  CompletionToken token,
+) => [
+  for (final item in items)
+    ComposerCompletion(
+      label: item.label,
+      description: item.description,
+      insertText: item.insertText,
+      rangeStart: token.start,
+      attachment: item.attachment,
+    ),
+];
+
+/// The completions for [token] in [text], as they become known. First,
+/// when there are any, the local ones: the host's [cached] answer for an
+/// earlier word, else the [commands] matching a `/` word. Then the host's
+/// answer to [request] (`completions`), unless the host fails or answers
 /// nothing (hosts such as pi answer nothing when they cannot list their
-/// commands), the [commands] matching a `/` word.
-Future<List<ComposerCompletion>> resolveCompletions({
+/// commands). A host can take seconds to answer the first time (pi starts
+/// the session's agent to list its commands), so the local items show
+/// meanwhile. Always yields at least once.
+Stream<List<ComposerCompletion>> resolveCompletions({
   required String text,
   required CompletionToken token,
   required List<SlashCommand> commands,
+  List<CompletionItem>? cached,
   Future<List<CompletionItem>> Function()? request,
-}) async {
-  if (request != null) {
-    try {
-      final items = await request();
-      if (items.isNotEmpty) {
-        return [
-          for (final item in items)
-            hostCompletion(item, text: text, commands: commands),
-        ];
-      }
-    } on Object {
-      // Fall back to the commands below.
-    }
+}) async* {
+  final local = filterCompletions(switch (cached) {
+    final cached? when cached.isNotEmpty => rebaseCompletions([
+      for (final item in cached)
+        hostCompletion(item, text: text, commands: commands),
+    ], token),
+    _ when token.trigger == '/' => commandCompletions(commands, token),
+    _ => const <ComposerCompletion>[],
+  }, token.query);
+  if (local.isNotEmpty || request == null) yield local;
+  if (request == null) return;
+  List<CompletionItem> items;
+  try {
+    items = await request();
+  } on Object {
+    items = const [];
   }
-  return token.trigger == '/'
-      ? filterCompletions(commandCompletions(commands, token), token.query)
-      : const [];
+  if (items.isNotEmpty) {
+    yield [
+      for (final item in items)
+        hostCompletion(item, text: text, commands: commands),
+    ];
+  } else if (local.isEmpty) {
+    yield local;
+  }
 }

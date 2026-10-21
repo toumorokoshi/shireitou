@@ -3,6 +3,7 @@
 /// `completions` from a session.
 library;
 
+import 'dart:async';
 import 'dart:ui' show SemanticsRole;
 
 import 'package:ahp_client/ahp_client.dart';
@@ -13,6 +14,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:json_rpc_2/json_rpc_2.dart';
 import 'package:shireitou/src/app.dart';
+import 'package:shireitou/src/composer/completion_cache.dart';
+import 'package:shireitou/src/composer/completion_popup.dart';
 import 'package:shireitou/src/composer/completions.dart';
 import 'package:shireitou/src/session_detail/session_detail_view.dart';
 
@@ -69,7 +72,7 @@ Future<List<_Sent>> _pumpInput(
   WidgetTester tester, {
   bool working = false,
   List<String> triggers = const ['/'],
-  Future<List<ComposerCompletion>> Function(String, CompletionToken)? source,
+  CompletionSource? source,
 }) async {
   final sent = <_Sent>[];
   await tester.pumpWidget(
@@ -82,7 +85,7 @@ Future<List<_Sent>> _pumpInput(
             completionTriggers: triggers,
             completionSource:
                 source ??
-                (text, token) async => resolveCompletions(
+                (text, token) => resolveCompletions(
                   text: text,
                   token: token,
                   commands: _commands,
@@ -293,20 +296,38 @@ void main() {
       'resolveCompletions falls back when the host lacks the command',
       () async {
         final token = completionToken('/ex', 3, ['/'])!;
-        final fallback = await resolveCompletions(
-          text: '/ex',
-          token: token,
-          commands: _commands,
-          request: () async => throw RpcException.methodNotFound('completions'),
+        List<List<String>> labels(List<List<ComposerCompletion>> answers) => [
+          for (final answer in answers) [for (final i in answer) i.label],
+        ];
+        expect(
+          labels(
+            await resolveCompletions(
+              text: '/ex',
+              token: token,
+              commands: _commands,
+              request: () async =>
+                  throw RpcException.methodNotFound('completions'),
+            ).toList(),
+          ),
+          [
+            ['/explain'],
+          ],
         );
-        expect([for (final i in fallback) i.label], ['/explain']);
-        final host = await resolveCompletions(
-          text: '/ex',
-          token: token,
-          commands: _commands,
-          request: () async => [_hostItem('example')],
+        // The session's commands first, then the host's answer.
+        expect(
+          labels(
+            await resolveCompletions(
+              text: '/ex',
+              token: token,
+              commands: _commands,
+              request: () async => [_hostItem('example')],
+            ).toList(),
+          ),
+          [
+            ['/explain'],
+            ['/skill:example'],
+          ],
         );
-        expect([for (final i in host) i.label], ['/skill:example']);
         for (final request in <Future<List<CompletionItem>> Function()>[
           () async => throw RpcException(-32603, 'internal'),
           () async => const [],
@@ -316,19 +337,83 @@ void main() {
             token: token,
             commands: _commands,
             request: request,
-          );
-          expect([for (final i in items) i.label], ['/explain']);
+          ).toList();
+          expect(labels(items), [
+            ['/explain'],
+          ]);
         }
+        // Nothing local: only the host's answer, or one empty answer.
         expect(
-          await resolveCompletions(
-            text: '@x',
-            token: completionToken('@x', 2, ['@'])!,
-            commands: _commands,
+          labels(
+            await resolveCompletions(
+              text: '/ex',
+              token: token,
+              commands: const [],
+              request: () async => [_hostItem('example')],
+            ).toList(),
           ),
-          isEmpty,
+          [
+            ['/skill:example'],
+          ],
+        );
+        expect(
+          labels(
+            await resolveCompletions(
+              text: '@x',
+              token: completionToken('@x', 2, ['@'])!,
+              commands: _commands,
+            ).toList(),
+          ),
+          [<String>[]],
         );
       },
     );
+
+    test('resolveCompletions shows a cached host answer first, moved to the '
+        'word and filtered', () async {
+      final token = completionToken('see /re', 7, ['/'])!;
+      final answers = await resolveCompletions(
+        text: 'see /re',
+        token: token,
+        commands: _commands,
+        cached: [_hostItem('review'), _hostItem('explain')],
+        request: () async => const [],
+      ).toList();
+      final [cached] = answers;
+      expect([for (final i in cached) i.label], ['/skill:review']);
+      expect(cached.single.description, 'Does review');
+      expect(
+        applyCompletion(_at('see /re'), cached.single),
+        _at('see /skill:review '),
+      );
+    });
+
+    test('CompletionCache keeps bare-trigger answers, least recently used '
+        'dropped first', () {
+      final bare = completionToken('/', 1, ['/'])!;
+      final later = completionToken('x /', 3, ['/'])!;
+      String key(CompletionToken token, [List<SlashCommand> c = const []]) =>
+          completionCacheKey(chat: 'c', token: token, commands: c);
+      expect(key(bare), isNot(key(later)));
+      expect(key(bare), isNot(key(bare, _commands)));
+      expect(key(bare), isNot(completionCacheKey(chat: 'd', token: bare)));
+
+      final cache = CompletionCache(capacity: 2)
+        ..remember('typed', completionToken('/r', 2, ['/'])!, [_hostItem('a')])
+        ..remember('empty', bare, const []);
+      expect(cache['typed'], isNull);
+      expect(cache['empty'], isNull);
+
+      final a = [_hostItem('a')];
+      cache
+        ..remember('a', bare, a)
+        ..remember('b', bare, [_hostItem('b')]);
+      expect(cache['a'], a);
+      cache.remember('c', bare, [_hostItem('c')]);
+      expect(cache['b'], isNull);
+      expect(cache['a'], a);
+      expect(cache['c'], isNotNull);
+    });
   });
 
   group('popup', () {
@@ -408,12 +493,12 @@ void main() {
       final requests = <String>[];
       await _pumpInput(
         tester,
-        source: (text, token) async {
+        source: (text, token) async* {
           requests.add(text);
           await Future<void>.delayed(
             Duration(milliseconds: text == '/r' ? 500 : 10),
           );
-          return [
+          yield [
             ComposerCompletion(
               label: text == '/r' ? '/stale' : '/fresh',
               insertText: '/x ',
@@ -430,22 +515,50 @@ void main() {
       expect(find.text('/stale'), findsNothing);
     });
 
-    testWidgets('typing quickly sends one request', (tester) async {
+    testWidgets('a new word asks at once; typing quickly in it asks once '
+        'more', (tester) async {
       final requests = <String>[];
       await _pumpInput(
         tester,
-        source: (text, token) async {
+        source: (text, token) async* {
           requests.add(text);
-          return const [];
+          yield const [];
         },
       );
       await tester.enterText(find.byType(TextField), '/r');
+      await tester.pump();
+      expect(requests, ['/r']);
       await tester.pump(const Duration(milliseconds: 50));
       await tester.enterText(find.byType(TextField), '/re');
       await tester.pump(const Duration(milliseconds: 50));
       await tester.enterText(find.byType(TextField), '/rev');
       await tester.pump(const Duration(milliseconds: 200));
-      expect(requests, ['/rev']);
+      expect(requests, ['/r', '/rev']);
+    });
+
+    testWidgets('local items show while the host answers, then the host\'s '
+        'replace them', (tester) async {
+      final host = Completer<List<ComposerCompletion>>();
+      await _pumpInput(
+        tester,
+        source: (text, token) async* {
+          yield commandCompletions(_commands, token);
+          yield await host.future;
+        },
+      );
+      await tester.enterText(find.byType(TextField), '/');
+      await tester.pump();
+      expect(find.text('/review'), findsOneWidget);
+      host.complete(const [
+        ComposerCompletion(
+          label: '/skill:review',
+          insertText: '/skill:review ',
+          rangeStart: 0,
+        ),
+      ]);
+      await tester.pump();
+      expect(find.text('/review'), findsNothing);
+      expect(find.text('/skill:review'), findsOneWidget);
     });
 
     testWidgets('the items are a list with a count', (tester) async {
@@ -465,6 +578,8 @@ void main() {
     Future<FakeHostConnection> pumpSession(
       WidgetTester tester, {
       List<String> triggers = const [],
+      List<Customization> sessionCustomizations = const [_skill],
+      List<Customization>? agentCustomizations,
     }) async {
       reduceMotion(tester);
       tester.view.physicalSize = const Size(1400, 900);
@@ -475,6 +590,17 @@ void main() {
           status: ConnectionStatus.connected,
           serverInfo: const Implementation(name: 'pi-agent-host-protocol'),
           completionTriggerCharacters: triggers,
+          root: RootState(
+            agents: [
+              AgentInfo(
+                provider: 'pi',
+                displayName: 'Pi',
+                description: '',
+                models: const [],
+                customizations: agentCustomizations,
+              ),
+            ],
+          ),
           sessions: catalogueFromSummaries([
             session('1', directory: 'file:///src/app', title: 'Fix login'),
           ]),
@@ -483,7 +609,9 @@ void main() {
           },
           sessionChannels: {
             'pi:/1': ChannelMirror.snapshot(
-              sessionWithRequests().copyWith(customizations: const [_skill]),
+              sessionWithRequests().copyWith(
+                customizations: sessionCustomizations,
+              ),
             ),
           },
         ),
@@ -526,6 +654,46 @@ void main() {
           '_meta': {'uri': 'file:///review', 'description': 'Does review'},
         },
       ]);
+    });
+
+    testWidgets('the host\'s earlier answer shows again for a new word', (
+      tester,
+    ) async {
+      final connection = await pumpSession(
+        tester,
+        triggers: ['/'],
+        sessionCustomizations: const [],
+      );
+      final field = find.byType(TextField).last;
+      connection.completionItems = [_hostItem('review', end: 1)];
+      await tester.enterText(field, '/');
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('/skill:review'), findsOneWidget);
+
+      await tester.enterText(field, '');
+      await tester.pump();
+      // The host now answers nothing; the cached answer still shows.
+      connection.completionItems = const [];
+      await tester.enterText(field, '/');
+      await tester.pump();
+      expect(find.text('/skill:review'), findsOneWidget);
+      await tester.pump();
+      expect(connection.completionRequests, hasLength(2));
+      expect(find.text('/skill:review'), findsOneWidget);
+    });
+
+    testWidgets('a session that lists no skills offers the agent\'s', (
+      tester,
+    ) async {
+      await pumpSession(
+        tester,
+        sessionCustomizations: const [],
+        agentCustomizations: const [_skill],
+      );
+      await tester.enterText(find.byType(TextField).last, '/');
+      await tester.pump();
+      expect(find.text('/review'), findsOneWidget);
     });
 
     testWidgets('without host completions, offers the session skills', (

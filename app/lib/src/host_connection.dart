@@ -12,6 +12,7 @@ import 'package:uuid/uuid.dart';
 
 import 'auth/oauth_browser.dart';
 import 'auth/sign_in_dialog.dart';
+import 'composer/completion_cache.dart';
 import 'hosts/host_store.dart';
 import 'hosts/saved_hosts.dart';
 
@@ -72,6 +73,10 @@ class HostConnection extends Notifier<HostState> {
   StreamSubscription<Set<String>>? _authSubscription;
   final _signedIn = StreamController<Set<String>>.broadcast();
   Set<String> _signedInNow = const {};
+
+  /// The host's earlier `completions` answers, shown while it answers
+  /// again (AV-044).
+  final completionCache = CompletionCache();
 
   @override
   HostState build() {
