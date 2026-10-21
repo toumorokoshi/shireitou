@@ -46,8 +46,8 @@ enum AppCommand {
   /// AV-003).
   toggleReviewPane('Toggle Review Pane'),
 
-  /// Opens or closes the terminal panel (Ctrl+` everywhere, as in VS
-  /// Code, AV-016).
+  /// Opens or closes the terminal panel (Alt+T everywhere, and Ctrl+` as
+  /// in VS Code, AV-016).
   toggleTerminal('Toggle Terminal');
 
   const AppCommand(this.label);
@@ -100,11 +100,27 @@ SingleActivator activatorFor(AppCommand command, {bool? apple}) {
       alt: true,
     ),
     AppCommand.toggleTerminal => const SingleActivator(
-      LogicalKeyboardKey.backquote,
-      control: true,
+      LogicalKeyboardKey.keyT,
+      alt: true,
     ),
   };
 }
+
+/// The other keys for [command], besides [activatorFor]'s. A native menu
+/// item takes one key, so [AppShortcuts] handles these on macOS too.
+List<SingleActivator> extraActivatorsFor(AppCommand command) =>
+    switch (command) {
+      AppCommand.toggleTerminal => const [
+        SingleActivator(LogicalKeyboardKey.backquote, control: true),
+      ],
+      _ => const [],
+    };
+
+/// Every key for [command]: [activatorFor]'s, then [extraActivatorsFor].
+List<SingleActivator> activatorsFor(AppCommand command, {bool? apple}) => [
+  activatorFor(command, apple: apple),
+  ...extraActivatorsFor(command),
+];
 
 /// "Ctrl+K" or "⌘K": [command]'s key for tooltips and help text.
 String shortcutLabel(AppCommand command, {bool? apple}) {
@@ -158,7 +174,7 @@ class AppCommandIntent extends Intent {
 
 /// Maps the AV-140 keys to [AppCommand]s for everything below. When
 /// [enabled] is false (macOS, where the native menu bar owns the keys),
-/// it returns [child] unchanged.
+/// it maps only the [extraActivatorsFor] keys.
 class AppShortcuts extends ConsumerWidget {
   /// Creates the shortcuts around [child].
   const AppShortcuts({super.key, required this.child, this.enabled = true});
@@ -171,12 +187,13 @@ class AppShortcuts extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (!enabled) return child;
     final commands = ref.watch(appCommandsProvider);
     return Shortcuts(
       shortcuts: {
         for (final command in AppCommand.values)
-          activatorFor(command): AppCommandIntent(command),
+          for (final activator
+              in enabled ? activatorsFor(command) : extraActivatorsFor(command))
+            activator: AppCommandIntent(command),
       },
       child: Actions(
         actions: {

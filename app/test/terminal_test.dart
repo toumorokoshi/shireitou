@@ -313,15 +313,34 @@ void main() {
     await tester.pumpAndSettle();
     expect(panelHeight(), defaultTerminalPanelHeight);
 
-    // Ctrl+` closes the panel, even from the terminal, and reopens it
-    // with the same terminal.
+    // Alt+T and Ctrl+` close the panel, even from the terminal (without
+    // typing into the shell), and reopen it with the same terminal.
+    Future<void> press(
+      LogicalKeyboardKey modifier,
+      LogicalKeyboardKey key,
+    ) async {
+      await tester.sendKeyDownEvent(modifier);
+      await tester.sendKeyEvent(key);
+      await tester.sendKeyUpEvent(modifier);
+      await tester.pumpAndSettle();
+    }
+
+    final typed = pty.typed.toString();
     await tester.tap(find.byType(TerminalTabView));
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
-    await tester.sendKeyEvent(LogicalKeyboardKey.backquote);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
-    await tester.pumpAndSettle();
+    await press(LogicalKeyboardKey.altLeft, LogicalKeyboardKey.keyT);
+    expect(find.byType(TerminalPanel), findsNothing);
+    expect(pty.typed.toString(), typed);
+    await press(LogicalKeyboardKey.altLeft, LogicalKeyboardKey.keyT);
+    expect(find.byType(TerminalPanel), findsOneWidget);
+    await tester.tap(find.byType(TerminalTabView));
+    await press(LogicalKeyboardKey.controlLeft, LogicalKeyboardKey.backquote);
     expect(find.byType(TerminalPanel), findsNothing);
     expect(pty.killed, isFalse);
+    await press(LogicalKeyboardKey.controlLeft, LogicalKeyboardKey.backquote);
+    expect(find.byType(TerminalPanel), findsOneWidget);
+    await tester.tap(find.byTooltip(toggleTerminalLabel));
+    await tester.pumpAndSettle();
+    expect(find.byType(TerminalPanel), findsNothing);
     await tester.tap(find.byTooltip(toggleTerminalLabel));
     await tester.pumpAndSettle();
     expect(find.byType(TerminalPanel), findsOneWidget);

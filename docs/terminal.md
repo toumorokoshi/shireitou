@@ -11,8 +11,11 @@ keys, port, jump hosts and host key checks all come from your
 - **The terminal button** in the session header (left of the "…" menu)
   opens or closes the panel. Opening it on a host with no terminal
   starts one.
-- **Ctrl+\`** does the same, on every platform as in VS Code, and also
-  from inside the terminal. On macOS it is in the Session menu.
+- **Alt+T** (⌥T on macOS) does the same on every platform, also from
+  inside the terminal, so the shell never gets Alt+T (readline's
+  "transpose words" is Esc then T there). **Ctrl+\`** works too, as in
+  VS Code. On macOS Alt+T is in the Session menu, and Ctrl+\` is
+  handled by the app's own shortcuts, since a menu item takes one key.
 - **New terminal** in the session's "…" menu, or the panel's **+**,
   opens another terminal.
 
@@ -105,7 +108,7 @@ Package Manager. Its README lists the changes.
 - `app/test/terminal_test.dart`: the pure logic, `TerminalSession` and
   `terminalsProvider` against a fake pty, the app flow on Linux (the
   button, a second terminal from the menu, exit and restart, closing a
-  tab, maximize, Ctrl+\` from inside the terminal, hide) and the
+  tab, maximize, Alt+T and Ctrl+\` from inside and outside the terminal, hide) and the
   `ssh://` link on Android.
 - `packages/flutter_pty/test/`: the Windows quoting, and a real pty
   (argv, `TERM`, typed input, the size and the environment).

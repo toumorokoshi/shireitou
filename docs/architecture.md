@@ -290,10 +290,11 @@ Dart source); `bin/generate.dart` does the file I/O. See
   title; `app_menu.dart` is the macOS `PlatformMenuBar` (with the Session
   menu of shortcuts). See [desktop.md](desktop.md).
 - `lib/src/shortcuts.dart`: the AV-140 commands (`AppCommand`), their keys
-  (`activatorFor`: Cmd on Apple platforms, Ctrl elsewhere) and labels, and
-  `appCommandsProvider`, a broadcast of commands. `AppShortcuts` maps the
-  keys to commands above the navigator (except on macOS, where the menu
-  sends them); the sessions screen handles new session, search and
+  (`activatorFor`: Cmd on Apple platforms, Ctrl elsewhere; plus
+  `extraActivatorsFor`, such as Ctrl+\` beside Alt+T for the terminal) and
+  labels, and `appCommandsProvider`, a broadcast of commands.
+  `AppShortcuts` maps the keys to commands above the navigator (on macOS,
+  where the menu sends the main keys, only the extra ones); the sessions screen handles new session, search and
   next/previous, the visible session view handles stop and focus
   composer (the new-session draft focuses its prompt), and its timeline previous and next turn (AV-074), each only
   while its route is on top.
