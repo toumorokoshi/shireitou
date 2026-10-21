@@ -283,14 +283,21 @@ Dart source); `bin/generate.dart` does the file I/O. See
   `applyCompletion` puts the accepted item into the text (moving the
   host's range by what was typed since it answered),
   `acceptedAttachments` picks the attachments to send, and
-  `resolveCompletions` asks the host or, when it fails or answers
-  nothing, falls back to the skills (a skill's item carries a skill
-  reference, `_meta.uri`, so pi loads it under its `/skill:` name).
+  `resolveCompletions` is a stream: the local items first (the host's
+  cached answer moved to the word by `rebaseCompletions`, else the
+  skills; a skill's item carries a skill reference, `_meta.uri`, so pi
+  loads it under its `/skill:` name), then the host's answer unless it
+  fails or answers nothing.
   `draftCommands` picks the new-session draft's commands: the agent's
   customizations, else a loaded session's of the same agent (same folder
-  first).
+  first). A session that lists no skills yet uses its agent's.
+  `completion_cache.dart` is the state: `CompletionCache` (one per
+  `HostConnection`) keeps the host's answer for a bare trigger by chat,
+  start or later in the message, and the session's command names
+  (`completionCacheKey`), at most 64, least recently used dropped first.
   `completion_popup.dart` is the popup: it watches the field's
-  controller, debounces requests, drops stale answers, anchors itself
+  controller, asks at once for a new word and debounces typing in it,
+  shows each answer of the stream, drops stale answers, anchors itself
   above the caret (`OverlayPortal` and `CompositedTransformFollower`) and
   takes ↑/↓, Enter, Tab and Esc through `handleKey`, which the field's
   key handler calls first.

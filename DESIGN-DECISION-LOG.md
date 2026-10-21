@@ -199,6 +199,39 @@ copy a link's URL without opening it.
   canvas, input request URL, token docs) share `openLink`, which opens
   in the external browser, and `LinkContextMenu` for the right-click.
 
+## 2026-10-21: Skill completions show local items at once (AV-044)
+
+Typing `/` in a session took a long time to show anything. The popup
+started empty, waited out the 150 ms debounce, then waited for the
+host's `completions` answer before it showed anything, even when the
+session's skills were already in the mirrored state. pi answers the
+first `completions` of a session whose agent is not running by starting
+the agent to list its commands (`PiSession.completions` calls
+`#ensureAgent`), which takes seconds for a session opened from history
+or after a host restart; later answers come from pi's memory.
+
+- **The completion source is a stream.** `resolveCompletions` yields the
+  local items first and then the host's answer, and the popup shows each
+  as it comes, so the popup opens at once and the host's items replace
+  the local ones. A failed or empty host answer keeps the local items,
+  as the fallback did before.
+- **The host's answers are cached per connection.** `CompletionCache` on
+  `HostConnection` keeps the answer for a bare trigger (the full list) by
+  chat, start or later in the message (pi offers prompts only at the
+  start), and the session's command names, so a change in the session's
+  customizations retires it. Cached items are moved to the new word
+  (`rebaseCompletions`) and filtered locally. It is in memory and
+  bounded (64 answers, least recently used dropped first). A disk cache
+  was not added, since the agent's and the session's customizations
+  arrive with the host's state on connect anyway.
+- **A session that lists no skills uses its agent's.** pi lists a
+  session's skills only once its agent starts, but publishes its global
+  skills on the agent, so these show while pi starts.
+- **No debounce for a new word.** The first request for a word goes
+  out at once; typing in the word is still debounced.
+- **pi's slow first answer is not fixed here.** Listing commands without
+  starting the agent belongs in pi-agent-host-protocol.
+
 ## 2026-10-20: The "Marked as done" snackbar times out (AV-024)
 
 The snackbar shown after "Mark as done" never went away: Flutter's

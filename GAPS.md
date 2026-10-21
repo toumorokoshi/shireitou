@@ -172,6 +172,15 @@ AppImage and the release workflow (see
   `displayKind`, and Cmd/Ctrl+Enter accepts an item rather than steering
   while it is open. The queued-message editor has no completions. Only
   `/` is verified: neither the fake host nor pi triggers on `@`.
+  The cache of host answers is in memory only (lost on restart) and is
+  filled only by an answer for a bare `/`; the first `/` in a session pi
+  has not started still waits for pi to start (seconds) unless the
+  session or its agent lists skills. While the host answers, the local
+  items can differ from the host's (pi's `/skill:name` replaces
+  `/name`), so the list may change under the pointer. Speeding up pi's
+  first answer (listing commands without starting the agent, or
+  publishing a resumed session's customizations from its last run) is
+  host work in pi-agent-host-protocol.
 - **Renaming a session (AV-073), remaining details:** the session list
   renames in a dialog, not in place. A rename from the list of a session
   that is not open is not shown until the host updates its catalogue

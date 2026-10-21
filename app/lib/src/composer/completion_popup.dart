@@ -13,15 +13,17 @@ import 'package:flutter/services.dart';
 import 'completions.dart';
 
 /// Answers the completions for [text] at [token] (the host's `completions`
-/// or the session's skills).
-typedef CompletionSource = Future<List<ComposerCompletion>> Function(
+/// or the session's skills), each answer replacing the one before, such as
+/// local items first and the host's when it answers.
+typedef CompletionSource = Stream<List<ComposerCompletion>> Function(
   String text,
   CompletionToken token,
 );
 
 /// Shows completions above the caret while the word before it starts with
-/// one of [triggers] in [controller]'s text. Requests are debounced by
-/// [delay] and answers for older text are dropped. The text field's key
+/// one of [triggers] in [controller]'s text. A new word asks [source] at
+/// once; typing in it asks again after [delay], and answers for older text
+/// are dropped. The text field's key
 /// handler must call [CompletionPopupState.handleKey] first, so that
 /// ↑/↓, Enter, Tab and Esc go to the popup while it is open.
 class CompletionPopup extends StatefulWidget {
@@ -141,33 +143,42 @@ class CompletionPopupState extends State<CompletionPopup> {
     if (value.text == _text && token == _token) return;
     _text = value.text;
     _token = token;
-    if (_itemsStart != token.start) {
+    final newWord = _itemsStart != token.start;
+    if (newWord) {
       _items = const [];
       _itemsStart = token.start;
     }
     _filter();
     _timer?.cancel();
-    _timer = Timer(widget.delay, () => unawaited(_request(value.text, token)));
+    if (newWord) {
+      unawaited(_request(value.text, token));
+    } else {
+      _timer = Timer(
+        widget.delay,
+        () => unawaited(_request(value.text, token)),
+      );
+    }
   }
 
   Future<void> _request(String text, CompletionToken token) async {
     final generation = ++_generation;
-    List<ComposerCompletion> items;
+    // Answers for text that has changed since are dropped.
+    bool current() =>
+        mounted && generation == _generation && widget.controller.text == text;
     try {
-      items = await widget.source(text, token);
+      await for (final items in widget.source(text, token)) {
+        if (!current()) return;
+        _items = items;
+        _itemsText = text;
+        _itemsStart = token.start;
+        _filter();
+      }
     } on Object {
-      items = const [];
+      if (!current() || _itemsText == text) return;
+      _items = const [];
+      _itemsText = text;
+      _filter();
     }
-    // Drop answers for text that has changed since.
-    if (!mounted ||
-        generation != _generation ||
-        widget.controller.text != text) {
-      return;
-    }
-    _items = items;
-    _itemsText = text;
-    _itemsStart = token.start;
-    _filter();
   }
 
   /// Shows the last answer as is when it is for the current text, else

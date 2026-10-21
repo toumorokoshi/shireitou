@@ -41,6 +41,7 @@ import '../files/file_viewer.dart';
 import '../files/open_file_store.dart';
 import '../terminal/terminal_panel.dart';
 import 'chat_commands.dart';
+import '../composer/completion_cache.dart';
 import '../composer/completion_popup.dart';
 import '../composer/completions.dart';
 import '../composer/composer_action_button.dart';
@@ -508,8 +509,12 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
     final models = agent?.models ?? const <SessionModelInfo>[];
     final folder = summary == null ? null : folderKeyOf(summary);
     final sessionFields = mutableSessionFields(sessionState?.config);
-    // `/` completions (AV-044): the host's, else the session's skills.
-    final commands = slashCommands(sessionState?.customizations);
+    // `/` completions (AV-044): the host's, else the session's skills, else
+    // the agent's (a session the host has not started lists none yet).
+    final sessionCommands = slashCommands(sessionState?.customizations);
+    final commands = sessionCommands.isNotEmpty
+        ? sessionCommands
+        : slashCommands(agent?.customizations);
     final hostTriggers = ref.watch(
       hostConnectionProvider(context.host)
           .select((s) => s.completionTriggerCharacters),
@@ -640,18 +645,32 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
                           hostTriggers,
                           commands,
                         ),
-                        completionSource: (text, token) => resolveCompletions(
-                          text: text,
-                          token: token,
-                          commands: commands,
-                          request: hostTriggers.isEmpty
-                              ? null
-                              : () => _connection.completions(
-                                  chat: chatUri!,
-                                  text: text,
-                                  offset: token.end,
-                                ),
-                        ),
+                        completionSource: (text, token) {
+                          final channel = chatUri!;
+                          final cache = _connection.completionCache;
+                          final key = completionCacheKey(
+                            chat: channel,
+                            token: token,
+                            commands: sessionCommands,
+                          );
+                          return resolveCompletions(
+                            text: text,
+                            token: token,
+                            commands: commands,
+                            cached: hostTriggers.isEmpty ? null : cache[key],
+                            request: hostTriggers.isEmpty
+                                ? null
+                                : () async {
+                                    final items = await _connection.completions(
+                                      chat: channel,
+                                      text: text,
+                                      offset: token.end,
+                                    );
+                                    cache.remember(key, token, items);
+                                    return items;
+                                  },
+                          );
+                        },
                         onSend:
                             (
                               text, {
