@@ -400,6 +400,8 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
     ScaffoldMessenger.maybeOf(context)?.showSnackBar(
       SnackBar(
         content: const Text('Marked as done'),
+        // Flutter keeps a snackbar with an action open until dismissed.
+        persist: false,
         action: SnackBarAction(
           label: 'Undo',
           onPressed: () => _setArchived([session], false),

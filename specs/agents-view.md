@@ -137,7 +137,8 @@ same sections.
     title.
   - Hovering (or focusing) a row with a pointer shows a pin icon and a
     "Mark as done" (archive, AV-024) icon on its right; mark done shows a
-    snackbar with Undo. An archived row shows "Unarchive" instead.
+    snackbar with Undo that goes away after the default 4 s. An archived
+    row shows "Unarchive" instead.
   - Resting the pointer on a row for 500 ms shows a card: the title in
     bold, " · agent · workspace", and under it a folder icon and
     "Workspace · full path".

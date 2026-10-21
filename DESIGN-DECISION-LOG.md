@@ -1,5 +1,15 @@
 # Design Decision Log
 
+## 2026-10-20: The "Marked as done" snackbar times out (AV-024)
+
+The snackbar shown after "Mark as done" never went away: Flutter's
+`SnackBar.persist` defaults to true when the snackbar has an action, so
+the Undo action kept it open until the user dismissed it.
+
+- **Undo snackbars time out like the others.** `persist: false` with
+  the default 4 s duration; the session stays archived, and Undo is
+  still in the row's menu ("Unarchive").
+
 ## 2026-10-20: A bundled CC0 chime through flutter_soloud (AV-121)
 
 The first chime ran each platform's sound player (`afplay`,
@@ -54,8 +64,6 @@ as the key that opens and closes it in a session.
 - **The terminal swallows Alt+T.** Inside the terminal both keys toggle
   the panel instead of reaching the shell, so readline's Alt+T
   ("transpose words") is Esc then T there.
-
-||||||| parent of 7c48a72 (feat(notifications): play a bundled CC0 chime through flutter_soloud)
 
 ## 2026-10-20: A chime when it is the user's turn (AV-121)
 
