@@ -335,6 +335,23 @@ void main() {
     await mouse.removePointer();
   });
 
+  testWidgets('the "Marked as done" snackbar goes away by itself', (
+    tester,
+  ) async {
+    await _pump(tester, _connected());
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: tester.getCenter(find.text('Explain')));
+    await tester.pump();
+    await tester.tap(find.byTooltip(markDoneLabel));
+    await tester.pumpAndSettle();
+    expect(find.text('Marked as done'), findsOneWidget);
+
+    await tester.pump(const SnackBar(content: Text('')).duration);
+    await tester.pumpAndSettle();
+    expect(find.text('Marked as done'), findsNothing);
+    await mouse.removePointer();
+  });
+
   testWidgets('"Select" in the "…" menu starts multi-select', (tester) async {
     await _pump(tester, _connected());
     await tester.tap(find.byTooltip('More actions'));
