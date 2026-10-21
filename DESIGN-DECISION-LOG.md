@@ -1,5 +1,21 @@
 # Design Decision Log
 
+## 2026-10-20: Alt+T toggles the terminal panel (AV-016, AV-140)
+
+The terminal panel only toggled with Ctrl+\`, and Alt+T was asked for
+as the key that opens and closes it in a session.
+
+- **Alt+T is the main key, Ctrl+\` stays.** Alt+T (⌥T on macOS) is the
+  key in the tooltip and the macOS Session menu; Ctrl+\` keeps working
+  for VS Code habits. Commands now have `extraActivatorsFor` keys beside
+  `activatorFor`.
+- **Extra keys are handled by the app on macOS too.** A native menu item
+  takes one key, so `AppShortcuts` maps only the extra keys there while
+  the menu keeps the main ones.
+- **The terminal swallows Alt+T.** Inside the terminal both keys toggle
+  the panel instead of reaching the shell, so readline's Alt+T
+  ("transpose words") is Esc then T there.
+
 ## 2026-10-20: A chime when it is the user's turn (AV-121)
 
 The app posted notifications when a session needed input, finished or

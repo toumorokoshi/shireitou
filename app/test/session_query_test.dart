@@ -6,6 +6,7 @@ library;
 import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shireitou/src/desktop/app_menu.dart';
 import 'package:shireitou/src/hosts/open_hosts.dart';
@@ -166,8 +167,8 @@ void main() {
       expect(shortcutLabel(AppCommand.newSession, apple: true), '⌘N');
       expect(shortcutLabel(AppCommand.stop, apple: false), 'Ctrl+.');
       expect(shortcutLabel(AppCommand.nextSession, apple: false), 'Alt+↓');
-      expect(shortcutLabel(AppCommand.toggleTerminal, apple: true), 'Ctrl+`');
-      expect(shortcutLabel(AppCommand.toggleTerminal, apple: false), 'Ctrl+`');
+      expect(shortcutLabel(AppCommand.toggleTerminal, apple: true), '⌥T');
+      expect(shortcutLabel(AppCommand.toggleTerminal, apple: false), 'Alt+T');
       expect(shortcutLabel(AppCommand.previousSession, apple: true), '⌥↑');
       expect(
         shortcutLabel(AppCommand.toggleReviewPane, apple: false),
@@ -179,6 +180,41 @@ void main() {
         'Ctrl+Alt+↑',
       );
       expect(shortcutLabel(AppCommand.nextTurn, apple: true), '⌥⌘↓');
+    });
+
+    test('the terminal toggles with Alt+T and Ctrl+`', () {
+      expect(activatorsFor(AppCommand.toggleTerminal, apple: true), const [
+        SingleActivator(LogicalKeyboardKey.keyT, alt: true),
+        SingleActivator(LogicalKeyboardKey.backquote, control: true),
+      ]);
+      expect(extraActivatorsFor(AppCommand.newSession), isEmpty);
+    });
+
+    testWidgets('under a native menu bar only the extra keys are mapped', (
+      tester,
+    ) async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final sent = <AppCommand>[];
+      container.read(appCommandsProvider).stream.listen(sent.add);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const AppShortcuts(
+            enabled: false,
+            child: Focus(autofocus: true, child: SizedBox()),
+          ),
+        ),
+      );
+      Future<void> press(LogicalKeyboardKey modifier, LogicalKeyboardKey key) =>
+          tester
+              .sendKeyDownEvent(modifier)
+              .then((_) => tester.sendKeyEvent(key))
+              .then((_) => tester.sendKeyUpEvent(modifier));
+      await press(LogicalKeyboardKey.altLeft, LogicalKeyboardKey.keyT);
+      expect(sent, isEmpty);
+      await press(LogicalKeyboardKey.controlLeft, LogicalKeyboardKey.backquote);
+      expect(sent, [AppCommand.toggleTerminal]);
     });
 
     test('the macOS Session menu lists every command with its key', () {

@@ -438,7 +438,8 @@ class _Tab extends StatelessWidget {
 /// One terminal's xterm view in the theme's terminal colours. Copy and
 /// paste use the platform's keys (Cmd+C and Cmd+V on macOS, Ctrl+Shift+C
 /// and Ctrl+V elsewhere) or a right-click (copy the selection, else
-/// paste). Ctrl+` still toggles the panel while it has the focus.
+/// paste). Alt+T and Ctrl+` still toggle the panel while it has the
+/// focus, so Alt+T does not reach the shell.
 class TerminalTabView extends ConsumerStatefulWidget {
   /// Creates the view of [session].
   const TerminalTabView({super.key, required this.session});
@@ -478,8 +479,8 @@ class _TerminalTabViewState extends ConsumerState<TerminalTabView> {
   }
 
   KeyEventResult _onKey(FocusNode _, KeyEvent event) {
-    final toggle = activatorFor(AppCommand.toggleTerminal);
-    if (!toggle.accepts(event, HardwareKeyboard.instance)) {
+    final toggles = activatorsFor(AppCommand.toggleTerminal);
+    if (!toggles.any((t) => t.accepts(event, HardwareKeyboard.instance))) {
       return KeyEventResult.ignored;
     }
     ref.read(appCommandsProvider).send(AppCommand.toggleTerminal);

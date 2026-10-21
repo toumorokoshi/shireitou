@@ -130,7 +130,9 @@ AppImage and the release workflow (see
   `127.0.0.1` port opens `ssh 127.0.0.1` (an alias in `~/.ssh/config`
   is the way around it; there is no per-host setting). `ssh` asks for
   passwords, passphrases and new host keys in the terminal itself; the
-  app adds nothing. The remote command assumes a POSIX shell (`cd`,
+  app adds nothing. Alt+T toggles the panel even inside the terminal,
+  so the shell cannot get Alt+T, and the keys cannot be rebound.
+  The remote command assumes a POSIX shell (`cd`,
   `$SHELL`) and a POSIX folder path. Terminals are not kept across app
   restarts, cannot be split, renamed or moved to their own window, and
   the panel has no find, links or zoom. On Windows the pty is only

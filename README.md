@@ -48,7 +48,7 @@ with a UX modeled on the GitHub Agents view and Cursor's Agents Window.
 > VS Code, VS Code Insiders or Cursor (over Remote - SSH for a remote
 > host; desktop and web apps), and a VS Code-style terminal panel under
 > the session runs the system `ssh` to the host in the session's folder
-> (Ctrl+\`; desktop apps). Push notifications for a closed app
+> (Alt+T or Ctrl+\`; desktop apps). Push notifications for a closed app
 > are not built; see [GAPS.md](GAPS.md).
 
 ## Layout
