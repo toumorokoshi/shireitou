@@ -1,5 +1,19 @@
 # Design Decision Log
 
+## 2026-10-19: Turn timestamps use host time; step timings wait for AHP
+
+Each user-message bubble shows its turn's `startedAt` in the device's local
+date and time conventions, with the original ISO 8601 value in a tooltip.
+Finished turns continue to show the host-reported `duration` in their steps
+summary and footer.
+
+The app does not infer durations for individual reasoning, tool-call or
+interstitial-text steps. AHP 1.0.0 does not give those response parts start
+times or durations, and measuring action arrival times in one client would
+omit historical sessions, vary with network latency and disagree between
+clients. Per-step timing therefore remains unavailable until the protocol
+and host report it.
+
 ## 2026-10-20: Restore the settings saved while the macOS app was sandboxed
 
 Pins disappeared after upgrading to the build that turned off the macOS

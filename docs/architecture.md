@@ -494,7 +494,8 @@ Dart source); `bin/generate.dart` does the file I/O. See
   turned down with a failed `chat/toolCallComplete`
   (`declineClientExecutionAction`).
   `timeline_parts.dart` renders the user's messages as right-aligned
-  bubbles, markdown (`flutter_markdown_plus`, styled by `markdownStyle`:
+  bubbles with `Turn.startedAt` formatted in the device's local date and
+  time conventions below them, markdown (`flutter_markdown_plus`, styled by `markdownStyle`:
   body text with a 1.6 line height and tables with bordered, padded
   cells), the `StepsRow` steps line, the round `JumpToLatestButton`,
   collapsed reasoning, tool call cards with

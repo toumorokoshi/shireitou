@@ -42,12 +42,14 @@ Widget buildTimelineItem(
   String? editableTurn,
   void Function(String turnId, String text)? onEditMessage,
 }) => switch (item) {
-  UserMessageItem(:final turnId, :final message) => UserMessageBubble(
-    message: message,
-    onEdit: turnId == editableTurn && onEditMessage != null
-        ? (text) => onEditMessage(turnId, text)
-        : null,
-  ),
+  UserMessageItem(:final turnId, :final message, :final startedAt) =>
+    UserMessageBubble(
+      message: message,
+      startedAt: startedAt,
+      onEdit: turnId == editableTurn && onEditMessage != null
+          ? (text) => onEditMessage(turnId, text)
+          : null,
+    ),
   StepsItem() => StepsRow(
     item: item,
     expanded: expandedSteps.contains(item.key),
@@ -232,10 +234,18 @@ class _WorkingIndicatorRowState extends State<WorkingIndicatorRow>
 /// the edited message (AV-088).
 class UserMessageBubble extends StatefulWidget {
   /// Creates a [UserMessageBubble].
-  const UserMessageBubble({super.key, required this.message, this.onEdit});
+  const UserMessageBubble({
+    super.key,
+    required this.message,
+    this.startedAt,
+    this.onEdit,
+  });
 
   /// The message.
   final Message message;
+
+  /// ISO 8601 timestamp at which the turn started, when available.
+  final String? startedAt;
 
   /// Restarts from this message with the edited text; no edit button when
   /// null.
@@ -276,6 +286,11 @@ class _UserMessageBubbleState extends State<UserMessageBubble> {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final colors = AppColors.of(context);
+    final timestamp = formatTurnTimestamp(
+      widget.startedAt,
+      MaterialLocalizations.of(context),
+      alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
+    );
     return LayoutBuilder(
       builder: (context, constraints) => Align(
         alignment: Alignment.centerRight,
@@ -296,31 +311,54 @@ class _UserMessageBubbleState extends State<UserMessageBubble> {
                 ),
               ),
             Flexible(
-              child: Container(
-                constraints: BoxConstraints(
-                  maxWidth: constraints.maxWidth * 0.9,
-                ),
-                margin: const EdgeInsets.only(top: 24, bottom: 28),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                decoration: BoxDecoration(
-                  color: colors.bubbleFill,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                // A leaf of its own: next to the edit button, Flutter web
-                // would expose the text only as the row's aria-label.
-                child: Semantics(
-                  container: true,
-                  child: Text(
-                    widget.message.text,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: scheme.onSurface,
-                      height: 1.5,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Container(
+                    constraints: BoxConstraints(
+                      maxWidth: constraints.maxWidth * 0.9,
+                    ),
+                    margin: EdgeInsets.only(
+                      top: 24,
+                      bottom: timestamp == null ? 28 : 0,
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: colors.bubbleFill,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    // A leaf of its own: next to the edit button, Flutter web
+                    // would expose the text only as the row's aria-label.
+                    child: Semantics(
+                      container: true,
+                      child: Text(
+                        widget.message.text,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: scheme.onSurface,
+                          height: 1.5,
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                  if (timestamp != null)
+                    Tooltip(
+                      message: widget.startedAt!,
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 4, bottom: 24),
+                        child: Text(
+                          timestamp,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: colors.mutedText,
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
           ],
@@ -328,6 +366,23 @@ class _UserMessageBubbleState extends State<UserMessageBubble> {
       ),
     );
   }
+}
+
+/// Formats an AHP turn start timestamp in the user's local date and time
+/// conventions. Returns null when the host omitted or malformed it.
+String? formatTurnTimestamp(
+  String? value,
+  MaterialLocalizations localizations, {
+  required bool alwaysUse24HourFormat,
+}) {
+  final timestamp = value == null ? null : DateTime.tryParse(value)?.toLocal();
+  if (timestamp == null) return null;
+  final date = localizations.formatCompactDate(timestamp);
+  final time = localizations.formatTimeOfDay(
+    TimeOfDay.fromDateTime(timestamp),
+    alwaysUse24HourFormat: alwaysUse24HourFormat,
+  );
+  return '$date · $time';
 }
 
 /// The style of agent replies (AV-095): body text with a comfortable line

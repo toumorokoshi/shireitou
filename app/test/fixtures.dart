@@ -75,6 +75,7 @@ ChatState chatFixture({bool active = true}) => ChatState(
   turns: [
     Turn(
       id: 'turn-1',
+      startedAt: '2026-10-01T00:00:00Z',
       message: userMessage('List the files'),
       state: TurnState.complete,
       duration: 1500,

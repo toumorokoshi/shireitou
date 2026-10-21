@@ -34,6 +34,10 @@ void main() {
     expect(pendingMessages(chat).map((p) => (p.kind, p.pending.id)), [
       (PendingMessageKind.queued, 'q'),
     ]);
+    expect(
+      timelineItems(chat).whereType<UserMessageItem>().map((i) => i.startedAt),
+      ['2026-10-01T00:00:00Z', '2026-10-01T00:00:00Z'],
+    );
   });
 
   test('tool call summary, input and output', () {

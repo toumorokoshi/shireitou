@@ -106,7 +106,10 @@ AppImage and the release workflow (see
   no elapsed time while a turn runs (only "Working… N steps"), and a
   finished turn's time comes from `Turn.duration`, so it is left out
   when the host does not send one (the fake host's turns finish in
-  "0s"). Failed tool calls fold into the steps line with a "N failed"
+  "0s"). AHP 1.0.0 does not provide timestamps or durations for individual
+  reasoning, tool-call or interstitial-text steps, so the app cannot show
+  authoritative per-step timings; it shows the turn start and total duration
+  only. Failed tool calls fold into the steps line with a "N failed"
   count instead of staying in view. Steps rows remember being expanded
   only while the timeline is open. Bubbles show only the
   message text (no attachments). The rail shows on hover but has no

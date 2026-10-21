@@ -470,6 +470,28 @@ void main() {
     semantics.dispose();
   });
 
+  testWidgets('user bubbles show the turn start timestamp', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: UserMessageBubble(
+            message: userMessage('Hello'),
+            startedAt: '2026-10-01T15:16:17',
+          ),
+        ),
+      ),
+    );
+
+    final tooltip = find.byTooltip('2026-10-01T15:16:17');
+    expect(tooltip, findsOneWidget);
+    final label = tester
+        .widget<Text>(find.descendant(of: tooltip, matching: find.byType(Text)))
+        .data!;
+    expect(label, contains('10/01/2026'));
+    expect(label, contains('3:16'));
+    expect(label, contains('PM'));
+  });
+
   testWidgets('markdown tables have bordered cells (AV-095)', (tester) async {
     await _pump(
       tester,
