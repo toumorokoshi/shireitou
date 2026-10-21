@@ -61,7 +61,7 @@ TextEditingValue _at(String text, [int? cursor]) => TextEditingValue(
 /// The messages a [FollowUpInput] sent.
 typedef _Sent = ({
   String text,
-  bool steer,
+  bool sendNow,
   List<MessageAttachment> attachments,
 });
 
@@ -87,8 +87,12 @@ Future<List<_Sent>> _pumpInput(
                   token: token,
                   commands: _commands,
                 ),
-            onSend: (text, {required steer, model, attachments = const []}) =>
-                sent.add((text: text, steer: steer, attachments: attachments)),
+            onSend: (text, {required sendNow, model, attachments = const []}) =>
+                sent.add((
+                  text: text,
+                  sendNow: sendNow,
+                  attachments: attachments,
+                )),
           ),
         ),
       ),
@@ -393,7 +397,7 @@ void main() {
       expect(_popup, findsNothing);
     });
 
-    testWidgets('a / inside a word does not open it; Cmd/Ctrl+Enter steers '
+    testWidgets('a / inside a word does not open it; Cmd/Ctrl+Enter sends now '
         'with the popup closed', (tester) async {
       final sent = await _pumpInput(tester, working: true);
       await _type(tester, 'src/re');
@@ -401,7 +405,7 @@ void main() {
       await tester.sendKeyDownEvent(LogicalKeyboardKey.control);
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.sendKeyUpEvent(LogicalKeyboardKey.control);
-      expect(sent.single.steer, isTrue);
+      expect(sent.single.sendNow, isTrue);
     });
 
     testWidgets('answers for older text are dropped', (tester) async {

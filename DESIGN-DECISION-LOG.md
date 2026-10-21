@@ -1,5 +1,29 @@
 # Design Decision Log
 
+## 2026-10-20: "Send now" interrupts instead of steering (AV-080, AV-081)
+
+"Send now" (the queued row's menu, the composer's button and
+Cmd/Ctrl+Enter) set the message as the chat's steering message. pi takes
+steering only at a step boundary, after a tool call or at the end of the
+run, so while the agent wrote one long reply the message waited for the
+whole reply. pi also removes the steering message from state as soon as it
+hands it over, so the row vanished and nothing showed until the answer
+came. Against pi with its faux model, the answer came 19 s after "Send
+now".
+
+- **Stop the turn and start the message.** As in Cursor's queue, "Send
+  now" sends `chat/turnCancelled` for the running turn, then
+  `chat/turnStarted` with the message (`runNowActions`). A queued message
+  is first removed from the queue, so the host does not start it again
+  after the cancel, and keeps its model and attachments. The rest of the
+  queue runs after it. Against pi the answer starts at once.
+- **The cancel names the turn.** If the host has already moved on (the
+  turn ended and the next queued message started), it rejects the cancel
+  ("Turn is not active") and the start ("A turn is already in
+  progress"), so another turn is never stopped by mistake.
+- **No steering from this app.** The panel still shows a steering message
+  another client set. This supersedes the 2026-10-19 entry below.
+
 ## 2026-10-19: A queued message can be sent now (AV-081)
 
 A follow-up that was queued while the agent worked could be edited,

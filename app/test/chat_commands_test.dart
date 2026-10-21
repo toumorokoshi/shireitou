@@ -13,9 +13,14 @@ void main() {
   final pendingTool =
       (active.activeTurn!.responseParts.first as ToolCallResponsePart).toolCall;
 
-  group('sendMessageAction', () {
+  group('sendMessageActions', () {
     test('starts a turn when idle', () {
-      final action = sendMessageAction(idle, text: 'hi', id: 't', now: now);
+      final action = sendMessageActions(
+        idle,
+        text: 'hi',
+        id: 't',
+        now: now,
+      ).single;
       expect(action['type'], 'chat/turnStarted');
       expect(action['turnId'], 't');
       expect(action['startedAt'], '2026-10-01T00:00:02.000Z');
@@ -25,18 +30,45 @@ void main() {
       });
     });
 
-    test('queues, or steers, while a turn runs', () {
-      final queued = sendMessageAction(active, text: 'a', id: 'q', now: now);
+    test('queues while a turn runs', () {
+      final queued = sendMessageActions(
+        active,
+        text: 'a',
+        id: 'q',
+        now: now,
+      ).single;
       expect(queued['type'], 'chat/pendingMessageSet');
       expect(queued['kind'], 'queued');
-      final steering = sendMessageAction(
+    });
+
+    test('send now stops the running turn and starts the message', () {
+      final actions = sendMessageActions(
         active,
         text: 'a',
         id: 's',
         now: now,
-        steer: true,
+        sendNow: true,
       );
-      expect(steering['kind'], 'steering');
+      expect(actions.first, {
+        'type': 'chat/turnCancelled',
+        'turnId': 'turn-2',
+        'duration': 2000,
+      });
+      expect(actions.last['type'], 'chat/turnStarted');
+      expect(actions.last['turnId'], 's');
+      expect((actions.last['message']! as JsonMap)['text'], 'a');
+      expect(actions, hasLength(2));
+    });
+
+    test('send now with no turn running just starts it', () {
+      final actions = sendMessageActions(
+        idle,
+        text: 'a',
+        id: 's',
+        now: now,
+        sendNow: true,
+      );
+      expect([for (final a in actions) a['type']], ['chat/turnStarted']);
     });
   });
 
@@ -103,20 +135,35 @@ void main() {
     final queued = PendingMessage(id: 'q1', message: userMessage('first'));
     const kind = PendingMessageKind.queued;
 
-    test('send now steers the queued message, then removes it', () {
-      final actions = sendQueuedNowActions(queued);
+    test('send now unqueues the message, stops the turn and starts it', () {
+      final withModel = PendingMessage(
+        id: 'q1',
+        message: userMessage('first', model: const ModelSelection(id: 'fast')),
+      );
+      final actions = sendQueuedNowActions(
+        active,
+        withModel,
+        id: 't3',
+        now: now,
+      );
       expect(actions, [
-        {
-          'type': 'chat/pendingMessageSet',
-          'kind': 'steering',
-          'id': 'q1',
-          'message': {
-            'text': 'first',
-            'origin': {'kind': 'user'},
-          },
-        },
         {'type': 'chat/pendingMessageRemoved', 'kind': 'queued', 'id': 'q1'},
+        {'type': 'chat/turnCancelled', 'turnId': 'turn-2', 'duration': 2000},
+        {
+          'type': 'chat/turnStarted',
+          'turnId': 't3',
+          'startedAt': '2026-10-01T00:00:02.000Z',
+          'message': withModel.message.toJson(),
+        },
       ]);
+      // With no turn running there is nothing to stop.
+      expect(
+        [
+          for (final a in sendQueuedNowActions(idle, queued, id: 't', now: now))
+            a['type'],
+        ],
+        ['chat/pendingMessageRemoved', 'chat/turnStarted'],
+      );
     });
 
     test('sets the trimmed text', () {

@@ -92,7 +92,7 @@ abstract final class AppIcons {
   /// Sends the composer's message.
   static const IconData send = Codicons.arrowUp;
 
-  /// Sends the message now, steering the running turn.
+  /// Sends the message now, stopping the running turn.
   static const IconData sendNow = Codicons.zap;
 
   /// Edit the latest message and restart from it (AV-088).

@@ -6,35 +6,54 @@ import 'dart:convert';
 
 import 'package:ahp_client/ahp_client.dart';
 
-/// The action that sends [text] (AV-080).
+/// The actions that send [text] (AV-080).
 ///
-/// With no turn running it starts a turn. While a turn runs it queues the
-/// message, or with [steer] delivers it to the agent at its next step.
-/// [id] is the new turn or pending-message ID; [attachments] go with the
-/// message (accepted completions, AV-044).
-JsonMap sendMessageAction(
+/// With no turn running they start a turn. While a turn runs they queue
+/// the message, or with [sendNow] stop the turn and start one with it
+/// (see [runNowActions]). [id] is the new turn or pending-message ID;
+/// [attachments] go with the message (accepted completions, AV-044).
+List<JsonMap> sendMessageActions(
   ChatState chat, {
   required String text,
   required String id,
   required DateTime now,
-  bool steer = false,
+  bool sendNow = false,
   ModelSelection? model,
   List<MessageAttachment>? attachments,
 }) {
   final message = userMessage(text, model: model, attachments: attachments);
-  final StateAction action = chat.activeTurn == null
-      ? ChatTurnStartedAction(
-          turnId: id,
-          startedAt: now.toUtc().toIso8601String(),
-          message: message,
-        )
-      : ChatPendingMessageSetAction(
-          kind: steer ? PendingMessageKind.steering : PendingMessageKind.queued,
-          id: id,
-          message: message,
-        );
-  return action.toJson();
+  if (chat.activeTurn != null && !sendNow) {
+    return [
+      ChatPendingMessageSetAction(
+        kind: PendingMessageKind.queued,
+        id: id,
+        message: message,
+      ).toJson(),
+    ];
+  }
+  return runNowActions(chat, message, id: id, now: now);
 }
+
+/// The actions that run [message] as turn [id] at once (AV-080): cancel
+/// the running turn, if any, then start the new one.
+///
+/// Steering would wait for the agent's next step, which is after the whole
+/// reply when the agent only writes text. The cancel names the turn, so if
+/// another turn started in the meantime the host rejects both actions
+/// instead of stopping the wrong turn.
+List<JsonMap> runNowActions(
+  ChatState chat,
+  Message message, {
+  required String id,
+  required DateTime now,
+}) => [
+  ?stopAction(chat, now),
+  ChatTurnStartedAction(
+    turnId: id,
+    startedAt: now.toUtc().toIso8601String(),
+    message: message,
+  ).toJson(),
+];
 
 /// The turn whose message can be edited to restart from it (AV-088): the
 /// running turn, else the latest. Null when there is none, its message is
@@ -359,19 +378,17 @@ JsonMap editPendingAction(
 JsonMap removePendingAction(PendingMessageKind kind, String id) =>
     ChatPendingMessageRemovedAction(kind: kind, id: id).toJson();
 
-/// The actions that send queued [pending] at the agent's next step.
-///
-/// AHP has no action that changes a pending message's kind, so first set it
-/// as the steering message, preserving its model and attachments, then remove
-/// it from the queue. Setting first means a failed first dispatch leaves the
-/// original queue entry intact.
-List<JsonMap> sendQueuedNowActions(PendingMessage pending) => [
-  ChatPendingMessageSetAction(
-    kind: PendingMessageKind.steering,
-    id: pending.id,
-    message: pending.message,
-  ).toJson(),
+/// The actions that send queued [pending] now (AV-081): remove it from the
+/// queue, so the host does not also start it after the cancel, then run it
+/// as turn [id] with its model and attachments (see [runNowActions]).
+List<JsonMap> sendQueuedNowActions(
+  ChatState chat,
+  PendingMessage pending, {
+  required String id,
+  required DateTime now,
+}) => [
   removePendingAction(PendingMessageKind.queued, pending.id),
+  ...runNowActions(chat, pending.message, id: id, now: now),
 ];
 
 /// The action that saves an inline edit of [pending] as [text] (AV-081):

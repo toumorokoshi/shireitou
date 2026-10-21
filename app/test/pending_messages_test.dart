@@ -22,6 +22,7 @@ Future<List<JsonMap>> _pump(
   List<JsonMap>? actions,
   Listenable? editNewestRequests,
   VoidCallback? onEditorClosed,
+  ValueChanged<PendingMessage>? onSendNow,
 }) async {
   final dispatched = actions ?? <JsonMap>[];
   await tester.pumpWidget(
@@ -30,6 +31,7 @@ Future<List<JsonMap>> _pump(
         body: PendingMessagesPanel(
           pending: pending,
           onAction: dispatched.add,
+          onSendNow: onSendNow,
           editNewestRequests: editNewestRequests,
           onEditorClosed: onEditorClosed,
         ),
@@ -127,22 +129,23 @@ void main() {
     expect(_editor, findsOneWidget);
   });
 
-  testWidgets('Send now moves a queued message to steering', (tester) async {
-    final actions = await _pump(tester, _both);
-    await tester.tap(find.byTooltip('Message actions').first);
+  testWidgets('the menu sends a queued message now', (tester) async {
+    final sent = <PendingMessage>[];
+    final actions = await _pump(tester, _both, onSendNow: sent.add);
+    await tester.tap(find.byTooltip('Message actions').last);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Send now'));
     await tester.pumpAndSettle();
 
-    expect(actions, hasLength(2));
-    expect(actions.first['type'], 'chat/pendingMessageSet');
-    expect(actions.first['kind'], 'steering');
-    expect(actions.first['id'], 'q1');
-    expect(actions.last, {
-      'type': 'chat/pendingMessageRemoved',
-      'kind': 'queued',
-      'id': 'q1',
-    });
+    expect(sent.single.id, 'q2');
+    expect(actions, isEmpty);
+  });
+
+  testWidgets('no Send now without a handler', (tester) async {
+    await _pump(tester, _both);
+    await tester.tap(find.byTooltip('Message actions').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Send now'), findsNothing);
   });
 
   testWidgets('a message the host sends while it is edited closes the editor', (

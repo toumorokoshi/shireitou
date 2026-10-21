@@ -153,10 +153,13 @@ AppImage and the release workflow (see
   copied or re-queued). A change to the message's text from another
   client while it is being edited is not shown; saving overwrites it.
   Clicking the steering message also edits it, though the agent may take
-  it before the edit is saved. "Send now" replaces any existing steering
-  message. AHP has no atomic change-kind action, so the app sets the queued
-  message as steering and then removes its queue entry; a connection loss
-  between those actions can leave both copies pending.
+  it before the edit is saved. "Send now" (queued row, composer button
+  and Cmd/Ctrl+Enter) stops the running turn, dropping the rest of its
+  reply; the app no longer offers steering at the agent's next step.
+  It is three separate actions (remove from the queue, cancel, start):
+  if the host has already moved on to another turn the cancel and start
+  are rejected, but a connection lost between them can leave the turn
+  cancelled and the message neither queued nor started.
 - **↑ to edit the previous message (AV-087), remaining details:** a
   recalled message is sent as a new turn; the earlier turn and its reply
   stay in the history (the edit button, AV-088, replaces the latest

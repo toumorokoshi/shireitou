@@ -17,6 +17,7 @@ class PendingMessagesPanel extends StatefulWidget {
     super.key,
     required this.pending,
     required this.onAction,
+    this.onSendNow,
     this.editNewestRequests,
     this.onEditorClosed,
   });
@@ -26,6 +27,10 @@ class PendingMessagesPanel extends StatefulWidget {
 
   /// Dispatches a chat action.
   final ValueChanged<JsonMap> onAction;
+
+  /// Sends a queued message now, stopping the running turn (see
+  /// `sendQueuedNowActions`); no "Send now" item when null.
+  final ValueChanged<PendingMessage>? onSendNow;
 
   /// Opens the newest message (the last queued one, else the steering
   /// one) in the inline editor whenever this changes (↑ in the composer,
@@ -116,12 +121,6 @@ class _PendingMessagesPanelState extends State<PendingMessagesPanel> {
     _close();
   }
 
-  void _sendNow(PendingMessage pending) {
-    for (final action in sendQueuedNowActions(pending)) {
-      widget.onAction(action);
-    }
-  }
-
   Widget _row(PendingMessageItem item, {Key? key, int? position}) {
     final id = item.pending.id;
     return _PendingRow(
@@ -133,9 +132,12 @@ class _PendingMessagesPanelState extends State<PendingMessagesPanel> {
       onMove: _move,
       editing: _editingId == id,
       onEdit: () => setState(() => _editingId = id),
-      onSendNow: item.kind == PendingMessageKind.queued
-          ? () => _sendNow(item.pending)
-          : null,
+      onSendNow: switch (widget.onSendNow) {
+        final send? when item.kind == PendingMessageKind.queued => () => send(
+          item.pending,
+        ),
+        _ => null,
+      },
       onSave: (text) => _save(id, text),
       onCancel: _close,
     );
@@ -214,7 +216,7 @@ class _PendingRow extends StatelessWidget {
   /// Opens the message in the inline editor.
   final VoidCallback onEdit;
 
-  /// Sends a queued message at the agent's next step.
+  /// Sends a queued message now, stopping the running turn.
   final VoidCallback? onSendNow;
 
   /// Saves the editor's text.

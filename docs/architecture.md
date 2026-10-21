@@ -460,8 +460,8 @@ Dart source); `bin/generate.dart` does the file I/O. See
   (AV-071); `terminal_text.dart` turns terminal output into
   plain text. `chat_switcher.dart`, `pending_messages.dart` and
   `session_info.dart` are the chat switcher (AV-069), the queued messages
-  panel (AV-081; its menu can send a queued message now with
-  `sendQueuedNowActions`, or clicking one opens an inline editor saved
+  panel (AV-081; its menu can send a queued message now, which the view
+  dispatches as `sendQueuedNowActions`, or clicking one opens an inline editor saved
   with the pure `savePendingEditAction`; ↑ in the empty composer opens
   the newest message through `editNewestRequests`, AV-087) and the session
   details page. `inline_message_editor.dart` is the inline editor shared
