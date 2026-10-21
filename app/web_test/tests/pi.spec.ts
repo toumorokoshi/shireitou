@@ -52,7 +52,10 @@ test("a session, a reconnect, a lost message and a host restart", async ({ page 
 	await send(page, "lost on the way");
 	await expect(page.getByText("lost on the way", { exact: true })).toBeVisible();
 	relay.drop();
-	await expect(page.getByText(/^The connection dropped before the host confirmed/)).toBeVisible();
+	// The snackbar's screen reader announcement has the same text for a moment.
+	await expect(
+		page.locator("flt-semantics-host").getByText(/^The connection dropped before the host confirmed/),
+	).toBeVisible();
 	await expect(page.getByText("lost on the way", { exact: true })).toHaveCount(0);
 
 	// pi restarts: the browser initializes again and the session is still there.
