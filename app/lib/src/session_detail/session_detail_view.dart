@@ -41,6 +41,7 @@ import '../terminal/terminal_panel.dart';
 import 'chat_commands.dart';
 import '../composer/completion_popup.dart';
 import '../composer/completions.dart';
+import '../composer/composer_action_button.dart';
 import '../composer/composer_labels.dart';
 import '../composer/config_fields.dart';
 import '../composer/message_history.dart';
@@ -1886,39 +1887,42 @@ class _FollowUpInputState extends State<FollowUpInput> {
     );
   }
 
-  /// The send arrow; while the agent works, "Queue" and "Send now" for
-  /// typed text, or the stop square when the box is empty.
+  /// The round send arrow; while the agent works, "Queue" with "Send now"
+  /// beside it for typed text, or the round stop square when the box is
+  /// empty.
   Widget _sendButtons() {
     final empty = _text.text.trim().isEmpty;
     final stop = widget.onStop;
-    if (widget.working && empty && stop != null) {
-      return IconButton(
-        tooltip: 'Stop',
-        iconSize: 18,
-        visualDensity: VisualDensity.compact,
-        icon: const Icon(AppIcons.stop),
-        onPressed: stop,
-      );
-    }
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (widget.working && !empty)
-          IconButton(
-            tooltip: 'Send now',
-            iconSize: 18,
-            visualDensity: VisualDensity.compact,
-            icon: const Icon(AppIcons.sendNow),
-            onPressed: () => _send(steer: true),
-          ),
-        IconButton(
-          tooltip: widget.sendTooltip ?? (widget.working ? 'Queue' : 'Send'),
-          iconSize: 18,
-          visualDensity: VisualDensity.compact,
-          icon: const Icon(AppIcons.send),
-          onPressed: empty ? null : () => _send(steer: false),
-        ),
-      ],
+    final showStop = widget.working && empty && stop != null;
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, right: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (widget.working && !empty)
+            IconButton(
+              tooltip: 'Send now',
+              iconSize: 16,
+              visualDensity: VisualDensity.compact,
+              color: AppColors.of(context).mutedText,
+              icon: const Icon(AppIcons.sendNow),
+              onPressed: () => _send(steer: true),
+            ),
+          if (showStop)
+            ComposerActionButton(
+              tooltip: 'Stop',
+              icon: const StopSquare(),
+              onPressed: stop,
+            )
+          else
+            ComposerActionButton(
+              tooltip:
+                  widget.sendTooltip ?? (widget.working ? 'Queue' : 'Send'),
+              icon: const Icon(AppIcons.send),
+              onPressed: empty ? null : () => _send(steer: false),
+            ),
+        ],
+      ),
     );
   }
 

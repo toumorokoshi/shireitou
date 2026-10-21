@@ -7,6 +7,7 @@ import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shireitou/src/composer/composer_action_button.dart';
 import 'package:shireitou/src/composer/composer_labels.dart';
 import 'package:shireitou/src/composer/config_fields.dart';
 import 'package:shireitou/src/session_detail/session_detail_view.dart';
@@ -178,7 +179,14 @@ void main() {
     expect(find.text('Medium · 1M'), findsOneWidget);
     // Attachments are not supported yet (AV-042).
     expect(_button(tester, attachmentsUnsupportedLabel).onPressed, isNull);
-    // Nothing to send yet.
+    // Nothing to send yet: the round send button is there but disabled.
+    expect(
+      find.ancestor(
+        of: find.byTooltip('Send'),
+        matching: find.byType(ComposerActionButton),
+      ),
+      findsOneWidget,
+    );
     expect(_button(tester, 'Send').onPressed, isNull);
 
     // The effort chip picks the thinking level.
@@ -224,6 +232,13 @@ void main() {
       'sends now', (tester) async {
     final calls = await _pump(tester, working: true);
     expect(find.byTooltip('Send'), findsNothing);
+    expect(
+      find.ancestor(
+        of: find.byTooltip('Stop'),
+        matching: find.byType(ComposerActionButton),
+      ),
+      findsOneWidget,
+    );
     await tester.tap(find.byTooltip('Stop'));
     expect(calls.stops, 1);
 

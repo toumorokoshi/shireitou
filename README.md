@@ -39,7 +39,7 @@ with a UX modeled on the GitHub Agents view and Cursor's Agents Window.
 > plan reviews take a choice plus feedback, the session header (a
 > title and a "…" menu with the details and actions) links to
 > the branch's pull request, the composer is one rounded box with mode,
-> model and effort chips and a send arrow that turns into stop, `/` in the composer and follow-up box
+> model and effort chips and a round send button that turns into stop, `/` in the composer and follow-up box
 > completes the agent's skills and commands (from the host's
 > `completions`), one prompt can start several runs to
 > compare and pick from, and the desktop apps (and the web app, where
@@ -171,8 +171,8 @@ just run chrome 'ws://127.0.0.1:63877?tkn=...'   # prefill the host URL
    the prompt and press Enter, and the
    pane switches to the new session. In a session, Enter sends a
    follow-up (or queues it while the agent works), Cmd/Ctrl+Enter steers the
-   running turn, Shift+Enter adds a newline, and the stop square (the
-   send arrow while the agent works and the box is empty) cancels the
+   running turn, Shift+Enter adds a newline, and the round stop button (the
+   send button while the agent works and the box is empty) cancels the
    turn. ↑ in the empty box edits the newest queued message (Enter
    re-queues it), or else recalls your earlier messages to edit and send
    again; ↓ steps back. The pencil beside your latest message (running or

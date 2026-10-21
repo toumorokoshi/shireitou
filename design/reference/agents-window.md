@@ -70,6 +70,8 @@ What to match, by area:
 - One rounded, bordered box, placeholder "Chat with <agent>
   [<workspace>]". Along its bottom: "+" (attach, disabled until AV-042),
   a mode chip ("Agent"), a model chip ("provider/model · option"), an
-  effort and context chip ("Medium · 1M"), and on the right a send arrow
-  that becomes stop while the agent works. No mic. The new-session draft
+  effort and context chip ("Medium · 1M"), and on the right a round
+  send button (a filled light circle with a dark up-arrow in dark
+  themes, dimmed while the box is empty) that becomes a round stop
+  button (the same circle with a solid square) while the agent works. No mic. The new-session draft
   uses the same box.

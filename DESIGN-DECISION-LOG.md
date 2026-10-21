@@ -1,5 +1,24 @@
 # Design Decision Log
 
+## 2026-10-20: Round send and stop buttons in the composer
+
+The composer's send and stop buttons were bare 18 px glyphs, unlike
+Cursor's composer, where the lower right corner holds a filled round
+button: a light disc with a dark up-arrow, dimmed while there is nothing
+to send, that becomes the same disc with a solid square while the agent
+works.
+
+- **One widget.** `ComposerActionButton` draws the send, queue and stop
+  states. Its colours come from the theme (`onSurface` fill, the
+  composer's `raisedSurface` glyph), so every colour theme gets a disc
+  that contrasts with the box: light in dark themes, dark in light ones.
+- **A drawn stop square.** The codicon font has only outlined squares
+  (`debugStop`, `primitiveSquare`), so `StopSquare` is a small rounded
+  box in the button's icon colour. The unused `AppIcons.stop` is removed.
+- **Behaviour unchanged.** The button still switches between send,
+  queue and stop as before. "Send now" stays a plain muted icon to its
+  left. The composer has no mic button.
+
 ## 2026-10-19: Turn timestamps use host time; step timings wait for AHP
 
 Each user-message bubble shows its turn's `startedAt` in the device's local

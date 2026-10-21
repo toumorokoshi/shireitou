@@ -412,8 +412,9 @@ Dart source); `bin/generate.dart` does the file I/O. See
   run, and the actions, AV-094), the chat switcher, the "Waiting for
   you" panel, the reversed timeline that follows new output (AV-066), the
   queued messages and the composer's box (`FollowUpInput`, AV-096,
-  which syncs the chat's draft and turns its send arrow into stop while
-  the agent works),
+  which syncs the chat's draft and turns its round send button,
+  `ComposerActionButton` in `composer/composer_action_button.dart`,
+  into stop while the agent works),
   with the review pane beside it (wide) or as a tab. On wide layouts a
   `ReviewPaneToggle` right of the header (or Cmd/Ctrl+Alt+B) opens and
   closes the `CollapsibleReviewPane`; whether it is open is

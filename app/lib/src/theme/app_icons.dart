@@ -113,9 +113,6 @@ abstract final class AppIcons {
   /// Scrolls the timeline to the latest message.
   static const IconData jumpToLatest = Codicons.chevronDown;
 
-  /// Stops the running turn.
-  static const IconData stop = Codicons.debugStop;
-
   /// The composer's mode chip.
   static const IconData mode = Codicons.agent;
 
