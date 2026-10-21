@@ -1,5 +1,32 @@
 # Design Decision Log
 
+## 2026-10-21: Right-click a link to copy it (AV-075)
+
+Links in agent replies and the app's link chips and buttons could only
+be opened, and right-clicking a reply's link showed the timeline
+selection's menu for the word under the pointer, so there was no way to
+copy a link's URL without opening it.
+
+- **A dialog, not a context menu entry.** Right-clicking a link shows
+  "Link" with the URL (selectable) and Cancel, "Open link" and "Copy
+  link"; copying closes it and shows "Link copied". Adding "Copy link"
+  to the selection's menu was rejected: `SelectionArea` builds one menu
+  for the whole timeline and does not know which span was clicked.
+- **A recognizer that only takes right-clicks over a link.**
+  `LinkSecondaryTap` hit-tests its subtree for a text span with a
+  `TapGestureRecognizer` and accepts the pointer at once, so it wins the
+  gesture arena before the selection's right-click handler, which still
+  handles right-clicks on plain text.
+- **The `href` comes from the link's own tap callback.**
+  `flutter_markdown_plus` passes the `href` only to `onTapLink`, so a
+  right-click calls the span's `onTap` with a flag set and `MarkdownText`
+  shows the dialog instead of opening the link. A custom `a` builder was
+  rejected: it would replace the package's inline layout of links
+  (wrapping, nested emphasis).
+- **One `openLink`.** Link chips and buttons (pull request, branch,
+  canvas, input request URL, token docs) share `openLink`, which opens
+  in the external browser, and `LinkContextMenu` for the right-click.
+
 ## 2026-10-20: The "Marked as done" snackbar times out (AV-024)
 
 The snackbar shown after "Mark as done" never went away: Flutter's

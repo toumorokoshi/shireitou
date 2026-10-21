@@ -5,9 +5,9 @@ library;
 import 'dart:async';
 
 import 'package:ahp_client/ahp_client.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../auth/sign_in_dialog.dart';
 import '../theme/app_colors.dart';
@@ -17,6 +17,7 @@ import 'chat_commands.dart';
 import 'code_highlight.dart';
 import 'copy_button.dart';
 import 'inline_message_editor.dart';
+import 'link_menu.dart';
 import 'timeline_items.dart';
 import 'timeline_selection.dart';
 import 'todo_list.dart';
@@ -419,8 +420,9 @@ MarkdownStyleSheet markdownStyle(ThemeData theme, AppColors colors) {
 }
 
 /// Assistant markdown (AV-061, AV-095): full width with no bubble. Links
-/// open in the browser.
-class MarkdownText extends StatelessWidget {
+/// open in the browser; right-clicking one shows it in [showLinkDialog]
+/// (AV-075).
+class MarkdownText extends StatefulWidget {
   /// Creates a [MarkdownText] for [data].
   const MarkdownText(this.data, {super.key});
 
@@ -428,16 +430,44 @@ class MarkdownText extends StatelessWidget {
   final String data;
 
   @override
+  State<MarkdownText> createState() => _MarkdownTextState();
+}
+
+class _MarkdownTextState extends State<MarkdownText> {
+  /// Whether the next link callback is a right-click rather than a tap.
+  bool _rightClicked = false;
+
+  /// The markdown package only hands a link's `href` to `onTapLink`, so
+  /// a right-click runs the link's tap with [_rightClicked] set.
+  void _onRightClick(TapGestureRecognizer link) {
+    _rightClicked = true;
+    try {
+      link.onTap?.call();
+    } finally {
+      _rightClicked = false;
+    }
+  }
+
+  void _onLink(String? href) {
+    if (href == null) return;
+    if (_rightClicked) {
+      unawaited(showLinkDialog(context, href));
+    } else {
+      openLink(href);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 6),
-    child: MarkdownBody(
-      data: data,
-      styleSheet: markdownStyle(Theme.of(context), AppColors.of(context)),
-      builders: {'pre': _codeBlocks},
-      onTapLink: (_, href, _) {
-        final uri = href == null ? null : Uri.tryParse(href);
-        if (uri != null) launchUrl(uri);
-      },
+    child: LinkSecondaryTap(
+      onLink: _onRightClick,
+      child: MarkdownBody(
+        data: widget.data,
+        styleSheet: markdownStyle(Theme.of(context), AppColors.of(context)),
+        builders: {'pre': _codeBlocks},
+        onTapLink: (_, href, _) => _onLink(href),
+      ),
     ),
   );
 }
@@ -948,9 +978,12 @@ class _InputRequestCardState extends State<InputRequestCard> {
               style: theme.textTheme.titleSmall,
             ),
             if (request.url case final url?)
-              TextButton(
-                onPressed: () => launchUrl(Uri.parse(url)),
-                child: Text(url),
+              LinkContextMenu(
+                url: url,
+                child: TextButton(
+                  onPressed: () => openLink(url),
+                  child: Text(url),
+                ),
               ),
             if (!open)
               Text('Response: ${widget.part.response?.wireValue ?? 'none'}')

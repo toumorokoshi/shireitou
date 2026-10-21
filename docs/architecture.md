@@ -470,7 +470,10 @@ Dart source); `bin/generate.dart` does the file I/O. See
   with a copy button (`copy_button.dart`, which shows a check and
   "Copied" for 1.2 s); `turn_markdown.dart` (pure) turns a finished
   turn's reply into the markdown its footer's "Copy reply" button copies
-  (AV-071); `terminal_text.dart` turns terminal output into
+  (AV-071); `link_menu.dart` shows a link's URL in a dialog that
+  copies or opens it when the link is right-clicked, for markdown links
+  (`LinkSecondaryTap`) and link chips and buttons (`LinkContextMenu`)
+  (AV-075); `terminal_text.dart` turns terminal output into
   plain text. `chat_switcher.dart`, `pending_messages.dart` and
   `session_info.dart` are the chat switcher (AV-069), the queued messages
   panel (AV-081; clicking a message opens an inline editor, saved with
