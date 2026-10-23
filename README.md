@@ -168,8 +168,9 @@ just run chrome 'ws://127.0.0.1:63877?tkn=...'   # prefill the host URL
 4. Pick a session, or press **+** to start one: a draft opens in the
    session pane, laid out like a session; choose the agent and folder
    above its box and the model with the chips along its bottom, write
-   the prompt and press Enter, and the
-   pane switches to the new session. In a session, Enter sends a
+   the prompt and press Enter: the new session is listed atop the
+   sidebar and shown at once ("Initializing…") while the host creates
+   it, and the pane switches to it when it is ready. In a session, Enter sends a
    follow-up (or queues it while the agent works), Cmd/Ctrl+Enter steers the
    running turn, Shift+Enter adds a newline, and the round stop button (the
    send button while the agent works and the box is empty) cancels the

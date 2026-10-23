@@ -234,6 +234,13 @@ AppImage and the release workflow (see
     hold a draft before `createSession`). The sidebar lists only the last
     opened draft; drafts for other hosts and folders come back by
     starting "New session" there again. Drafts with no text are dropped.
+  - A session being started is listed atop the sidebar, not in its
+    folder or the Pinned and Chats sections, until its host creates it;
+    it has no menu (it cannot be renamed, pinned or cancelled), its
+    pane has no composer, and it is kept in memory only (closing the
+    app forgets it, though the host still creates the session).
+    Listing it under its folder would need a placeholder catalogue
+    entry the session list and the detail view understand.
   - The draft's compact pickers offer only choices: a model option that
     is a switch, number or text (none seen on pi or the fake host) is
     sent with its default, and session settings that are not choices
