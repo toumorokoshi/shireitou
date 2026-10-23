@@ -2,6 +2,9 @@
 /// user looks at other sessions.
 library;
 
+import 'package:ahp_client/ahp_client.dart';
+
+import '../hosts/open_hosts.dart';
 import '../session_list/folder_grouping.dart';
 
 /// Where a draft was opened: the host and folder that "New session" (the
@@ -38,3 +41,35 @@ Map<NewSessionTarget, NewSessionDraft> withDraft(
     if (key != target) key: value,
   if (draft.prompt.trim().isNotEmpty) target: draft,
 };
+
+/// What starting a draft came to: the [started] sessions (the first is
+/// opened) and a message per run that did not start.
+typedef StartOutcome = ({List<SessionRef> started, List<String> failures});
+
+/// A draft sent to the host that the host is still creating (AV-040):
+/// listed atop the sidebar and shown in the session pane from the moment
+/// the prompt is sent until the session exists. [id] tells starts apart;
+/// [draft] is put back for [target] when the start fails.
+typedef StartingSession = ({
+  int id,
+  NewSessionTarget target,
+  NewSessionDraft draft,
+  Message message,
+});
+
+/// Longest [startingTitle], in characters.
+const startingTitleLength = 60;
+
+/// The title of a session being started: the first non-blank line of
+/// [prompt], shortened with an ellipsis past [startingTitleLength]; the
+/// host titles the session once it exists.
+String startingTitle(String prompt) {
+  final line = prompt
+      .split('\n')
+      .map((l) => l.trim())
+      .firstWhere((l) => l.isNotEmpty, orElse: () => '');
+  if (line.isEmpty) return 'Session';
+  return line.length <= startingTitleLength
+      ? line
+      : '${line.substring(0, startingTitleLength - 1).trimRight()}…';
+}

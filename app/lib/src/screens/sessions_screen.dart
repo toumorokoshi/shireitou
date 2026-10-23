@@ -25,6 +25,7 @@ import '../session_list/pinned_store.dart';
 import '../session_list/session_filter.dart';
 import '../session_list/session_list_view.dart';
 import '../session_list/session_query.dart';
+import '../session_list/session_status_indicator.dart';
 import '../session_list/session_tree.dart';
 import '../session_list/sidebar_store.dart';
 import '../session_list/folder_order.dart';
@@ -105,6 +106,22 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
 
   /// What was typed in drafts, by where they were opened; kept in memory.
   var _drafts = <NewSessionTarget, NewSessionDraft>{};
+
+  /// Why the open draft's last start failed, shown in it.
+  String? _draftError;
+
+  /// Counts [_openDraft] calls, so each opening builds the draft afresh
+  /// from [_drafts] and [_draftError].
+  var _draftOpenings = 0;
+
+  /// Sessions sent but not yet created by their host, listed atop the
+  /// sidebar, oldest first.
+  var _starting = <StartingSession>[];
+  var _nextStartId = 0;
+
+  /// The [StartingSession.id] shown in the session pane while
+  /// [_selected] is null; it wins over [_draft].
+  int? _shownStart;
 
   StreamSubscription<AppCommand>? _commands;
 
@@ -191,21 +208,105 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
   );
 
   Widget _draftView(NewSessionTarget target) => NewSessionView(
-    key: ValueKey(target),
+    key: ValueKey((target, _draftOpenings)),
     target: target,
     draft: _drafts[target],
+    error: _draftError,
     onDraftChanged: (draft) => _drafts = withDraft(_drafts, target, draft),
-    onStarted: (session) {
-      _discardDraft(target, closePage: false);
-      _select(session);
-    },
+    onStarting: (draft, message, outcome) =>
+        _onStarting(target, draft, message, outcome),
   );
+
+  /// Turns the draft for [target] into a [StartingSession] at once: it is
+  /// listed and shown until [outcome] opens the session or puts the draft
+  /// back.
+  void _onStarting(
+    NewSessionTarget target,
+    NewSessionDraft draft,
+    Message message,
+    Future<StartOutcome> outcome,
+  ) {
+    final start = (
+      id: _nextStartId++,
+      target: target,
+      draft: draft,
+      message: message,
+    );
+    _discardDraft(target, closePage: false);
+    setState(() => _starting = [..._starting, start]);
+    _openStarting(start);
+    unawaited(
+      outcome
+          .catchError(
+            (Object error) =>
+                (started: const <SessionRef>[], failures: ['$error']),
+          )
+          .then((result) => _onStarted(start, result)),
+    );
+  }
+
+  /// The [StartingSession] the pane shows, if any.
+  StartingSession? get _shownStarting =>
+      _starting.where((s) => s.id == _shownStart).firstOrNull;
+
+  /// Whether the session pane (or the compact layout's page) is on
+  /// screen.
+  bool get _paneVisible =>
+      _tier != LayoutTier.compact || (_detailRoute?.isActive ?? false);
+
+  /// Ends [start]: opens the first started session if [start] is still
+  /// shown, else leaves the user where they are; when nothing started,
+  /// puts the draft back with the error.
+  void _onStarted(StartingSession start, StartOutcome outcome) {
+    if (!mounted) return;
+    final shown = _shownStart == start.id && _selected == null && _paneVisible;
+    setState(() {
+      _starting = [
+        for (final s in _starting)
+          if (s.id != start.id) s,
+      ];
+      if (_shownStart == start.id) _shownStart = null;
+    });
+    final (:started, :failures) = outcome;
+    if (started.isEmpty) {
+      final error = failures.join('\n');
+      _drafts = withDraft(_drafts, start.target, start.draft);
+      if (shown) {
+        _openDraft(start.target, error: error);
+      } else {
+        _showMessage('$error\nThe prompt is kept in "New session".');
+      }
+      return;
+    }
+    if (failures.isNotEmpty) {
+      _showMessage(
+        '${started.length} of ${started.length + failures.length} runs '
+        'started. ${failures.join('; ')}',
+      );
+    }
+    if (shown) _select(started.first);
+  }
+
+  /// Shows [start] in the session pane, or as a page on compact layouts.
+  void _openStarting(StartingSession start) {
+    setState(() {
+      _shownStart = start.id;
+      _selected = null;
+    });
+    _showPage(
+      (_) => Scaffold(
+        appBar: AppBar(),
+        body: StartingSessionView(message: start.message),
+      ),
+    );
+  }
 
   /// Opens [session]; [record] adds it to the back and forward history
   /// (false when going back or forward).
   void _select(SessionRef session, {bool record = true}) {
     setState(() {
       _selected = session;
+      _shownStart = null;
       if (record) _history = visitedSession(_history, session);
     });
     final groups = _groups;
@@ -260,11 +361,14 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
   });
 
   /// Shows the draft for [target] in the session pane, or as a page on
-  /// compact layouts.
-  void _openDraft(NewSessionTarget target) {
+  /// compact layouts, with why its last start failed ([error]).
+  void _openDraft(NewSessionTarget target, {String? error}) {
     setState(() {
       _draft = target;
+      _draftError = error;
+      _draftOpenings++;
       _selected = null;
+      _shownStart = null;
     });
     _showPage((_) => Scaffold(appBar: AppBar(), body: _draftView(target)));
   }
@@ -624,12 +728,23 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                   },
                   onDone: _endSelection,
                 ),
+              for (final start in _starting)
+                _StartingRow(
+                  key: ValueKey('starting-session-${start.id}'),
+                  title: startingTitle(start.message.text),
+                  selected:
+                      selected == null &&
+                      _shownStart == start.id &&
+                      _paneVisible,
+                  dense: tier != LayoutTier.compact,
+                  onOpen: () => _openStarting(start),
+                ),
               if (_draft case final draft?)
                 _DraftRow(
                   selected:
                       selected == null &&
-                      (tier != LayoutTier.compact ||
-                          (_detailRoute?.isActive ?? false)),
+                      _shownStarting == null &&
+                      _paneVisible,
                   dense: tier != LayoutTier.compact,
                   onOpen: () => _openDraft(draft),
                   onDiscard: () => _discardDraft(draft),
@@ -757,9 +872,13 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                           ],
                           Expanded(
                             child: selected == null
-                                ? switch (_draft) {
-                                    final draft? => _draftView(draft),
-                                    null => const Center(
+                                ? switch ((_shownStarting, _draft)) {
+                                    (final start?, _) => StartingSessionView(
+                                      key: ValueKey('starting-${start.id}'),
+                                      message: start.message,
+                                    ),
+                                    (null, final draft?) => _draftView(draft),
+                                    (null, null) => const Center(
                                       child: Text('Select a session'),
                                     ),
                                   }
@@ -1249,6 +1368,50 @@ class _SelectionBar extends StatelessWidget {
         ),
       ],
     ),
+  );
+}
+
+/// A session its host is still creating, atop the session list (AV-040):
+/// the prompt's title, a working spinner and "Initializing…"; selected
+/// while the session pane shows it.
+class _StartingRow extends StatelessWidget {
+  const _StartingRow({
+    super.key,
+    required this.title,
+    required this.selected,
+    required this.dense,
+    required this.onOpen,
+  });
+
+  /// The prompt's [startingTitle].
+  final String title;
+
+  /// Whether the session pane shows it.
+  final bool selected;
+
+  /// Thin rows for desktop layouts.
+  final bool dense;
+
+  /// Shows it in the session pane.
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) => ListTile(
+    dense: dense,
+    selected: selected,
+    leading: SizedBox(
+      width: 24,
+      child: Center(
+        child: SessionWorkingIcon(
+          size: 12,
+          color: AppColors.of(context).statusColors.running,
+          semanticLabel: initializingLabel,
+        ),
+      ),
+    ),
+    title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+    subtitle: const Text(initializingLabel),
+    onTap: onOpen,
   );
 }
 

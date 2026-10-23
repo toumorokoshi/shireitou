@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -370,6 +372,152 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(SessionDetailView), findsNothing);
     expect(find.byKey(const ValueKey('new-session-draft')), findsNothing);
+  });
+
+  group('a sent prompt', () {
+    const starting = ValueKey('starting-session-0');
+    const draftRow = ValueKey('new-session-draft');
+
+    /// Drafts "Fix the build" and sends it; the host answers when [gate]
+    /// completes.
+    Future<FakeHostConnection> send(
+      WidgetTester tester,
+      Completer<void> gate, {
+      Object? error,
+    }) async {
+      final connection = await _pump(
+        tester,
+        connected().copyWith(
+          defaultDirectory: 'file:///home/user/project/',
+          root: const RootState(
+            agents: [
+              AgentInfo(
+                provider: 'pi',
+                displayName: 'Pi',
+                description: 'pi',
+                models: [],
+              ),
+            ],
+          ),
+        ),
+        const Size(1400, 900),
+      );
+      connection
+        ..startGate = gate
+        ..startError = error;
+      await tester.tap(find.byTooltip(RegExp(r'^New session \(')));
+      await tester.pumpAndSettle();
+      await tester.enterText(composerField, 'Fix the build');
+      await tester.pump();
+      await tester.tap(find.byTooltip('Start session'));
+      await tester.pump();
+      return connection;
+    }
+
+    bool rowSelected(WidgetTester tester) => tester
+        .widget<ListTile>(
+          find.descendant(
+            of: find.byKey(starting),
+            matching: find.byType(ListTile),
+          ),
+        )
+        .selected;
+
+    /// Lets the frames after a tap run; the spinners never settle.
+    Future<void> settle(WidgetTester tester) async {
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+    }
+
+    testWidgets('is listed atop the sidebar and shown at once, then '
+        'replaced by the session', (tester) async {
+      final gate = Completer<void>();
+      await send(tester, gate);
+
+      expect(find.byKey(draftRow), findsNothing);
+      final row = find.byKey(starting);
+      expect(rowSelected(tester), isTrue);
+      expect(
+        find.descendant(of: row, matching: find.text('Fix the build')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: row, matching: find.text(initializingLabel)),
+        findsOneWidget,
+      );
+      final pane = find.byType(StartingSessionView);
+      expect(
+        find.descendant(of: pane, matching: find.text('Fix the build')),
+        findsNWidgets(2),
+      );
+      expect(find.text(newSessionTitle), findsNothing);
+
+      gate.complete();
+      await tester.pumpAndSettle();
+      expect(row, findsNothing);
+      expect(
+        tester
+            .widget<SessionDetailView>(find.byType(SessionDetailView))
+            .session,
+        'pi:/1',
+      );
+    });
+
+    testWidgets('keeps starting while another session is open, and does '
+        'not take the pane when done', (tester) async {
+      final gate = Completer<void>();
+      await send(tester, gate);
+
+      await tester.tap(find.text('Explain'));
+      await settle(tester);
+      final explain = tester
+          .widget<SessionDetailView>(find.byType(SessionDetailView))
+          .session;
+      final row = find.byKey(starting);
+      expect(rowSelected(tester), isFalse);
+
+      // Back to it, and away again.
+      await tester.tap(row);
+      await settle(tester);
+      expect(find.byType(StartingSessionView), findsOneWidget);
+      await tester.tap(find.text('Explain'));
+      await settle(tester);
+
+      gate.complete();
+      await tester.pumpAndSettle();
+      expect(row, findsNothing);
+      expect(
+        tester
+            .widget<SessionDetailView>(find.byType(SessionDetailView))
+            .session,
+        explain,
+      );
+    });
+
+    testWidgets('that fails while another session is open says so and '
+        'keeps the prompt in the draft', (tester) async {
+      final gate = Completer<void>();
+      await send(
+        tester,
+        gate,
+        error: const SessionCreationFailedError(
+          'ahp-session:/x',
+          ErrorInfo(errorType: 'creationFailed', message: 'No such folder'),
+        ),
+      );
+      await tester.tap(find.text('Explain'));
+      await settle(tester);
+
+      gate.complete();
+      await settle(tester);
+      expect(find.byKey(starting), findsNothing);
+      expect(find.textContaining('No such folder'), findsOneWidget);
+      expect(find.byType(SessionDetailView), findsOneWidget);
+
+      await tester.tap(find.byTooltip(RegExp(r'^New session \(')));
+      await settle(tester);
+      expect(find.widgetWithText(TextField, 'Fix the build'), findsOneWidget);
+    });
   });
 
   testWidgets('an open session is marked read again after a new turn', (

@@ -582,16 +582,25 @@ Dart source); `bin/generate.dart` does the file I/O. See
   the working directory field (with "Browse…" and recent folders) above
   the composer's box (`FollowUpInput` with its own `controller`), whose
   chips pick the model, its options and the choice settings (such as
-  `mode`). Sending starts the session (or runs) and calls `onStarted`;
-  the sessions screen then opens the session in place. While the host
-  creates it, `StartingTimeline` replaces the timeline (and the pickers)
-  with the prompt's `UserMessageBubble` and a `WorkingIndicatorRow`
-  reading "Initializing…", so the session looks started at once; the
-  prompt leaves the box, and comes back to it if the start fails.
-  `new_session_draft.dart` is pure: `NewSessionTarget` (the host and
-  folder "New session" preselected), `NewSessionDraft` (what was picked
-  and typed), `withDraft` and `initialDirectoryText`; the sessions screen
-  keeps the drafts in memory and lists the open draft atop the sidebar.
+  `mode`). Sending starts the session (or runs) and hands the draft, the
+  first message and the start's future (`StartOutcome`) to `onStarting`
+  at once; the start uses no widget state, so it outlives the view. The
+  sessions screen turns the draft into a `StartingSession`: a row atop
+  the sidebar (the prompt's `startingTitle`, a spinner, "Initializing…")
+  and, in the pane, `StartingSessionView` (that title as the header, and
+  `StartingTimeline`: the prompt's `UserMessageBubble` and a
+  `WorkingIndicatorRow` reading "Initializing…"), so the session is
+  listed and shown the moment Enter is pressed, before the host has
+  created it (pi takes seconds). When the start ends, the row goes; the
+  first session opens in place if the starting one is still shown, and
+  a failure reopens the draft with its prompt and the error (or, when
+  the user has moved on, keeps the prompt in the draft and says so in a
+  snackbar). `new_session_draft.dart` is pure: `NewSessionTarget` (the
+  host and folder "New session" preselected), `NewSessionDraft` (what
+  was picked and typed), `withDraft`, `initialDirectoryText`,
+  `StartingSession`, `StartOutcome` and `startingTitle`; the sessions
+  screen keeps the drafts and starting sessions in memory and lists the
+  open draft atop the sidebar.
   In a session, `message_settings.dart` is the bar above the follow-up
   box that picks the next message's model and options and changes
   `sessionMutable` settings; its `compactPicker` is the dropdown both

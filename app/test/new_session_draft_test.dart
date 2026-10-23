@@ -24,6 +24,18 @@ void main() {
     expect(initialDirectoryText(null, null), '');
   });
 
+  test('a starting session is titled by its first non-blank line', () {
+    expect(startingTitle('Fix the build'), 'Fix the build');
+    expect(
+      startingTitle('\n  Fix the build  \nand the tests'),
+      'Fix the build',
+    );
+    expect(startingTitle('   \n '), 'Session');
+    final long = startingTitle('a' * 100);
+    expect(long.length, startingTitleLength);
+    expect(long, endsWith('…'));
+  });
+
   test('only editable choices fit a compact picker', () {
     const choice = ConfigField(
       id: 'mode',
