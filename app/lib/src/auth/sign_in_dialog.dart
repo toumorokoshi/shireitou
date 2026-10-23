@@ -5,7 +5,8 @@ library;
 
 import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
+
+import '../session_detail/link_menu.dart';
 
 import '../host_connection.dart';
 
@@ -143,9 +144,12 @@ class _SignInDialogState extends State<SignInDialog> {
       children: [
         Text('Paste an access token for ${resource.resource}.'),
         if (docs != null)
-          TextButton(
-            onPressed: () => launchUrl(Uri.parse(docs)),
-            child: const Text('How to get a token'),
+          LinkContextMenu(
+            url: docs,
+            child: TextButton(
+              onPressed: () => openLink(docs),
+              child: const Text('How to get a token'),
+            ),
           ),
         TextField(
           controller: _token,

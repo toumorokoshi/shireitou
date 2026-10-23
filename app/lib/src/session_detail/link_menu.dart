@@ -1,0 +1,158 @@
+/// Right-clicking a link (AV-075): a dialog shows the URL with "Copy
+/// link" and "Open link", for markdown links in replies and for the
+/// app's link buttons and chips.
+library;
+
+import 'dart:async';
+
+import 'package:flutter/gestures.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+/// Opens [url] in the browser, or does nothing when it does not parse.
+void openLink(String url) {
+  final uri = Uri.tryParse(url);
+  if (uri != null) {
+    unawaited(launchUrl(uri, mode: LaunchMode.externalApplication));
+  }
+}
+
+/// Shows [url] in a dialog that copies it ("Copy link", then a "Link
+/// copied" snackbar) or opens it ("Open link").
+Future<void> showLinkDialog(BuildContext context, String url) {
+  final messenger = ScaffoldMessenger.maybeOf(context);
+  return showDialog<void>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Link'),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 480),
+        child: SelectableText(url),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () {
+            Navigator.of(context).pop();
+            openLink(url);
+          },
+          child: const Text('Open link'),
+        ),
+        FilledButton(
+          autofocus: true,
+          onPressed: () async {
+            Navigator.of(context).pop();
+            await Clipboard.setData(ClipboardData(text: url));
+            messenger?.showSnackBar(
+              const SnackBar(content: Text('Link copied')),
+            );
+          },
+          child: const Text('Copy link'),
+        ),
+      ],
+    ),
+  );
+}
+
+/// [child] (a link button or chip) with [showLinkDialog] for [url] on
+/// right-click.
+class LinkContextMenu extends StatelessWidget {
+  /// Creates a [LinkContextMenu] for [url] around [child].
+  const LinkContextMenu({super.key, required this.url, required this.child});
+
+  /// The link's URL.
+  final String url;
+
+  /// The link.
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onSecondaryTap: () => unawaited(showLinkDialog(context, url)),
+    child: child,
+  );
+}
+
+/// The tap recognizer of the link text span under [global] in [box]'s
+/// subtree, or null.
+TapGestureRecognizer? linkRecognizerAt(RenderBox box, Offset global) {
+  final result = BoxHitTestResult();
+  box.hitTest(result, position: box.globalToLocal(global));
+  for (final entry in result.path) {
+    if (entry.target case TextSpan(
+      recognizer: final TapGestureRecognizer recognizer,
+    )) {
+      return recognizer;
+    }
+  }
+  return null;
+}
+
+/// Right-clicks on the link spans in [child] (rich text whose links have
+/// [TapGestureRecognizer]s, such as a `MarkdownBody`): [onLink] gets the
+/// link's recognizer. Right-clicks elsewhere are left to the enclosing
+/// selection's context menu; on a link this wins over it.
+class LinkSecondaryTap extends StatelessWidget {
+  /// Creates a [LinkSecondaryTap] around [child].
+  const LinkSecondaryTap({
+    super.key,
+    required this.onLink,
+    required this.child,
+  });
+
+  /// Called with the right-clicked link's recognizer.
+  final ValueChanged<TapGestureRecognizer> onLink;
+
+  /// The rich text.
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    TapGestureRecognizer? at(Offset global) =>
+        switch (context.findRenderObject()) {
+          final RenderBox box when box.hasSize => linkRecognizerAt(box, global),
+          _ => null,
+        };
+    return RawGestureDetector(
+      gestures: {
+        _LinkSecondaryTapRecognizer:
+            GestureRecognizerFactoryWithHandlers<_LinkSecondaryTapRecognizer>(
+              () => _LinkSecondaryTapRecognizer(debugOwner: this),
+              (recognizer) => recognizer
+                ..isOverLink = ((global) => at(global) != null)
+                ..onSecondaryTapUp = (details) {
+                  if (at(details.globalPosition) case final link?) {
+                    onLink(link);
+                  }
+                },
+            ),
+      },
+      child: child,
+    );
+  }
+}
+
+/// A secondary tap that only takes pointers over a link, and claims them
+/// at once so the selection's right-click menu does not also open.
+class _LinkSecondaryTapRecognizer extends TapGestureRecognizer {
+  _LinkSecondaryTapRecognizer({super.debugOwner});
+
+  bool Function(Offset global) isOverLink = (_) => false;
+
+  @override
+  bool isPointerAllowed(PointerDownEvent event) =>
+      event.buttons == kSecondaryButton &&
+      super.isPointerAllowed(event) &&
+      isOverLink(event.position);
+
+  @override
+  void addAllowedPointer(PointerDownEvent event) {
+    super.addAllowedPointer(event);
+    resolve(GestureDisposition.accepted);
+  }
+}

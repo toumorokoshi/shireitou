@@ -661,6 +661,19 @@ AppImage and the release workflow (see
   dropped once Flutter fixes nested scroll views' selection edges and
   adds separators between selected widgets.
 
+## Link dialog (AV-075)
+
+- Only a mouse right-click opens the link dialog. Touch has no
+  equivalent: a long press on a link selects a word, as the timeline's
+  selection does everywhere else.
+- Links in menus (the header's "…" menu's pull request and branch
+  items) and the URLs a changeset operation opens by itself are not
+  covered.
+- Right-clicking a markdown link runs the link's tap callback with a
+  flag set to learn its `href`, because `flutter_markdown_plus` creates
+  the link's recognizer privately; a hook in the package for secondary
+  taps would remove the workaround.
+
 ## Starting a session (AV-040)
 
 - "Initializing…" covers only the host's `createSession` and

@@ -11,7 +11,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
 
 import '../auth/sign_in_dialog.dart';
@@ -47,6 +46,7 @@ import '../composer/config_fields.dart';
 import '../composer/message_history.dart';
 import 'chat_switcher.dart';
 import 'editable_title.dart';
+import 'link_menu.dart';
 import 'message_settings.dart';
 import 'pending_messages.dart';
 import 'session_info.dart';
@@ -1082,12 +1082,12 @@ class _Header extends StatelessWidget {
                   ),
                 if (links.pullRequest case final pr?)
                   PopupMenuItem(
-                    value: () => _launch(pr.url),
+                    value: () => openLink(pr.url),
                     child: Text('Open ${pr.label}'),
                   ),
                 if (links.branch case BranchLink(:final name, :final url?))
                   PopupMenuItem(
-                    value: () => _launch(url),
+                    value: () => openLink(url),
                     child: Text('Open branch $name'),
                   ),
                 PopupMenuItem(
@@ -1128,10 +1128,6 @@ class _Header extends StatelessWidget {
   }
 }
 
-/// Opens [url] in the browser.
-void _launch(String url) =>
-    unawaited(launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication));
-
 /// The session's details as lines of text, for the header's "…" menu and
 /// its "Details" dialog (AV-094): the agent and model, the folder and
 /// branch, the tokens used, the change counts and the status.
@@ -1156,7 +1152,7 @@ List<String> sessionDetailLines({SessionSummary? summary, ChatState? chat}) {
 }
 
 /// A chip that opens [url] in the browser (a pull request or branch,
-/// AV-105).
+/// AV-105), and shows it in [showLinkDialog] on right-click (AV-075).
 class _LinkChip extends StatelessWidget {
   const _LinkChip({
     required this.icon,
@@ -1171,12 +1167,15 @@ class _LinkChip extends StatelessWidget {
   final String url;
 
   @override
-  Widget build(BuildContext context) => ActionChip(
-    avatar: Icon(icon, size: 16),
-    label: Text(label),
-    tooltip: tooltip,
-    visualDensity: VisualDensity.compact,
-    onPressed: () => _launch(url),
+  Widget build(BuildContext context) => LinkContextMenu(
+    url: url,
+    child: ActionChip(
+      avatar: Icon(icon, size: 16),
+      label: Text(label),
+      tooltip: tooltip,
+      visualDensity: VisualDensity.compact,
+      onPressed: () => openLink(url),
+    ),
   );
 }
 

@@ -9,7 +9,8 @@ import 'dart:convert';
 import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:url_launcher/url_launcher.dart';
+
+import 'link_menu.dart';
 
 import '../channels.dart';
 import '../composer/config_fields.dart';
@@ -57,22 +58,23 @@ class CanvasChips extends StatelessWidget {
                     .select((s) => s.canvasChannels[canvas.resource]?.state),
               );
               final url = state?.url;
+              final chip = ActionChip(
+                visualDensity: VisualDensity.compact,
+                avatar: const Icon(Icons.web_asset, size: 16),
+                label: Text(
+                  state?.title ?? (failed ? 'Canvas unavailable' : 'Canvas'),
+                ),
+                onPressed: url == null ? null : () => openLink(url),
+              );
               return Tooltip(
                 message: [
                   ?state?.extensionName,
                   ?state?.status,
                   ?url,
                 ].join(' · '),
-                child: ActionChip(
-                  visualDensity: VisualDensity.compact,
-                  avatar: const Icon(Icons.web_asset, size: 16),
-                  label: Text(
-                    state?.title ?? (failed ? 'Canvas unavailable' : 'Canvas'),
-                  ),
-                  onPressed: url == null
-                      ? null
-                      : () => launchUrl(Uri.parse(url)),
-                ),
+                child: url == null
+                    ? chip
+                    : LinkContextMenu(url: url, child: chip),
               );
             },
           ),
