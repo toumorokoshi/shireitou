@@ -38,18 +38,18 @@ const newSessionTitle = 'New session';
 /// A session not started yet: a header titled "New session", an empty
 /// timeline with a hint, and the follow-up box as the prompt, with the
 /// host, agent, folder, model and settings pickers inline. Sending starts
-/// the session (or parallel runs) and calls [onStarted]. Meanwhile the
-/// timeline shows the prompt as the first message and "Initializing…",
-/// as if the session had started; a failure puts the prompt back in the
-/// box and shows above it.
+/// the session (or parallel runs) and hands the start to [onStarting] at
+/// once, so the caller can show it ([StartingSessionView]) while the host
+/// creates it.
 class NewSessionView extends ConsumerStatefulWidget {
   /// Creates a [NewSessionView]. Give it a key per [target].
   const NewSessionView({
     super.key,
     required this.target,
-    required this.onStarted,
+    required this.onStarting,
     this.draft,
     this.onDraftChanged,
+    this.error,
   });
 
   /// The host and folder "New session" preselected; null fields default
@@ -62,8 +62,19 @@ class NewSessionView extends ConsumerStatefulWidget {
   /// Called with the draft as the user changes it.
   final ValueChanged<NewSessionDraft>? onDraftChanged;
 
-  /// Called with the first started session.
-  final ValueChanged<SessionRef> onStarted;
+  /// Called as the prompt is sent, with the draft as it was, the first
+  /// message, and the start, which completes once the host has created
+  /// the sessions (or failed to). It keeps running after this view is
+  /// gone.
+  final void Function(
+    NewSessionDraft draft,
+    Message message,
+    Future<StartOutcome> outcome,
+  )
+  onStarting;
+
+  /// Why the last start failed, shown above the box.
+  final String? error;
 
   @override
   ConsumerState<NewSessionView> createState() => _NewSessionViewState();
@@ -86,10 +97,9 @@ class _NewSessionViewState extends ConsumerState<NewSessionView> {
   int _resolveGeneration = 0;
   Timer? _resolveTimer;
 
-  /// The prompt being started, shown as the first message until the
-  /// host has created the session.
-  Message? _sent;
-  String? _error;
+  /// Whether the prompt was sent; a second Enter does nothing.
+  var _sent = false;
+  late String? _error = widget.error;
 
   /// Runs beyond the first, for best-of-N (AV-045): each an agent and a
   /// model (null: the host's default).
@@ -251,12 +261,12 @@ class _NewSessionViewState extends ConsumerState<NewSessionView> {
 
   /// Starts the session (and the parallel runs) with [prompt] and its
   /// accepted completions' [attachments], and the first run's [model].
-  Future<void> _start(
+  void _start(
     String prompt,
     ModelSelection? model,
     List<MessageAttachment> attachments,
-  ) async {
-    if (_sent != null) return;
+  ) {
+    if (_sent) return;
     final host = _host;
     final agents = _agentsOf(host);
     final agent =
@@ -289,12 +299,44 @@ class _NewSessionViewState extends ConsumerState<NewSessionView> {
           sameAgent: extra.provider == agent.provider,
         ),
     ];
-    final typed = _prompt.text;
+    final draft = (
+      host: host,
+      provider: _provider,
+      directory: _directory.text,
+      prompt: _prompt.text,
+    );
     setState(() {
-      _sent = userMessage(prompt, model: model, attachments: attachments);
+      _sent = true;
       _error = null;
     });
-    _prompt.clear();
+    widget.onStarting(
+      draft,
+      userMessage(prompt, model: model, attachments: attachments),
+      _startRuns(
+        connection: connection,
+        runGroups: ref.read(runGroupsProvider.notifier),
+        host: host,
+        runs: runs,
+        directory: directory,
+        prompt: prompt,
+        attachments: attachments,
+      ),
+    );
+  }
+
+  /// Starts [runs] on [connection] and records them as a run group when
+  /// more than one started. It uses no widget state, as it outlives the
+  /// view.
+  static Future<StartOutcome> _startRuns({
+    required HostConnection connection,
+    required RunGroups runGroups,
+    required String host,
+    required List<({AgentInfo agent, ModelSelection? model, JsonMap? config})>
+    runs,
+    required String directory,
+    required String prompt,
+    required List<MessageAttachment> attachments,
+  }) async {
     final results = await Future.wait([
       for (final run in runs)
         connection
@@ -308,44 +350,25 @@ class _NewSessionViewState extends ConsumerState<NewSessionView> {
             )
             .then<Object>((session) => session, onError: (Object e) => e),
     ]);
-    if (!mounted) return;
     final (:started, :failures) = runOutcome(
       host: host,
       labels: [for (final run in runs) runLabel(run.agent, run.model)],
       results: results,
     );
-    if (started.isEmpty) {
-      setState(() {
-        _sent = null;
-        _error = failures.join('\n');
-      });
-      _prompt.text = typed;
-      return;
-    }
     if (started.length > 1) {
-      await ref
-          .read(runGroupsProvider.notifier)
-          .add(
-            RunGroup(
-              id: const Uuid().v4(),
-              prompt: prompt,
-              createdAt: DateTime.now().toUtc().toIso8601String(),
-              members: started,
-            ),
-          );
-    }
-    if (!mounted) return;
-    if (failures.isNotEmpty) {
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        SnackBar(
-          content: Text(
-            '${started.length} of ${runs.length} runs started. '
-            '${failures.join('; ')}',
-          ),
+      await runGroups.add(
+        RunGroup(
+          id: const Uuid().v4(),
+          prompt: prompt,
+          createdAt: DateTime.now().toUtc().toIso8601String(),
+          members: started,
         ),
       );
     }
-    widget.onStarted(started.first.ref);
+    return (
+      started: [for (final member in started) member.ref],
+      failures: failures,
+    );
   }
 
   static ({AgentInfo agent, ModelSelection? model, JsonMap? config}) _variant(
@@ -409,13 +432,7 @@ class _NewSessionViewState extends ConsumerState<NewSessionView> {
             RootState(agents: [agent]),
             ref.watch(signedInResourcesProvider(host)).value ?? const {},
           );
-    final header = Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-      child: Semantics(
-        header: true,
-        child: Text(newSessionTitle, style: theme.textTheme.titleSmall),
-      ),
-    );
+    const header = _PaneHeader(title: newSessionTitle);
     final draftTimeline = SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Center(
@@ -585,13 +602,8 @@ class _NewSessionViewState extends ConsumerState<NewSessionView> {
       children: [
         header,
         const Divider(height: 1),
-        Expanded(
-          child: switch (_sent) {
-            final sent? => StartingTimeline(message: sent),
-            null => draftTimeline,
-          },
-        ),
-        if (_sent == null) pickers,
+        Expanded(child: draftTimeline),
+        pickers,
         if (_error case final error?)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
@@ -636,12 +648,54 @@ class _NewSessionViewState extends ConsumerState<NewSessionView> {
               commands: commands,
             ),
             onSend: (text, {required steer, model, attachments = const []}) =>
-                unawaited(_start(text, model, attachments)),
+                _start(text, model, attachments),
           ),
         ),
       ],
     );
   }
+}
+
+/// The draft's and a starting session's header: [title] alone.
+class _PaneHeader extends StatelessWidget {
+  const _PaneHeader({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+    child: Semantics(
+      header: true,
+      child: Text(
+        title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(context).textTheme.titleSmall,
+      ),
+    ),
+  );
+}
+
+/// A session the host is still creating, shown from the moment its
+/// prompt is sent: a header with the prompt's [startingTitle] and a
+/// [StartingTimeline].
+class StartingSessionView extends StatelessWidget {
+  /// Creates a [StartingSessionView].
+  const StartingSessionView({super.key, required this.message});
+
+  /// The prompt being started.
+  final Message message;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      _PaneHeader(title: startingTitle(message.text)),
+      const Divider(height: 1),
+      Expanded(child: StartingTimeline(message: message)),
+    ],
+  );
 }
 
 /// What the timeline says while the host creates the session.

@@ -172,6 +172,35 @@ error out of the steps fold.
   `ResponsePartItem.resumed` hides Retry on an error that later parts
   follow.
 
+## 2026-10-22: A sent prompt is listed as a starting session at once (AV-040)
+
+After Enter, the draft stayed a "New session" row and a "New session"
+pane until `createSession` returned, which waits for the host to publish
+the session in its catalogue (seconds on pi, up to 30 s). The start also
+lived in the draft widget, so opening another session meanwhile dropped
+it: the session started, but the app never opened it and the draft row
+stayed behind.
+
+- **The sessions screen owns starting sessions.** `NewSessionView`
+  hands the draft, the first message and the start's future to
+  `onStarting` and is replaced at once; the screen keeps a list of
+  `StartingSession`s, each a sidebar row (the prompt's first line,
+  a spinner, "Initializing…") and a pane (`StartingSessionView`). The
+  start captures its connection and run-group store before awaiting,
+  so it finishes after the view is gone.
+- **Listed atop the sidebar, not in its folder.** The folders group the
+  hosts' `SessionSummary` catalogue entries; a placeholder entry would
+  have to be understood by grouping, row actions and the detail view.
+  The draft row's place is where the user's eye already is.
+- **Only a shown start takes the pane.** When the host has created the
+  session, it opens only if its starting pane is still on screen; a user
+  who moved on stays where they are and finds the session in its folder.
+  A failure reopens the draft with the error, or keeps the prompt in the
+  draft and reports it in a snackbar.
+- **Not switching on the `createSession` response.** It would be
+  quicker on some hosts, but pi publishes the session under another URI
+  than the one sent, so only the catalogue names the session to open.
+
 ## 2026-10-21: Right-click a link to copy it (AV-075)
 
 Links in agent replies and the app's link chips and buttons could only
