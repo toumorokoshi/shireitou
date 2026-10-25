@@ -45,6 +45,7 @@ class ResponsePartItem extends TimelineItem {
     this.part, {
     required this.active,
     this.index = 0,
+    this.resumed = false,
   });
 
   /// Turn ID.
@@ -58,6 +59,10 @@ class ResponsePartItem extends TimelineItem {
 
   /// The part's position in its turn.
   final int index;
+
+  /// Whether [part] is an error the turn was resumed past
+  /// ([isResumedError]), which can no longer be retried.
+  final bool resumed;
 
   @override
   String get key => '$turnId/${partKey(part) ?? '#$index'}';
@@ -86,7 +91,8 @@ class ToolCallGroupItem extends TimelineItem {
 /// replies between them, collapsed into one "Completed N steps in T" row
 /// that expands to [steps]. Calls that wait on the user, todo lists,
 /// subagents, input requests and errors are not steps: they stay rows of
-/// their own, so they are never hidden.
+/// their own, so they are never hidden. An error the turn was resumed past
+/// is a step ([isResumedError]).
 class StepsItem extends TimelineItem {
   /// Creates a [StepsItem].
   const StepsItem(
@@ -237,11 +243,13 @@ List<TimelineItem> partItems(
 }) => _partItems(turnId, parts.indexed, active: active);
 
 /// [partItems] over parts paired with their index in the turn, which keys
-/// the parts without an ID.
+/// the parts without an ID; the parts at [resumed] are errors the turn was
+/// resumed past.
 List<TimelineItem> _partItems(
   String turnId,
   Iterable<(int, ResponsePart)> parts, {
   required bool active,
+  Set<int> resumed = const {},
 }) {
   final items = <TimelineItem>[];
   final run = <(int, ToolCallState)>[];
@@ -277,7 +285,15 @@ List<TimelineItem> _partItems(
       continue;
     }
     flush();
-    items.add(ResponsePartItem(turnId, part, active: active, index: index));
+    items.add(
+      ResponsePartItem(
+        turnId,
+        part,
+        active: active,
+        index: index,
+        resumed: resumed.contains(index),
+      ),
+    );
   }
   flush();
   return items;
@@ -297,13 +313,24 @@ bool isStep(ResponsePart part) => switch (part) {
   _ => false,
 };
 
+/// Whether the error [part] at [index] of a turn whose last visible part
+/// is at [lastIndex] was resumed past (`chat/turnResume` keeps it in the
+/// reopened turn): the turn is running again, or later parts follow it.
+bool isResumedError(
+  ResponsePart part,
+  int index, {
+  required int lastIndex,
+  required bool active,
+}) => part is ErrorResponsePart && (active || index != lastIndex);
+
 /// The rows of one turn's [parts] with its steps collapsed (AV-095): the
 /// visible parts before the first step, a [StepsItem] holding every step
 /// and the markdown between steps, then the remaining parts in order
 /// (calls that need attention, input requests, errors and the reply after
-/// the last step). Without steps, the same rows as [partItems].
-/// [working] and [activity] go to the [StepsItem] (see
-/// [StepsItem.working]).
+/// the last step). Errors the turn was resumed past ([isResumedError])
+/// fold in as steps, so a retried turn does not keep its old error in
+/// view. Without steps, the same rows as [partItems]. [working] and
+/// [activity] go to the [StepsItem] (see [StepsItem.working]).
 List<TimelineItem> turnPartItems(
   String turnId,
   List<ResponsePart> parts, {
@@ -316,18 +343,25 @@ List<TimelineItem> turnPartItems(
     for (final entry in parts.indexed)
       if (_visible(entry.$2)) entry,
   ];
-  final first = visible.indexWhere((e) => isStep(e.$2));
+  final lastIndex = visible.lastOrNull?.$1;
+  final resumed = {
+    for (final (index, part) in visible)
+      if (isResumedError(part, index, lastIndex: lastIndex!, active: active))
+        index,
+  };
+  bool step((int, ResponsePart) e) => isStep(e.$2) || resumed.contains(e.$1);
+  final first = visible.indexWhere(step);
   if (first < 0) return _partItems(turnId, visible, active: active);
-  final last = visible.lastIndexWhere((e) => isStep(e.$2));
+  final last = visible.lastIndexWhere(step);
   final folded = [
     for (final entry in visible.sublist(first, last + 1))
-      if (isStep(entry.$2) || entry.$2 is MarkdownResponsePart) entry,
+      if (step(entry) || entry.$2 is MarkdownResponsePart) entry,
   ];
   return [
     ..._partItems(turnId, visible.sublist(0, first), active: active),
     StepsItem(
       turnId,
-      _partItems(turnId, folded, active: active),
+      _partItems(turnId, folded, active: active, resumed: resumed),
       count: folded.length,
       active: active,
       duration: duration,
@@ -336,7 +370,7 @@ List<TimelineItem> turnPartItems(
     ),
     ..._partItems(turnId, [
       for (final entry in visible.sublist(first, last + 1))
-        if (!isStep(entry.$2) && entry.$2 is! MarkdownResponsePart) entry,
+        if (!step(entry) && entry.$2 is! MarkdownResponsePart) entry,
       ...visible.sublist(last + 1),
     ], active: active),
   ];

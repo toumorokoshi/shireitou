@@ -433,7 +433,11 @@ Dart source); `bin/generate.dart` does the file I/O. See
   message, "Completed N steps in T" (`stepsSummary`, from
   `Turn.duration`) and the reply (AV-095). Calls that need approval,
   input or sign-in, input requests and errors stay rows of their own
-  after the steps row, so they are never hidden. It adds a "load older
+  after the steps row, so they are never hidden. The exception is an
+  error the turn was resumed past (`isResumedError`: `chat/turnResume`
+  keeps it in the reopened turn, which runs again or has later parts):
+  it folds in as a step where it happened, marked `resumed` so it offers
+  no Retry (AV-067). It adds a "load older
   turns" row while the host holds turns back (AV-068), and while the
   chat works (`isChatWorking`: the `InProgress` bit or an active turn,
   not `InputNeeded`; AV-072) the active turn's `StepsItem` carries the

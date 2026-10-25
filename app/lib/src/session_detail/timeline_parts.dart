@@ -68,35 +68,36 @@ Widget buildTimelineItem(
   ),
   LoadOlderItem() => LoadOlderRow(onLoad: onLoadOlder),
   WorkingItem(:final activity) => WorkingIndicatorRow(activity: activity),
-  ResponsePartItem(:final turnId, :final part, :final active) => switch (part) {
-    MarkdownResponsePart(:final content) => MarkdownText(content),
-    ReasoningResponsePart(:final content) => ReasoningBlock(content: content),
-    ToolCallResponsePart(:final toolCall)
-        when todoListOf(toolCall) != null && !toolCall.isBlocking =>
-      TodoCard(list: todoListOf(toolCall)!, running: !toolCall.isFinished),
-    ToolCallResponsePart(:final toolCall) => ToolCallCard(
-      turnId: turnId,
-      toolCall: toolCall,
-      onAction: active ? onAction : null,
-      onSignIn: active ? onSignIn : null,
-      onOpenChat: onOpenChat,
-    ),
-    InputRequestResponsePart() => InputRequestCard(
-      part: part,
-      onAction: active ? onAction : null,
-    ),
-    ErrorResponsePart(:final error, :final resumable) => ErrorBanner(
-      message: error.message,
-      onRetry: resumable == true && !active
-          ? () => onAction(ChatTurnResumeAction(turnId: turnId).toJson())
-          : null,
-    ),
-    SystemNotificationResponsePart(:final content) => _Note(content.text),
-    ResourceResponsePart(:final uri) => _Note(uri),
-    ResponsePartUnknown(:final kind) => _Note(
-      'Unsupported response part: $kind',
-    ),
-  },
+  ResponsePartItem(:final turnId, :final part, :final active, :final resumed) =>
+    switch (part) {
+      MarkdownResponsePart(:final content) => MarkdownText(content),
+      ReasoningResponsePart(:final content) => ReasoningBlock(content: content),
+      ToolCallResponsePart(:final toolCall)
+          when todoListOf(toolCall) != null && !toolCall.isBlocking =>
+        TodoCard(list: todoListOf(toolCall)!, running: !toolCall.isFinished),
+      ToolCallResponsePart(:final toolCall) => ToolCallCard(
+        turnId: turnId,
+        toolCall: toolCall,
+        onAction: active ? onAction : null,
+        onSignIn: active ? onSignIn : null,
+        onOpenChat: onOpenChat,
+      ),
+      InputRequestResponsePart() => InputRequestCard(
+        part: part,
+        onAction: active ? onAction : null,
+      ),
+      ErrorResponsePart(:final error, :final resumable) => ErrorBanner(
+        message: error.message,
+        onRetry: resumable == true && !active && !resumed
+            ? () => onAction(ChatTurnResumeAction(turnId: turnId).toJson())
+            : null,
+      ),
+      SystemNotificationResponsePart(:final content) => _Note(content.text),
+      ResourceResponsePart(:final uri) => _Note(uri),
+      ResponsePartUnknown(:final kind) => _Note(
+        'Unsupported response part: $kind',
+      ),
+    },
   TurnFooterItem(:final turn) => _TurnFooter(turn),
 };
 

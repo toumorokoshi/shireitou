@@ -414,4 +414,30 @@ void main() {
       expect((await pending())?.token, 'pasted');
     });
   });
+
+  testWidgets('only an error that ends its turn offers Retry (AV-067)', (
+    tester,
+  ) async {
+    const error = ErrorResponsePart(
+      error: ErrorInfo(errorType: 'x', message: 'overloaded'),
+      resumable: true,
+    );
+    final actions = <JsonMap>[];
+    Future<void> pump({required bool resumed}) => tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: buildTimelineItem(
+            ResponsePartItem('t1', error, active: false, resumed: resumed),
+            actions.add,
+          ),
+        ),
+      ),
+    );
+    await pump(resumed: false);
+    await tester.tap(find.text('Retry'));
+    expect(actions.single['type'], 'chat/turnResume');
+    await pump(resumed: true);
+    expect(find.text('overloaded'), findsOneWidget);
+    expect(find.text('Retry'), findsNothing);
+  });
 }

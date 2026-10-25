@@ -1,5 +1,26 @@
 # Design Decision Log
 
+## 2026-10-25: A retried turn folds its old error into the steps (AV-067)
+
+After Retry on a resumable error, the red error banner stayed under the
+"Working… N steps" line while the resumed turn ran, and kept offering
+Retry after the turn finished. `chat/turnResume` reopens the turn with
+its parts intact, the error included, and `turnPartItems` kept every
+error out of the steps fold.
+
+- **Fold, not drop.** An error the turn was resumed past
+  (`isResumedError`: the turn is active again, or later parts follow
+  it) is treated as a step, so it folds into the steps line in the
+  order it happened and stays readable when expanded. Hiding it was
+  rejected: it is part of the turn's history, and the host keeps it.
+- **The reducer is unchanged.** The protocol says the reopened turn
+  keeps its response parts, so the client's state must match the
+  host's; the fix is in the view.
+- **Retry only on the turn's last part.** The protocol allows
+  `chat/turnResume` only while the final part is a resumable error, so
+  `ResponsePartItem.resumed` hides Retry on an error that later parts
+  follow.
+
 ## 2026-10-21: Right-click a link to copy it (AV-075)
 
 Links in agent replies and the app's link chips and buttons could only

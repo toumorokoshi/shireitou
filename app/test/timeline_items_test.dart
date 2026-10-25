@@ -123,12 +123,12 @@ void groupingTests() {
       const MarkdownResponsePart(id: 'reply', content: 'Done.'),
     ];
     final items = turnPartItems('t', parts, active: false, duration: 107000);
-    // Text before the first step and after the last stays; the error and
-    // the call that needs approval stay in view after the steps row.
+    // Text before the first step and after the last stays; the call that
+    // needs approval stays in view after the steps row. The error the turn
+    // was resumed past folds in where it happened.
     expect(items.map((i) => i.key), [
       't/intro',
       't/steps',
-      't/#4',
       't/tool/p',
       't/reply',
     ]);
@@ -137,15 +137,60 @@ void groupingTests() {
       't/r',
       't/tool/a',
       't/between',
+      't/#4',
       't/group/b',
     ]);
-    expect(steps.count, 5);
-    expect(stepsSummary(steps), 'Completed 5 steps in 1m 47s');
+    expect(steps.count, 6);
+    expect(stepsSummary(steps), 'Completed 6 steps in 1m 47s');
     // A turn without steps has no steps row.
     expect(
       turnPartItems('t', parts.sublist(7), active: false).map((i) => i.key),
       ['t/tool/p', 't/reply'],
     );
+  });
+
+  test('a resumed error folds into the steps (AV-067)', () {
+    const error = ErrorResponsePart(
+      error: ErrorInfo(errorType: 'x', message: 'overloaded'),
+      resumable: true,
+    );
+    final failed = [ToolCallResponsePart(toolCall: _done('a', 'bash')), error];
+    bool? resumedOf(List<TimelineItem> items) =>
+        [
+              for (final item in items)
+                ...item is StepsItem ? item.steps : [item],
+            ]
+            .whereType<ResponsePartItem>()
+            .where((i) => i.part == error)
+            .single
+            .resumed;
+
+    // A turn that ends in the error keeps it in view, retryable.
+    final ended = turnPartItems('t', failed, active: false);
+    expect(ended.map((i) => i.key), ['t/steps', 't/#1']);
+    expect(resumedOf(ended), isFalse);
+    // Once resumed the error folds, also before the next part arrives.
+    final reopened = turnPartItems('t', failed, active: true);
+    expect(reopened.map((i) => i.key), ['t/steps']);
+    expect(resumedOf(reopened), isTrue);
+    final resumed = [
+      ...failed,
+      ToolCallResponsePart(toolCall: _done('b', 'bash')),
+      const MarkdownResponsePart(id: 'reply', content: 'Done.'),
+    ];
+    final running = turnPartItems('t', resumed, active: true);
+    expect(running.map((i) => i.key), ['t/steps', 't/reply']);
+    expect((running.first as StepsItem).steps.map((i) => i.key), [
+      't/tool/a',
+      't/#1',
+      't/tool/b',
+    ]);
+    // When the resumed turn finishes, the old error is not retryable.
+    expect(resumedOf(turnPartItems('t', resumed, active: false)), isTrue);
+    // A turn that only failed has no steps row.
+    expect(turnPartItems('t', [error], active: false).map((i) => i.key), [
+      't/#0',
+    ]);
   });
 
   test('steps summary while working, without a duration and with failures', () {

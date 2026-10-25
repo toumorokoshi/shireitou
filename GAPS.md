@@ -674,6 +674,14 @@ AppImage and the release workflow (see
   the link's recognizer privately; a hook in the package for secondary
   taps would remove the workaround.
 
+## Retrying a failed turn (AV-067)
+
+- The fake host never ends a turn with a resumable error, so Retry and
+  the resumed turn (its old error folding into the steps line) are
+  covered by unit and widget tests only, not driven end to end.
+- A folded error counts as one of the "N steps" and is shown as the
+  same red banner when the steps are expanded; it has no "retried" label.
+
 ## Starting a session (AV-040)
 
 - "Initializing…" covers only the host's `createSession` and
