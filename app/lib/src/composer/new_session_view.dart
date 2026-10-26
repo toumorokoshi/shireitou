@@ -30,6 +30,7 @@ import 'directory_browser.dart';
 import 'new_session_draft.dart';
 import '../theme/app_icons.dart';
 import '../agent_names.dart';
+import '../dictation/dictation.dart';
 
 /// The draft's title, in its header and in the session list.
 const newSessionTitle = 'New session';
@@ -610,6 +611,7 @@ class _NewSessionViewState extends ConsumerState<NewSessionView> {
             key: ValueKey('prompt-$host-${agent?.provider}'),
             controller: _prompt,
             focusRequests: _focusRequests,
+            dictation: ref.watch(dictationProvider),
             working: false,
             hintText: composerPlaceholder(
               agent: agent == null

@@ -44,6 +44,9 @@ arm64 machine):
 
 - GTK 3 and libsecret (the `.deb` depends on `libgtk-3-0` and
   `libsecret-1-0`).
+- `parecord` (`pulseaudio-utils`, with PulseAudio or PipeWire's Pulse
+  server) for dictation (AV-047, [dictation.md](dictation.md)); the
+  `.deb` recommends it.
 - A running, unlocked Secret Service for saved hosts, for example
   gnome-keyring or KWallet. Without one, the app still connects, but logs
   `could not save the hosts` and forgets hosts on exit. On a headless
@@ -84,6 +87,14 @@ arm64 machine):
   no provisioning profile, and an ad-hoc or Developer ID signed build can
   store tokens. Switch to the data protection keychain (and add the
   entitlement) only if the app ever shares items with another app.
+
+### Microphone
+
+Dictation (AV-047) needs the `com.apple.security.device.audio-input`
+entitlement and `NSMicrophoneUsageDescription` in `Info.plist`; macOS
+asks for microphone access the first time the button is pressed, and the
+answer is in System Settings > Privacy & Security > Microphone. See
+[dictation.md](dictation.md).
 
 ## Windows
 

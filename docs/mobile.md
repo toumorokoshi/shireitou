@@ -45,6 +45,13 @@ update a release install (uninstall it first, losing the saved hosts).
   stop its network; the connection drops and reconnects (with a replay)
   when the app comes back.
 
+## Microphone
+
+Dictation (AV-047, [dictation.md](dictation.md)) asks for the microphone
+the first time its button is pressed: `RECORD_AUDIO` on Android, and
+`NSMicrophoneUsageDescription` on iOS. The model (161 MB) is downloaded
+on first use, so it is not in the app's download.
+
 ## Secure storage
 
 Saved hosts and resource tokens use `flutter_secure_storage`:

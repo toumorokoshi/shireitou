@@ -57,7 +57,44 @@ that reads HTML (or the reverse) could not get it.
   the copy shortcut: the HTML is read from what is on screen and there
   is no markdown source for a partial selection to offer separately.
 
-||||||| parent of f8623ce (feat(app): open file paths from replies in a file viewer (AV-106))
+## 2026-10-26: Dictation with Whisper on the device (AV-047)
+
+The composer had no voice input; the request was a speech-to-text
+button that runs an open model (OpenAI's Whisper) locally and shows the
+words while speaking, like Cursor's and the Agents window's.
+
+- **sherpa-onnx over whisper.cpp bindings.** `sherpa_onnx` (k2-fsa, the
+  ONNX runtime with Whisper and Silero VAD) has prebuilt libraries for
+  macOS, Linux, Windows, iOS and Android in one plugin, and a VAD in the
+  same package. `whisper_ggml` (whisper.cpp) covers the same platforms
+  but only transcribes files and has no VAD, so live text would need a
+  second package.
+- **Live text by re-transcribing.** Whisper has no streaming mode. The
+  utterance in progress is transcribed again every 0.4 s of speech and
+  shown as a guess, and the VAD's end of utterance (0.6 s of silence)
+  gives the final, punctuated text. sherpa-onnx's streaming models
+  (zipformer) would stream natively, but the request was for Whisper.
+- **Whisper base.en, int8, downloaded on first use.** 161 MB: tiny.en is
+  the less accurate model, and small.en (375 MB) costs more than twice as
+  much for each re-transcription. Bundling it would grow every download
+  of the app by 161 MB for a feature not everyone uses. It is pinned to
+  a Hugging Face revision and checked by size; the user is asked before
+  the download.
+- **An isolate with one request at a time.** Decoding blocks for
+  hundreds of milliseconds, so it runs off the UI isolate. The caller
+  waits for each answer and sends the audio that arrived meanwhile as
+  one batch, so a slow machine makes fewer guesses instead of falling
+  behind, and audio said while the model loads is kept.
+- **Pure core, fakes at the edges.** The transcript, writing at the
+  caret, PCM decoding and the guess/final state machine are pure and
+  unit-tested; the microphone, the engine and the downloader are behind
+  small interfaces with fakes. The real model is tested on a recorded
+  sentence by an opt-in test (`just test-whisper`).
+- **Typing stops dictation.** Merging speech around the user's edits
+  would duplicate the guess already in the box; stopping keeps the text
+  as shown.
+- **Not on the web.** Running Whisper in WebAssembly is its own project,
+  and the Web Speech API sends audio to a server.
 
 ## 2026-10-26: Screenshots in the README and docs
 
