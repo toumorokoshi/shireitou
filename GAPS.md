@@ -311,8 +311,8 @@ AppImage and the release workflow (see
   reader action, and no menu item). The header's details
   still list the change counts, which the pane's toggle also shows.
 - **Copy and find in conversation (AV-071):** each finished turn's
-  footer has a "Copy reply" button (the reply as markdown, like VS Code's
-  "Copy"). Not built: find in conversation (Cmd/Ctrl+F); copying the
+  footer has a "Copy as markdown" button (the reply as markdown, like VS
+  Code's "Copy") and a "Copy as HTML" button (AV-076). Not built: find in conversation (Cmd/Ctrl+F); copying the
   running turn (it has no footer until it finishes); VS Code's context
   menu actions "Copy All" (the whole chat), "Copy Final Response" and
   copying a user message; copying only the selected text. Link labels
@@ -670,8 +670,9 @@ AppImage and the release workflow (see
 
 - A selection's HTML is read back from the rendered spans, so headings,
   lists, tables and quotes paste as lines of text (headings and table
-  heads in bold) rather than as their HTML elements; "Copy reply", which
-  renders the markdown, keeps them. Formatting is guessed from styles:
+  heads in bold) rather than as their HTML elements; "Copy as HTML", which
+  renders the markdown, keeps them. A selection has no choice of format:
+  it always copies both, and the pasting app picks one. Formatting is guessed from styles:
   weight 600 and up is bold and the `monospace` family is code.
 - The pieces of a selection that are not paragraphs (code blocks, tool
   output, terminals, diffs) all become `<pre>` blocks.

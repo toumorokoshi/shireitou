@@ -49,6 +49,12 @@ abstract final class AppIcons {
   /// Opens a session's folder in VS Code.
   static const IconData vscode = Codicons.vscode;
 
+  /// Copies a reply as markdown (AV-071).
+  static const IconData copyMarkdown = Codicons.markdown;
+
+  /// Copies a reply as HTML, a rich copy (AV-076).
+  static const IconData copyHtml = Codicons.code;
+
   /// Opens or closes the terminal panel (AV-016).
   static const IconData terminal = Codicons.terminal;
 

@@ -1264,8 +1264,9 @@ class _Note extends StatelessWidget {
   }
 }
 
-/// A finished turn's footer (AV-067): a button that copies the reply as
-/// markdown (AV-071), then the end state, duration and tokens in the
+/// A finished turn's footer (AV-067): buttons that copy the reply as
+/// markdown (plain text, AV-071) and as HTML (a rich copy with the
+/// markdown as its plain text, AV-076), then the end state, duration and tokens in the
 /// smallest muted text, so it reads as metadata under the reply rather
 /// than part of it (the reference UI has no footer at all).
 class _TurnFooter extends StatelessWidget {
@@ -1280,8 +1281,15 @@ class _TurnFooter extends StatelessWidget {
       children: [
         CopyButton(
           text: () => turnMarkdown(turn),
+          icon: AppIcons.copyMarkdown,
+          tooltip: 'Copy as markdown',
+          iconSize: 14,
+        ),
+        CopyButton(
+          text: () => turnMarkdown(turn),
           html: markdownHtml,
-          tooltip: 'Copy reply',
+          icon: AppIcons.copyHtml,
+          tooltip: 'Copy as HTML',
           iconSize: 14,
         ),
         Flexible(

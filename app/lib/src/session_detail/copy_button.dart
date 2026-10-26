@@ -18,6 +18,7 @@ class CopyButton extends StatefulWidget {
     super.key,
     required this.text,
     this.html,
+    this.icon = Icons.copy,
     this.tooltip = 'Copy',
     this.iconSize = 16,
     this.feedback = const Duration(milliseconds: 1200),
@@ -29,6 +30,9 @@ class CopyButton extends StatefulWidget {
   /// The HTML copied along with the text, made from it; null copies only
   /// the text.
   final String Function(String text)? html;
+
+  /// The icon before copying.
+  final IconData icon;
 
   /// The tooltip and screen reader label before copying.
   final String tooltip;
@@ -82,7 +86,7 @@ class _CopyButtonState extends State<CopyButton> {
     tooltip: _copied ? 'Copied' : widget.tooltip,
     iconSize: widget.iconSize,
     visualDensity: VisualDensity.compact,
-    icon: Icon(_copied ? Icons.check : Icons.copy),
+    icon: Icon(_copied ? Icons.check : widget.icon),
     onPressed: _copy,
   );
 }

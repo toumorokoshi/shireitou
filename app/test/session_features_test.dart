@@ -372,34 +372,52 @@ void main() {
     );
   });
 
-  testWidgets('a finished turn copies its reply as markdown (AV-071)', (
-    tester,
-  ) async {
-    String? copied;
-    String? html;
-    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-      richClipboardChannel,
-      (call) async {
-        copied = (call.arguments as Map)['text'] as String?;
-        html = (call.arguments as Map)['html'] as String?;
+  testWidgets('a finished turn copies its reply as markdown or as HTML '
+      '(AV-071, AV-076)', (tester) async {
+    final plain = <String>[];
+    final rich = <Map<Object?, Object?>>[];
+    final messenger = tester.binding.defaultBinaryMessenger;
+    messenger
+      ..setMockMethodCallHandler(SystemChannels.platform, (call) async {
+        if (call.method == 'Clipboard.setData') {
+          plain.add((call.arguments as Map)['text'] as String);
+        }
         return null;
-      },
-    );
+      })
+      ..setMockMethodCallHandler(richClipboardChannel, (call) async {
+        rich.add(call.arguments as Map<Object?, Object?>);
+        return null;
+      });
     await _pump(tester, _state(chat: chatFixture()));
     // Only the finished turn has a footer.
-    expect(find.byTooltip('Copy reply'), findsOneWidget);
-    await tester.tap(find.byTooltip('Copy reply'));
+    expect(find.byTooltip('Copy as markdown'), findsOneWidget);
+    expect(find.byTooltip('Copy as HTML'), findsOneWidget);
+
+    // Markdown is plain text only.
+    await tester.tap(find.byTooltip('Copy as markdown'));
     await tester.pump();
-    expect(copied, 'Ran `ls`\n\nThere is **one** file.');
-    expect(
-      html,
-      '<meta charset="utf-8"><p>Ran <code>ls</code></p>\n'
-      '<p>There is <strong>one</strong> file.</p>\n',
-    );
+    expect(plain, ['Ran `ls`\n\nThere is **one** file.']);
+    expect(rich, isEmpty);
     expect(find.byTooltip('Copied'), findsOneWidget);
     expect(find.byIcon(Icons.check), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 1300));
-    expect(find.byTooltip('Copy reply'), findsOneWidget);
+    expect(find.byTooltip('Copy as markdown'), findsOneWidget);
+
+    // HTML is a rich copy, with the markdown for plain-text targets.
+    await tester.tap(find.byTooltip('Copy as HTML'));
+    await tester.pump();
+    expect(plain, hasLength(1));
+    expect(rich, [
+      {
+        'text': 'Ran `ls`\n\nThere is **one** file.',
+        'html':
+            '<meta charset="utf-8"><p>Ran <code>ls</code></p>\n'
+            '<p>There is <strong>one</strong> file.</p>\n',
+      },
+    ]);
+    expect(find.byTooltip('Copied'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 1300));
+    expect(find.byTooltip('Copy as HTML'), findsOneWidget);
   });
 
   testWidgets('the latest message is edited in place to restart from it '

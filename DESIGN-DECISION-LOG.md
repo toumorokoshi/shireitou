@@ -1,5 +1,20 @@
 # Design Decision Log
 
+## 2026-10-26: Separate markdown and HTML copy buttons (AV-071, AV-076)
+
+"Copy reply" put both the markdown and its HTML on the clipboard, so the
+pasting app chose the format, and a user wanting the markdown in an app
+that reads HTML (or the reverse) could not get it.
+
+- **Two buttons in the footer.** "Copy as markdown" (markdown icon)
+  copies plain text only; "Copy as HTML" (code icon) copies the rendered
+  HTML with the markdown as its plain-text fallback, so it still pastes
+  as something in plain-text fields. A single button with a format menu
+  was rejected: it costs a click on every copy.
+- **Selections unchanged.** A selection still copies both formats with
+  the copy shortcut: the HTML is read from what is on screen and there
+  is no markdown source for a partial selection to offer separately.
+
 ## 2026-10-26: Screenshots in the README and docs
 
 The README and docs had no pictures of the app, and the only renders
