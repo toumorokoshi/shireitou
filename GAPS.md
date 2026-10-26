@@ -62,6 +62,12 @@ AppImage and the release workflow (see
   icons. On a phone the turn rail is always shown over the list's end
   padding. The screenshots are checked by eye; there are no golden
   files, because the PNGs depend on the macOS fonts.
+- **Docs screenshots** (`docs/images`, `just docs-screenshots`): they
+  are re-rendered by hand, so they go stale after UI changes; nothing
+  checks them in CI (they need the macOS fonts). They show no review
+  pane, terminal panel, diff or new-session draft yet. The phone list's
+  title bar reads "test host", the fake connection's host name, and
+  the model chip shows the model's id rather than its name.
 - **Session header and composer (AV-094, AV-096), remaining details:**
   the "+" button is disabled until attachments can be picked (AV-042).
   The "Details" popover (live, from the header's "…" menu) and the

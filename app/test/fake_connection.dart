@@ -52,10 +52,18 @@ class _FixedOpenHosts extends OpenHosts {
 /// A [HostConnection] with fixed state that records dispatched actions.
 /// [connect] adopts [connectResult] (default: [initial]).
 class FakeHostConnection extends HostConnection {
-  FakeHostConnection(this.initial, {String host = '', this.connectResult})
-    : super(host.isEmpty ? testHost.key : host);
+  FakeHostConnection(
+    this.initial, {
+    String host = '',
+    this.connectResult,
+    this.chats = const {},
+  }) : super(host.isEmpty ? testHost.key : host);
 
   final HostState initial;
+
+  /// The default chat [openSession] returns per session (else
+  /// `ahp-chat:/1`).
+  final Map<String, String> chats;
 
   /// The state [connect] ends in.
   final HostState? connectResult;
@@ -100,7 +108,8 @@ class FakeHostConnection extends HostConnection {
   HostState build() => initial;
 
   @override
-  Future<String?> openSession(String session) async => 'ahp-chat:/1';
+  Future<String?> openSession(String session) async =>
+      chats[session] ?? 'ahp-chat:/1';
 
   @override
   void closeSession(String session, String? chat) {}

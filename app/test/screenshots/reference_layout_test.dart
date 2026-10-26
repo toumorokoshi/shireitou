@@ -8,73 +8,21 @@
 library;
 
 import 'dart:io';
-import 'dart:ui' as ui;
 
 import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/material.dart' show Brightness, Offset;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shireitou/src/app.dart';
-import 'package:shireitou/src/prefs.dart';
 import 'package:shireitou/src/theme/appearance.dart';
 import 'package:shireitou/src/theme/themes.dart';
 import 'package:shireitou/src/session_list/pinned_sessions.dart';
 
 import '../fake_connection.dart';
-import '../fixtures.dart';
-
-/// The reference screenshot's size: 3562×2224 pixels at 2× is 1781×1112
-/// points, drawn at 120% zoom (its 13 px text measures 15.6 points), so
-/// the app is rendered at 1484×927 logical pixels with a 1.2 pixel
-/// ratio. The PNG is then half the reference's size, pixel for pixel.
-const _desktop = (size: Size(1781, 1112), pixelRatio: 1.2);
-
-/// A phone in portrait.
-const _phone = (size: Size(390, 844), pixelRatio: 1.0);
-
-const _systemFonts = '/System/Library/Fonts';
+import 'screenshot_harness.dart';
 
 /// Where the PNGs go (git-ignored).
 final _out = Directory('build/screenshots');
-
-/// Loads [path] as the font [families], so text renders with real glyphs.
-Future<void> _loadFont(String path, List<String> families) async {
-  final bytes = File(path).readAsBytesSync();
-  for (final family in families) {
-    final loader = FontLoader(family)
-      ..addFont(Future.value(ByteData.sublistView(bytes)));
-    await loader.load();
-  }
-}
-
-/// Loads the system text and monospace fonts under the names the theme
-/// asks for, the Material icons from the Flutter SDK and the codicons.
-Future<void> _loadFonts() async {
-  await _loadFont('$_systemFonts/SFNS.ttf', [
-    'CupertinoSystemText',
-    'CupertinoSystemDisplay',
-    '.AppleSystemUIFont',
-    'Roboto',
-  ]);
-  await _loadFont('$_systemFonts/SFNSMono.ttf', ['monospace', 'Menlo']);
-  final flutterRoot = Platform.environment['FLUTTER_ROOT']!;
-  await _loadFont(
-    '$flutterRoot/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
-    ['MaterialIcons'],
-  );
-  // The codicons (AppIcons) come with the app's assets.
-  final codicons = await rootBundle.load(
-    'packages/vscode_codicons/assets/codicon.ttf',
-  );
-  await (FontLoader(
-    'packages/vscode_codicons/Codicon',
-  )..addFont(Future.value(codicons))).load();
-}
-
-String _ago(Duration elapsed) =>
-    DateTime.now().toUtc().subtract(elapsed).toIso8601String();
 
 const _home = 'file:///home/yusuke.tsutsumi/git';
 
@@ -89,8 +37,8 @@ SessionSummary _row(
   provider: 'pi',
   title: title,
   status: SessionStatus(status),
-  createdAt: _ago(ago),
-  modifiedAt: _ago(ago),
+  createdAt: timeAgo(ago),
+  modifiedAt: timeAgo(ago),
   workingDirectories: folder == null ? null : ['$_home/$folder'],
   project: folder == null
       ? null
@@ -276,7 +224,7 @@ final _chat = ChatState(
   resource: 'ahp-chat:/1',
   title: 'can you audit my PI history',
   status: const SessionStatus(33),
-  modifiedAt: _ago(const Duration(hours: 14)),
+  modifiedAt: timeAgo(const Duration(hours: 14)),
   turns: [
     for (final id in ['turn-a', 'turn-b']) _earlierTurn(id),
     Turn(
@@ -312,88 +260,59 @@ HostState get _host => HostState(
 /// as a colour theme, AV-097).
 Future<void> _pump(
   WidgetTester tester, {
-  required ({Size size, double pixelRatio}) screen,
+  required Screen screen,
   required Brightness brightness,
   bool open = true,
   Map<String, String> prefs = const {},
-}) async {
-  tester.view.physicalSize = screen.size;
-  tester.view.devicePixelRatio = screen.pixelRatio;
-  tester.platformDispatcher.platformBrightnessTestValue = brightness;
-  addTearDown(tester.view.reset);
-  addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
-  reduceMotion(tester);
-  await tester.pumpWidget(
-    ProviderScope(
-      overrides: [
-        ...hostOverrides(connection: FakeHostConnection(_host)),
-        prefsStoreProvider.overrideWithValue(
-          MemoryPrefsStore({'pinned_sessions': encodePinned(_pins), ...prefs}),
-        ),
-      ],
-      child: const ShireitouApp(),
-    ),
-  );
-  await tester.pumpAndSettle();
-  if (!open) return;
-  await tester.tap(find.textContaining('can you audit my PI history').first);
-  await tester.pumpAndSettle();
-}
+}) => pumpApp(
+  tester,
+  host: _host,
+  screen: screen,
+  brightness: brightness,
+  prefs: {'pinned_sessions': encodePinned(_pins), ...prefs},
+  open: open ? 'can you audit my PI history' : null,
+);
 
-/// Writes the screen to `build/screenshots/[name].png`.
-Future<void> _capture(WidgetTester tester, String name) async {
-  final element = tester.element(find.byType(ShireitouApp));
-  await tester.runAsync(() async {
-    final image = await captureImage(element);
-    final png = await image.toByteData(format: ui.ImageByteFormat.png);
-    _out.createSync(recursive: true);
-    File('${_out.path}/$name.png').writeAsBytesSync(png!.buffer.asUint8List());
-  });
-}
-
-final _macOS = TargetPlatformVariant.only(TargetPlatform.macOS);
-final _iOS = TargetPlatformVariant.only(TargetPlatform.iOS);
+Future<void> _capture(WidgetTester tester, String name) =>
+    capture(tester, _out, name);
 
 void main() {
-  // Elsewhere the text would be boxes.
-  final skip = !Directory(_systemFonts).existsSync();
+  final skip = screenshotSkip;
 
-  setUpAll(() async {
-    if (!skip) await _loadFonts();
-  });
+  setUpAll(loadScreenshotFonts);
   setUp(() => FlutterSecureStorage.setMockInitialValues({}));
 
-  testWidgets('dark, desktop', skip: skip, variant: _macOS, (tester) async {
-    await _pump(tester, screen: _desktop, brightness: Brightness.dark);
+  testWidgets('dark, desktop', skip: skip, variant: macOS, (tester) async {
+    await _pump(tester, screen: desktop, brightness: Brightness.dark);
     await _capture(tester, 'dark');
   });
 
-  testWidgets('light, desktop', skip: skip, variant: _macOS, (tester) async {
-    await _pump(tester, screen: _desktop, brightness: Brightness.light);
+  testWidgets('light, desktop', skip: skip, variant: macOS, (tester) async {
+    await _pump(tester, screen: desktop, brightness: Brightness.light);
     await _capture(tester, 'light');
   });
 
-  testWidgets('dark, phone', skip: skip, variant: _iOS, (tester) async {
-    await _pump(tester, screen: _phone, brightness: Brightness.dark);
+  testWidgets('dark, phone', skip: skip, variant: iOS, (tester) async {
+    await _pump(tester, screen: phone, brightness: Brightness.dark);
     await _capture(tester, 'compact');
   });
 
-  testWidgets('dark, phone, the session list', skip: skip, variant: _iOS, (
+  testWidgets('dark, phone, the session list', skip: skip, variant: iOS, (
     tester,
   ) async {
     await _pump(
       tester,
-      screen: _phone,
+      screen: phone,
       brightness: Brightness.dark,
       open: false,
     );
     await _capture(tester, 'compact-list');
   });
 
-  testWidgets('dark, desktop, a row hovered', skip: skip, variant: _macOS, (
+  testWidgets('dark, desktop, a row hovered', skip: skip, variant: macOS, (
     tester,
   ) async {
-    await _pump(tester, screen: _desktop, brightness: Brightness.dark);
+    await _pump(tester, screen: desktop, brightness: Brightness.dark);
     final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
     addTearDown(mouse.removePointer);
     await mouse.addPointer(location: Offset.zero);
@@ -420,11 +339,11 @@ void main() {
     'solarized-light',
     'catppuccin-latte',
   ]) {
-    testWidgets('$theme, desktop', skip: skip, variant: _macOS, (tester) async {
+    testWidgets('$theme, desktop', skip: skip, variant: macOS, (tester) async {
       final light = themeById(theme, Brightness.light).id == theme;
       await _pump(
         tester,
-        screen: _desktop,
+        screen: desktop,
         brightness: light ? Brightness.light : Brightness.dark,
         prefs: {light ? lightThemeKey : darkThemeKey: theme},
       );
@@ -432,10 +351,10 @@ void main() {
     });
   }
 
-  testWidgets('the Appearance menu', skip: skip, variant: _macOS, (
+  testWidgets('the Appearance menu', skip: skip, variant: macOS, (
     tester,
   ) async {
-    await _pump(tester, screen: _desktop, brightness: Brightness.dark);
+    await _pump(tester, screen: desktop, brightness: Brightness.dark);
     await tester.tap(find.byTooltip('More actions'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Appearance'));

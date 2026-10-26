@@ -6,6 +6,10 @@ The same app runs on phones and tablets, in the compact (phone) and medium
 mobile smoke test on an Android emulator (API 34, x86_64) and an iPhone
 simulator.
 
+| The session list                                      | A session                                         |
+| ----------------------------------------------------- | ------------------------------------------------- |
+| ![The session list on a phone](images/phone-list.png) | ![A session on a phone](images/phone-session.png) |
+
 ## Building
 
 - Android: an Android SDK and JDK 17, then `scripts/package-android` (or

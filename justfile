@@ -45,7 +45,12 @@ fake-host *args:
 # design/reference/agents-window.png. Needs macOS for its system fonts;
 # see docs/testing.md.
 screenshots:
-    cd app && flutter test -t screenshots test/screenshots
+    cd app && flutter test -t screenshots test/screenshots/reference_layout_test.dart
+
+# Re-render the screenshots in the README and docs (made-up sessions) to
+# docs/images/*.png. Needs macOS, like `just screenshots`.
+docs-screenshots:
+    cd app && flutter test -t screenshots test/screenshots/docs_screenshots_test.dart
 
 # Drive the real app against the fake host: approvals, input requests,
 # session-level requests, MCP sign-in, terminals, diffs and review,

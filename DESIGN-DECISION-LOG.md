@@ -1,5 +1,24 @@
 # Design Decision Log
 
+## 2026-10-26: Screenshots in the README and docs
+
+The README and docs had no pictures of the app, and the only renders
+(`just screenshots`) were git-ignored and use fixture data copied from
+a real workspace, which should not go into a public repository.
+
+- **Made-up data, rendered by the widget-test harness.** A second test,
+  `docs_screenshots_test.dart`, pumps the real app on a fake host with
+  invented sessions (`weather-app`, `dotfiles`) and writes to the
+  committed `docs/images/`. Rendering through the widget tests rather
+  than capturing a running app keeps the shots reproducible and needs
+  no host, at the cost of needing the macOS system fonts.
+- **Shared harness.** Font loading, screen sizes, pumping the app and
+  writing PNGs moved to `screenshot_harness.dart`, used by both the
+  reference comparison and the docs shots.
+- **`FakeHostConnection.chats`.** The fake returned `ahp-chat:/1` for
+  every session; an optional map of session to default chat lets one
+  test open several sessions with different chats.
+
 ## 2026-10-26: Rich copy from the timeline (AV-076)
 
 Copying from the timeline only put plain text on the clipboard:

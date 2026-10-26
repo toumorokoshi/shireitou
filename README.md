@@ -51,6 +51,20 @@ with a UX modeled on the GitHub Agents view and Cursor's Agents Window.
 > (Alt+T or Ctrl+\`; desktop apps). Push notifications for a closed app
 > are not built; see [GAPS.md](GAPS.md).
 
+## Screenshots
+
+The sessions and data below are made up (`just docs-screenshots`
+renders them; see [docs/testing.md](docs/testing.md)).
+
+![A finished session: the inbox, the folded steps, a reply with a table and code, and the composer](docs/images/desktop-dark.png)
+
+![A session waiting on a tool approval](docs/images/tool-approval.png)
+
+| Desktop                                                     | Phone                                                      |
+| ----------------------------------------------------------- | ---------------------------------------------------------- |
+| ![The light theme](docs/images/desktop-light.png)           | ![The session list on a phone](docs/images/phone-list.png) |
+| ![The Tokyo Night theme](docs/images/theme-tokyo-night.png) | ![A session on a phone](docs/images/phone-session.png)     |
+
 ## Layout
 
 - [`packages/ahp_client/`](packages/ahp_client/): pure-Dart AHP client (no
@@ -125,6 +139,7 @@ just test-web            # the web build in Chromium with Playwright
 just test-model          # a real model turn through pi (costs tokens)
 just test-desktop linux  # desktop smoke test against pi (see docs/desktop.md)
 just test-mobile <id>    # mobile smoke test on an emulator/simulator (docs/mobile.md)
+just docs-screenshots    # re-render docs/images (macOS; see docs/testing.md)
 just icons               # re-render the app icons (see docs/packaging.md)
 just themes              # regenerate the colour themes (see docs/themes.md)
 just android-keystore <file.jks>   # create the Android release key and its secrets

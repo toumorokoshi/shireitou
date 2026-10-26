@@ -54,6 +54,18 @@ golden files and do not run in CI; the layout they show (row heights,
 the shared column, the hover card's position) is asserted in the widget
 tests.
 
+## Screenshots in the docs
+
+`just docs-screenshots` runs
+`app/test/screenshots/docs_screenshots_test.dart` the same way, but with
+made-up sessions (a `weather-app` and a `dotfiles` folder) and writes to
+`docs/images/`, which is committed and shown in the README and docs:
+`desktop-dark.png`, `desktop-light.png`, `tool-approval.png`,
+`theme-tokyo-night.png`, `phone-session.png` and `phone-list.png`. Both
+tests share `screenshot_harness.dart` (fonts, screen sizes, pumping the
+app, writing PNGs). Re-run it after a visible UI change and commit the
+images; it is not run in CI.
+
 ## pi with the faux model
 
 pi ships a scripted "faux" model provider for its own tests.

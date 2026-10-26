@@ -8,6 +8,8 @@ while it is light, so with **System** it follows the OS and still uses
 your picks. Picking a theme of the other brightness switches the mode to
 it, so the change shows at once. The choices are kept per device.
 
+![The app in Tokyo Night](images/theme-tokyo-night.png)
+
 | Editor      | Dark                                                                                                                                                                         | Light                                                                                      |
 | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | shireitou   | Graphite (the default)                                                                                                                                                       | Graphite (the default)                                                                     |
