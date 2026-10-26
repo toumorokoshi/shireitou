@@ -8,31 +8,69 @@
 ///   as before it even when the point is below it, so a drag starting at
 ///   the left of the text under an indented code block also selects the
 ///   whole block. [ScrollSelection] places such points by row alone.
+///
+/// Copying also puts HTML on the clipboard ([RichSelectionArea]), so
+/// links and formatting survive a paste.
 library;
 
+import 'dart:async';
+import 'dart:math' as math;
+
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+
+import '../clipboard/rich_clipboard.dart';
+import '../clipboard/span_html.dart';
+import 'link_menu.dart';
 
 /// A piece of selected text and where it is on screen.
 typedef SelectedPiece = ({Rect bounds, String text});
 
+/// A piece of selected text, its HTML, and where it is on screen.
+typedef RichPiece = ({Rect bounds, String text, String html});
+
+/// The indexes of the non-empty [pieces] (in reading order), each with
+/// whether it starts a new line: it is below the previous one, which did
+/// not end one.
+List<(int, bool)> _lines(List<SelectedPiece> pieces) {
+  final lines = <(int, bool)>[];
+  for (final (i, piece) in pieces.indexed) {
+    if (piece.text.isEmpty) continue;
+    final previous = lines.isEmpty ? null : pieces[lines.last.$1];
+    lines.add((
+      i,
+      previous != null &&
+          piece.bounds.top >= previous.bounds.bottom - 1 &&
+          !previous.text.endsWith('\n'),
+    ));
+  }
+  return lines;
+}
+
 /// [pieces] (in reading order) as one string: a piece below the previous
 /// one starts a new line, and pieces on the same line (a list's bullet
 /// and its text) are joined as they are.
-String joinSelectedLines(List<SelectedPiece> pieces) {
-  final buffer = StringBuffer();
-  SelectedPiece? previous;
-  for (final piece in pieces) {
-    if (piece.text.isEmpty) continue;
-    if (previous != null &&
-        piece.bounds.top >= previous.bounds.bottom - 1 &&
-        !previous.text.endsWith('\n')) {
-      buffer.write('\n');
-    }
-    buffer.write(piece.text);
-    previous = piece;
+String joinSelectedLines(List<SelectedPiece> pieces) => [
+  for (final (i, newLine) in _lines(pieces))
+    '${newLine ? '\n' : ''}${pieces[i].text}',
+].join();
+
+/// [pieces] joined as [joinSelectedLines] does, and their HTML with a
+/// `<br>` where a line starts (blocks such as `<pre>` start their own).
+({String text, String html}) joinRichPieces(List<RichPiece> pieces) {
+  final plain = [
+    for (final piece in pieces) (bounds: piece.bounds, text: piece.text),
+  ];
+  final html = StringBuffer();
+  var block = false;
+  for (final (i, newLine) in _lines(plain)) {
+    final isBlock = pieces[i].html.startsWith('<pre>');
+    if (newLine && !block && !isBlock) html.write('<br>');
+    html.write(pieces[i].html);
+    block = isBlock;
   }
-  return buffer.toString();
+  return (text: joinSelectedLines(plain), html: html.toString());
 }
 
 /// A selection edge at [local], relative to a box of [size]: above the box
@@ -59,15 +97,199 @@ class LineSelection extends StatefulWidget {
 class _LineSelectionState extends State<LineSelection> {
   final _delegate = _LineSelectionDelegate();
 
+  /// The enclosing [RichSelectionArea]'s rows, which this one joins.
+  Set<_LineSelectionState>? _rows;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final rows = context
+        .getInheritedWidgetOfExactType<_RichSelectionScope>()
+        ?.rows;
+    if (!identical(rows, _rows)) {
+      _rows?.remove(this);
+      _rows = rows?..add(this);
+    }
+  }
+
   @override
   void dispose() {
+    _rows?.remove(this);
     _delegate.dispose();
     super.dispose();
+  }
+
+  /// The selected pieces with their HTML: rich text keeps its links (in
+  /// a [LinkSecondaryTap], whose link spans report their URL to
+  /// [linkHref]) and formatting, other pieces (code) are preformatted.
+  List<RichPiece> richPieces() {
+    final paragraphs = _paragraphs(context);
+    return [
+      for (final selectable in _delegate.selectables)
+        if (selectable.getSelectedContent() case final SelectedContent data)
+          (
+            bounds: _globalBounds(selectable),
+            text: data.plainText,
+            html: _pieceHtml(selectable, data.plainText, paragraphs),
+          ),
+    ];
   }
 
   @override
   Widget build(BuildContext context) =>
       SelectionContainer(delegate: _delegate, child: widget.child);
+}
+
+/// The rich text under [context], each with whether its link spans
+/// report their URL (it is in a [LinkSecondaryTap]).
+List<(RenderParagraph, bool)> _paragraphs(BuildContext context) {
+  final found = <(RenderParagraph, bool)>[];
+  void visit(Element element, bool links) {
+    final hasLinks = links || element.widget is LinkSecondaryTap;
+    if (element case RenderObjectElement(
+      renderObject: final RenderParagraph paragraph,
+    )) {
+      found.add((paragraph, hasLinks));
+    }
+    element.visitChildElements((child) => visit(child, hasLinks));
+  }
+
+  context.visitChildElements((child) => visit(child, false));
+  return found;
+}
+
+/// The HTML of [selectable]'s selected [text]: the spans of its paragraph
+/// when it is one (a fragment of it, or the selection container `Text`
+/// wraps it in, which covers the same box and reports offsets in the
+/// paragraph's text), else a preformatted block.
+String _pieceHtml(
+  Selectable selectable,
+  String text,
+  List<(RenderParagraph, bool)> paragraphs,
+) {
+  final bounds = _globalBounds(selectable);
+  for (final (paragraph, links) in paragraphs) {
+    if (!paragraph.selectableBelongsToParagraph(selectable) &&
+        bounds != _paragraphBounds(paragraph)) {
+      continue;
+    }
+    final range = selectable.getSelection();
+    if (range == null) break;
+    return runsHtml(
+      spanRuns(
+        paragraph.text,
+        math.min(range.startOffset, range.endOffset),
+        math.max(range.startOffset, range.endOffset),
+        hrefOf: links ? _spanHref : null,
+      ),
+    );
+  }
+  return preHtml(text);
+}
+
+Rect? _paragraphBounds(RenderParagraph paragraph) => paragraph.hasSize
+    ? MatrixUtils.transformRect(
+        paragraph.getTransformTo(null),
+        Offset.zero & paragraph.size,
+      )
+    : null;
+
+String? _spanHref(TextSpan span) => switch (span.recognizer) {
+  final TapGestureRecognizer link => linkHref(link),
+  _ => null,
+};
+
+/// A [SelectionArea] whose copy (the shortcut and the context menu) puts
+/// HTML on the clipboard along with the text, so links and formatting
+/// survive a paste. Only the [LineSelection]s in [child] are copied.
+class RichSelectionArea extends StatefulWidget {
+  /// Creates a [RichSelectionArea] around [child].
+  const RichSelectionArea({super.key, required this.child});
+
+  /// The selectable content.
+  final Widget child;
+
+  @override
+  State<RichSelectionArea> createState() => _RichSelectionAreaState();
+}
+
+class _RichSelectionAreaState extends State<RichSelectionArea> {
+  final _rows = <_LineSelectionState>{};
+  final _focus = FocusNode(debugLabel: 'RichSelectionArea');
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
+  }
+
+  Future<void> _copy() async {
+    double top(_LineSelectionState row) => switch (row.context
+        .findRenderObject()) {
+      final RenderBox box when box.hasSize => box.localToGlobal(Offset.zero).dy,
+      _ => 0,
+    };
+    final rows = _rows.toList()..sort((a, b) => top(a).compareTo(top(b)));
+    final pieces = [for (final row in rows) ...row.richPieces()];
+    if (pieces.isEmpty) return;
+    final copied = joinRichPieces(pieces);
+    await setRichClipboard(text: copied.text, html: copied.html);
+  }
+
+  Widget _contextMenu(BuildContext context, SelectableRegionState region) =>
+      AdaptiveTextSelectionToolbar.buttonItems(
+        anchors: region.contextMenuAnchors,
+        buttonItems: [
+          for (final item in region.contextMenuButtonItems)
+            item.type == ContextMenuButtonType.copy
+                ? item.copyWith(
+                    onPressed: () {
+                      unawaited(_copy());
+                      region.hideToolbar();
+                    },
+                  )
+                : item,
+        ],
+      );
+
+  @override
+  Widget build(BuildContext context) => _RichSelectionScope(
+    rows: _rows,
+    child: Actions(
+      actions: {CopySelectionTextIntent: _CopyAction(_focus, _copy)},
+      child: SelectionArea(
+        focusNode: _focus,
+        contextMenuBuilder: _contextMenu,
+        child: widget.child,
+      ),
+    ),
+  );
+}
+
+class _RichSelectionScope extends InheritedWidget {
+  const _RichSelectionScope({required this.rows, required super.child});
+
+  final Set<_LineSelectionState> rows;
+
+  @override
+  bool updateShouldNotify(_RichSelectionScope oldWidget) =>
+      !identical(rows, oldWidget.rows);
+}
+
+/// Overrides the copy shortcut of the selection focused by [focus] with
+/// [copy]; text fields inside it keep their own copy.
+class _CopyAction extends Action<CopySelectionTextIntent> {
+  _CopyAction(this.focus, this.copy);
+
+  final FocusNode focus;
+  final Future<void> Function() copy;
+
+  @override
+  Object? invoke(CopySelectionTextIntent intent) {
+    if (!focus.hasPrimaryFocus) return callingAction?.invoke(intent);
+    unawaited(copy());
+    return null;
+  }
 }
 
 class _LineSelectionDelegate extends StaticSelectionContainerDelegate {

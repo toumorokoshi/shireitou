@@ -1,6 +1,8 @@
 package dev.shireitou.shireitou
 
 import android.content.ActivityNotFoundException
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
 import android.net.Uri
 import io.flutter.embedding.android.FlutterActivity
@@ -45,6 +47,22 @@ class MainActivity : FlutterActivity() {
                     result.error("no_browser", e.message, null)
                 }
             }
+        // Rich copy (lib/src/clipboard/rich_clipboard.dart): `setHtml`
+        // puts `html` and `text` on the clipboard as one clip.
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CLIPBOARD_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                val text = call.argument<String>("text")
+                val html = call.argument<String>("html")
+                if (call.method != "setHtml") {
+                    result.notImplemented()
+                } else if (text == null || html == null) {
+                    result.error("bad_arguments", "no text or html", null)
+                } else {
+                    getSystemService(ClipboardManager::class.java)
+                        .setPrimaryClip(ClipData.newHtmlText(null, text, html))
+                    result.success(null)
+                }
+            }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -75,5 +93,6 @@ class MainActivity : FlutterActivity() {
     private companion object {
         const val APP_SCHEME = "dev.shireitou.shireitou"
         const val WEB_AUTH_CHANNEL = "dev.shireitou.shireitou/web_auth"
+        const val CLIPBOARD_CHANNEL = "dev.shireitou.shireitou/clipboard"
     }
 }

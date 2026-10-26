@@ -1,6 +1,8 @@
 #include "my_application.h"
 
 #include <flutter_linux/flutter_linux.h>
+
+#include <cstring>
 #ifdef GDK_WINDOWING_X11
 #include <gdk/gdkx.h>
 #endif
@@ -10,9 +12,90 @@
 struct _MyApplication {
   GtkApplication parent_instance;
   char** dart_entrypoint_arguments;
+  FlMethodChannel* clipboard_channel;
 };
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
+
+// What the clipboard serves while the app owns it (rich copy).
+typedef struct {
+  gchar* text;
+  gchar* html;
+} RichClip;
+
+enum { kClipText, kClipHtml };
+
+static void rich_clip_get(GtkClipboard* clipboard, GtkSelectionData* data,
+                          guint info, gpointer user_data) {
+  RichClip* clip = static_cast<RichClip*>(user_data);
+  if (info == kClipHtml) {
+    gtk_selection_data_set(data, gdk_atom_intern_static_string("text/html"), 8,
+                           reinterpret_cast<const guchar*>(clip->html),
+                           strlen(clip->html));
+  } else {
+    gtk_selection_data_set_text(data, clip->text, -1);
+  }
+}
+
+static void rich_clip_clear(GtkClipboard* clipboard, gpointer user_data) {
+  RichClip* clip = static_cast<RichClip*>(user_data);
+  g_free(clip->text);
+  g_free(clip->html);
+  g_free(clip);
+}
+
+// Puts |text| and |html| on the clipboard.
+static gboolean set_clipboard_html(const gchar* text, const gchar* html) {
+  static const GtkTargetEntry targets[] = {
+      {const_cast<gchar*>("text/html"), 0, kClipHtml},
+      {const_cast<gchar*>("UTF8_STRING"), 0, kClipText},
+      {const_cast<gchar*>("text/plain;charset=utf-8"), 0, kClipText},
+      {const_cast<gchar*>("text/plain"), 0, kClipText},
+      {const_cast<gchar*>("STRING"), 0, kClipText},
+      {const_cast<gchar*>("TEXT"), 0, kClipText},
+  };
+  RichClip* clip = g_new0(RichClip, 1);
+  clip->text = g_strdup(text);
+  clip->html = g_strdup(html);
+  GtkClipboard* clipboard = gtk_clipboard_get(GDK_SELECTION_CLIPBOARD);
+  if (!gtk_clipboard_set_with_data(clipboard, targets, G_N_ELEMENTS(targets),
+                                   rich_clip_get, rich_clip_clear, clip)) {
+    rich_clip_clear(clipboard, clip);
+    return FALSE;
+  }
+  gtk_clipboard_set_can_store(clipboard, nullptr, 0);
+  return TRUE;
+}
+
+// Rich copy (lib/src/clipboard/rich_clipboard.dart): `setHtml` with
+// `text` and `html` on dev.shireitou.shireitou/clipboard.
+static void clipboard_method_cb(FlMethodChannel* channel,
+                                FlMethodCall* method_call,
+                                gpointer user_data) {
+  g_autoptr(FlMethodResponse) response = nullptr;
+  FlValue* args = fl_method_call_get_args(method_call);
+  FlValue* text = args != nullptr && fl_value_get_type(args) == FL_VALUE_TYPE_MAP
+                      ? fl_value_lookup_string(args, "text")
+                      : nullptr;
+  FlValue* html = args != nullptr && fl_value_get_type(args) == FL_VALUE_TYPE_MAP
+                      ? fl_value_lookup_string(args, "html")
+                      : nullptr;
+  if (g_strcmp0(fl_method_call_get_name(method_call), "setHtml") != 0) {
+    response = FL_METHOD_RESPONSE(fl_method_not_implemented_response_new());
+  } else if (text == nullptr || html == nullptr ||
+             fl_value_get_type(text) != FL_VALUE_TYPE_STRING ||
+             fl_value_get_type(html) != FL_VALUE_TYPE_STRING) {
+    response = FL_METHOD_RESPONSE(fl_method_error_response_new(
+        "bad_arguments", "no text or html", nullptr));
+  } else if (!set_clipboard_html(fl_value_get_string(text),
+                                 fl_value_get_string(html))) {
+    response = FL_METHOD_RESPONSE(fl_method_error_response_new(
+        "clipboard_failed", "could not set the clipboard", nullptr));
+  } else {
+    response = FL_METHOD_RESPONSE(fl_method_success_response_new(nullptr));
+  }
+  fl_method_call_respond(method_call, response, nullptr);
+}
 
 // Called when first Flutter frame received.
 static void first_frame_cb(MyApplication* self, FlView* view) {
@@ -90,6 +173,13 @@ static void my_application_activate(GApplication* application) {
 
   fl_register_plugins(FL_PLUGIN_REGISTRY(view));
 
+  g_autoptr(FlStandardMethodCodec) codec = fl_standard_method_codec_new();
+  self->clipboard_channel = fl_method_channel_new(
+      fl_engine_get_binary_messenger(fl_view_get_engine(view)),
+      "dev.shireitou.shireitou/clipboard", FL_METHOD_CODEC(codec));
+  fl_method_channel_set_method_call_handler(
+      self->clipboard_channel, clipboard_method_cb, nullptr, nullptr);
+
   gtk_widget_grab_focus(GTK_WIDGET(view));
 }
 
@@ -136,6 +226,7 @@ static void my_application_shutdown(GApplication* application) {
 static void my_application_dispose(GObject* object) {
   MyApplication* self = MY_APPLICATION(object);
   g_clear_pointer(&self->dart_entrypoint_arguments, g_strfreev);
+  g_clear_object(&self->clipboard_channel);
   G_OBJECT_CLASS(my_application_parent_class)->dispose(object);
 }
 

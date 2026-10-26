@@ -4,6 +4,7 @@
 library;
 
 import 'package:ahp_client/ahp_client.dart';
+import 'package:markdown/markdown.dart' as md;
 
 import 'timeline_items.dart';
 
@@ -18,6 +19,11 @@ String turnMarkdown(Turn turn) => portableMarkdown(
       .where((block) => block.isNotEmpty)
       .join('\n\n'),
 );
+
+/// [markdown] (GitHub flavored) rendered as an HTML fragment, for the
+/// clipboard's rich copy of [turnMarkdown].
+String markdownHtml(String markdown) =>
+    md.markdownToHtml(markdown, extensionSet: md.ExtensionSet.gitHubFlavored);
 
 String? _partMarkdown(ResponsePart part) => switch (part) {
   MarkdownResponsePart(:final content) => content.trim(),

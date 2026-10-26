@@ -1,5 +1,41 @@
 # Design Decision Log
 
+## 2026-10-26: Rich copy from the timeline (AV-076)
+
+Copying from the timeline only put plain text on the clipboard:
+Flutter's `Clipboard` has no HTML support, and its `SelectionArea`
+copies `SelectedContent.plainText`. A copied link pasted as its label,
+and "Copy reply" pasted raw markdown into apps that do not render it.
+
+- **Own channel, not `super_clipboard`.** `super_clipboard` 0.9 (the
+  usual package for HTML on the clipboard) depends on a `win32` older
+  than `flutter_secure_storage` needs, so it cannot be resolved; pub
+  falls back to a 0.1 release from years ago. `pasteboard` reads HTML
+  but cannot write it. A `setHtml` method channel handled in each
+  runner is small (one call to the platform clipboard), and the web
+  uses `ClipboardItem` directly.
+- **HTML from the rendered spans.** The selection only reports plain
+  text, so the copy walks each row's paragraphs, takes the selected
+  range (`Selectable.getSelection`, which `Text`'s selection container
+  reports in its paragraph's offsets) and converts the spans' styles
+  and links. Reusing the markdown source was rejected: mapping a partial
+  selection back to markdown offsets is not possible from the
+  selection API.
+- **Override, not replace, `SelectionArea`.** The copy shortcut is
+  overridden with an `Actions` above the area (Flutter makes the
+  selection's copy overridable), and only while the area itself has
+  focus, so a text field inside it keeps its own copy; the context
+  menu's "Copy" item is swapped in a `contextMenuBuilder`.
+- **Link URLs from the tap callback.** `flutter_markdown_plus` keeps a
+  link's `href` only in its recognizer's closure, so `linkHref` runs the
+  tap while `followLink` reports instead of opening (the right-click
+  link dialog's workaround, now shared). It is only run for paragraphs
+  inside a markdown body (`LinkSecondaryTap`), so no other tap action
+  fires during a copy.
+- **Plain text unchanged.** The plain-text version is the same text as
+  before, so pastes into terminals and editors do not change; rows are
+  now also separated by a newline.
+
 ## 2026-10-25: A retried turn folds its old error into the steps (AV-067)
 
 After Retry on a resumable error, the red error banner stayed under the

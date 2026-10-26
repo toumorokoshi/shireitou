@@ -16,6 +16,33 @@ import UIKit
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "WebAuthPlugin") {
       WebAuthPlugin.register(with: registrar)
     }
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "RichClipboard") {
+      RichClipboard.register(messenger: registrar.messenger())
+    }
+  }
+}
+
+/// Rich copy (`lib/src/clipboard/rich_clipboard.dart`): `setHtml` on
+/// `dev.shireitou.shireitou/clipboard` puts `html` and `text` on the
+/// general pasteboard as one item.
+enum RichClipboard {
+  static func register(messenger: FlutterBinaryMessenger) {
+    let channel = FlutterMethodChannel(
+      name: "dev.shireitou.shireitou/clipboard", binaryMessenger: messenger)
+    channel.setMethodCallHandler { call, result in
+      guard call.method == "setHtml" else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      guard let args = call.arguments as? [String: Any],
+        let text = args["text"] as? String, let html = args["html"] as? String
+      else {
+        result(FlutterError(code: "bad_arguments", message: "no text or html", details: nil))
+        return
+      }
+      UIPasteboard.general.items = [["public.html": html, "public.utf8-plain-text": text]]
+      result(nil)
+    }
   }
 }
 

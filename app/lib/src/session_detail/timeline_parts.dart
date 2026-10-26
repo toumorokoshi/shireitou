@@ -5,7 +5,6 @@ library;
 import 'dart:async';
 
 import 'package:ahp_client/ahp_client.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 
@@ -423,7 +422,7 @@ MarkdownStyleSheet markdownStyle(ThemeData theme, AppColors colors) {
 /// Assistant markdown (AV-061, AV-095): full width with no bubble. Links
 /// open in the browser; right-clicking one shows it in [showLinkDialog]
 /// (AV-075).
-class MarkdownText extends StatefulWidget {
+class MarkdownText extends StatelessWidget {
   /// Creates a [MarkdownText] for [data].
   const MarkdownText(this.data, {super.key});
 
@@ -431,43 +430,21 @@ class MarkdownText extends StatefulWidget {
   final String data;
 
   @override
-  State<MarkdownText> createState() => _MarkdownTextState();
-}
-
-class _MarkdownTextState extends State<MarkdownText> {
-  /// Whether the next link callback is a right-click rather than a tap.
-  bool _rightClicked = false;
-
-  /// The markdown package only hands a link's `href` to `onTapLink`, so
-  /// a right-click runs the link's tap with [_rightClicked] set.
-  void _onRightClick(TapGestureRecognizer link) {
-    _rightClicked = true;
-    try {
-      link.onTap?.call();
-    } finally {
-      _rightClicked = false;
-    }
-  }
-
-  void _onLink(String? href) {
-    if (href == null) return;
-    if (_rightClicked) {
-      unawaited(showLinkDialog(context, href));
-    } else {
-      openLink(href);
-    }
-  }
-
-  @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 6),
     child: LinkSecondaryTap(
-      onLink: _onRightClick,
+      onLink: (link) {
+        if (linkHref(link) case final href?) {
+          unawaited(showLinkDialog(context, href));
+        }
+      },
       child: MarkdownBody(
-        data: widget.data,
+        data: data,
         styleSheet: markdownStyle(Theme.of(context), AppColors.of(context)),
         builders: {'pre': _codeBlocks},
-        onTapLink: (_, href, _) => _onLink(href),
+        onTapLink: (_, href, _) {
+          if (href != null) followLink(href);
+        },
       ),
     ),
   );
@@ -1303,6 +1280,7 @@ class _TurnFooter extends StatelessWidget {
       children: [
         CopyButton(
           text: () => turnMarkdown(turn),
+          html: markdownHtml,
           tooltip: 'Copy reply',
           iconSize: 14,
         ),

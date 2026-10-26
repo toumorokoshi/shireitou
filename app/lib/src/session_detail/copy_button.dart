@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 
+import '../clipboard/rich_clipboard.dart';
+
 /// An icon button that copies [text] to the clipboard, then shows a check
 /// and "Copied" for [feedback] and announces "Copied to clipboard" to
 /// screen readers (as VS Code's chat copy action does).
@@ -15,6 +17,7 @@ class CopyButton extends StatefulWidget {
   const CopyButton({
     super.key,
     required this.text,
+    this.html,
     this.tooltip = 'Copy',
     this.iconSize = 16,
     this.feedback = const Duration(milliseconds: 1200),
@@ -22,6 +25,10 @@ class CopyButton extends StatefulWidget {
 
   /// The text copied, read when pressed.
   final String Function() text;
+
+  /// The HTML copied along with the text, made from it; null copies only
+  /// the text.
+  final String Function(String text)? html;
 
   /// The tooltip and screen reader label before copying.
   final String tooltip;
@@ -48,7 +55,12 @@ class _CopyButtonState extends State<CopyButton> {
   }
 
   Future<void> _copy() async {
-    await Clipboard.setData(ClipboardData(text: widget.text()));
+    final text = widget.text();
+    if (widget.html case final html?) {
+      await setRichClipboard(text: text, html: html(text));
+    } else {
+      await Clipboard.setData(ClipboardData(text: text));
+    }
     if (!mounted) return;
     _reset?.cancel();
     setState(() {

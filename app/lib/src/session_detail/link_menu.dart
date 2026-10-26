@@ -19,6 +19,34 @@ void openLink(String url) {
   }
 }
 
+/// Receives the URL while [linkHref] reads a link.
+ValueChanged<String>? _readingHref;
+
+/// Opens [url], or hands it to [linkHref] while it reads a link. Link
+/// spans whose recognizer calls this report their URL to [linkHref].
+void followLink(String url) {
+  if (_readingHref case final read?) {
+    read(url);
+  } else {
+    openLink(url);
+  }
+}
+
+/// The URL [link] opens, read by running its tap while [followLink]
+/// reports instead of opening (the markdown package keeps a link's URL
+/// only in its recognizer's tap); null when the tap does not follow a
+/// link.
+String? linkHref(TapGestureRecognizer link) {
+  String? href;
+  _readingHref = (url) => href = url;
+  try {
+    link.onTap?.call();
+  } finally {
+    _readingHref = null;
+  }
+  return href;
+}
+
 /// Shows [url] in a dialog that copies it ("Copy link", then a "Link
 /// copied" snackbar) or opens it ("Open link").
 Future<void> showLinkDialog(BuildContext context, String url) {

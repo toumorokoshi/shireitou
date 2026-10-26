@@ -653,13 +653,27 @@ AppImage and the release workflow (see
 
 ## Selecting text in the timeline (AV-061)
 
-- A selection across several timeline rows (a user message and the
-  reply below it) still joins the rows with nothing between them:
-  `LineSelection` only adds newlines within a row, because the list's
-  own selection delegate (Flutter's scrollable one) concatenates rows.
+- Copying a selection reads only the rows the list has built: a
+  selection dragged past rows scrolled far out of view loses them, as
+  Flutter's own copy does.
 - The selection workarounds in `timeline_selection.dart` should be
   dropped once Flutter fixes nested scroll views' selection edges and
   adds separators between selected widgets.
+
+## Rich copy (AV-076)
+
+- A selection's HTML is read back from the rendered spans, so headings,
+  lists, tables and quotes paste as lines of text (headings and table
+  heads in bold) rather than as their HTML elements; "Copy reply", which
+  renders the markdown, keeps them. Formatting is guessed from styles:
+  weight 600 and up is bold and the `monospace` family is code.
+- The pieces of a selection that are not paragraphs (code blocks, tool
+  output, terminals, diffs) all become `<pre>` blocks.
+- The link dialog's "Copy link" and the code and tool output copy
+  buttons still copy plain text only.
+- The Linux, Windows, Android and iOS runners' `setHtml` handlers are
+  built in CI but have no automated test; the Dart side is tested with
+  a mocked channel.
 
 ## Link dialog (AV-075)
 
@@ -669,8 +683,8 @@ AppImage and the release workflow (see
 - Links in menus (the header's "…" menu's pull request and branch
   items) and the URLs a changeset operation opens by itself are not
   covered.
-- Right-clicking a markdown link runs the link's tap callback with a
-  flag set to learn its `href`, because `flutter_markdown_plus` creates
+- Right-clicking a markdown link (and copying one, AV-076) runs the
+  link's tap callback with a flag set to learn its `href`, because `flutter_markdown_plus` creates
   the link's recognizer privately; a hook in the package for secondary
   taps would remove the workaround.
 

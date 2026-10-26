@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shireitou/src/clipboard/rich_clipboard.dart';
 import 'package:shireitou/src/app.dart';
 import 'package:shireitou/src/prefs.dart';
 import 'package:shireitou/src/theme/app_colors.dart';
@@ -280,12 +281,12 @@ void main() {
     tester,
   ) async {
     String? copied;
+    String? html;
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-      SystemChannels.platform,
+      richClipboardChannel,
       (call) async {
-        if (call.method == 'Clipboard.setData') {
-          copied = (call.arguments as Map)['text'] as String?;
-        }
+        copied = (call.arguments as Map)['text'] as String?;
+        html = (call.arguments as Map)['html'] as String?;
         return null;
       },
     );
@@ -359,6 +360,7 @@ void main() {
       ),
       'Here:\nprint("hi")\nDone.',
     );
+    expect(html, '<meta charset="utf-8">Here:<pre>print("hi")</pre>Done.');
     // The tool call's "Input" and "Output" labels stay out too.
     final output = at('said');
     expect(
@@ -374,12 +376,12 @@ void main() {
     tester,
   ) async {
     String? copied;
+    String? html;
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-      SystemChannels.platform,
+      richClipboardChannel,
       (call) async {
-        if (call.method == 'Clipboard.setData') {
-          copied = (call.arguments as Map)['text'] as String?;
-        }
+        copied = (call.arguments as Map)['text'] as String?;
+        html = (call.arguments as Map)['html'] as String?;
         return null;
       },
     );
@@ -389,6 +391,11 @@ void main() {
     await tester.tap(find.byTooltip('Copy reply'));
     await tester.pump();
     expect(copied, 'Ran `ls`\n\nThere is **one** file.');
+    expect(
+      html,
+      '<meta charset="utf-8"><p>Ran <code>ls</code></p>\n'
+      '<p>There is <strong>one</strong> file.</p>\n',
+    );
     expect(find.byTooltip('Copied'), findsOneWidget);
     expect(find.byIcon(Icons.check), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 1300));

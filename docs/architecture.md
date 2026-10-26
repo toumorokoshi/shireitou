@@ -474,7 +474,7 @@ Dart source); `bin/generate.dart` does the file I/O. See
   with a copy button (`copy_button.dart`, which shows a check and
   "Copied" for 1.2 s); `turn_markdown.dart` (pure) turns a finished
   turn's reply into the markdown its footer's "Copy reply" button copies
-  (AV-071); `link_menu.dart` shows a link's URL in a dialog that
+  (AV-071), with that markdown rendered as HTML for a rich copy; `link_menu.dart` shows a link's URL in a dialog that
   copies or opens it when the link is right-clicked, for markdown links
   (`LinkSecondaryTap`) and link chips and buttons (`LinkContextMenu`)
   (AV-075); `terminal_text.dart` turns terminal output into
@@ -521,6 +521,22 @@ Dart source); `bin/generate.dart` does the file I/O. See
   row alone, as Flutter treats any point left of a nested scroll view as
   before it. Code block labels are kept out with
   `SelectionContainer.disabled`.
+  `RichSelectionArea` (the timeline's `SelectionArea`) makes copying a
+  rich copy (AV-076): it overrides the copy shortcut (only while the
+  selection itself is focused, so text fields keep theirs) and the
+  context menu's "Copy", collects the selected pieces from every
+  `LineSelection` row, and turns each selected paragraph's spans into
+  HTML with `lib/src/clipboard/span_html.dart` (pure: links, bold,
+  italic, code; a markdown link's URL comes from `linkHref` in
+  `link_menu.dart`), other pieces (code) into `<pre>` blocks.
+- `lib/src/clipboard/rich_clipboard.dart` puts HTML and plain text on
+  the clipboard together: `setHtml` on `dev.shireitou.shireitou/clipboard`,
+  handled by the macOS and iOS runners (`NSPasteboard`, `UIPasteboard`),
+  Android (`ClipData.newHtmlText`), Linux (a GTK clipboard with a
+  `text/html` target) and Windows (`CF_UNICODETEXT` plus "HTML Format",
+  whose header `windowsClipboardHtml` writes in Dart), and a
+  `ClipboardItem` on the web (`rich_clipboard_web.dart`). Without a
+  handler, or when the browser refuses, it copies the plain text.
 - `lib/src/session_detail/todo_list.dart` (pure) recognizes todo tools
   (`TodoWrite`, `update_todo`, `manage_todo_list`, `update_plan`) and
   parses their input into a `TodoList`; `latestTodoList` finds the
