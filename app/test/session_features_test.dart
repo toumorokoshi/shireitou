@@ -6,12 +6,14 @@ library;
 import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shireitou/src/clipboard/rich_clipboard.dart';
 import 'package:shireitou/src/app.dart';
+import 'package:shireitou/src/files/file_viewer.dart';
 import 'package:shireitou/src/prefs.dart';
 import 'package:shireitou/src/theme/app_colors.dart';
 import 'package:shireitou/src/review/changes_pane.dart';
@@ -224,6 +226,27 @@ Future<void> _ctrlAlt(WidgetTester tester, LogicalKeyboardKey key) async {
   await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
   await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
   await tester.pumpAndSettle();
+}
+
+/// Taps [text] in the one paragraph [paragraph] finds, a third of the way
+/// in: the middle of an even number of monospace characters is a glyph
+/// boundary, which `tapOnText` can miss.
+Future<void> _tapText(
+  WidgetTester tester,
+  Finder paragraph,
+  String text,
+) async {
+  final box = tester.renderObject<RenderParagraph>(paragraph);
+  final start = box.text.toPlainText().indexOf(text);
+  final rect = box
+      .getBoxesForSelection(
+        TextSelection(baseOffset: start, extentOffset: start + text.length),
+      )
+      .first
+      .toRect();
+  await tester.tapAt(
+    box.localToGlobal(Offset(rect.left + rect.width / 3, rect.center.dy)),
+  );
 }
 
 /// Whether [text] shows near the top of the timeline.
@@ -1129,6 +1152,65 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
     }
     expect(find.byType(DropdownButton<String>), findsOneWidget);
+  });
+
+  group('file paths in replies (AV-106)', () {
+    final reply = _chatWith(const [
+      MarkdownResponsePart(
+        id: 'm',
+        content: 'I fixed the bug in `lib/login.dart:2`.',
+      ),
+    ]);
+    final replyText = find.descendant(
+      of: find.byType(MarkdownText),
+      matching: find.textContaining('I fixed', findRichText: true),
+    );
+
+    testWidgets('open in the wide side pane, relative to the working '
+        'directory, and close back to the changes', (tester) async {
+      reduceMotion(tester);
+      final connection = await _pump(tester, _state(chat: reply));
+      connection.contents['file:///src/app/lib/login.dart'] =
+          'import "x";\nvoid login() {}\n';
+      expect(find.byType(FileViewer), findsNothing);
+
+      await _tapText(tester, replyText, 'lib/login.dart:2');
+      await tester.pumpAndSettle();
+
+      expect(find.byType(FileViewer), findsOneWidget);
+      expect(find.byType(ChangesPane), findsNothing);
+      expect(find.text('lib/login.dart'), findsOneWidget);
+      expect(find.text('L2'), findsOneWidget);
+      expect(
+        find.textContaining('void login()', findRichText: true),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byTooltip('Close file'));
+      await tester.pumpAndSettle();
+      expect(find.byType(FileViewer), findsNothing);
+      expect(find.byType(ChangesPane), findsOneWidget);
+    });
+
+    testWidgets('open on a page of their own on medium layouts', (
+      tester,
+    ) async {
+      final connection = await _pump(
+        tester,
+        _state(chat: reply),
+        size: const Size(1000, 900),
+      );
+      connection.contents['file:///src/app/lib/login.dart'] = 'void a() {}\n';
+
+      await _tapText(tester, replyText, 'lib/login.dart:2');
+      await tester.pumpAndSettle();
+
+      expect(find.byType(FileViewerPage), findsOneWidget);
+      expect(
+        find.textContaining('void a()', findRichText: true),
+        findsOneWidget,
+      );
+    });
   });
 
   testWidgets('session details list directories, customizations and tools', (

@@ -712,3 +712,26 @@ AppImage and the release workflow (see
   view would make the switch seamless.
 - The "Initializing…" timeline shows only the first run's prompt; the
   other parallel runs (AV-045) have no placeholder until they start.
+
+## File viewer (AV-106)
+
+- Only replies (markdown parts) and tool-call titles link their paths.
+  Paths in tool input and output (such as `grep` results), user
+  messages, notes and `resource` response parts stay text.
+- Paths are recognised by shape, so a word with a slash and an
+  extension (`React.js/Vue.js`) becomes a link, and a file the host
+  cannot read shows "Could not open …" in the viewer rather than the
+  link being left out. Checking with `resourceList` or
+  `resourceResolve` before linking would avoid that, at a round trip per
+  path.
+- Windows paths (`C:\src\a.ts`) and `~/` paths are not recognised.
+- The viewer is read-only and shows one file at a time: no tabs, no
+  folder tree (a path to a folder is not linked), no "open in editor"
+  for the file (AV-015 opens the folder), and no rendered view of
+  markdown or images (binary files show a message).
+- Files longer than 200 000 characters are shown without highlighting,
+  and the whole file is laid out at once; a lazily built list of lines
+  would scale to very large files.
+- The fake host serves no `file:` reads, so the viewer is covered by
+  widget tests (with `FakeHostConnection.contents`), not driven end to
+  end.

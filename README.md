@@ -22,7 +22,9 @@ with a UX modeled on the GitHub Agents view and Cursor's Agents Window.
 > requests (also from other chats, with synced drafts) and sign-in
 > prompts (OAuth in the browser with PKCE, or a pasted token; expired
 > tokens are refreshed), reviews changesets (files,
-> diffs, "reviewed" marks, host operations), shows background work,
+> diffs, "reviewed" marks, host operations), opens the file paths a
+> reply prints (relative to the session's folder) in a file viewer in
+> that side pane, shows background work,
 > canvases and session details, and starts new sessions from a draft
 > in the session pane (host, agent,
 > model and its options such as the thinking level, a folder browsed on
