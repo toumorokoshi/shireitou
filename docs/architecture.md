@@ -420,7 +420,8 @@ Dart source); `bin/generate.dart` does the file I/O. See
   `ReviewPaneToggle` right of the header (or Cmd/Ctrl+Alt+B) opens and
   closes the `CollapsibleReviewPane`; whether it is open is
   `reviewPaneOpenProvider` (`review/review_pane_store.dart`), kept with
-  `PrefsStore` and closed by default (AV-003).
+  `PrefsStore` and closed by default (AV-003). Clicking a file path in
+  a reply opens the pane on that file (AV-106, `lib/src/files/`).
   `timeline_items.dart` memoizes each finished turn's rows and the rows
   of a whole `turns` list (the reducer keeps both objects while a turn
   streams), so a delta only rebuilds the active turn's rows;
@@ -584,6 +585,21 @@ Dart source); `bin/generate.dart` does the file I/O. See
   `review_logic.dart` is pure (which changesets to offer, the URI for the
   chosen turn, counts); `changes_pane.dart` lists files with their change
   kind, counts and "reviewed" boxes and runs host operations.
+- `lib/src/files/`: file paths in replies and the file viewer (AV-106).
+  `file_paths.dart` (pure) recognises paths (`src/a.dart:12`,
+  `README.md`, `#L3-L5`), reads link targets (relative paths, `file:`
+  URIs) and resolves them against the session's working directory to a
+  `file:` URI. `file_link_syntax.dart` adds markdown inline syntaxes that
+  link code spans and bare paths (with a `shireitou-file:` target, so a
+  rich copy keeps them as text), and `file_path_text.dart` links the
+  paths in plain text such as tool-call titles. `open_file_store.dart`
+  holds the file open per session (`openFileProvider`) and the
+  `FileLinkScope` through which the session view hands links its
+  `_openFile`; without a scope, paths stay text. `file_viewer.dart`
+  reads the file with `resourceTextProvider` and shows it with line
+  numbers and highlighting, scrolled to and marking the reply's lines:
+  in the review pane instead of "Files changed" on wide layouts (closing
+  it goes back), else on a page of its own.
 - `lib/src/session_title.dart` (pure): `renameAction` builds the
   `session/titleChanged` action for a typed title (null when it is empty
   or unchanged), `sessionTitleOf` picks the title to show (the session

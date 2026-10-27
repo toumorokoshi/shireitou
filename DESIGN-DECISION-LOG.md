@@ -1,5 +1,47 @@
 # Design Decision Log
 
+## 2026-10-26: Opening file paths from replies (AV-106)
+
+Paths an agent printed (`lib/a.dart:12`, a markdown link to
+`docs/guide.md`) were plain text or, for links, handed to the browser,
+which cannot open a path on the host. GitHub's agents view and Cursor
+open them beside the conversation.
+
+- **Linked in the markdown parse.** Two inline syntaxes, tried before
+  the defaults, turn one-backtick code spans whose content is a path
+  and bare paths in prose into links. Doing it in the parser keeps the
+  links in the same spans as the rest of the text (selection, rich copy
+  and the right-click dialog work unchanged) and leaves code blocks and
+  URLs alone. Tool-call titles, plain `Text`, get the same links from
+  `FilePathText`.
+- **Recognised by shape, not checked on the host.** A path needs an
+  extension, a dotfile or a well-known name; a name without folders
+  needs a common extension, so prose such as `e.g.` or `foo.bar` stays
+  text. Asking the host whether each path exists would cost a round
+  trip per path while a reply streams, so a wrong guess shows a read
+  error in the viewer instead.
+- **Resolved against the working directory, read with
+  `resourceRead`.** Relative paths join the session's first working
+  directory (the same folder "Open in VS Code" uses) and become a
+  `file:` URI. `resourceRead` is the protocol's way for a client to read
+  host-side files, and `resourceTextProvider` already reads and caches
+  content with it.
+- **The review pane, not a fourth pane.** On wide layouts the file
+  replaces "Files changed" in the existing right-hand pane (opening it),
+  with a close button back to the changes, so the window keeps three
+  columns and the pane's width and toggle apply. Narrower layouts push a
+  page. Which file is open is kept per session in `openFileProvider`,
+  so switching sessions and back shows it again.
+- **A private link target.** Links the app made use a
+  `shireitou-file:` target. The tap handler opens it in the viewer; the
+  rich copy drops it, so pasting elsewhere gives the text rather than a
+  link that only resolves on the host. Links the agent wrote with a
+  relative target keep it, as in "Copy reply" (AV-071).
+- **`FileLinkScope`.** The session view provides the "open a file"
+  callback through an inherited widget, so the markdown and tool-call
+  widgets need no new parameters and other users of `MarkdownText`
+  (none today) get plain paths.
+
 ## 2026-10-26: Separate markdown and HTML copy buttons (AV-071, AV-076)
 
 "Copy reply" put both the markdown and its HTML on the clipboard, so the
@@ -14,6 +56,8 @@ that reads HTML (or the reverse) could not get it.
 - **Selections unchanged.** A selection still copies both formats with
   the copy shortcut: the HTML is read from what is on screen and there
   is no markdown source for a partial selection to offer separately.
+
+||||||| parent of f8623ce (feat(app): open file paths from replies in a file viewer (AV-106))
 
 ## 2026-10-26: Screenshots in the README and docs
 

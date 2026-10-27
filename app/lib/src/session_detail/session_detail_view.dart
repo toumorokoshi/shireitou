@@ -36,6 +36,9 @@ import '../hosts/open_hosts.dart';
 import '../editor/editor_store.dart';
 import '../editor/editor_target.dart';
 import '../editor/open_in_editor.dart';
+import '../files/file_paths.dart';
+import '../files/file_viewer.dart';
+import '../files/open_file_store.dart';
 import '../terminal/terminal_panel.dart';
 import 'chat_commands.dart';
 import '../composer/completion_popup.dart';
@@ -196,6 +199,33 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
   void _forgetAnswer(String id) {
     _answered.remove(id);
     _answerTimers.remove(id)?.cancel();
+  }
+
+  /// Opens the file a reply names (AV-106), relative to the session's
+  /// working directory: in the side pane on wide layouts (opening the
+  /// pane), else on a page of its own.
+  void _openFile(FileReference file) {
+    final summary = ref
+        .read(hostConnectionProvider(context.host))
+        .sessions[widget.session];
+    final opened = openedFileOf(file, root: sessionDirectory(summary));
+    if (opened == null) {
+      _showMessage(
+        'Cannot open ${file.path}: the session has no working directory.',
+      );
+      return;
+    }
+    if (!widget.reviewAsPane) {
+      unawaited(openFilePage(context, opened));
+      return;
+    }
+    ref
+        .read(
+          openFileProvider((host: context.host, session: widget.session))
+              .notifier,
+        )
+        .open(opened);
+    unawaited(ref.read(reviewPaneOpenProvider.notifier).set(true));
   }
 
   /// Sends [action], answering [entry] from the "Waiting for you" panel,
@@ -737,19 +767,24 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
         null => null,
       },
     );
-    final conversationWithTerminal = switch (openHost) {
-      final host? => TerminalDock(
-        hostKey: host.key,
-        onNewTerminal: () => unawaited(
-          openNewTerminal(context, ref, host, directory: directory),
+    final conversationWithTerminal = FileLinkScope(
+      onOpen: _openFile,
+      child: switch (openHost) {
+        final host? => TerminalDock(
+          hostKey: host.key,
+          onNewTerminal: () => unawaited(
+            openNewTerminal(context, ref, host, directory: directory),
+          ),
+          child: conversation,
         ),
-        child: conversation,
-      ),
-      null => conversation,
-    };
+        null => conversation,
+      },
+    );
     if (widget.reviewAsPane) {
       final open = ref.watch(reviewPaneOpenProvider);
       final reviewWidth = ref.watch(reviewPaneWidthProvider);
+      final openFile = openFileProvider(sessionRef);
+      final file = ref.watch(openFile);
       return LayoutBuilder(
         builder: (context, constraints) => Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -782,7 +817,13 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
                   ref.read(reviewPaneWidthProvider.notifier).reset(),
                 ),
               ),
-              child: review,
+              child: file == null
+                  ? review
+                  : FileViewer(
+                      key: ValueKey(file),
+                      file: file,
+                      onClose: ref.read(openFile.notifier).close,
+                    ),
             ),
           ],
         ),

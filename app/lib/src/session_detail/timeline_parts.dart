@@ -9,6 +9,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 
 import '../auth/sign_in_dialog.dart';
+import '../files/file_link_syntax.dart';
+import '../files/file_path_text.dart';
+import '../files/open_file_store.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_icons.dart';
 import 'approval_bar.dart';
@@ -421,7 +424,8 @@ MarkdownStyleSheet markdownStyle(ThemeData theme, AppColors colors) {
 
 /// Assistant markdown (AV-061, AV-095): full width with no bubble. Links
 /// open in the browser; right-clicking one shows it in [showLinkDialog]
-/// (AV-075).
+/// (AV-075). Below a [FileLinkScope], file paths (links to files, code
+/// spans and bare paths) are links that open the file (AV-106).
 class MarkdownText extends StatelessWidget {
   /// Creates a [MarkdownText] for [data].
   const MarkdownText(this.data, {super.key});
@@ -430,24 +434,28 @@ class MarkdownText extends StatelessWidget {
   final String data;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 6),
-    child: LinkSecondaryTap(
-      onLink: (link) {
-        if (linkHref(link) case final href?) {
-          unawaited(showLinkDialog(context, href));
-        }
-      },
-      child: MarkdownBody(
-        data: data,
-        styleSheet: markdownStyle(Theme.of(context), AppColors.of(context)),
-        builders: {'pre': _codeBlocks},
-        onTapLink: (_, href, _) {
-          if (href != null) followLink(href);
+  Widget build(BuildContext context) {
+    final openFile = FileLinkScope.maybeOf(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: LinkSecondaryTap(
+        onLink: (link) {
+          if (linkHref(link) case final href?) {
+            unawaited(showLinkDialog(context, href));
+          }
         },
+        child: MarkdownBody(
+          data: data,
+          styleSheet: markdownStyle(Theme.of(context), AppColors.of(context)),
+          builders: {'pre': _codeBlocks},
+          inlineSyntaxes: openFile == null ? null : fileLinkSyntaxes,
+          onTapLink: (_, href, _) {
+            if (href != null) followLink(href, openFile: openFile);
+          },
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 /// "Jump to latest" (AV-066, AV-095): a small round button with ↓ at the
@@ -665,7 +673,7 @@ class ToolCallCard extends StatelessWidget {
           ExpansionTile(
             dense: true,
             leading: Icon(toolIcon(toolCall.toolName)),
-            title: Text(
+            title: FilePathText(
               toolCallSummary(toolCall),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,

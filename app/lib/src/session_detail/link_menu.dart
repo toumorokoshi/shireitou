@@ -11,6 +11,9 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../files/file_paths.dart';
+import '../files/open_file_store.dart';
+
 /// Opens [url] in the browser, or does nothing when it does not parse.
 void openLink(String url) {
   final uri = Uri.tryParse(url);
@@ -23,14 +26,25 @@ void openLink(String url) {
 ValueChanged<String>? _readingHref;
 
 /// Opens [url], or hands it to [linkHref] while it reads a link. Link
-/// spans whose recognizer calls this report their URL to [linkHref].
-void followLink(String url) {
+/// spans whose recognizer calls this report their URL to [linkHref]. With
+/// [openFile], a link to a file ([fileReferenceOfHref]) opens it in the
+/// file viewer (AV-106); `#anchors` do nothing.
+void followLink(String url, {OpenFile? openFile}) {
   if (_readingHref case final read?) {
     read(url);
-  } else {
+  } else if (openFile != null && fileReferenceOfHref(url) != null) {
+    openFile(fileReferenceOfHref(url)!);
+  } else if (!url.trim().startsWith('#')) {
     openLink(url);
   }
 }
+
+/// The text a link to [url] shows in [showLinkDialog] and copies: the
+/// path of a link the app made for a file path ([filePathHref]), else
+/// [url].
+String linkText(String url) => url.startsWith(filePathHrefPrefix)
+    ? url.substring(filePathHrefPrefix.length)
+    : url;
 
 /// The URL [link] opens, read by running its tap while [followLink]
 /// reports instead of opening (the markdown package keeps a link's URL
@@ -48,16 +62,20 @@ String? linkHref(TapGestureRecognizer link) {
 }
 
 /// Shows [url] in a dialog that copies it ("Copy link", then a "Link
-/// copied" snackbar) or opens it ("Open link").
+/// copied" snackbar) or opens it ("Open link"). A link to a file, below a
+/// [FileLinkScope], shows its path with "Copy path" and "Open file".
 Future<void> showLinkDialog(BuildContext context, String url) {
   final messenger = ScaffoldMessenger.maybeOf(context);
+  final openFile = FileLinkScope.maybeOf(context);
+  final file = openFile != null && fileReferenceOfHref(url) != null;
+  final text = linkText(url);
   return showDialog<void>(
     context: context,
     builder: (context) => AlertDialog(
-      title: const Text('Link'),
+      title: Text(file ? 'File' : 'Link'),
       content: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 480),
-        child: SelectableText(url),
+        child: SelectableText(text),
       ),
       actions: [
         TextButton(
@@ -67,20 +85,20 @@ Future<void> showLinkDialog(BuildContext context, String url) {
         TextButton(
           onPressed: () {
             Navigator.of(context).pop();
-            openLink(url);
+            followLink(url, openFile: openFile);
           },
-          child: const Text('Open link'),
+          child: Text(file ? 'Open file' : 'Open link'),
         ),
         FilledButton(
           autofocus: true,
           onPressed: () async {
             Navigator.of(context).pop();
-            await Clipboard.setData(ClipboardData(text: url));
+            await Clipboard.setData(ClipboardData(text: text));
             messenger?.showSnackBar(
-              const SnackBar(content: Text('Link copied')),
+              SnackBar(content: Text(file ? 'Path copied' : 'Link copied')),
             );
           },
-          child: const Text('Copy link'),
+          child: Text(file ? 'Copy path' : 'Copy link'),
         ),
       ],
     ),
