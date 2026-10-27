@@ -113,6 +113,12 @@ abstract final class AppIcons {
   /// Sends the message now, steering the running turn.
   static const IconData sendNow = Codicons.zap;
 
+  /// Starts dictation into the composer (AV-047).
+  static const IconData dictate = Codicons.mic;
+
+  /// Dictation is listening; stops it.
+  static const IconData dictating = Codicons.micFilled;
+
   /// Edit the latest message and restart from it (AV-088).
   static const IconData edit = Codicons.edit;
 

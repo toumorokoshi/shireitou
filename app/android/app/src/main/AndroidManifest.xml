@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- WebSocket connections to hosts, and the in-process test hosts. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Dictation (AV-047). -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <!-- Hosts on a LAN or localhost are usually plain ws:// (see
          docs/mobile.md), so cleartext traffic is allowed. Backups are off:
          saved hosts are encrypted with a Keystore key that a restore

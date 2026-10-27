@@ -47,6 +47,8 @@ import '../composer/composer_action_button.dart';
 import '../composer/composer_labels.dart';
 import '../composer/config_fields.dart';
 import '../composer/message_history.dart';
+import '../dictation/dictation.dart';
+import '../dictation/dictation_button.dart';
 import 'chat_switcher.dart';
 import 'editable_title.dart';
 import 'link_menu.dart';
@@ -602,6 +604,7 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
                       FollowUpInput(
                         key: ValueKey(chatUri),
                         focusRequests: _composerFocus,
+                        dictation: ref.watch(dictationProvider),
                         working: chat.activeTurn != null,
                         hintText: composerPlaceholder(
                           agent: provider == null
@@ -1612,7 +1615,12 @@ class FollowUpInput extends StatefulWidget {
     this.onStop,
     this.history = const [],
     this.onEditQueued,
+    this.dictation,
   });
+
+  /// Speech to text for the microphone button; no button when null
+  /// (AV-047).
+  final Dictation? dictation;
 
   /// The texts of the messages sent in the chat, oldest first, which ↑
   /// and ↓ recall (see `sentMessages`).
@@ -1704,6 +1712,9 @@ class _FollowUpInputState extends State<FollowUpInput> {
   /// The index in [FollowUpInput.history] of the message recalled into the
   /// box, while the box still holds it unchanged.
   int? _recalled;
+
+  /// Whether dictation is listening, for the placeholder.
+  var _listening = false;
 
   @override
   void initState() {
@@ -1912,6 +1923,14 @@ class _FollowUpInputState extends State<FollowUpInput> {
                           ),
                         ),
                       ),
+                      if (widget.dictation case final dictation?)
+                        DictationButton(
+                          dictation: dictation,
+                          controller: _text,
+                          focusNode: _focus,
+                          onListeningChanged: (on) =>
+                              setState(() => _listening = on),
+                        ),
                       ListenableBuilder(
                         listenable: _text,
                         builder: (context, _) => _sendButtons(),
@@ -1977,7 +1996,9 @@ class _FollowUpInputState extends State<FollowUpInput> {
     // enabled and focused borders would draw a second one inside it.
     decoration:
         InputDecoration.collapsed(
-          hintText: widget.hintText ?? composerPlaceholder(),
+          hintText: _listening
+              ? 'Listening…'
+              : widget.hintText ?? composerPlaceholder(),
           hintStyle: Theme.of(context).textTheme.bodyMedium
               ?.copyWith(color: AppColors.of(context).mutedText),
         ).copyWith(

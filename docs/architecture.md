@@ -250,6 +250,17 @@ Dart source); `bin/generate.dart` does the file I/O. See
   import); `terminal_session.dart` wires an xterm `Terminal` to `ssh` and
   holds the open terminals per host; `terminal_panel.dart` is the panel,
   `TerminalDock` and the actions. See [terminal.md](terminal.md).
+- `lib/src/dictation/`: dictation into the composer (AV-047).
+  `dictation_text.dart` is pure (the `Transcript`, `DictationAnchor`
+  writing it at the caret, `cleanTranscript`, `decodePcm16`), as is
+  `live_transcriber.dart` (guesses and finished utterances from a VAD and
+  a batch transcriber); `speech_model.dart` names the model files and
+  `model_store.dart` downloads them. `dictation.dart` is the interface
+  and `dictationProvider` (`dictation_io.dart` on native platforms,
+  `dictation_web.dart`, none, on the web); `dictation_session.dart`
+  queues microphone audio for the engine; `whisper_worker.dart` runs
+  sherpa-onnx in an isolate; `dictation_button.dart` is the button,
+  given to `FollowUpInput`. See [dictation.md](dictation.md).
 - `lib/src/composer/`: `config_fields.dart` is pure: a model's
   `configSchema` and a session config schema become `ConfigField`s, with
   `configValues`, `modelSelection`, `isPickerField` and

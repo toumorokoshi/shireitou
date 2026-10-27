@@ -636,6 +636,33 @@ AppImage and the release workflow (see
   [specs/agent-host-protocol-client.md](specs/agent-host-protocol-client.md)
   not listed as done in their status sections.
 
+## Dictation (AV-047)
+
+- Not driven end to end with a microphone: the real model runs on a
+  recorded sentence (`just test-whisper`, not in CI because of the
+  161 MB download), and the button on fakes. Microphone capture
+  (`record`) and the permission prompts are only checked by hand.
+- No dictation in the web app. Whisper would have to run in WebAssembly
+  (sherpa-onnx has a WASM build, but the model is fetched per origin and
+  WebGPU or WASM decoding is slower), and the browser's Web Speech API
+  sends audio to a server, against "on the device".
+- One model, Whisper base.en: English only. A setting for other models
+  (tiny.en for slow machines, small or the multilingual models, and the
+  language) is not built; `SpeechModel` describes any sherpa-onnx Whisper
+  export.
+- The model is checked by size, not by hash.
+- Each dictation loads the model again in a new isolate (about a second;
+  audio is kept meanwhile). Keeping the isolate warm between dictations
+  would start faster, at the cost of holding the model in memory.
+- The current guess looks like the rest of the text; the reference
+  editors show it dimmed until it is final.
+- No keyboard shortcut (Cursor uses a hold-to-talk key) and no level
+  meter or waveform while listening.
+- A download cannot be cancelled once started (closing the app stops it;
+  the `.part` file is replaced next time).
+- Typing during dictation stops it, rather than dictating around the
+  edit.
+
 ## Appearance (AV-097)
 
 - The "Appearance" submenu is only in the sidebar's "…" menu, so it

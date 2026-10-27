@@ -33,12 +33,18 @@ test:
     cd packages/ahp_client && dart test -x integration
     cd packages/ahp_fake_host && dart test -x integration
     cd packages/flutter_pty && dart test
-    cd app && flutter test -x screenshots
+    cd app && flutter test -x screenshots -x whisper
 
 # Run the scripted fake AHP host (asks for approvals, input and sign-in;
 # see packages/ahp_fake_host). Pass `--port N`, `--token T` or `--no-token`.
 fake-host *args:
     cd packages/ahp_fake_host && dart run ahp_fake_host {{args}}
+
+# Transcribe a recorded sentence with the real Whisper model through the
+# dictation worker (macOS or Linux). Downloads the model (~160 MB) into
+# SHIREITOU_SPEECH_MODELS, or the temp folder, on first run.
+test-whisper:
+    cd app && flutter test -t whisper test/dictation_whisper_test.dart
 
 # Render the sessions screen (dark, light, phone, a hovered row) to
 # app/build/screenshots/*.png to compare with

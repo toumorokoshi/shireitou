@@ -2,3 +2,6 @@ tags:
   # Renders PNGs of the app to compare with the reference UI; run with
   # `just screenshots` (docs/testing.md).
   screenshots:
+  # Real Whisper on a recorded sentence; downloads the model (~160 MB).
+  # Run with `just test-whisper` (docs/dictation.md).
+  whisper:
