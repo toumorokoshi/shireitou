@@ -1,5 +1,4 @@
 import 'package:ahp_client/ahp_client.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shireitou/src/session_detail/timeline_items.dart';
 import 'package:shireitou/src/session_detail/turn_markers.dart';
@@ -88,28 +87,5 @@ void main() {
     expect(turnRailScrollOffset(3, 4, 10, 100), 0);
     expect(turnRailScrollOffset(50, 100, 4, 100), 152);
     expect(turnRailScrollOffset(99, 100, 4, 100), 300);
-  });
-
-  test('the rail shows near the right edge, on touch and compact layouts', () {
-    expect(nearRightEdge(990, 1000), isTrue);
-    expect(nearRightEdge(900, 1000), isFalse);
-    expect(isTouchPlatform(TargetPlatform.iOS), isTrue);
-    expect(isTouchPlatform(TargetPlatform.macOS), isFalse);
-    expect(
-      turnRailVisible(hovered: false, touch: false, compact: false),
-      isFalse,
-    );
-    expect(
-      turnRailVisible(hovered: true, touch: false, compact: false),
-      isTrue,
-    );
-    expect(
-      turnRailVisible(hovered: false, touch: true, compact: false),
-      isTrue,
-    );
-    expect(
-      turnRailVisible(hovered: false, touch: false, compact: true),
-      isTrue,
-    );
   });
 }

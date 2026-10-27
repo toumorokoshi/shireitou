@@ -6,7 +6,6 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:ahp_client/ahp_client.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -1285,14 +1284,6 @@ class _TimelineState extends ConsumerState<_Timeline> {
   /// because the list disposes rows scrolled out of view.
   final _expandedSteps = <String>{};
 
-  /// Whether the pointer is near the right edge or over the turn rail,
-  /// which shows the rail on pointer layouts (AV-074).
-  bool _railHovered = false;
-
-  /// Whether the last pointer down was a touch, which keeps the rail
-  /// visible (there is no hover to reveal it).
-  bool _touched = false;
-
   /// The index of the turn in view (AV-074).
   int? _currentTurn;
   StreamSubscription<AppCommand>? _commands;
@@ -1500,64 +1491,28 @@ class _TimelineState extends ConsumerState<_Timeline> {
     final current = _currentTurn;
     final compact =
         layoutTierFor(MediaQuery.sizeOf(context).width) == LayoutTier.compact;
-    final visible = turnRailVisible(
-      hovered: _railHovered,
-      touch: _touched || isTouchPlatform(Theme.of(context).platform),
-      compact: compact,
-    );
-    return LayoutBuilder(
-      builder: (context, constraints) => Listener(
-        onPointerDown: (event) {
-          final touch = event.kind == PointerDeviceKind.touch;
-          if (touch != _touched) setState(() => _touched = touch);
-        },
-        child: MouseRegion(
-          onHover: (event) {
-            final near = nearRightEdge(
-              event.localPosition.dx,
-              constraints.maxWidth,
-            );
-            if (near != _railHovered) setState(() => _railHovered = near);
-          },
-          onExit: (_) {
-            if (_railHovered) setState(() => _railHovered = false);
-          },
-          // The rail floats over the list's end padding, so the list
-          // keeps the composer's width and the two stay aligned.
-          child: Stack(
-            children: [
-              list,
-              PositionedDirectional(
-                top: 0,
-                bottom: 0,
-                end: 0,
-                child: AnimatedOpacity(
-                  opacity: visible ? 1 : 0,
-                  duration: MediaQuery.disableAnimationsOf(context)
-                      ? Duration.zero
-                      : const Duration(milliseconds: 150),
-                  // Screen readers reach the rail while it is hidden.
-                  alwaysIncludeSemantics: true,
-                  child: IgnorePointer(
-                    ignoring: !visible,
-                    child: TurnRail(
-                      markers: markers,
-                      current: current != null && current < markers.length
-                          ? current
-                          : null,
-                      onSelect: (index) => _jumpTo(markers[index]),
-                      onLoadOlder: widget.chat.turnsNextCursor == null
-                          ? null
-                          : () => unawaited(_loadOlderAndJump()),
-                      compact: compact,
-                    ),
-                  ),
-                ),
-              ),
-            ],
+    // The rail floats over the list's left padding, so the list keeps the
+    // composer's width and the two stay aligned.
+    return Stack(
+      children: [
+        list,
+        Positioned(
+          top: 0,
+          bottom: 0,
+          left: 0,
+          child: TurnRail(
+            markers: markers,
+            current: current != null && current < markers.length
+                ? current
+                : null,
+            onSelect: (index) => _jumpTo(markers[index]),
+            onLoadOlder: widget.chat.turnsNextCursor == null
+                ? null
+                : () => unawaited(_loadOlderAndJump()),
+            compact: compact,
           ),
         ),
-      ),
+      ],
     );
   }
 }

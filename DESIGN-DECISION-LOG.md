@@ -1,5 +1,17 @@
 # Design Decision Log
 
+## 2026-10-27: The turn rail is always shown, on the left (AV-074)
+
+The turn rail sat on the timeline's right edge, on top of the list's
+scrollbar, so reaching for one often hit the other. With a pointer it
+also only faded in near that edge, so the turns were not discoverable.
+
+- **Left, not start.** The rail is placed with `left`, not
+  `PositionedDirectional`'s `start`, because the scrollbar it avoids is on
+  the right in every text direction.
+- **Always shown.** The hover reveal (`nearRightEdge`, `turnRailVisible`,
+  `isTouchPlatform`) is gone; the rail is drawn on every layout and input.
+
 ## 2026-10-27: Picking the model in the first download's dialog (AV-047)
 
 The first press of the microphone asked to download whichever model was

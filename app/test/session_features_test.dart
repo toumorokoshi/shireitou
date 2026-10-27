@@ -1322,34 +1322,23 @@ void main() {
   });
 
   testWidgets(
-    'with a pointer the rail shows only near the right edge (AV-074)',
+    'with a pointer the rail is always shown on the left (AV-074)',
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
     (tester) async {
       final semantics = tester.ensureSemantics();
-      reduceMotion(tester);
       await _pump(tester, _state(chat: _longChat(12)));
-      double opacity() => tester
-          .widget<AnimatedOpacity>(
-            find.ancestor(
-              of: find.byType(TurnRail),
-              matching: find.byType(AnimatedOpacity),
-            ),
-          )
-          .opacity;
-      expect(opacity(), 0);
-      // Screen readers still reach the hidden rail.
+      expect(
+        find.ancestor(
+          of: find.byType(TurnRail),
+          matching: find.byType(AnimatedOpacity),
+        ),
+        findsNothing,
+      );
       expect(find.bySemanticsLabel('Turn 1: Question 0'), findsOneWidget);
       expect(tester.getSize(find.byType(TurnRail)).width, 16);
       final list = tester.getRect(find.byType(SuperListView));
-      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
-      addTearDown(mouse.removePointer);
-      await mouse.addPointer(location: list.center);
-      await mouse.moveTo(Offset(list.right - 8, list.center.dy));
-      await tester.pumpAndSettle();
-      expect(opacity(), 1);
-      await mouse.moveTo(list.center);
-      await tester.pumpAndSettle();
-      expect(opacity(), 0);
+      // Clear of the scrollbar on the right.
+      expect(tester.getTopLeft(find.byType(TurnRail)).dx, list.left);
       semantics.dispose();
     },
   );

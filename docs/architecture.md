@@ -476,12 +476,9 @@ Dart source); `bin/generate.dart` does the file I/O. See
   after each layout. `turn_markers.dart` is pure: `turnMarkers` lists one
   marker per user turn (row, first line, done/cancelled/error/running),
   `currentTurn` and `steppedTurn` pick the turn in view and the one a
-  step away from the oldest row on screen, `turnRailLayout` spaces
-  the dots, and `turnRailVisible` shows the rail on compact layouts and
-  touch input, else only while the pointer is within 64 px of the
-  timeline's right edge. `turn_rail.dart` draws the 16 px `TurnRail`
-  beside the list (AV-074), faded in and out (instantly with reduced
-  motion) and kept in the semantics tree while hidden; the timeline jumps to a marker's row with alignment 1 (the
+  step away from the oldest row on screen, and `turnRailLayout` spaces
+  the dots. `turn_rail.dart` draws the 16 px `TurnRail`, always shown,
+  on the list's left side, clear of the scrollbar (AV-074); the timeline jumps to a marker's row with alignment 1 (the
   top of the reversed list), and pages older turns in first when the
   user steps back past the oldest loaded one.
   `approval_bar.dart` is the bar under a waiting tool call: Approve/Deny

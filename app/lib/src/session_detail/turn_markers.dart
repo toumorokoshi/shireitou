@@ -4,7 +4,6 @@
 library;
 
 import 'package:ahp_client/ahp_client.dart';
-import 'package:flutter/foundation.dart';
 
 import 'timeline_items.dart';
 
@@ -156,25 +155,3 @@ double turnRailScrollOffset(
   if (max <= 0) return 0;
   return ((index + 0.5) * spacing - height / 2).clamp(0, max);
 }
-
-/// How close to the timeline's right edge, in logical pixels, the pointer
-/// reveals the rail.
-const turnRailHoverZone = 64.0;
-
-/// Whether a pointer at [dx] is within [turnRailHoverZone] of the right
-/// edge of a timeline [width] wide.
-bool nearRightEdge(double dx, double width) => dx >= width - turnRailHoverZone;
-
-/// Whether [platform] is a phone or tablet one, where there is no hover.
-bool isTouchPlatform(TargetPlatform platform) =>
-    platform == TargetPlatform.android ||
-    platform == TargetPlatform.iOS ||
-    platform == TargetPlatform.fuchsia;
-
-/// Whether the rail shows (AV-074): always on [compact] layouts and for
-/// [touch] input, else only while the pointer is near it ([hovered]).
-bool turnRailVisible({
-  required bool hovered,
-  required bool touch,
-  required bool compact,
-}) => hovered || touch || compact;

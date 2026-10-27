@@ -59,8 +59,8 @@ AppImage and the release workflow (see
   the timeline's cards, the review pane's actions and the phone page's
   back button are still Material icons. The title bar has the review
   pane toggle and the bell, not the reference's remote and account
-  icons. On a phone the turn rail is always shown over the list's end
-  padding. The screenshots are checked by eye; there are no golden
+  icons. The turn rail is always shown over the list's left padding, where
+  the reference shows it on hover. The screenshots are checked by eye; there are no golden
   files, because the PNGs depend on the macOS fonts.
 - **Docs screenshots** (`docs/images`, `just docs-screenshots`): they
   are re-rendered by hand, so they go stale after UI changes; nothing
@@ -118,7 +118,7 @@ AppImage and the release workflow (see
   only. Failed tool calls fold into the steps line with a "N failed"
   count instead of staying in view. Steps rows remember being expanded
   only while the timeline is open. Bubbles show only the
-  message text (no attachments). The rail shows on hover but has no
+  message text (no attachments). The rail has no
   keyboard focus of its own; the Cmd/Ctrl+Alt+↑/↓ shortcuts and the
   screen reader buttons are the non-pointer ways in.
 - **Open in VS Code (AV-015), remaining details:** the `vscode://`
