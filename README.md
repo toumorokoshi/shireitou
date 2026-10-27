@@ -111,8 +111,9 @@ so one `flutter pub get` at the root resolves every package.
   folder in VS Code (editor settings, the Remote - SSH URLs).
 - [docs/terminal.md](docs/terminal.md): the terminal panel (the `ssh`
   command, `~/.ssh/config`, the vendored pty).
-- [docs/dictation.md](docs/dictation.md): dictation with Whisper on the
-  device (how live text works, the model download, platforms).
+- [docs/dictation.md](docs/dictation.md): dictation with Whisper or
+  Parakeet on the device (the models, how live text works, the model
+  download, platforms).
 - [docs/packaging.md](docs/packaging.md): packages, the app icon, the
   release workflow and the signing secrets it uses.
 - [specs/agents-view.md](specs/agents-view.md): UI and feature requirements.
@@ -143,7 +144,7 @@ just pi-faux-host        # run pi with its scripted faux model (prints its URL)
 just test-pi-app linux   # drive the app against pi with the faux model
 just test-web            # the web build in Chromium with Playwright
 just test-model          # a real model turn through pi (costs tokens)
-just test-whisper        # dictation with the real Whisper model (downloads it)
+just test-whisper        # dictation with each real speech model (downloads them)
 just test-desktop linux  # desktop smoke test against pi (see docs/desktop.md)
 just test-mobile <id>    # mobile smoke test on an emulator/simulator (docs/mobile.md)
 just docs-screenshots    # re-render docs/images (macOS; see docs/testing.md)

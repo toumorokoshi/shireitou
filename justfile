@@ -40,9 +40,11 @@ test:
 fake-host *args:
     cd packages/ahp_fake_host && dart run ahp_fake_host {{args}}
 
-# Transcribe a recorded sentence with the real Whisper model through the
-# dictation worker (macOS or Linux). Downloads the model (~160 MB) into
-# SHIREITOU_SPEECH_MODELS, or the temp folder, on first run.
+# Transcribe a recorded sentence with each real speech model (Whisper
+# base.en, Parakeet TDT 0.6B v2) through the dictation worker (macOS or
+# Linux), printing their timings. Downloads the models (~160 MB and
+# ~660 MB) into SHIREITOU_SPEECH_MODELS, or the temp folder, on first
+# run; SHIREITOU_SPEECH_MODEL=<id> runs one.
 test-whisper:
     cd app && flutter test -t whisper test/dictation_whisper_test.dart
 

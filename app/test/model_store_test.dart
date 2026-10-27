@@ -9,6 +9,8 @@ import 'package:shireitou/src/dictation/speech_model.dart';
 const _model = SpeechModel(
   id: 'tiny',
   label: 'Tiny',
+  description: 'For tests',
+  kind: SpeechModelKind.whisper,
   encoder: ModelFile('enc', 'https://m.test/enc', 4),
   decoder: ModelFile('dec', 'https://m.test/dec', 6),
   tokens: ModelFile('tok', 'https://m.test/tok', 2),

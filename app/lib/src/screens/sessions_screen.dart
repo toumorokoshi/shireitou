@@ -13,6 +13,7 @@ import '../composer/new_session_draft.dart';
 import '../composer/new_session_view.dart';
 import '../connection_notices.dart';
 import '../desktop/desktop_window.dart';
+import '../dictation/dictation_model_menu.dart';
 import '../host_connection.dart';
 import '../hosts/open_hosts.dart';
 import '../hosts/saved_hosts.dart';
@@ -1125,8 +1126,8 @@ class _SidebarHeader extends StatelessWidget {
 }
 
 /// The sidebar header's "…" menu (AV-092): "Select" (AV-029), "Add
-/// host…", "Disconnect", "Appearance" (AV-097), and a submenu per open
-/// host with its status
+/// host…", "Disconnect", "Appearance" (AV-097), "Dictation model"
+/// (AV-047), and a submenu per open host with its status
 /// (AV-011), "Show only this host" with several hosts, Retry and Remove
 /// for a host that is not connected, and its editor settings (AV-015). The
 /// icon has a dot while a host is not connected.
@@ -1251,6 +1252,7 @@ class _HostsMenu extends StatelessWidget {
           ),
         ),
         const AppearanceMenu(),
+        const DictationModelMenu(),
         if (hosts.isNotEmpty) const Divider(height: 8),
         for (final host in hosts) _hostMenu(context, host),
       ],

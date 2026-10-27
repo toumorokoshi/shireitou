@@ -14,6 +14,10 @@ class ModelPaths {
   ModelPaths(this.model, String folder)
     : encoder = '$folder/${model.encoder.name}',
       decoder = '$folder/${model.decoder.name}',
+      joiner = switch (model.joiner) {
+        final joiner? => '$folder/${joiner.name}',
+        null => null,
+      },
       tokens = '$folder/${model.tokens.name}',
       vad = '$folder/${model.vad.name}';
 
@@ -22,6 +26,9 @@ class ModelPaths {
 
   /// The files' paths.
   final String encoder, decoder, tokens, vad;
+
+  /// The transducer's joiner; null for Whisper.
+  final String? joiner;
 }
 
 /// Keeps speech models in [root], one folder each, downloading what is

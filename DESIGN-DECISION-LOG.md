@@ -1,5 +1,34 @@
 # Design Decision Log
 
+## 2026-10-27: Parakeet as a second dictation model (AV-047)
+
+Whisper base.en is fast but makes about one word error in ten on the
+Open ASR Leaderboard. Users who accept slower dictation wanted a more
+accurate open model.
+
+- **Parakeet TDT 0.6B v2, not a bigger Whisper.** It makes about 6%
+  word errors (Whisper small.en is about 8.5%, large-v3 about 7.5%), is
+  faster on a CPU than Whisper small, and makes up less text in silence.
+  sherpa-onnx 2.0.1, already the runtime, runs its int8 NeMo
+  transducer export, so no new dependency was needed. Models that score
+  better (Granite Speech 8B, Canary 1B, Voxtral) are billions of
+  parameters, or not supported by sherpa-onnx.
+- **A choice, Whisper still the default.** Parakeet is 662 MB against
+  161 MB, about twice as slow to load and to give the final text, and
+  punctuates less (no commas on the test sentence). The default keeps
+  the quick download on phones; the "Dictation model" submenu (beside
+  "Appearance" in the sidebar's "…" menu) switches, and the pick is kept
+  with the app's prefs (`speech_model`).
+- **One `SpeechModel` with a kind.** A model is its files plus a
+  `SpeechModelKind` (Whisper or NeMo transducer, which adds a joiner);
+  the pure `speechModelConfig` maps it to sherpa-onnx's settings. The
+  VAD, the live re-transcription and the download store are unchanged,
+  and `WhisperWorker` became `SpeechWorker`.
+- **The real-model test covers and times both.** `just test-whisper`
+  now feeds the sentence at the speed of speech and prints the load
+  time, the number of guesses and how long the final text took, so the
+  models can be compared on a given machine.
+
 ## 2026-10-26: Opening file paths from replies (AV-106)
 
 Paths an agent printed (`lib/a.dart:12`, a markdown link to

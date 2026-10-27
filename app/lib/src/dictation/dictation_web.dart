@@ -1,8 +1,9 @@
-/// The web app has no dictation yet: Whisper would have to run in
+/// The web app has no dictation yet: the model would have to run in
 /// WebAssembly (see GAPS.md).
 library;
 
 import 'dictation.dart';
+import 'speech_model.dart';
 
 /// None on the web.
-Dictation? platformDictation() => null;
+Dictation? platformDictation(SpeechModel model) => null;

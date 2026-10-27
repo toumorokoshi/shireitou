@@ -1,7 +1,10 @@
-// Real Whisper base.en on a recorded sentence, fed in microphone-sized
-// chunks through the worker isolate (AV-047). Downloads the model
-// (~160 MB) into SHIREITOU_SPEECH_MODELS (default: the system temp
-// folder) on first run; `just test-whisper` runs it (macOS and Linux).
+// Each real speech model (Whisper base.en, Parakeet TDT 0.6B v2) on a
+// recorded sentence, fed at the speed of speech in microphone-sized
+// chunks through the worker isolate (AV-047), printing how long it took
+// to compare them. Downloads the models (~160 MB and ~660 MB) into
+// SHIREITOU_SPEECH_MODELS (default: the system temp folder) on first run;
+// SHIREITOU_SPEECH_MODEL=<id> runs one. `just test-whisper` runs it
+// (macOS and Linux).
 @Tags(['whisper'])
 library;
 
@@ -17,59 +20,73 @@ import 'package:shireitou/src/dictation/dictation_session.dart';
 import 'package:shireitou/src/dictation/dictation_text.dart';
 import 'package:shireitou/src/dictation/model_store.dart';
 import 'package:shireitou/src/dictation/speech_model.dart';
-import 'package:shireitou/src/dictation/whisper_worker.dart';
+import 'package:shireitou/src/dictation/speech_worker.dart';
 
 const _sample =
     'https://huggingface.co/csukuangfj/sherpa-onnx-whisper-base.en/resolve/'
     '59eea950fc76df2453efb57e6c0fd334548e8ffe/test_wavs/0.wav';
 
 void main() {
-  test(
-    'transcribes a sentence live, with guesses before the final text',
-    () async {
+  final only = Platform.environment['SHIREITOU_SPEECH_MODEL'];
+  for (final model in speechModels.where((m) => only == null || m.id == only)) {
+    test('${model.label} transcribes a sentence live, with guesses before the '
+        'final text', () async {
       final root = Directory(
         Platform.environment['SHIREITOU_SPEECH_MODELS'] ??
             '${Directory.systemTemp.path}/shireitou-speech-models',
       );
-      final paths = await ModelStore(root).ensure(whisperBaseEn);
+      final paths = await ModelStore(root).ensure(model);
       final wav = await _download(_sample, File('${root.path}/0.wav'));
 
+      final loading = Stopwatch()..start();
+      final engine = SpeechWorker.spawn(paths, library: _sherpaLibrary());
+      unawaited(engine.then((_) => loading.stop()));
       final chunks = StreamController<Uint8List>();
       final session = PumpedSession(
         audio: chunks.stream,
-        engine: WhisperWorker.spawn(paths, library: _sherpaLibrary()),
+        engine: engine,
         stopAudio: () => chunks.close(),
       );
       final seen = <Transcript>[];
       final done = session.transcripts.forEach(seen.add);
 
-      // 100 ms of 16 kHz audio at a time, then a second of silence.
+      // 100 ms of 16 kHz audio every 100 ms, then a second of silence.
+      await engine;
       final pcm = _pcmData(wav);
       const chunk = 3200;
       for (var i = 0; i < pcm.length; i += chunk) {
         chunks.add(
           Uint8List.sublistView(pcm, i, (i + chunk).clamp(0, pcm.length)),
         );
-        await Future<void>.delayed(const Duration(milliseconds: 20));
+        await Future<void>.delayed(const Duration(milliseconds: 100));
       }
       chunks.add(Uint8List(32000));
+      final finishing = Stopwatch()..start();
       await session.stop();
       await done;
+      finishing.stop();
 
       final last = seen.last;
+      final guesses = seen.where((t) => t.partial.isNotEmpty).length;
+      // ignore: avoid_print
+      print(
+        '${model.label}: loaded in ${loading.elapsedMilliseconds} ms, '
+        '$guesses guesses, final text '
+        '${finishing.elapsedMilliseconds} ms after the audio ended: '
+        '"${last.text}"',
+      );
       expect(last.partial, isEmpty);
       expect(
         _words(last.text),
         contains('after early nightfall the yellow lamps would light up'),
       );
       expect(
-        seen.where((t) => t.partial.isNotEmpty),
-        isNotEmpty,
+        guesses,
+        isNonZero,
         reason: 'guesses are shown while the sentence is spoken',
       );
-    },
-    timeout: const Timeout(Duration(minutes: 10)),
-  );
+    }, timeout: const Timeout(Duration(minutes: 20)));
+  }
 }
 
 String _words(String text) =>

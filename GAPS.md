@@ -660,16 +660,26 @@ AppImage and the release workflow (see
 
 - Not driven end to end with a microphone: the real model runs on a
   recorded sentence (`just test-whisper`, not in CI because of the
-  161 MB download), and the button on fakes. Microphone capture
+  161 MB and 662 MB downloads), and the button on fakes. Microphone capture
   (`record`) and the permission prompts are only checked by hand.
-- No dictation in the web app. Whisper would have to run in WebAssembly
+- No dictation in the web app. The model would have to run in WebAssembly
   (sherpa-onnx has a WASM build, but the model is fetched per origin and
   WebGPU or WASM decoding is slower), and the browser's Web Speech API
   sends audio to a server, against "on the device".
-- One model, Whisper base.en: English only. A setting for other models
-  (tiny.en for slow machines, small or the multilingual models, and the
-  language) is not built; `SpeechModel` describes any sherpa-onnx Whisper
-  export.
+- Two models, Whisper base.en and Parakeet TDT 0.6B v2, both English
+  only. Parakeet v3 (25 European languages), multilingual Whisper and a
+  language setting are not offered; `SpeechModel` describes any
+  sherpa-onnx Whisper or NeMo transducer export, so adding one is a
+  constant in `speech_model.dart`.
+- The "Dictation model" menu does not say which models are downloaded,
+  and there is no way to delete one from the app (delete its folder
+  under `models/`). Picking a model while dictating applies from the
+  next dictation.
+- No hybrid mode: a fast model for the live guesses and a more accurate
+  one for the final text at each pause would keep guesses quick with
+  Parakeet's accuracy, at the cost of both models in memory.
+- The 662 MB Parakeet download is offered on phones as on desktops;
+  there is no per-platform default or warning about mobile data.
 - The model is checked by size, not by hash.
 - Each dictation loads the model again in a new isolate (about a second;
   audio is kept meanwhile). Keeping the isolate warm between dictations

@@ -1,5 +1,6 @@
-/// Whisper and Silero VAD through sherpa-onnx, in an isolate of their own
-/// so that transcribing never blocks the UI (AV-047).
+/// A speech model (Whisper or Parakeet) and Silero VAD through
+/// sherpa-onnx, in an isolate of their own so that transcribing never
+/// blocks the UI (AV-047).
 library;
 
 import 'dart:async';
@@ -14,16 +15,47 @@ import 'dictation_session.dart';
 import 'dictation_text.dart';
 import 'live_transcriber.dart';
 import 'model_store.dart';
+import 'speech_model.dart';
 
-/// The sample rate Whisper and the VAD take.
-const whisperSampleRate = 16000;
+/// The sample rate the models and the VAD take.
+const speechSampleRate = 16000;
+
+/// sherpa-onnx's settings for the model at [paths], on [threads] CPU
+/// threads.
+sherpa.OfflineModelConfig speechModelConfig(
+  ModelPaths paths, {
+  required int threads,
+}) => switch (paths.model.kind) {
+  SpeechModelKind.whisper => sherpa.OfflineModelConfig(
+    whisper: sherpa.OfflineWhisperModelConfig(
+      encoder: paths.encoder,
+      decoder: paths.decoder,
+      language: 'en',
+    ),
+    tokens: paths.tokens,
+    modelType: 'whisper',
+    numThreads: threads,
+    debug: false,
+  ),
+  SpeechModelKind.nemoTransducer => sherpa.OfflineModelConfig(
+    transducer: sherpa.OfflineTransducerModelConfig(
+      encoder: paths.encoder,
+      decoder: paths.decoder,
+      joiner: paths.joiner!,
+    ),
+    tokens: paths.tokens,
+    modelType: 'nemo_transducer',
+    numThreads: threads,
+    debug: false,
+  ),
+};
 
 /// A [LiveTranscriber] running in another isolate. One request at a time:
 /// the caller waits for [accept] before sending more audio, so audio that
-/// arrives while Whisper works is sent as one batch next time and the
+/// arrives while the model works is sent as one batch next time and the
 /// guesses keep up however fast the machine is.
-class WhisperWorker implements SpeechEngine {
-  WhisperWorker._(this._isolate, this._requests, this._replies);
+class SpeechWorker implements SpeechEngine {
+  SpeechWorker._(this._isolate, this._requests, this._replies);
 
   final Isolate _isolate;
   final SendPort _requests;
@@ -32,10 +64,7 @@ class WhisperWorker implements SpeechEngine {
   /// Loads the model in a new isolate; [library] is the folder of
   /// sherpa-onnx's native library when it is not linked into the app
   /// (tests).
-  static Future<WhisperWorker> spawn(
-    ModelPaths paths, {
-    String? library,
-  }) async {
+  static Future<SpeechWorker> spawn(ModelPaths paths, {String? library}) async {
     final port = ReceivePort();
     final replies = StreamIterator<Object?>(port);
     final isolate = await Isolate.spawn(
@@ -43,10 +72,10 @@ class WhisperWorker implements SpeechEngine {
       (port.sendPort, paths, library),
       onError: port.sendPort,
       onExit: port.sendPort,
-      debugName: 'whisper',
+      debugName: 'speech',
     );
     final first = await _next(replies);
-    return WhisperWorker._(isolate, first as SendPort, replies);
+    return SpeechWorker._(isolate, first as SendPort, replies);
   }
 
   @override
@@ -66,14 +95,16 @@ class WhisperWorker implements SpeechEngine {
 
   static Future<Object?> _next(StreamIterator<Object?> replies) async {
     if (!await replies.moveNext()) {
-      throw StateError('The Whisper isolate has stopped');
+      throw StateError('The speech isolate has stopped');
     }
     return switch (replies.current) {
       _Ok(:final value) => value,
-      _Failed(:final message) => throw Exception('Whisper failed: $message'),
+      _Failed(:final message) => throw Exception(
+        'Speech to text failed: $message',
+      ),
       // Isolate.spawn's onError: the error and its stack trace as strings.
-      [final error, _] => throw Exception('Whisper failed: $error'),
-      _ => throw StateError('The Whisper isolate has stopped'),
+      [final error, _] => throw Exception('Speech to text failed: $error'),
+      _ => throw StateError('The speech isolate has stopped'),
     };
   }
 }
@@ -101,16 +132,9 @@ Future<void> _main((SendPort, ModelPaths, String?) args) async {
     sherpa.initBindings(library);
     recognizer = sherpa.OfflineRecognizer(
       sherpa.OfflineRecognizerConfig(
-        model: sherpa.OfflineModelConfig(
-          whisper: sherpa.OfflineWhisperModelConfig(
-            encoder: paths.encoder,
-            decoder: paths.decoder,
-            language: 'en',
-          ),
-          tokens: paths.tokens,
-          modelType: 'whisper',
-          numThreads: min(4, max(1, Platform.numberOfProcessors ~/ 2)),
-          debug: false,
+        model: speechModelConfig(
+          paths,
+          threads: min(4, max(1, Platform.numberOfProcessors ~/ 2)),
         ),
       ),
     );
@@ -122,7 +146,7 @@ Future<void> _main((SendPort, ModelPaths, String?) args) async {
           // Whisper takes at most 30 s; shorter keeps each guess quick.
           maxSpeechDuration: 15,
         ),
-        sampleRate: whisperSampleRate,
+        sampleRate: speechSampleRate,
         debug: false,
       ),
       bufferSizeInSeconds: 60,
@@ -135,7 +159,7 @@ Future<void> _main((SendPort, ModelPaths, String?) args) async {
   final transcriber = LiveTranscriber(
     detector: _SileroDetector(vad),
     transcribe: (samples) => _transcribe(recognizer, samples),
-    sampleRate: whisperSampleRate,
+    sampleRate: speechSampleRate,
   );
   replies.send(_Ok(requests.sendPort));
   await for (final request in requests) {
@@ -161,7 +185,7 @@ Future<void> _main((SendPort, ModelPaths, String?) args) async {
 String _transcribe(sherpa.OfflineRecognizer recognizer, Float32List samples) {
   final stream = recognizer.createStream();
   try {
-    stream.acceptWaveform(samples: samples, sampleRate: whisperSampleRate);
+    stream.acceptWaveform(samples: samples, sampleRate: speechSampleRate);
     recognizer.decode(stream);
     return cleanTranscript(recognizer.getResult(stream).text);
   } finally {

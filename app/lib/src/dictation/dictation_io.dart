@@ -1,5 +1,5 @@
 /// Dictation on the desktop and mobile apps: the microphone through
-/// `record`, Whisper through sherpa-onnx (AV-047).
+/// `record`, the speech model through sherpa-onnx (AV-047).
 library;
 
 import 'dart:async';
@@ -13,12 +13,12 @@ import 'dictation.dart';
 import 'dictation_session.dart';
 import 'model_store.dart';
 import 'speech_model.dart';
-import 'whisper_worker.dart';
+import 'speech_worker.dart';
 
-/// The native [Dictation]. The target platform and the real one
-/// (`dart:io`) must agree, so widget tests that pretend to be another
+/// The native [Dictation] with [model]. The target platform and the real
+/// one (`dart:io`) must agree, so widget tests that pretend to be another
 /// platform get none.
-Dictation? platformDictation() {
+Dictation? platformDictation(SpeechModel model) {
   final real = switch (defaultTargetPlatform) {
     TargetPlatform.macOS => Platform.isMacOS,
     TargetPlatform.linux => Platform.isLinux,
@@ -27,7 +27,7 @@ Dictation? platformDictation() {
     TargetPlatform.iOS => Platform.isIOS,
     _ => false,
   };
-  return real ? NativeDictation() : null;
+  return real ? NativeDictation(model: model) : null;
 }
 
 /// [Dictation] with models kept in the app's support folder.
@@ -65,7 +65,7 @@ class NativeDictation implements Dictation {
       audio = await recorder.startStream(
         const RecordConfig(
           encoder: AudioEncoder.pcm16bits,
-          sampleRate: whisperSampleRate,
+          sampleRate: speechSampleRate,
           numChannels: 1,
           autoGain: true,
           noiseSuppress: true,
@@ -80,7 +80,7 @@ class NativeDictation implements Dictation {
     }
     return PumpedSession(
       audio: audio,
-      engine: WhisperWorker.spawn(paths),
+      engine: SpeechWorker.spawn(paths),
       stopAudio: () async {
         await recorder.stop();
         await recorder.dispose();

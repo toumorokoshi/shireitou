@@ -148,7 +148,7 @@ class _DictationButtonState extends State<DictationButton> {
 
   Future<bool> _confirmDownload() async {
     final model = widget.dictation.model;
-    final megabytes = (model.bytes / 1e6).round();
+    final megabytes = model.megabytes;
     return await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(

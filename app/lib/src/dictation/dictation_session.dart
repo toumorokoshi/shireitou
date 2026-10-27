@@ -9,7 +9,7 @@ import 'dictation.dart';
 import 'dictation_text.dart';
 import 'live_transcriber.dart';
 
-/// A transcriber that takes one request at a time (the Whisper isolate).
+/// A transcriber that takes one request at a time (the speech isolate).
 abstract interface class SpeechEngine {
   /// Adds audio; returns the events it caused.
   Future<List<TranscriptEvent>> accept(Float32List samples);

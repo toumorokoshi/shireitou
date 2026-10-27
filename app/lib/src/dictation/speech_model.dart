@@ -16,15 +16,28 @@ class ModelFile {
   final int bytes;
 }
 
-/// A Whisper model in sherpa-onnx's ONNX export, with the voice activity
-/// detector that splits speech into utterances.
+/// How sherpa-onnx runs a [SpeechModel].
+enum SpeechModelKind {
+  /// OpenAI Whisper: an encoder and a decoder.
+  whisper,
+
+  /// NVIDIA NeMo transducer (Parakeet): an encoder, a decoder and a
+  /// joiner.
+  nemoTransducer,
+}
+
+/// A speech-to-text model in sherpa-onnx's ONNX export, with the voice
+/// activity detector that splits speech into utterances.
 class SpeechModel {
   /// Creates a [SpeechModel].
   const SpeechModel({
     required this.id,
     required this.label,
+    required this.description,
+    required this.kind,
     required this.encoder,
     required this.decoder,
+    this.joiner,
     required this.tokens,
     required this.vad,
   });
@@ -35,18 +48,37 @@ class SpeechModel {
   /// Its name for people: "Whisper base.en".
   final String label;
 
-  /// The Whisper encoder, decoder and token table.
+  /// How it compares with the others, for the model menu.
+  final String description;
+
+  /// How it is run.
+  final SpeechModelKind kind;
+
+  /// The encoder, decoder and token table.
   final ModelFile encoder, decoder, tokens;
+
+  /// The transducer's joiner; null for Whisper.
+  final ModelFile? joiner;
 
   /// Silero VAD.
   final ModelFile vad;
 
   /// Every file to download.
-  List<ModelFile> get files => [encoder, decoder, tokens, vad];
+  List<ModelFile> get files => [encoder, decoder, ?joiner, tokens, vad];
 
   /// The download size.
   int get bytes => files.fold(0, (sum, f) => sum + f.bytes);
+
+  /// The download size in megabytes, rounded.
+  int get megabytes => (bytes / 1e6).round();
 }
+
+const _vad = ModelFile(
+  'silero_vad.onnx',
+  'https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/'
+      'silero_vad.onnx',
+  643854,
+);
 
 const _whisperRepo =
     'https://huggingface.co/csukuangfj/sherpa-onnx-whisper-base.en/resolve/'
@@ -57,6 +89,8 @@ const _whisperRepo =
 const whisperBaseEn = SpeechModel(
   id: 'whisper-base.en',
   label: 'Whisper base.en',
+  description: 'Fastest, smallest download',
+  kind: SpeechModelKind.whisper,
   encoder: ModelFile(
     'base.en-encoder.int8.onnx',
     '$_whisperRepo/base.en-encoder.int8.onnx',
@@ -72,13 +106,47 @@ const whisperBaseEn = SpeechModel(
     '$_whisperRepo/base.en-tokens.txt',
     835554,
   ),
-  vad: ModelFile(
-    'silero_vad.onnx',
-    'https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/'
-        'silero_vad.onnx',
-    643854,
-  ),
+  vad: _vad,
 );
+
+const _parakeetRepo =
+    'https://huggingface.co/csukuangfj/'
+    'sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8/resolve/'
+    '1ab9323565ddb038682214b292f588070a538ce2';
+
+/// NVIDIA's Parakeet TDT 0.6B v2 (English, int8, CC-BY-4.0), about
+/// 660 MB: about 40% fewer word errors than Whisper base.en on the Open
+/// ASR Leaderboard, and slower on a CPU, so live guesses come less often.
+const parakeetTdtV2 = SpeechModel(
+  id: 'parakeet-tdt-0.6b-v2',
+  label: 'Parakeet TDT 0.6B v2',
+  description: 'More accurate, slower',
+  kind: SpeechModelKind.nemoTransducer,
+  encoder: ModelFile(
+    'encoder.int8.onnx',
+    '$_parakeetRepo/encoder.int8.onnx',
+    652184296,
+  ),
+  decoder: ModelFile(
+    'decoder.int8.onnx',
+    '$_parakeetRepo/decoder.int8.onnx',
+    7257753,
+  ),
+  joiner: ModelFile(
+    'joiner.int8.onnx',
+    '$_parakeetRepo/joiner.int8.onnx',
+    1739080,
+  ),
+  tokens: ModelFile('tokens.txt', '$_parakeetRepo/tokens.txt', 9384),
+  vad: _vad,
+);
+
+/// The models dictation can use, the default first.
+const speechModels = [whisperBaseEn, parakeetTdtV2];
+
+/// The model with [id], or the default when there is none.
+SpeechModel speechModelById(String? id) =>
+    speechModels.where((m) => m.id == id).firstOrNull ?? speechModels.first;
 
 /// Reports download progress, from 0 to 1.
 typedef DownloadProgress = void Function(double fraction);

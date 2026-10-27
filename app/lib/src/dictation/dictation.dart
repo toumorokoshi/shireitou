@@ -1,5 +1,6 @@
-/// Dictation into the composer (AV-047): speech to text with OpenAI's
-/// Whisper, run on this device by sherpa-onnx. Audio never leaves it.
+/// Dictation into the composer (AV-047): speech to text with an open
+/// model (Whisper or Parakeet), run on this device by sherpa-onnx. Audio
+/// never leaves it.
 library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dictation_io.dart' if (dart.library.js_interop) 'dictation_web.dart';
 import 'dictation_text.dart';
 import 'speech_model.dart';
+import 'speech_model_store.dart';
 
 /// Turns the microphone into text.
 abstract interface class Dictation {
@@ -49,6 +51,9 @@ class DictationException implements Exception {
   String toString() => message;
 }
 
-/// Dictation on this platform; null where it is not supported (the web
-/// app, and widget tests that pretend to be another platform).
-final dictationProvider = Provider<Dictation?>((ref) => platformDictation());
+/// Dictation on this platform with the chosen [speechModelProvider]; null
+/// where it is not supported (the web app, and widget tests that pretend
+/// to be another platform).
+final dictationProvider = Provider<Dictation?>(
+  (ref) => platformDictation(ref.watch(speechModelProvider)),
+);
