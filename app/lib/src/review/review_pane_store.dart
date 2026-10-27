@@ -5,6 +5,7 @@ library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../layout.dart';
 import '../prefs.dart';
 
 /// Whether the review pane beside the timeline is open.
@@ -15,7 +16,17 @@ final reviewPaneOpenProvider = NotifierProvider<StoredFlag, bool>(
 /// The review pane's width until the user drags its edge.
 const defaultReviewPaneWidth = 380.0;
 
+/// [width] kept at least [minPaneWidth], and at most [available].
+double clampedReviewPaneWidth(
+  double width, {
+  double available = double.infinity,
+}) => clampedPaneWidth(width, available: available, max: double.infinity);
+
 /// The review pane's width, which the user sets by dragging its edge.
 final reviewPaneWidthProvider = NotifierProvider<StoredWidth, double>(
-  () => StoredWidth('review_pane_width', defaultReviewPaneWidth),
+  () => StoredWidth(
+    'review_pane_width',
+    defaultReviewPaneWidth,
+    clamp: clampedReviewPaneWidth,
+  ),
 );

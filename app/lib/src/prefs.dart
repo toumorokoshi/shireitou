@@ -2,6 +2,8 @@
 /// settings, run groups, pane visibility and widths), behind an interface tests replace.
 library;
 
+import 'dart:math' as math;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -138,8 +140,11 @@ class StoredWidth extends Notifier<double> {
   }
 
   /// Widens it by [delta] (narrows it when negative) without saving, so a
-  /// drag does not write on every pointer move; [save] when it ends.
-  void resize(double delta) => state = clamp(state + delta);
+  /// drag does not write on every pointer move; [save] when it ends. It
+  /// stays within [max], the room the layout leaves, so dragging past the
+  /// edge leaves no slack to drag back through.
+  void resize(double delta, {double max = double.infinity}) =>
+      state = clamp(math.min(math.min(state, max) + delta, max));
 
   /// Saves the current width.
   Future<void> save() async {

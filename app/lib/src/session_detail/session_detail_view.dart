@@ -807,47 +807,51 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
       final openFile = openFileProvider(sessionRef);
       final file = ref.watch(openFile);
       return LayoutBuilder(
-        builder: (context, constraints) => Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  header,
-                  Expanded(child: conversationWithTerminal),
-                ],
-              ),
-            ),
-            CollapsibleReviewPane(
-              open: open,
-              // The conversation keeps at least the pane's minimum width.
-              width: clampedPaneWidth(
-                reviewWidth,
-                available: constraints.maxWidth - minPaneWidth,
-              ),
-              handle: PaneResizeHandle(
-                label: 'Resize review pane',
-                // The pane is on the right, so dragging left widens it.
-                onDrag: (dx) =>
-                    ref.read(reviewPaneWidthProvider.notifier).resize(-dx),
-                onDragEnd: () => unawaited(
-                  ref.read(reviewPaneWidthProvider.notifier).save(),
-                ),
-                onReset: () => unawaited(
-                  ref.read(reviewPaneWidthProvider.notifier).reset(),
+        builder: (context, constraints) {
+          final available = constraints.maxWidth - minConversationWidth;
+          final width = clampedReviewPaneWidth(
+            reviewWidth,
+            available: available,
+          );
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    header,
+                    Expanded(child: conversationWithTerminal),
+                  ],
                 ),
               ),
-              child: file == null
-                  ? review
-                  : FileViewer(
-                      key: ValueKey(file),
-                      file: file,
-                      onClose: ref.read(openFile.notifier).close,
-                    ),
-            ),
-          ],
-        ),
+              CollapsibleReviewPane(
+                open: open,
+                width: width,
+                handle: PaneResizeHandle(
+                  label: 'Resize review pane',
+                  // The pane is on the right, so dragging left widens it.
+                  onDrag: (dx) => ref
+                      .read(reviewPaneWidthProvider.notifier)
+                      .resize(-dx, max: available),
+                  onDragEnd: () => unawaited(
+                    ref.read(reviewPaneWidthProvider.notifier).save(),
+                  ),
+                  onReset: () => unawaited(
+                    ref.read(reviewPaneWidthProvider.notifier).reset(),
+                  ),
+                ),
+                child: file == null
+                    ? review
+                    : FileViewer(
+                        key: ValueKey(file),
+                        file: file,
+                        onClose: ref.read(openFile.notifier).close,
+                      ),
+              ),
+            ],
+          );
+        },
       );
     }
     if (!hasChanges || missing) {

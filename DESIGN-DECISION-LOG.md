@@ -1,5 +1,20 @@
 # Design Decision Log
 
+## 2026-10-27: The review pane pulls almost to the left edge (AV-005)
+
+The review pane stopped at 600 px, the sidebar's limit, so on a wide
+window most of the session area could not be given to a diff or file.
+
+- **No fixed maximum.** `clampedPaneWidth` takes a `max`; the review
+  pane's `clampedReviewPaneWidth` passes none, so only the room left
+  bounds it. The sidebar keeps 600 px.
+- **The conversation keeps 200 px.** `minConversationWidth`: narrower,
+  the header's icons, the composer's toolbar and the turn footer's copy
+  buttons overflow.
+- **No slack past the edge.** `StoredWidth.resize` takes the room the
+  layout leaves as `max`, so dragging past the edge and back moves the
+  pane at once instead of first unwinding the overshoot.
+
 ## 2026-10-27: The turn rail is always shown, on the left (AV-074)
 
 The turn rail sat on the timeline's right edge, on top of the list's

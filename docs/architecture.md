@@ -365,8 +365,10 @@ Dart source); `bin/generate.dart` does the file I/O. See
   list plus detail, wide (≥ 1200 dp) adds a review pane. The sidebar and
   the review pane resize by dragging their edge (AV-005):
   `pane_resize_handle.dart` is the strip over the divider,
-  `clampedPaneWidth` in `layout.dart` keeps a width within 240–600 px and
-  the room left, and `StoredWidth` in `prefs.dart` keeps
+  `clampedPaneWidth` in `layout.dart` keeps the sidebar within 240–600 px
+  and the room left, `clampedReviewPaneWidth` keeps the review pane at
+  least 240 px with no fixed maximum, leaving the conversation
+  `minConversationWidth` (200 px), and `StoredWidth` in `prefs.dart` keeps
   `sidebarWidthProvider` (`session_list/sidebar_store.dart`) and
   `reviewPaneWidthProvider` (`review/review_pane_store.dart`).
 - `lib/src/title_bar/`: the title bar (AV-091). `title_bar.dart` is the

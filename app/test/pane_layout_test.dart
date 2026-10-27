@@ -9,6 +9,7 @@ import 'package:shireitou/src/composer/composer_labels.dart';
 import 'package:shireitou/src/layout.dart';
 import 'package:shireitou/src/pane_resize_handle.dart';
 import 'package:shireitou/src/prefs.dart';
+import 'package:shireitou/src/review/review_pane_store.dart';
 import 'package:shireitou/src/session_detail/session_detail_view.dart';
 import 'package:shireitou/src/session_list/session_list_view.dart';
 import 'package:shireitou/src/session_list/sidebar_store.dart';
@@ -189,6 +190,32 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.getCenter(handle).dx, before - 100);
     expect(prefs.values['review_pane_width'], '480.0');
+  });
+
+  test('the review pane has no fixed maximum, only the room left', () {
+    expect(clampedReviewPaneWidth(2000), 2000);
+    expect(clampedReviewPaneWidth(100), minPaneWidth);
+    expect(clampedReviewPaneWidth(2000, available: 1000), 1000);
+  });
+
+  testWidgets('the review pane pulls almost to the left edge, and back '
+      'from there at once', (tester) async {
+    final prefs = MemoryPrefsStore({'review_pane_open': 'true'});
+    await _pump(tester, prefs: prefs, size: const Size(1600, 900));
+    await tester.tap(find.text('Fix login').first);
+    await tester.pumpAndSettle();
+    final handle = find.bySemanticsLabel('Resize review pane');
+    await tester.drag(handle, const Offset(-3000, 0));
+    await tester.pumpAndSettle();
+    final detail = tester.getRect(find.byType(SessionDetailView));
+    final edge = tester.getCenter(handle).dx;
+    expect(edge - detail.left, closeTo(minConversationWidth, 4));
+    expect(tester.takeException(), isNull);
+
+    // Overshooting the edge does not leave slack to drag back through.
+    await tester.drag(handle, const Offset(200, 0));
+    await tester.pumpAndSettle();
+    expect(tester.getCenter(handle).dx, closeTo(edge + 200, 1));
   });
 
   testWidgets('the sidebar opens at its saved width', (tester) async {

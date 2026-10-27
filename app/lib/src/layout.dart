@@ -23,21 +23,29 @@ LayoutTier layoutTierFor(double width) => width >= 1200
 /// The narrowest a resizable pane (the sidebar, the review pane) gets.
 const minPaneWidth = 240.0;
 
-/// The widest a resizable pane gets.
+/// The widest the sidebar gets.
 const maxPaneWidth = 600.0;
+
+/// The narrowest the conversation gets beside the review pane, which has
+/// no fixed maximum so it can be pulled almost to the window's left edge.
+/// Narrower, the header's and composer's buttons overflow.
+const minConversationWidth = 200.0;
 
 /// The sidebar's width until the user drags its edge (AV-005).
 const defaultSidebarWidth = 486.0;
 
-/// [width] kept between [minPaneWidth] and [maxPaneWidth], and at most
-/// [available] (the room left for the pane, so a narrow window keeps
-/// space for the session) unless that is below [minPaneWidth].
-double clampedPaneWidth(double width, {double available = double.infinity}) =>
-    width.clamp(
-      minPaneWidth,
-      available < minPaneWidth
-          ? minPaneWidth
-          : available < maxPaneWidth
-          ? available
-          : maxPaneWidth,
-    );
+/// [width] kept between [minPaneWidth] and [max], and at most [available]
+/// (the room left for the pane, so a narrow window keeps space for the
+/// session) unless that is below [minPaneWidth].
+double clampedPaneWidth(
+  double width, {
+  double available = double.infinity,
+  double max = maxPaneWidth,
+}) => width.clamp(
+  minPaneWidth,
+  available < minPaneWidth
+      ? minPaneWidth
+      : available < max
+      ? available
+      : max,
+);

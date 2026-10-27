@@ -328,7 +328,10 @@ AppImage and the release workflow (see
   only. On wide layouts the pane opens and closes (one choice for all
   sessions, remembered on the device) and resizes by dragging its edge
   (AV-005); widths are changed by pointer only (no keyboard or screen
-  reader action, and no menu item). The header's details
+  reader action, and no menu item). The pane can be pulled until the
+  conversation is 200 px wide; it does not collapse the conversation
+  entirely, and the conversation's rows are not adapted to that width
+  beyond not overflowing. The header's details
   still list the change counts, which the pane's toggle also shows.
 - **Copy and find in conversation (AV-071):** each finished turn's
   footer has a "Copy as markdown" button (the reply as markdown, like VS
