@@ -617,8 +617,13 @@ Dart source); `bin/generate.dart` does the file I/O. See
   paths in plain text such as tool-call titles. `open_file_store.dart`
   holds the file open per session (`openFileProvider`) and the
   `FileLinkScope` through which the session view hands links its
-  `_openFile`; without a scope, paths stay text. `file_viewer.dart`
-  reads the file with `resourceTextProvider` and shows it with line
+  `_openFile`; without a scope, paths stay text. `ssh_file_read.dart`
+  has `fileTextProvider`, which reads a `file:` URI over the system
+  `ssh` to the host the terminal panel uses (`cat` in batch mode, the
+  process started by `ssh_file_read_io.dart`; desktop apps), falling
+  back to `resourceRead` on the web and mobile, for hosts with no SSH
+  host, and when `ssh` fails. `file_viewer.dart`
+  reads the file with `fileTextProvider` and shows it with line
   numbers and highlighting, scrolled to and marking the reply's lines:
   in the review pane instead of "Files changed" on wide layouts (closing
   it goes back), else on a page of its own.

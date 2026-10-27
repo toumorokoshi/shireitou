@@ -1,17 +1,18 @@
 /// The file viewer (AV-106): a file a reply names, read from the host
-/// with `resourceRead`, with line numbers and syntax highlighting, scrolled
-/// to the lines the reply pointed at.
+/// over `ssh` or with `resourceRead` ([fileTextProvider]), with line
+/// numbers and syntax highlighting, scrolled to the lines the reply
+/// pointed at.
 library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../channels.dart';
 import '../host_connection.dart';
 import '../session_detail/code_highlight.dart';
 import '../session_detail/copy_button.dart';
 import '../theme/app_colors.dart';
 import 'open_file_store.dart';
+import 'ssh_file_read.dart';
 
 /// Files longer than this are shown without highlighting, which would
 /// take too long.
@@ -114,7 +115,7 @@ class FileContents extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final text = ref.watch(
-      resourceTextProvider((host: context.host, uri: file.uri)),
+      fileTextProvider((host: context.host, uri: file.uri)),
     );
     Widget message(String text) => Center(
       child: Padding(

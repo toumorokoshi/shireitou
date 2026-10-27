@@ -1,5 +1,27 @@
 # Design Decision Log
 
+## 2026-10-27: The file viewer reads over `ssh` (AV-106)
+
+The file viewer read files only with the AHP host's `resourceRead`, so
+files on a remote host did not open when the host could not serve them,
+while the terminal panel reaches the same host over the system `ssh`.
+
+- **The terminal's `ssh`.** On the desktop apps the viewer runs
+  `ssh -o BatchMode=yes -- <host> cat -- '<path>'` to the AHP URL's host,
+  the destination the terminal uses, so `~/.ssh/config`, keys and the
+  agent apply and a file opens wherever a terminal can. Batch mode,
+  because a pipe cannot answer a password or host key prompt.
+- **`resourceRead` as the fallback.** The web and mobile apps (no
+  system `ssh`), hosts with no SSH host, and failed `ssh` reads use the
+  host's `resourceRead`, so hosts that served files before still do.
+  When both fail the viewer shows `ssh`'s error (`cat: …: No such
+file`), the more telling one.
+- **Not retried, capped at 16 MiB.** `fileTextProvider` turns off
+  Riverpod's automatic retry, so a missing file does not spawn `ssh`
+  again and again, and stops reading past pi's `resourceRead` limit.
+- **Only the viewer.** Diffs and other `ContentRef` content are host
+  URIs, not paths, and stay on `resourceRead`.
+
 ## 2026-10-27: Parakeet as a second dictation model (AV-047)
 
 Whisper base.en is fast but makes about one word error in ten on the

@@ -38,6 +38,19 @@ List<String> sshArguments(String host, {String? directory}) => [
     'cd ${shellQuote(directory)} 2>/dev/null; exec "\$SHELL" -l',
 ];
 
+/// The arguments to [sshExecutable] that print the file at [path] on
+/// [host] (`cat`), for the file viewer. Batch mode fails rather than
+/// asking for a password or a host key, since nothing could answer.
+List<String> sshReadFileArguments(String host, String path) => [
+  '-o',
+  'BatchMode=yes',
+  '-o',
+  'ConnectTimeout=10',
+  '--',
+  host,
+  'cat -- ${shellQuote(path)}',
+];
+
 /// The environment of the `ssh` process: this app's environment (so
 /// `SSH_AUTH_SOCK`, `HOME` and Windows' profile folders reach it), with
 /// `TERM` set to what the terminal emulates.

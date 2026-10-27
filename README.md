@@ -24,7 +24,8 @@ with a UX modeled on the GitHub Agents view and Cursor's Agents Window.
 > tokens are refreshed), reviews changesets (files,
 > diffs, "reviewed" marks, host operations), opens the file paths a
 > reply prints (relative to the session's folder) in a file viewer in
-> that side pane, shows background work,
+> that side pane (read over the system `ssh` on the desktop apps, as
+> the terminal is), shows background work,
 > canvases and session details, and starts new sessions from a draft
 > in the session pane (host, agent,
 > model and its options such as the thinking level, a folder browsed on

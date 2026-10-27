@@ -70,6 +70,22 @@ Without a folder it runs `ssh -- 10.0.0.5`. A host that starts with
 be read as an `ssh` option. The process gets the app's environment
 (including `SSH_AUTH_SOCK`) with `TERM=xterm-256color`.
 
+## The file viewer
+
+The file viewer (AV-106) reads files over the same `ssh`, so a file a
+reply names opens from a remote host with the terminal's access. It runs
+
+```sh
+ssh -o BatchMode=yes -o ConnectTimeout=10 -- 10.0.0.5 "cat -- '/src/app/lib/main.dart'"
+```
+
+without a pty. Batch mode makes `ssh` fail instead of asking for a
+password or to accept a host key, since the viewer cannot answer; use a
+key (or the SSH agent) and connect once in the terminal to accept the
+host key. Reads stop at 16 MiB. When `ssh` fails, the viewer asks the
+AHP host with `resourceRead`, and shows `ssh`'s error if that fails too.
+The web and mobile apps always use `resourceRead`.
+
 ## Platforms
 
 - **macOS, Linux and Windows:** the panel, with `ssh` in a pseudo-terminal
@@ -96,7 +112,10 @@ Package Manager. Its README lists the changes.
 `app/lib/src/terminal/`:
 
 - `ssh_command.dart` (pure): `sshHostOf`, `validSshHost`, `shellQuote`,
-  `sshArguments`, `sshEnvironment`, `sshUri` and `terminalLabel`.
+  `sshArguments`, `sshReadFileArguments` (the file viewer's `cat`),
+  `sshEnvironment`, `sshUri` and `terminalLabel`.
+- `../files/ssh_file_read.dart`: `fileTextProvider`, the file viewer's
+  read over `ssh` with the `resourceRead` fallback.
 - `pty_process.dart`: the `PtyProcess` interface, `ptySpawnerProvider`
   and `processEnvironmentProvider` (tests replace them) and
   `ptySupported`. `pty_process_io.dart` starts processes with

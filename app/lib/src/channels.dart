@@ -93,15 +93,23 @@ typedef HostResource = ({String host, String uri});
 /// The text behind a `ContentRef` URI on a host, read with `resourceRead`
 /// while something watches it.
 final resourceTextProvider = FutureProvider.autoDispose
-    .family<String, HostResource>((ref, resource) async {
-      final result = await ref
+    .family<String, HostResource>(
+      (ref, resource) => readResourceText(ref, resource),
+    );
+
+/// Reads the text of [resource] with `resourceRead`.
+Future<String> readResourceText(Ref ref, HostResource resource) async =>
+    resourceTextOf(
+      await ref
           .read(hostConnectionProvider(resource.host).notifier)
-          .readResource(resource.uri);
-      return switch (result.encoding) {
-        ContentEncoding.base64 => utf8.decode(
-          base64.decode(result.data),
-          allowMalformed: true,
-        ),
-        _ => result.data,
-      };
-    });
+          .readResource(resource.uri),
+    );
+
+/// The text of a `resourceRead` [result], decoding base64 as UTF-8.
+String resourceTextOf(ResourceReadResult result) => switch (result.encoding) {
+  ContentEncoding.base64 => utf8.decode(
+    base64.decode(result.data),
+    allowMalformed: true,
+  ),
+  _ => result.data,
+};

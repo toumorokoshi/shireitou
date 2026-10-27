@@ -8,12 +8,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:markdown/markdown.dart' as md;
-import 'package:shireitou/src/channels.dart';
 import 'package:shireitou/src/files/file_link_syntax.dart';
 import 'package:shireitou/src/files/file_path_text.dart';
 import 'package:shireitou/src/files/file_paths.dart';
 import 'package:shireitou/src/files/file_viewer.dart';
 import 'package:shireitou/src/files/open_file_store.dart';
+import 'package:shireitou/src/files/ssh_file_read.dart';
 import 'package:shireitou/src/host_connection.dart';
 import 'package:shireitou/src/session_detail/link_menu.dart';
 import 'package:shireitou/src/session_detail/timeline_parts.dart';
@@ -312,7 +312,7 @@ void main() {
     Widget viewer(Future<String> Function() read, {VoidCallback? onClose}) =>
         ProviderScope(
           overrides: [
-            resourceTextProvider((host: 'h', uri: _file.uri))
+            fileTextProvider((host: 'h', uri: _file.uri))
                 .overrideWith((ref) => read()),
           ],
           child: MaterialApp(

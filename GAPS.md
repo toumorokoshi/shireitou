@@ -789,6 +789,13 @@ AppImage and the release workflow (see
 - Files longer than 200 000 characters are shown without highlighting,
   and the whole file is laid out at once; a lazily built list of lines
   would scale to very large files.
+- Reading over `ssh` needs non-interactive login (a key or the SSH
+  agent, and an accepted host key); a host that asks for a password
+  falls back to `resourceRead`. The read is `cat`, so it needs a POSIX
+  shell on the host (not a Windows host's `cmd`), and no test runs a
+  real `ssh` read (the reader is replaced in `ssh_file_read_test.dart`).
+- Diffs and other `ContentRef` content are still read with
+  `resourceRead` only; only the file viewer uses `ssh`.
 - The fake host serves no `file:` reads, so the viewer is covered by
   widget tests (with `FakeHostConnection.contents`), not driven end to
   end.
