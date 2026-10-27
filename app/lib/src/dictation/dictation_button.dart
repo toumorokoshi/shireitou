@@ -10,11 +10,12 @@ import '../theme/app_colors.dart';
 import '../theme/app_icons.dart';
 import 'dictation.dart';
 import 'dictation_text.dart';
+import 'speech_model.dart';
 
 enum _Phase { idle, downloading, starting, listening, finishing }
 
 /// Starts and stops dictation into [controller]. The first press offers
-/// to download the model. Speech is written at the caret (replacing a
+/// a choice of models to download ([ModelDownloadDialog]). Speech is written at the caret (replacing a
 /// selection), each utterance's guess updated as it is spoken; typing in
 /// the box, or sending it, stops dictation and keeps the text.
 class DictationButton extends StatefulWidget {
@@ -46,6 +47,9 @@ class DictationButton extends StatefulWidget {
 class _DictationButtonState extends State<DictationButton> {
   var _phase = _Phase.idle;
   double? _progress;
+
+  /// The model being downloaded.
+  SpeechModel? _downloading;
   DictationSession? _session;
   StreamSubscription<Transcript>? _transcripts;
   DictationAnchor? _anchor;
@@ -72,16 +76,33 @@ class _DictationButtonState extends State<DictationButton> {
   }
 
   Future<void> _start() async {
-    final dictation = widget.dictation;
+    var dictation = widget.dictation;
     try {
       if (!await dictation.hasModel()) {
-        if (!mounted || !await _confirmDownload()) return;
-        _setPhase(_Phase.downloading);
-        await dictation.downloadModel(
-          onProgress: (p) {
-            if (mounted) setState(() => _progress = p);
-          },
+        final downloaded = {
+          for (final model in speechModels)
+            if (await dictation.withModel(model).hasModel()) model.id,
+        };
+        if (!mounted) return;
+        final picked = await showDialog<SpeechModel>(
+          context: context,
+          builder: (context) => ModelDownloadDialog(
+            initial: dictation.model,
+            downloaded: downloaded,
+          ),
         );
+        if (picked == null || !mounted) return;
+        dictation = dictation.withModel(picked);
+        await dictation.choose(picked);
+        if (!downloaded.contains(picked.id)) {
+          _downloading = picked;
+          _setPhase(_Phase.downloading);
+          await dictation.downloadModel(
+            onProgress: (p) {
+              if (mounted) setState(() => _progress = p);
+            },
+          );
+        }
       }
       if (!mounted) return;
       _setPhase(_Phase.starting);
@@ -146,33 +167,6 @@ class _DictationButtonState extends State<DictationButton> {
     }
   }
 
-  Future<bool> _confirmDownload() async {
-    final model = widget.dictation.model;
-    final megabytes = model.megabytes;
-    return await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Download the speech model?'),
-            content: Text(
-              'Dictation runs ${model.label} on this device, so your '
-              'voice never leaves it. The model is $megabytes MB and is '
-              'downloaded once.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: Text('Download ($megabytes MB)'),
-              ),
-            ],
-          ),
-        ) ??
-        false;
-  }
-
   void _report(Object error) {
     if (!mounted) return;
     ScaffoldMessenger.maybeOf(context)?.showSnackBar(
@@ -192,7 +186,7 @@ class _DictationButtonState extends State<DictationButton> {
     final (tooltip, icon) = switch (_phase) {
       _Phase.idle => ('Dictate', const Icon(AppIcons.dictate)),
       _Phase.downloading => (
-        'Downloading ${widget.dictation.model.label}'
+        'Downloading ${(_downloading ?? widget.dictation.model).label}'
             '${_progress == null ? '' : ' (${(_progress! * 100).round()}%)'}',
         _Spinner(value: _progress),
       ),
@@ -211,6 +205,85 @@ class _DictationButtonState extends State<DictationButton> {
       isSelected: _phase == _Phase.listening,
       icon: icon,
       onPressed: _toggle,
+    );
+  }
+}
+
+/// Asks which of [speechModels] to download, [initial] picked first;
+/// pops the picked model, or null when cancelled. Models in [downloaded]
+/// (ids) are used without a download.
+class ModelDownloadDialog extends StatefulWidget {
+  /// Creates the dialog.
+  const ModelDownloadDialog({
+    super.key,
+    required this.initial,
+    this.downloaded = const {},
+  });
+
+  /// The model picked when it opens.
+  final SpeechModel initial;
+
+  /// The ids of the models already on disk.
+  final Set<String> downloaded;
+
+  @override
+  State<ModelDownloadDialog> createState() => _ModelDownloadDialogState();
+}
+
+class _ModelDownloadDialogState extends State<ModelDownloadDialog> {
+  late var _picked = widget.initial;
+
+  @override
+  Widget build(BuildContext context) {
+    final onDisk = widget.downloaded.contains(_picked.id);
+    return AlertDialog(
+      title: const Text('Download a speech model?'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'Dictation runs the model on this device, so your voice never '
+            'leaves it. It is downloaded once; change it later under '
+            '"Dictation model" in the sidebar\'s "…" menu.',
+          ),
+          const SizedBox(height: 8),
+          RadioGroup<String>(
+            groupValue: _picked.id,
+            onChanged: (id) {
+              if (id != null) setState(() => _picked = speechModelById(id));
+            },
+            child: Column(
+              children: [
+                for (final model in speechModels)
+                  RadioListTile<String>(
+                    contentPadding: EdgeInsets.zero,
+                    value: model.id,
+                    title: Text(model.label),
+                    subtitle: Text(
+                      '${model.description} · '
+                      '${widget.downloaded.contains(model.id) ? 'downloaded' : '${model.megabytes} MB'}',
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, _picked),
+          child: Text(
+            onDisk
+                ? 'Use ${_picked.label}'
+                : 'Download (${_picked.megabytes} MB)',
+          ),
+        ),
+      ],
     );
   }
 }

@@ -18,6 +18,13 @@ abstract interface class Dictation {
   /// Whether [model] is on disk.
   Future<bool> hasModel();
 
+  /// This dictation with [model] instead; [choose] keeps it.
+  Dictation withModel(SpeechModel model);
+
+  /// Makes [model] the one dictation uses from now on, kept on this
+  /// device.
+  Future<void> choose(SpeechModel model);
+
   /// Downloads [model].
   Future<void> downloadModel({DownloadProgress? onProgress});
 
@@ -55,5 +62,8 @@ class DictationException implements Exception {
 /// where it is not supported (the web app, and widget tests that pretend
 /// to be another platform).
 final dictationProvider = Provider<Dictation?>(
-  (ref) => platformDictation(ref.watch(speechModelProvider)),
+  (ref) => platformDictation(
+    ref.watch(speechModelProvider),
+    choose: ref.read(speechModelProvider.notifier).set,
+  ),
 );

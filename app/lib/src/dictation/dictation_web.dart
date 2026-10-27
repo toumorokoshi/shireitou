@@ -6,4 +6,7 @@ import 'dictation.dart';
 import 'speech_model.dart';
 
 /// None on the web.
-Dictation? platformDictation(SpeechModel model) => null;
+Dictation? platformDictation(
+  SpeechModel model, {
+  required Future<void> Function(SpeechModel) choose,
+}) => null;

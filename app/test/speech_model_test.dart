@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shireitou/src/dictation/dictation.dart';
+import 'package:shireitou/src/dictation/dictation_io.dart';
 import 'package:shireitou/src/dictation/dictation_model_menu.dart';
 import 'package:shireitou/src/dictation/model_store.dart';
 import 'package:shireitou/src/dictation/speech_model.dart';
@@ -22,6 +23,12 @@ class _FakeDictation implements Dictation {
 
   @override
   Future<bool> hasModel() async => false;
+
+  @override
+  Dictation withModel(SpeechModel model) => _FakeDictation(model);
+
+  @override
+  Future<void> choose(SpeechModel model) async {}
 
   @override
   Future<void> downloadModel({DownloadProgress? onProgress}) async {}
@@ -110,6 +117,16 @@ void main() {
       expect(container.read(speechModelProvider), whisperBaseEn);
       expect(prefs.values[StoredSpeechModel.key], whisperBaseEn.id);
     });
+  });
+
+  test('NativeDictation keeps a chosen model, also from withModel', () async {
+    final chosen = <SpeechModel>[];
+    final dictation = NativeDictation(onChoose: (m) async => chosen.add(m));
+    final parakeet = dictation.withModel(parakeetTdtV2);
+    expect(dictation.model, whisperBaseEn);
+    expect(parakeet.model, parakeetTdtV2);
+    await parakeet.choose(parakeetTdtV2);
+    expect(chosen, [parakeetTdtV2]);
   });
 
   group('DictationModelMenu', () {

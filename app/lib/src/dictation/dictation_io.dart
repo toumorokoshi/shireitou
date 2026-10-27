@@ -15,10 +15,13 @@ import 'model_store.dart';
 import 'speech_model.dart';
 import 'speech_worker.dart';
 
-/// The native [Dictation] with [model]. The target platform and the real
-/// one (`dart:io`) must agree, so widget tests that pretend to be another
-/// platform get none.
-Dictation? platformDictation(SpeechModel model) {
+/// The native [Dictation] with [model], saving a new pick with [choose].
+/// The target platform and the real one (`dart:io`) must agree, so widget
+/// tests that pretend to be another platform get none.
+Dictation? platformDictation(
+  SpeechModel model, {
+  required Future<void> Function(SpeechModel) choose,
+}) {
   final real = switch (defaultTargetPlatform) {
     TargetPlatform.macOS => Platform.isMacOS,
     TargetPlatform.linux => Platform.isLinux,
@@ -27,16 +30,28 @@ Dictation? platformDictation(SpeechModel model) {
     TargetPlatform.iOS => Platform.isIOS,
     _ => false,
   };
-  return real ? NativeDictation(model: model) : null;
+  return real ? NativeDictation(model: model, onChoose: choose) : null;
 }
 
 /// [Dictation] with models kept in the app's support folder.
 class NativeDictation implements Dictation {
-  /// Creates a [NativeDictation].
-  NativeDictation({this.model = whisperBaseEn});
+  /// Creates a [NativeDictation]; [onChoose] keeps a picked model.
+  NativeDictation({this.model = whisperBaseEn, this.onChoose});
 
   @override
   final SpeechModel model;
+
+  /// Keeps the model [choose] picks; nothing is kept when null.
+  final Future<void> Function(SpeechModel)? onChoose;
+
+  @override
+  Dictation withModel(SpeechModel model) =>
+      NativeDictation(model: model, onChoose: onChoose);
+
+  @override
+  Future<void> choose(SpeechModel model) async {
+    await onChoose?.call(model);
+  }
 
   late final Future<ModelStore> _store = getApplicationSupportDirectory().then(
     (dir) => ModelStore(Directory('${dir.path}/models')),

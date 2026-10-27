@@ -671,7 +671,8 @@ AppImage and the release workflow (see
   language setting are not offered; `SpeechModel` describes any
   sherpa-onnx Whisper or NeMo transducer export, so adding one is a
   constant in `speech_model.dart`.
-- The "Dictation model" menu does not say which models are downloaded,
+- The "Dictation model" menu does not say which models are downloaded
+  (only the first download's dialog does),
   and there is no way to delete one from the app (delete its folder
   under `models/`). Picking a model while dictating applies from the
   next dictation.

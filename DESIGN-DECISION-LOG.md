@@ -1,5 +1,26 @@
 # Design Decision Log
 
+## 2026-10-27: Picking the model in the first download's dialog (AV-047)
+
+The first press of the microphone asked to download whichever model was
+picked, which was Whisper unless the user had found the "Dictation
+model" submenu first, so most people never saw that there was a
+choice.
+
+- **The choice is in the dialog.** "Download a speech model?" lists
+  every model with its trade-off and size, the current one picked; the
+  button reads "Download (N MB)", or "Use …" for a model already on
+  disk, which is then used without a download. Whisper stays picked
+  first, so pressing Download right away behaves as before.
+- **The pick is kept.** It becomes the dictation model, as if chosen in
+  the submenu, so the menu and the dialog agree and later dictations use
+  it.
+- **On the `Dictation` interface.** `withModel` gives the same
+  dictation with another model (to check what is on disk and to
+  download the pick), and `choose` keeps it; `dictationProvider` passes
+  `speechModelProvider`'s setter. The button needed no new callback
+  through the two composers, and the fakes in tests implement both.
+
 ## 2026-10-27: The file viewer reads over `ssh` (AV-106)
 
 The file viewer read files only with the AHP host's `resourceRead`, so

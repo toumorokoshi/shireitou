@@ -13,10 +13,12 @@ device.
 
 ## Using it
 
-- Press the microphone. The first time, the app asks to download the
-  model (Whisper base.en, 161 MB, unless another is picked) into its
-  support folder; the button shows the download's progress. The system
-  asks once for microphone access.
+- Press the microphone. The first time, the app asks which model to
+  download into its support folder: Whisper base.en (161 MB, picked
+  first) or Parakeet TDT 0.6B v2 (662 MB), each with its trade-off. The
+  pick becomes the dictation model, and the button shows the download's
+  progress. A model already on disk reads "downloaded" and is used
+  without one. The system asks once for microphone access.
 - Speak. The utterance you are saying is re-transcribed several times a
   second and shown in the box; when you pause (0.6 s), it is
   transcribed once more, with punctuation, and kept.
@@ -32,9 +34,10 @@ apps; the web app has no button yet (see [GAPS.md](../GAPS.md)).
 
 ## Models
 
-Pick the model in the sidebar's "…" menu, under "Dictation model". The
-choice is kept on this device; a model is downloaded the first time you
-dictate with it, and the other stays on disk.
+Pick the model in the first download's dialog, or later in the
+sidebar's "…" menu under "Dictation model". The choice is kept on this
+device; a model is downloaded the first time you dictate with it (the
+dialog opens again, with it picked), and the other stays on disk.
 
 | Model                     | Download | Word errors (Open ASR Leaderboard average) | Notes                                                                                                          |
 | ------------------------- | -------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
@@ -115,7 +118,7 @@ The code is in `app/lib/src/dictation/` (see
   `dictation_session_test.dart` (queueing audio while the engine loads or
   works, stop and cancel), `model_store_test.dart` (downloads, progress,
   cut downloads), `dictation_button_test.dart` (the button in the
-  composer, the download prompt, typing to stop) and
+  composer, the download dialog's choice of model, typing to stop) and
   `speech_model_test.dart` (the models' files, their sherpa-onnx
   settings, the stored choice and the "Dictation model" menu).
 - `just test-whisper` runs each real model: it downloads them (into

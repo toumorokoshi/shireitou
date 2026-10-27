@@ -32,36 +32,70 @@ class _FakeSession implements DictationSession {
   }
 }
 
-class _FakeDictation implements Dictation {
-  _FakeDictation({this.modelReady = true, this.error});
+/// What every model of a [_FakeDictation] shares.
+class _Shared {
+  _Shared(this.ready, this.error);
 
-  bool modelReady;
+  /// The ids of the models on disk.
+  final Set<String> ready;
   final DictationException? error;
   final downloads = Completer<void>();
+  final downloaded = <String>[];
+  final chosen = <SpeechModel>[];
+  final listenedWith = <String>[];
   final sessions = <_FakeSession>[];
+}
+
+class _FakeDictation implements Dictation {
+  _FakeDictation({
+    bool modelReady = true,
+    Set<String>? ready,
+    DictationException? error,
+  }) : this._(
+         _Shared(ready ?? {if (modelReady) whisperBaseEn.id}, error),
+         whisperBaseEn,
+       );
+
+  _FakeDictation._(this._shared, this.model);
+
+  final _Shared _shared;
 
   @override
-  SpeechModel get model => whisperBaseEn;
+  final SpeechModel model;
+
+  bool get modelReady => _shared.ready.contains(model.id);
+  Completer<void> get downloads => _shared.downloads;
+  List<String> get downloaded => _shared.downloaded;
+  List<SpeechModel> get chosen => _shared.chosen;
+  List<String> get listenedWith => _shared.listenedWith;
 
   @override
   Future<bool> hasModel() async => modelReady;
 
   @override
+  Dictation withModel(SpeechModel model) => _FakeDictation._(_shared, model);
+
+  @override
+  Future<void> choose(SpeechModel model) async => chosen.add(model);
+
+  @override
   Future<void> downloadModel({DownloadProgress? onProgress}) async {
+    downloaded.add(model.id);
     onProgress?.call(0.5);
     await downloads.future;
-    modelReady = true;
+    _shared.ready.add(model.id);
   }
 
   @override
   Future<DictationSession> listen() async {
-    if (error case final e?) throw e;
-    return sessions.last;
+    if (_shared.error case final e?) throw e;
+    listenedWith.add(model.id);
+    return _shared.sessions.last;
   }
 
   _FakeSession next() {
     final session = _FakeSession();
-    sessions.add(session);
+    _shared.sessions.add(session);
     return session;
   }
 }
@@ -160,16 +194,61 @@ void main() {
 
     await tester.tap(find.byTooltip('Dictate'));
     await tester.pumpAndSettle();
-    expect(find.text('Download the speech model?'), findsOneWidget);
-    expect(find.textContaining('161 MB'), findsWidgets);
+    expect(find.text('Download a speech model?'), findsOneWidget);
+    expect(find.text('Fastest, smallest download · 161 MB'), findsOneWidget);
+    expect(find.text('More accurate, slower · 662 MB'), findsOneWidget);
 
     await tester.tap(find.text('Download (161 MB)'));
     await tester.pumpAndSettle(const Duration(milliseconds: 100));
     expect(find.byTooltip('Downloading Whisper base.en (50%)'), findsOneWidget);
+    expect(dictation.chosen, [whisperBaseEn]);
 
     dictation.downloads.complete();
     await tester.pump();
     await tester.pump();
+    expect(find.byTooltip('Stop dictation'), findsOneWidget);
+    expect(dictation.listenedWith, [whisperBaseEn.id]);
+  });
+
+  testWidgets('the first download can be Parakeet', (tester) async {
+    final dictation = _FakeDictation(modelReady: false)..next();
+    await _pump(tester, dictation: dictation);
+
+    await tester.tap(find.byTooltip('Dictate'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Parakeet TDT 0.6B v2'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Download (662 MB)'));
+    await tester.pumpAndSettle(const Duration(milliseconds: 100));
+    expect(
+      find.byTooltip('Downloading Parakeet TDT 0.6B v2 (50%)'),
+      findsOneWidget,
+    );
+    expect(dictation.chosen, [parakeetTdtV2]);
+    expect(dictation.downloaded, [parakeetTdtV2.id]);
+
+    dictation.downloads.complete();
+    await tester.pump();
+    await tester.pump();
+    expect(dictation.listenedWith, [parakeetTdtV2.id]);
+  });
+
+  testWidgets('a model already on disk is used without a download', (
+    tester,
+  ) async {
+    final dictation = _FakeDictation(ready: {parakeetTdtV2.id})..next();
+    await _pump(tester, dictation: dictation);
+
+    await tester.tap(find.byTooltip('Dictate'));
+    await tester.pumpAndSettle();
+    expect(find.text('More accurate, slower · downloaded'), findsOneWidget);
+    await tester.tap(find.text('Parakeet TDT 0.6B v2'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Use Parakeet TDT 0.6B v2'));
+    await tester.pumpAndSettle();
+    expect(dictation.downloaded, isEmpty);
+    expect(dictation.chosen, [parakeetTdtV2]);
+    expect(dictation.listenedWith, [parakeetTdtV2.id]);
     expect(find.byTooltip('Stop dictation'), findsOneWidget);
   });
 
@@ -182,6 +261,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byTooltip('Dictate'), findsOneWidget);
     expect(dictation.modelReady, isFalse);
+    expect(dictation.chosen, isEmpty);
   });
 
   testWidgets('a microphone that cannot open is reported', (tester) async {
