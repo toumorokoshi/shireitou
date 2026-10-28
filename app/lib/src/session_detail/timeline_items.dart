@@ -398,6 +398,52 @@ String formatStepsDuration(int ms) {
   return '${minutes ~/ 60}h ${minutes % 60}m';
 }
 
+/// How long a tool call ran as this client saw it (AV-077): "~3s" or "<1s"
+/// once finished, "12s" counting while it runs, and "≥12s" when the client
+/// may have missed some of it. Null when the client never saw it run.
+String? toolCallTimingLabel(ToolCallTiming? timing, DateTime now) =>
+    switch (timing?.elapsed(now)) {
+      final elapsed? => _estimate(
+        elapsed,
+        partial: timing!.partial,
+        live: timing.running,
+      ),
+      null => null,
+    };
+
+/// [toolCallTimingLabel] for a group of [calls] (AV-064, AV-077): their
+/// summed time, a lower bound when any call was not seen running from
+/// its start. Null when none was seen running.
+String? toolCallGroupTimingLabel(
+  List<ToolCallState> calls,
+  Map<String, ToolCallTiming> timings,
+  DateTime now,
+) {
+  final known = [
+    for (final call in calls)
+      if (timings[call.toolCallId] case final timing?
+          when timing.elapsed(now) != null)
+        timing,
+  ];
+  if (known.isEmpty) return null;
+  return _estimate(
+    known.fold(Duration.zero, (sum, t) => sum + t.elapsed(now)!),
+    partial: known.length < calls.length || known.any((t) => t.partial),
+    live: known.any((t) => t.running),
+  );
+}
+
+String? _estimate(
+  Duration elapsed, {
+  required bool partial,
+  required bool live,
+}) {
+  final ms = elapsed.inMilliseconds;
+  if (ms < 1000) return partial ? null : (live ? '0s' : '<1s');
+  final text = formatStepsDuration(ms);
+  return partial ? '≥$text' : (live ? text : '~$text');
+}
+
 /// The steps line of [item] (AV-095): "Working… 3 steps" while the turn
 /// runs, else "Completed 3 steps in 1m 47s" (without the time when the
 /// host did not send the duration), and how many calls failed.

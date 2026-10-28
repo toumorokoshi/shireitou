@@ -80,6 +80,18 @@ WebSocket ──► json_rpc_2 Peer ──► AhpClient (I/O edge)
   `readResource` (`resourceRead`), `invokeChangesetOperation` and
   `moveChat` (1.0.0 only; `UnsupportedFeatureError` under 0.9.0) are
   plain requests.
+- **Tool call timings (AHP-032):** AHP sends a duration for a finished
+  turn (measured by the host) and a terminal command, but none for a
+  tool call, and says not to subtract its timestamps (other clocks).
+  `tool_call_timings.dart` is pure: `observeToolCalls(timings, state,
+now)` takes every state the client publishes (each action is its own
+  state, so each status change is seen when it happens) and keeps a
+  `ToolCallTiming` per chat and `toolCallId`: the time spent `running`,
+  whether it runs now, and `partial` when the client may have missed
+  some of it (first seen already running, or running when the
+  connection or the chat's subscription was lost; the time in between
+  is not counted). Calls first seen finished get none. The caller owns
+  the timings and the clock.
 - **Windowed history (AHP-029):** a chat snapshot may hold only the
   newest turns and a `turnsNextCursor`; `loadOlderTurns(chat)` sends
   `fetchTurns` with it (one at a time per chat), and the host prepends
@@ -201,7 +213,9 @@ Dart source); `bin/generate.dart` does the file I/O. See
   forwarding `openSession`, `dispatch`, the composer commands and
   `startSession` (create with settings, open, send the first prompt with
   the model). Widgets `select` the fields they need, so chat streaming only
-  rebuilds the open timeline. `HostScope` (an `InheritedWidget`) tells the
+  rebuilds the open timeline. Every state it publishes also goes to
+  `toolCallTimingsProvider` (the host's `ToolCallTimings`, AHP-032),
+  stamped with `clock.now()` (`package:clock`, so tests control time). `HostScope` (an `InheritedWidget`) tells the
   session view and everything under it which host it shows
   (`context.host`); pages and dialogs pushed from there wrap themselves in
   one.
@@ -488,6 +502,12 @@ Dart source); `bin/generate.dart` does the file I/O. See
   `editable` calls and "Use result"/"Discard result" for results that
   need confirmation. Input request forms sync drafts
   (`chat/inputAnswerChanged`) and take other clients' drafts.
+  `tool_call_timing.dart` holds `ToolCallTimingScope`, which the session
+  view puts around the timeline with the open chat's timings, and
+  `ClockBuilder`, which rebuilds every second while a call runs; tool
+  call cards and groups end their subtitle with `toolCallTimingLabel` or
+  `toolCallGroupTimingLabel` (`timeline_items.dart`, pure: "12s" while
+  running, "~3s" or "<1s" once done, "≥3s" for a lower bound; AV-077).
   `tool_previews.dart` renders tool call previews: live terminals,
   mini-diffs and subagent cards. `diff_lines.dart` (pure, with
   `diffutil_dart`) and `diff_view.dart` show diffs, unified or side by

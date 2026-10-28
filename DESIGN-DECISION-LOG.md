@@ -1,5 +1,32 @@
 # Design Decision Log
 
+## 2026-10-27: Timing tool calls on the client (AV-077, AHP-032)
+
+AHP gives a finished turn a duration measured by the host, and a
+terminal command its `durationMs`, but a tool call carries no timestamps,
+and the protocol says clients must not subtract its timestamps (they come
+from other clocks). So the app could not say how long a step took.
+
+- **Timed by the client, with its own clock.** Each action reaches the
+  client as its own published state, so a pure `observeToolCalls`
+  (`ahp_client`) sees every status change when it happens and stamps it
+  with the caller's clock. Shown as an estimate ("~3s").
+- **Only `running` counts.** Waiting on approval, sign-in or a result
+  review is the user's time, not the tool's, so the time is the sum of
+  the call's `running` intervals.
+- **Lower bounds are labelled.** A call first seen already running, or
+  running when the connection or the chat's subscription is lost, is
+  `partial` and shown as "≥3s"; the time while disconnected is not
+  counted, so a laptop asleep for an hour does not read as an hour-long
+  tool. A call first seen finished gets no time rather than a wrong one.
+- **State in the app, logic in the client.** `ahp_client` holds only the
+  pure function and types; the app keeps the timings per host
+  (`toolCallTimingsProvider`, fed by `HostConnection`) and hands the open
+  chat's to the cards through an `InheritedWidget`, so cards stay free of
+  Riverpod and tests can pump them without a host.
+- **`package:clock`.** The recorder and the ticking label read
+  `clock.now()`, so widget tests advance time with `pump`.
+
 ## 2026-10-27: The review pane pulls almost to the left edge (AV-005)
 
 The review pane stopped at 600 px, the sidebar's limit, so on a wide

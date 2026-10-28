@@ -24,6 +24,7 @@ import 'timeline_items.dart';
 import 'timeline_selection.dart';
 import 'todo_list.dart';
 import 'todo_widgets.dart';
+import 'tool_call_timing.dart';
 import 'tool_previews.dart';
 import 'turn_markdown.dart';
 
@@ -664,6 +665,7 @@ class ToolCallCard extends StatelessWidget {
       _ => false,
     };
     final waiting = toolCall is ToolCallConfirmationState;
+    final timing = ToolCallTimingScope.of(context)[toolCall.toolCallId];
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 4),
       clipBehavior: Clip.antiAlias,
@@ -678,10 +680,18 @@ class ToolCallCard extends StatelessWidget {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
-            subtitle: Text(
-              '${toolCall.displayName} · '
-              '${failed ? 'Failed' : toolCallStatusLabel(toolCall)}',
-              style: failed ? TextStyle(color: theme.colorScheme.error) : null,
+            subtitle: ClockBuilder(
+              ticking: timing?.running ?? false,
+              builder: (context, now) => Text(
+                [
+                  toolCall.displayName,
+                  failed ? 'Failed' : toolCallStatusLabel(toolCall),
+                  ?toolCallTimingLabel(timing, now),
+                ].join(' · '),
+                style: failed
+                    ? TextStyle(color: theme.colorScheme.error)
+                    : null,
+              ),
             ),
             trailing: switch (toolCall) {
               ToolCallStreamingState() ||
@@ -1220,6 +1230,7 @@ class ToolCallGroupCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final status = toolCallGroupStatus(calls);
+    final timings = ToolCallTimingScope.of(context);
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 4),
       clipBehavior: Clip.antiAlias,
@@ -1227,10 +1238,17 @@ class ToolCallGroupCard extends StatelessWidget {
         dense: true,
         leading: Icon(toolIcon(calls.first.toolName)),
         title: Text(toolCallGroupSummary(calls)),
-        subtitle: Text(
-          '${calls.map(toolCallSummary).join(', ')} · $status',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+        subtitle: ClockBuilder(
+          ticking: calls.any((c) => timings[c.toolCallId]?.running ?? false),
+          builder: (context, now) => Text(
+            [
+              calls.map(toolCallSummary).join(', '),
+              status,
+              ?toolCallGroupTimingLabel(calls, timings, now),
+            ].join(' · '),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
         ),
         trailing: status == 'Running'
             ? const SizedBox.square(

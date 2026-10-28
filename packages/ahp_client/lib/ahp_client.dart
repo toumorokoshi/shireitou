@@ -23,4 +23,5 @@ export 'src/session_reducer.dart';
 export 'src/session_status.dart';
 export 'src/subscriptions.dart';
 export 'src/terminal_reducer.dart';
+export 'src/tool_call_timings.dart';
 export 'src/wire.dart';

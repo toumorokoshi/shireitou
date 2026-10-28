@@ -59,6 +59,52 @@ void main() {
     expect(toolCallOutputText(streaming), isNull);
   });
 
+  test('tool call timing labels are estimates (AV-077)', () {
+    final now = DateTime.utc(2026, 10, 1, 12);
+    expect(toolCallTimingLabel(null, now), isNull);
+    expect(toolCallTimingLabel(const ToolCallTiming(), now), isNull);
+    expect(
+      toolCallTimingLabel(const ToolCallTiming(ran: Duration(seconds: 3)), now),
+      '~3s',
+    );
+    expect(
+      toolCallTimingLabel(
+        const ToolCallTiming(ran: Duration(milliseconds: 300)),
+        now,
+      ),
+      '<1s',
+    );
+    expect(
+      toolCallTimingLabel(
+        const ToolCallTiming(ran: Duration(seconds: 3), partial: true),
+        now,
+      ),
+      '≥3s',
+    );
+    expect(
+      toolCallTimingLabel(
+        ToolCallTiming(
+          ran: const Duration(seconds: 2),
+          runningSince: now.subtract(const Duration(seconds: 10)),
+        ),
+        now,
+      ),
+      '12s',
+    );
+  });
+
+  test('a group sums its calls, as a lower bound when one is unknown', () {
+    final now = DateTime.utc(2026, 10, 1, 12);
+    final calls = [_done('a', 'read'), _done('b', 'read')];
+    const timed = {
+      'a': ToolCallTiming(ran: Duration(seconds: 2)),
+      'b': ToolCallTiming(ran: Duration(seconds: 3)),
+    };
+    expect(toolCallGroupTimingLabel(calls, timed, now), '~5s');
+    expect(toolCallGroupTimingLabel(calls, {'a': timed['a']!}, now), '≥2s');
+    expect(toolCallGroupTimingLabel(calls, const {}, now), isNull);
+  });
+
   test('footer, usage and model', () {
     final chat = chatFixture();
     expect(

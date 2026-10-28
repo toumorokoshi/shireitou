@@ -6,6 +6,7 @@ library;
 import 'dart:async';
 
 import 'package:ahp_client/ahp_client.dart';
+import 'package:clock/clock.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
@@ -23,6 +24,30 @@ final hostConnectionProvider =
     NotifierProvider.family<HostConnection, HostState, String>(
       HostConnection.new,
     );
+
+/// How long the host's tool calls ran, as this app saw them (AHP-032,
+/// AV-077), by host key. [HostConnection] feeds it every state; it lasts
+/// as long as the app runs.
+final toolCallTimingsProvider =
+    NotifierProvider.family<ToolCallTimingsNotifier, ToolCallTimings, String>(
+      ToolCallTimingsNotifier.new,
+    );
+
+/// Holds one host's [ToolCallTimings].
+class ToolCallTimingsNotifier extends Notifier<ToolCallTimings> {
+  /// Creates the timings of the host with key [host].
+  ToolCallTimingsNotifier(this.host);
+
+  /// The host key ([SavedHost.key]).
+  final String host;
+
+  @override
+  ToolCallTimings build() => const {};
+
+  /// Advances the timings to [next], observed at [now].
+  void observe(HostState next, DateTime now) =>
+      state = observeToolCalls(state, next, now);
+}
 
 /// The protected resources a host holds a token for (AHP-060), by host
 /// key.
@@ -105,7 +130,7 @@ class HostConnection extends Notifier<HostState> {
       clientInfo: const Implementation(name: 'shireitou', version: '0.1.0'),
     );
     _client = client;
-    _subscription = client.states.listen((next) => state = next);
+    _subscription = client.states.listen(_publish);
     _failureSubscription = client.failures.listen(_failures.add);
     // Before connecting, so saved tokens are pushed on the first
     // connection and -32007 is answered from the start.
@@ -141,7 +166,12 @@ class HostConnection extends Notifier<HostState> {
   /// Closes the connection.
   Future<void> disconnect() async {
     await _dispose();
-    state = const HostState();
+    _publish(const HostState());
+  }
+
+  void _publish(HostState next) {
+    ref.read(toolCallTimingsProvider(host).notifier).observe(next, clock.now());
+    state = next;
   }
 
   /// Subscribes to [session] and its default chat; returns the chat URI.

@@ -93,6 +93,24 @@ void main() {
     expect(chatState().turns.single.state, TurnState.complete);
   });
 
+  test('the client times every call it sees run (AHP-032)', () async {
+    var timings = const <String, Map<String, ToolCallTiming>>{};
+    final watch = client.states.listen(
+      (s) => timings = observeToolCalls(timings, s, DateTime.now()),
+    );
+    await send('read');
+    await turnDone();
+    await watch.cancel();
+    final calls = parts().whereType<ToolCallResponsePart>().toList();
+    expect(calls, hasLength(3));
+    for (final ToolCallResponsePart(:toolCall) in calls) {
+      final timing = timings[chat]![toolCall.toolCallId]!;
+      expect(timing.running, isFalse);
+      expect(timing.partial, isFalse);
+      expect(timing.elapsed(DateTime.now()), isNotNull);
+    }
+  });
+
   group('tool approvals (AV-083)', () {
     Future<ToolCallPendingConfirmationState> pending() async {
       await send('run the tool');

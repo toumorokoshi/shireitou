@@ -803,3 +803,20 @@ AppImage and the release workflow (see
 - The fake host serves no `file:` reads, so the viewer is covered by
   widget tests (with `FakeHostConnection.contents`), not driven end to
   end.
+
+## Tool call timings (AV-077, AHP-032)
+
+- Timings are kept in memory per host while the app runs. A call the app
+  first saw finished (history loaded on opening a session, or from before
+  a restart) shows no time; keeping timings on the device, or the host
+  sending a per-call duration (AHP has none), would cover them.
+- The time is the client's view: it includes the network delay of the
+  status changes, and with a write-ahead approval it starts when the user
+  approves rather than when the host starts the tool.
+- A call that went back to `pending-confirmation` from `running`, first
+  seen there, is not marked as a lower bound.
+- Times are only shown; nothing estimates how long a running call will
+  take (for example from earlier calls of the same tool), and the steps
+  line still shows only the host's turn duration.
+- Timings of chats that are no longer open are never dropped; they are
+  small, but a very long-lived connection keeps them all.

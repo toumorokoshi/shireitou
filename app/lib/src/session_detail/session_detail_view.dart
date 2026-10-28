@@ -58,6 +58,7 @@ import 'session_info.dart';
 import 'session_inputs.dart';
 import 'session_status_widgets.dart';
 import 'source_links.dart';
+import 'tool_call_timing.dart';
 import 'timeline_items.dart';
 import 'timeline_parts.dart';
 import 'timeline_selection.dart';
@@ -436,6 +437,11 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
             hostConnectionProvider(context.host)
                 .select((s) => s.chatChannels[chatUri]?.state),
           );
+    final timings = chatUri == null
+        ? null
+        : ref.watch(
+            toolCallTimingsProvider(context.host).select((t) => t[chatUri]),
+          );
     final protocolVersion = ref.watch(
       hostConnectionProvider(context.host).select((s) => s.protocolVersion),
     );
@@ -471,27 +477,30 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
         child: CircularProgressIndicator(),
       ),
       (null, _) => const Center(child: Text('This session has no chat.')),
-      (final chat?, _) => _Timeline(
-        key: ValueKey(chatUri),
-        chat: chat,
-        onAction: (action) => _dispatch(chatUri!, action),
-        onSignIn: _signIn,
-        onOpenChat: _selectChat,
-        onLoadOlder: () => _loadOlder(chatUri!),
-        onEditMessage: readOnly || missing
-            ? null
-            : (turnId, text) {
-                final actions = restartActions(
-                  chat,
-                  turnId: turnId,
-                  text: text,
-                  id: const Uuid().v4(),
-                  now: DateTime.now(),
-                );
-                for (final action in actions ?? const <JsonMap>[]) {
-                  _dispatch(chatUri!, action);
-                }
-              },
+      (final chat?, _) => ToolCallTimingScope(
+        timings: timings ?? const {},
+        child: _Timeline(
+          key: ValueKey(chatUri),
+          chat: chat,
+          onAction: (action) => _dispatch(chatUri!, action),
+          onSignIn: _signIn,
+          onOpenChat: _selectChat,
+          onLoadOlder: () => _loadOlder(chatUri!),
+          onEditMessage: readOnly || missing
+              ? null
+              : (turnId, text) {
+                  final actions = restartActions(
+                    chat,
+                    turnId: turnId,
+                    text: text,
+                    id: const Uuid().v4(),
+                    now: DateTime.now(),
+                  );
+                  for (final action in actions ?? const <JsonMap>[]) {
+                    _dispatch(chatUri!, action);
+                  }
+                },
+        ),
       ),
     };
     final pending = chat == null
