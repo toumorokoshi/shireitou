@@ -703,6 +703,33 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byTooltip('Unified view'), findsOneWidget);
     expect(find.text('new'), findsOneWidget);
+
+    // The diff page's code is selectable and copies without the line
+    // numbers and markers, one line each.
+    String? copied;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      richClipboardChannel,
+      (call) async {
+        copied = (call.arguments as Map)['text'] as String?;
+        return null;
+      },
+    );
+    await tester.tap(find.byTooltip('Unified view'));
+    await tester.pumpAndSettle();
+    final gesture = await tester.startGesture(
+      tester.getTopLeft(find.text('a')) + const Offset(1, 2),
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pump();
+    await gesture.moveTo(tester.getBottomRight(find.text('new')));
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyC);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pump();
+    expect(copied, 'a\nold\nnew');
   });
 
   testWidgets('the chat switcher opens and moves chats (AV-069)', (

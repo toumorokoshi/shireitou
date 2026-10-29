@@ -298,17 +298,48 @@ class _CopyAction extends Action<CopySelectionTextIntent> {
   }
 }
 
+/// Copies the selection in [child], such as a column of diff lines inside
+/// a scroll view, with [joinSelectedLines]. Unlike [LineSelection] it is
+/// not a row of its [RichSelectionArea], so it can sit inside one.
+class JoinedLines extends StatefulWidget {
+  /// Creates a [JoinedLines] around [child].
+  const JoinedLines({super.key, required this.child});
+
+  /// The selectable lines.
+  final Widget child;
+
+  @override
+  State<JoinedLines> createState() => _JoinedLinesState();
+}
+
+class _JoinedLinesState extends State<JoinedLines> {
+  final _delegate = _LineSelectionDelegate();
+
+  @override
+  void dispose() {
+    _delegate.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      SelectionContainer(delegate: _delegate, child: widget.child);
+}
+
 class _LineSelectionDelegate extends StaticSelectionContainerDelegate {
   @override
-  SelectedContent? getSelectedContent() {
-    final pieces = <SelectedPiece>[
-      for (final selectable in selectables)
-        if (selectable.getSelectedContent() case final SelectedContent data)
-          (bounds: _globalBounds(selectable), text: data.plainText),
-    ];
-    if (pieces.isEmpty) return null;
-    return SelectedContent(plainText: joinSelectedLines(pieces));
-  }
+  SelectedContent? getSelectedContent() => _joinedContent(selectables);
+}
+
+/// The selected content of [selectables] joined with [joinSelectedLines].
+SelectedContent? _joinedContent(List<Selectable> selectables) {
+  final pieces = <SelectedPiece>[
+    for (final selectable in selectables)
+      if (selectable.getSelectedContent() case final SelectedContent data)
+        (bounds: _globalBounds(selectable), text: data.plainText),
+  ];
+  if (pieces.isEmpty) return null;
+  return SelectedContent(plainText: joinSelectedLines(pieces));
 }
 
 Rect _globalBounds(Selectable selectable) => MatrixUtils.transformRect(

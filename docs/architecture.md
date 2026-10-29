@@ -565,8 +565,10 @@ Dart source); `bin/generate.dart` does the file I/O. See
   `ScrollSelection` (around the code, tool output, terminal and diff
   scroll views) places a drag edge above or below a scroll view by its
   row alone, as Flutter treats any point left of a nested scroll view as
-  before it. Code block labels are kept out with
-  `SelectionContainer.disabled`.
+  before it. Code block labels and diff line numbers and markers are
+  kept out with `SelectionContainer.disabled`. `JoinedLines` joins the
+  rows inside a diff's scroll view line by line too, and the full diff
+  page (`FileDiffPage`) has its own `RichSelectionArea`.
   `RichSelectionArea` (the timeline's `SelectionArea`) makes copying a
   rich copy (AV-076): it overrides the copy shortcut (only while the
   selection itself is focused, so text fields keep theirs) and the

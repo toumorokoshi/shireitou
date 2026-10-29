@@ -173,13 +173,18 @@ class _LineRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            numbers == 2
-                ? '${number(line.oldNumber)} ${number(line.newNumber)} '
-                : '${number(line.newNumber ?? line.oldNumber)} ',
-            style: muted,
+          // Line numbers and markers are not part of the code a selection
+          // copies.
+          SelectionContainer.disabled(
+            child: Text(
+              numbers == 2
+                  ? '${number(line.oldNumber)} ${number(line.newNumber)} '
+                        '${_marker(line.kind)} '
+                  : '${number(line.newNumber ?? line.oldNumber)} '
+                        '${_marker(line.kind)} ',
+              style: muted,
+            ),
           ),
-          Text('${_marker(line.kind)} ', style: muted),
           Text.rich(
             highlightCode(
               line.text,
@@ -211,9 +216,11 @@ class _CodeArea extends StatelessWidget {
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: children,
+        child: JoinedLines(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: children,
+          ),
         ),
       ),
     ),
@@ -375,13 +382,17 @@ class _FileDiffPageState extends State<FileDiffPage> {
             ...widget.actions,
           ],
         ),
-        body: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: FileEditDiff(
-            before: widget.before,
-            after: widget.after,
-            path: widget.path,
-            sideBySide: wide && _sideBySide,
+        body: RichSelectionArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: LineSelection(
+              child: FileEditDiff(
+                before: widget.before,
+                after: widget.after,
+                path: widget.path,
+                sideBySide: wide && _sideBySide,
+              ),
+            ),
           ),
         ),
       );

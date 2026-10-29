@@ -726,6 +726,8 @@ AppImage and the release workflow (see
 - The selection workarounds in `timeline_selection.dart` should be
   dropped once Flutter fixes nested scroll views' selection edges and
   adds separators between selected widgets.
+- In the side-by-side diff, a selection that spans both columns copies
+  the old column's lines and then the new column's, not row by row.
 
 ## Rich copy (AV-076)
 

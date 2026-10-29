@@ -1,5 +1,28 @@
 # Design Decision Log
 
+## 2026-10-28: Selecting and copying diffs
+
+The full diff page (`FileDiffPage`, opened from "Files changed" and a
+file edit's "Open diff") had no selection area, so none of its code
+could be selected, and selecting an inline diff in the timeline copied
+the line numbers and `+`/`-` markers glued to the code with no line
+breaks.
+
+- **The page gets a `RichSelectionArea` and one `LineSelection`.** It
+  copies like the timeline (plain text plus HTML), rather than a plain
+  `SelectionArea`, which joins the lines with nothing.
+- **Line numbers and markers stay out of the selection.** They are one
+  muted `Text` in a `SelectionContainer.disabled`, as code block labels
+  are, so a copy pastes as code.
+- **`JoinedLines` inside the scroll view.** A horizontal scroll view has
+  its own selection container that joins its children before an outer
+  container sees them, so line joining has to happen inside it.
+  `LineSelection` cannot be nested there because it registers as a row
+  of the `RichSelectionArea` and would be copied twice.
+- A code block that could not be selected in a long-running debug build
+  worked again after a restart and on a fresh build; no change was made
+  for it.
+
 ## 2026-10-28: Forking a chat from a turn (AV-144, AHP-045)
 
 Users wanted to branch a conversation to try another direction without
