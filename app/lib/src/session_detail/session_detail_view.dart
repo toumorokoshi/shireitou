@@ -114,6 +114,10 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
 
   /// The chat the timeline shows; another chat is subscribed while open.
   String? _selectedChat;
+
+  /// A chat forked from this view (AV-144), opened once the session lists
+  /// it.
+  String? _forkedChat;
   Object? _error;
   bool _opening = true;
 
@@ -394,6 +398,24 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
     }
   }
 
+  /// Forks [source] at its completed turn [turnId] into a new chat of the
+  /// session, and opens it (AV-144).
+  Future<void> _fork(String source, String turnId) async {
+    final chat = 'ahp-chat:/${const Uuid().v4()}';
+    try {
+      await _connection.forkChat(
+        widget.session,
+        chat: chat,
+        source: source,
+        turnId: turnId,
+      );
+    } on Object catch (error) {
+      _showMessage('Could not fork the chat: $error');
+      return;
+    }
+    if (mounted) setState(() => _forkedChat = chat);
+  }
+
   Future<void> _loadOlder(String chat) async {
     try {
       await _connection.loadOlderTurns(chat);
@@ -424,6 +446,12 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
           .select((s) => s.sessionChannels[widget.session]?.state),
     );
     final chats = switchableChats(sessionState);
+    // A fork opens once the session lists it.
+    if (_forkedChat case final forked?
+        when chats.any((c) => c.resource == forked)) {
+      _selectedChat = forked == _defaultChat ? null : forked;
+      _forkedChat = null;
+    }
     // A chat the session no longer lists falls back to the default one.
     if (_selectedChat case final selected?
         when sessionState != null &&
@@ -468,6 +496,13 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
     final readOnly =
         (chat?.interactivity ?? summaryOfChat?.interactivity) ==
         ChatInteractivity.readOnly;
+    final provider = summary?.provider ?? sessionState?.provider;
+    final agents = ref.watch(
+      hostConnectionProvider(context.host)
+          .select((s) => s.root?.agents ?? const <AgentInfo>[]),
+    );
+    final agent = agents.where((a) => a.provider == provider).firstOrNull;
+    final canFork = canForkChats(agent) && !missing && sessionState != null;
     final timeline = switch ((chat, _error)) {
       _ when missing => const Center(
         child: Text('This session is no longer available on the host.'),
@@ -500,6 +535,7 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
                     _dispatch(chatUri!, action);
                   }
                 },
+          onFork: canFork ? (turnId) => _fork(chatUri!, turnId) : null,
         ),
       ),
     };
@@ -508,12 +544,6 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
         : pendingMessages(chat);
     // Model and mode pickers (AV-041): models of the session's agent, and
     // the session settings that may change mid-session.
-    final provider = summary?.provider ?? sessionState?.provider;
-    final agents = ref.watch(
-      hostConnectionProvider(context.host)
-          .select((s) => s.root?.agents ?? const <AgentInfo>[]),
-    );
-    final agent = agents.where((a) => a.provider == provider).firstOrNull;
     final models = agent?.models ?? const <SessionModelInfo>[];
     final folder = summary == null ? null : folderKeyOf(summary);
     final sessionFields = mutableSessionFields(sessionState?.config);
@@ -1269,6 +1299,7 @@ class _Timeline extends ConsumerStatefulWidget {
     required this.onOpenChat,
     required this.onLoadOlder,
     this.onEditMessage,
+    this.onFork,
   });
 
   final ChatState chat;
@@ -1280,6 +1311,10 @@ class _Timeline extends ConsumerStatefulWidget {
   /// Restarts from the latest message with edited text (AV-088); no edit
   /// button when null.
   final void Function(String turnId, String text)? onEditMessage;
+
+  /// Forks the chat from a completed turn (AV-144); no fork button when
+  /// null.
+  final ValueChanged<String>? onFork;
 
   @override
   ConsumerState<_Timeline> createState() => _TimelineState();
@@ -1468,6 +1503,7 @@ class _TimelineState extends ConsumerState<_Timeline> {
                           onLoadOlder: widget.onLoadOlder,
                           editableTurn: editableTurn,
                           onEditMessage: widget.onEditMessage,
+                          onFork: widget.onFork,
                           expandedSteps: _expandedSteps,
                           onToggleSteps: (key) => setState(
                             () => _expandedSteps.contains(key)

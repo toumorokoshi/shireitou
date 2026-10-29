@@ -6,6 +6,7 @@ export 'src/auth.dart';
 export 'src/changeset_reducer.dart';
 export 'src/changesets.dart';
 export 'src/channel_mirror.dart';
+export 'src/chat_forks.dart';
 export 'src/chat_reducer.dart';
 export 'src/client.dart';
 export 'src/completions.dart';

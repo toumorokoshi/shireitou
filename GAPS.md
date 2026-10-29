@@ -804,6 +804,26 @@ AppImage and the release workflow (see
   widget tests (with `FakeHostConnection.contents`), not driven end to
   end.
 
+## Forking a chat (AV-144, AHP-045)
+
+- pi-agent-host-protocol lists `createChat` among its unsupported
+  methods and its agent does not advertise `multipleChats.fork`, so the
+  "Fork from here" button never shows against pi. pi itself can fork a
+  session (`/fork`); the host would need to map `createChat` with a
+  `ForkChatSource` onto it (a new pi session branched at the turn,
+  exposed as a chat of the AHP session) and advertise the capability.
+- Forking is only verified against the fake host (client flow and
+  widget tests); the app is not driven end to end through a fork
+  (`just test-fake-host-app`).
+- Only completed turns fork. The running turn, and cancelled or failed
+  ones, have no button; AHP's side chats (`SideChatSource`, from any
+  turn and with a text selection) are not offered.
+- A fork is a chat of the same session, not a new session: AHP has no
+  fork source for `createSession`. Moving the fork into a session of its
+  own (`moveChat` to `newSession`) is not offered.
+- While the host creates the chat there is no progress indicator; the
+  view switches to it when `session/chatAdded` arrives.
+
 ## Tool call timings (AV-077, AHP-032)
 
 - Timings are kept in memory per host while the app runs. A call the app

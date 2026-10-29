@@ -1,5 +1,30 @@
 # Design Decision Log
 
+## 2026-10-28: Forking a chat from a turn (AV-144, AHP-045)
+
+Users wanted to branch a conversation to try another direction without
+losing the original. AHP has this as `createChat` with a
+`ForkChatSource` (a source chat and a completed turn); `createSession`
+has no fork source, so a fork is a new chat of the same session.
+
+- **A button on the turn footer.** Forks target completed turns, and
+  each finished turn already has a footer with the copy buttons, so
+  "Fork from here" sits beside them. Cancelled and failed turns get none
+  (`isForkableTurn`), since the protocol names completed turns.
+- **Gated on the agent's capability.** AHP says clients MUST NOT send a
+  fork unless the agent advertises `capabilities.multipleChats.fork`, so
+  the button only shows then (`canForkChats`). No fallback (such as
+  copying the history into a new session by hand) is attempted: the
+  host owns the agent's context, and a copied transcript would not carry
+  it.
+- **Open the fork when it is listed.** The client picks the chat URI and
+  the host announces it with `session/chatAdded`; the view remembers the
+  pending fork and selects it once the session lists it, because a
+  selected chat the session does not list falls back to the default.
+- **pi does not support it yet.** pi-agent-host-protocol rejects
+  `createChat`, so the button is hidden there; the fake host forks, for
+  tests. See GAPS.md.
+
 ## 2026-10-27: Timing tool calls on the client (AV-077, AHP-032)
 
 AHP gives a finished turn a duration measured by the host, and a

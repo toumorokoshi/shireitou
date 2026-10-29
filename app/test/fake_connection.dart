@@ -195,6 +195,24 @@ class FakeHostConnection extends HostConnection {
     return const MoveChatResult(session: 'pi:/1');
   }
 
+  /// (session, new chat, source chat, turn) of each fork.
+  final forked = <(String, String, String, String)>[];
+
+  /// The state [forkChat] moves to, as if the host listed the fork, given
+  /// the new chat's URI; null keeps the state.
+  HostState Function(String chat)? forkedState;
+
+  @override
+  Future<void> forkChat(
+    String session, {
+    required String chat,
+    required String source,
+    required String turnId,
+  }) async {
+    forked.add((session, chat, source, turnId));
+    if (forkedState case final next?) state = next(chat);
+  }
+
   /// Folders served by [listDirectory], by path.
   final folders = <String, List<String>>{};
 

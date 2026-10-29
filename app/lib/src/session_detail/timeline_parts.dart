@@ -34,7 +34,9 @@ import 'turn_markdown.dart';
 /// [StepsItem] is expanded when its key is in [expandedSteps];
 /// [onToggleSteps] is called with the key to expand or collapse it. The
 /// message of turn [editableTurn] gets an edit button that calls
-/// [onEditMessage] with the turn and the edited text (AV-088).
+/// [onEditMessage] with the turn and the edited text (AV-088). A completed
+/// turn's footer gets a fork button that calls [onFork] with the turn
+/// (AV-144).
 Widget buildTimelineItem(
   TimelineItem item,
   ValueChanged<JsonMap> onAction, {
@@ -45,6 +47,7 @@ Widget buildTimelineItem(
   ValueChanged<String>? onToggleSteps,
   String? editableTurn,
   void Function(String turnId, String text)? onEditMessage,
+  ValueChanged<String>? onFork,
 }) => switch (item) {
   UserMessageItem(:final turnId, :final message, :final startedAt) =>
     UserMessageBubble(
@@ -101,8 +104,16 @@ Widget buildTimelineItem(
         'Unsupported response part: $kind',
       ),
     },
-  TurnFooterItem(:final turn) => _TurnFooter(turn),
+  TurnFooterItem(:final turn) => _TurnFooter(
+    turn,
+    onFork: onFork != null && isForkableTurn(turn)
+        ? () => onFork(turn.id)
+        : null,
+  ),
 };
+
+/// The fork button's tooltip (AV-144).
+const forkTooltip = 'Fork from here';
 
 /// The oldest row while the host holds older turns back (AV-068): it asks
 /// for them as soon as it is built, which happens when the user scrolls
@@ -1292,13 +1303,15 @@ class _Note extends StatelessWidget {
 
 /// A finished turn's footer (AV-067): buttons that copy the reply as
 /// markdown (plain text, AV-071) and as HTML (a rich copy with the
-/// markdown as its plain text, AV-076), then the end state, duration and tokens in the
+/// markdown as its plain text, AV-076), and forks the chat from the turn
+/// when [onFork] is set (AV-144), then the end state, duration and tokens in the
 /// smallest muted text, so it reads as metadata under the reply rather
 /// than part of it (the reference UI has no footer at all).
 class _TurnFooter extends StatelessWidget {
-  const _TurnFooter(this.turn);
+  const _TurnFooter(this.turn, {this.onFork});
 
   final Turn turn;
+  final VoidCallback? onFork;
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -1318,6 +1331,14 @@ class _TurnFooter extends StatelessWidget {
           tooltip: 'Copy as HTML',
           iconSize: 14,
         ),
+        if (onFork case final fork?)
+          IconButton(
+            onPressed: fork,
+            icon: const Icon(AppIcons.fork),
+            tooltip: forkTooltip,
+            iconSize: 14,
+            visualDensity: VisualDensity.compact,
+          ),
         Flexible(
           // Its own node, so screen readers (and the web's text) do not
           // fold the button into the footer's label.

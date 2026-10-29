@@ -476,6 +476,24 @@ class AhpClient {
     );
   }
 
+  /// Creates [chat] (a client-chosen `ahp-chat:/<uuid>` URI) in [session]
+  /// (`createChat`), from [source] when given: a fork copies the source
+  /// chat's turns through a completed turn. The chat arrives as
+  /// `session/chatAdded`. Only pass a [ForkChatSource] when the session's
+  /// agent advertises `capabilities.multipleChats.fork` ([canForkChats]).
+  Future<void> createChat(
+    String session,
+    String chat, {
+    ChatSource? source,
+  }) async {
+    final peer = _peer;
+    if (peer == null) throw StateError('not connected');
+    await _request(
+      'createChat',
+      CreateChatParams(channel: session, chat: chat, source: source).toJson(),
+    );
+  }
+
   /// Creates a session with a client-chosen `ahp-session:/<uuid>` URI
   /// (AHP-040), retrying with a new URI on `-32003 SessionAlreadyExists`.
   /// [config] carries the values collected with [resolveSessionConfig].

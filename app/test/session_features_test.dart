@@ -74,9 +74,11 @@ HostState _state({
   Map<String, ChannelMirror<TerminalState>> terminals = const {},
   Map<String, ChannelMirror<ChangesetState>> changesets = const {},
   Map<String, ChannelMirror<CanvasState>> canvases = const {},
+  RootState? root,
 }) => HostState(
   status: ConnectionStatus.connected,
   protocolVersion: version,
+  root: root,
   sessions: catalogueFromSummaries([
     session('1', directory: 'file:///src/app', title: 'Fix login'),
   ]),
@@ -767,6 +769,91 @@ void main() {
     await tester.tap(find.widgetWithText(ChoiceChip, 'Fix login'));
     await tester.pumpAndSettle();
     expect(find.byTooltip('Send'), findsOneWidget);
+  });
+
+  testWidgets('a completed turn forks the chat into a new one (AV-144)', (
+    tester,
+  ) async {
+    const forking = RootState(
+      agents: [
+        AgentInfo(
+          provider: 'pi',
+          displayName: 'Pi',
+          description: 'Pi',
+          models: [],
+          capabilities: AgentCapabilities(
+            multipleChats: MultipleChatsCapability(fork: true),
+          ),
+        ),
+      ],
+    );
+    final reply = _chatWith(const [
+      MarkdownResponsePart(id: 'm', content: 'Done.'),
+    ]);
+    final session = _session(chats: const [_mainSummary]);
+    final connection = await _pump(
+      tester,
+      _state(chat: reply, sessionState: session, root: forking),
+    );
+    connection.forkedState = (fork) => _state(
+      chat: reply,
+      root: forking,
+      sessionState: session.copyWith(
+        chats: [
+          _mainSummary,
+          ChatSummary(
+            resource: fork,
+            title: 'Fix login (fork)',
+            status: SessionStatus.idle,
+            modifiedAt: '2026-10-01T00:00:00Z',
+            origin: const ChatOriginFork(chat: _chat, turnId: 't1'),
+          ),
+        ],
+      ),
+      otherChats: {
+        fork: ChannelMirror.snapshot(
+          reply.copyWith(resource: fork, title: 'Fix login (fork)'),
+        ),
+      },
+    );
+    expect(find.byType(ChoiceChip), findsNothing);
+    await tester.tap(find.byTooltip(forkTooltip));
+    await tester.pumpAndSettle();
+
+    final (sessionUri, fork, source, turn) = connection.forked.single;
+    expect((sessionUri, source, turn), ('pi:/1', _chat, 't1'));
+    expect(fork, startsWith('ahp-chat:/'));
+    // The fork is open, with the source's turns.
+    final chip = tester.widget<ChoiceChip>(
+      find.widgetWithText(ChoiceChip, 'Fix login (fork)'),
+    );
+    expect(chip.selected, isTrue);
+    expect(connection.subscribed, contains(fork));
+    expect(find.text('Done.'), findsOneWidget);
+  });
+
+  testWidgets('no fork button when the agent cannot fork (AV-144)', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      _state(
+        chat: _chatWith(const [MarkdownResponsePart(id: 'm', content: 'Ok')]),
+        sessionState: _session(),
+        root: const RootState(
+          agents: [
+            AgentInfo(
+              provider: 'pi',
+              displayName: 'Pi',
+              description: 'Pi',
+              models: [],
+            ),
+          ],
+        ),
+      ),
+    );
+    expect(find.byTooltip('Copy as markdown'), findsOneWidget);
+    expect(find.byTooltip(forkTooltip), findsNothing);
   });
 
   testWidgets('a 0.9.0 host cannot move chats', (tester) async {

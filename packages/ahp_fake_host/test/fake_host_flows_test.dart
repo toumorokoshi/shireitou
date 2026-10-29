@@ -862,6 +862,43 @@ void main() {
     );
   });
 
+  test('createChat forks a chat at a completed turn (AHP-045)', () async {
+    final agent = client.state.root!.agents.firstWhere(
+      (a) => a.provider == sessionState().provider,
+    );
+    expect(canForkChats(agent), isTrue);
+    await send('first');
+    await turnDone();
+    await send('second');
+    await until((_) => chatState().turns.length == 2);
+    final [first, _] = chatState().turns;
+    expect(isForkableTurn(first), isTrue);
+
+    const fork = 'ahp-chat:/fork';
+    await client.createChat(
+      seededSession,
+      fork,
+      source: ForkChatSource(chat: chat, turnId: first.id),
+    );
+    await until((_) => sessionState().chats.any((c) => c.resource == fork));
+    final summary = sessionState().chats.firstWhere((c) => c.resource == fork);
+    expect(summary.origin, ChatOriginFork(chat: chat, turnId: first.id));
+    await client.subscribe(fork, kind: ChannelKind.chat);
+    expect(chatState(fork).turns.map((t) => t.id), [first.id]);
+    // The source keeps its turns.
+    expect(chatState().turns, hasLength(2));
+
+    // A fork point must be a completed turn of the source.
+    await expectLater(
+      client.createChat(
+        seededSession,
+        'ahp-chat:/fork-2',
+        source: ForkChatSource(chat: chat, turnId: 'no-such-turn'),
+      ),
+      throwsA(isA<RpcException>()),
+    );
+  });
+
   test('a canvas is referenced from the chat and subscribable', () async {
     await send('canvas');
     await turnDone();

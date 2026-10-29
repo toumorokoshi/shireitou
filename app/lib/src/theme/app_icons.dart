@@ -122,6 +122,9 @@ abstract final class AppIcons {
   /// Edit the latest message and restart from it (AV-088).
   static const IconData edit = Codicons.edit;
 
+  /// Fork the chat from a finished turn into a new chat (AV-144).
+  static const IconData fork = Codicons.repoForked;
+
   /// Scrolls the timeline to the latest message.
   static const IconData jumpToLatest = Codicons.chevronDown;
 

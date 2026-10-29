@@ -79,7 +79,8 @@ WebSocket ──► json_rpc_2 Peer ──► AhpClient (I/O edge)
   classifies file edits (created, deleted, renamed, modified).
   `readResource` (`resourceRead`), `invokeChangesetOperation` and
   `moveChat` (1.0.0 only; `UnsupportedFeatureError` under 0.9.0) are
-  plain requests.
+  plain requests, as is `createChat`; `chat_forks.dart` holds the
+  gates for a fork (`canForkChats`, `isForkableTurn`, AHP-045).
 - **Tool call timings (AHP-032):** AHP sends a duration for a finished
   turn (measured by the host) and a terminal command, but none for a
   tool call, and says not to subtract its timestamps (other clocks).
@@ -516,7 +517,10 @@ Dart source); `bin/generate.dart` does the file I/O. See
   with a copy button (`copy_button.dart`, which shows a check and
   "Copied" for 1.2 s); `turn_markdown.dart` (pure) turns a finished
   turn's reply into the markdown its footer's "Copy as markdown" button copies
-  (AV-071), and "Copy as HTML" copies it rendered as HTML (AV-076); `link_menu.dart` shows a link's URL in a dialog that
+  (AV-071), and "Copy as HTML" copies it rendered as HTML (AV-076); a
+  completed turn's footer also forks the chat ("Fork from here", AV-144)
+  when the agent can, and `SessionDetailView` opens the fork once the
+  session lists it; `link_menu.dart` shows a link's URL in a dialog that
   copies or opens it when the link is right-clicked, for markdown links
   (`LinkSecondaryTap`) and link chips and buttons (`LinkContextMenu`)
   (AV-075); `terminal_text.dart` turns terminal output into

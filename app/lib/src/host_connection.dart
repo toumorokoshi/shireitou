@@ -217,6 +217,20 @@ class HostConnection extends Notifier<HostState> {
     ChatMoveDestination destination,
   ) => _connected.moveChat(chat, destination);
 
+  /// Forks [source] at its completed turn [turnId] into the new chat
+  /// [chat] of [session] (`createChat`, AV-144). The chat arrives as
+  /// `session/chatAdded`.
+  Future<void> forkChat(
+    String session, {
+    required String chat,
+    required String source,
+    required String turnId,
+  }) => _connected.createChat(
+    session,
+    chat,
+    source: ForkChatSource(chat: source, turnId: turnId),
+  );
+
   /// Dispatches a client action on [channel] (write-ahead, AHP-022) and
   /// returns its `clientSeq`, which an [ActionFailure] for it carries.
   /// Throws [StateError] when not connected or when the negotiated protocol

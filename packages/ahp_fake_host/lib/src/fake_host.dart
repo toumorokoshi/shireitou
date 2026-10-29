@@ -410,6 +410,10 @@ class FakeAhpHost {
       ..registerMethod('moveChat', (Parameters p) {
         return _moveChat(MoveChatParams.fromJson(p.value as JsonMap));
       })
+      ..registerMethod('createChat', (Parameters p) {
+        _createChat(CreateChatParams.fromJson(p.value as JsonMap));
+        return null;
+      })
       ..registerMethod('authenticate', (Parameters p) {
         _authenticate(
           connection,
@@ -542,6 +546,9 @@ class FakeAhpHost {
         displayName: 'Fake agent',
         description: 'Scripted host for tests',
         models: fakeModels,
+        capabilities: AgentCapabilities(
+          multipleChats: MultipleChatsCapability(fork: true),
+        ),
       ),
       AgentInfo(
         provider: securedProvider,
@@ -2249,5 +2256,52 @@ class FakeAhpHost {
     order.insert(after == null ? 0 : order.indexOf(after) + 1, chat);
     _emit(session!, SessionChatsReorderedAction(chats: order).toJson());
     return MoveChatResult(session: session).toJson();
+  }
+
+  /// Forks a chat of the session at a completed turn: the new, movable
+  /// chat starts with the source's turns through that turn (other
+  /// sources are not scripted).
+  void _createChat(CreateChatParams params) {
+    final ForkChatSource(chat: source, :turnId) = switch (params.source) {
+      final ForkChatSource s => s,
+      _ => throw RpcException(
+        error_code.INVALID_PARAMS,
+        'only forks are scripted',
+      ),
+    };
+    final session = params.channel;
+    final from = _chats[source];
+    if (!_sessions.containsKey(session) ||
+        from == null ||
+        _sessionOfChat[source] != session) {
+      throw RpcException(
+        error_code.INVALID_PARAMS,
+        '$source is not a chat of $session',
+      );
+    }
+    if (_chats.containsKey(params.chat)) {
+      throw RpcException(error_code.INVALID_PARAMS, '${params.chat} exists');
+    }
+    final index = from.turns.indexWhere((t) => t.id == turnId);
+    if (index < 0 || from.turns[index].state != TurnState.complete) {
+      throw RpcException(
+        error_code.INVALID_PARAMS,
+        '$turnId is not a completed turn of $source',
+      );
+    }
+    _chats[params.chat] = ChatState(
+      resource: params.chat,
+      title: '${from.title} (fork)',
+      status: SessionStatus.idle,
+      modifiedAt: _now(),
+      turns: from.turns.sublist(0, index + 1),
+      origin: ChatOriginFork(chat: source, turnId: turnId),
+      movable: true,
+    );
+    _sessionOfChat[params.chat] = session;
+    _emit(
+      session,
+      SessionChatAddedAction(summary: _chatSummary(params.chat)).toJson(),
+    );
   }
 }

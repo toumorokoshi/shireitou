@@ -15,7 +15,11 @@ exercised against a real host.
   `unsubscribe`, `createSession`, `fetchTurns`, `authenticate`, `ping`,
   `dispatchAction`, `resourceRead` (the two sides of scripted file edits),
   `invokeChangesetOperation`, `moveChat` (reorders a movable chat
-  within its session; other destinations are refused), `resourceList`,
+  within its session; other destinations are refused), `createChat`
+  (forks a chat of the session at a completed turn into a movable chat
+  titled "<source> (fork)" with the turns through it; the fake agent
+  advertises `multipleChats.fork`, and other sources are refused),
+  `resourceList`,
   `resolveSessionConfig` and `sessionConfigCompletions` (see "Starting
   sessions" below).
 - It keeps real protocol state (`RootState`, `SessionState`, `ChatState`,

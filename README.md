@@ -16,7 +16,8 @@ with a UX modeled on the GitHub Agents view and Cursor's Agents Window.
 > "Completed N steps" line (grouping similar ones, each call with roughly
 > how long it ran, timed by the app since the protocol does not say), shows live
 > terminal output and inline diffs, switches between a session's chats
-> (subagents, side chats), sends, queues, edits and reorders follow-ups
+> (subagents, side chats), forks a chat from a finished turn (when the
+> host's agent supports it), sends, queues, edits and reorders follow-ups
 > (or sends a queued one now),
 > syncs drafts, stops turns, answers tool approvals (with the host's
 > options, risk assessments, edited input and result confirmation), input

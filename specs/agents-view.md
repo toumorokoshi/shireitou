@@ -265,6 +265,7 @@ the timeline (editing a message) keep their own copy.
 | AV-086 | P2  | Hide the steering/queue controls for agents that do not support them (GitHub disables steering for third-party agents).                                                              |
 | AV-087 | P1  | ↑ in an empty follow-up box edits the newest queued message (Enter re-queues it), else recalls the chat's earlier messages to edit and send again (Enter re-submits); ↓ steps back.  |
 | AV-088 | P1  | An edit button on the latest user message (running or finished) edits it in place and restarts from it: the turn and its reply are dropped and the edited message runs instead.      |
+| AV-144 | P1  | A "Fork from here" button on each completed turn forks the chat into a new chat of the session with the turns through that one, and opens it; the source chat is kept.               |
 
 ## Changes and review
 
