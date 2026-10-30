@@ -1,5 +1,31 @@
 # Design Decision Log
 
+## 2026-10-29: Typesetting TeX math in replies (AV-078)
+
+Models often answer with formulas in TeX, such as
+`$$ \text{MSE} = \frac{1}{N}\sum_{i=1}^{N} (\hat{y}_i - y_i)^2 $$`, and
+the timeline showed the raw TeX.
+
+- **`flutter_math_fork` typesets it.** It is a pure-Dart port of KaTeX
+  that works on every platform the app builds for, with its fonts
+  bundled, so the web, desktop and mobile apps look the same and nothing
+  runs in a web view.
+- **Our own markdown syntaxes rather than `flutter_markdown_plus_latex`.**
+  That package also treats `( … )` and `[ … ]` with spaces as math, so
+  ordinary prose and task lists would be typeset, and it gets the
+  length of its `\ce{` delimiters wrong. `math_syntax.dart` recognises
+  only `$$…$$`, `\[…\]`, `\(…\)` and `$…$`, the last with Pandoc's
+  rule (no space inside the dollars, no digit after the closing one) so
+  prices stay text. A `$$` block must close before the next blank line,
+  so a stray `$$` cannot swallow the rest of a reply.
+- **Inline math is a `WidgetSpan` in a `Text`.** `flutter_markdown_plus`
+  lays out an inline widget in a `Wrap` beside the text, which would
+  break the line around every equation; it merges a `Text`'s span into
+  the paragraph, so the math flows with the words.
+- TeX that does not parse is shown as written rather than as
+  `flutter_math_fork`'s red error text, so a typo in the model's TeX
+  reads as what the model wrote.
+
 ## 2026-10-29: Links named after a file open their target (AV-106)
 
 Clicking a markdown link such as `[main.dart](/srv/app/lib/main.dart)`

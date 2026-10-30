@@ -523,7 +523,11 @@ Dart source); `bin/generate.dart` does the file I/O. See
   session lists it; `link_menu.dart` shows a link's URL in a dialog that
   copies or opens it when the link is right-clicked, for markdown links
   (`LinkSecondaryTap`) and link chips and buttons (`LinkContextMenu`)
-  (AV-075); `terminal_text.dart` turns terminal output into
+  (AV-075); `math_syntax.dart` (pure) adds the markdown block and inline
+  syntaxes that find TeX math (`$$…$$`, `\[…\]`, `\(…\)`, `$…$`) and
+  `math_view.dart`'s `MathBuilder` typesets it with `flutter_math_fork`,
+  inline math as a `WidgetSpan` so `flutter_markdown_plus` merges it into
+  the paragraph's text (AV-078); `terminal_text.dart` turns terminal output into
   plain text. `chat_switcher.dart`, `pending_messages.dart` and
   `session_info.dart` are the chat switcher (AV-069), the queued messages
   panel (AV-081; clicking a message opens an inline editor, saved with

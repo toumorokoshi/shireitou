@@ -20,6 +20,8 @@ import 'code_highlight.dart';
 import 'copy_button.dart';
 import 'inline_message_editor.dart';
 import 'link_menu.dart';
+import 'math_syntax.dart';
+import 'math_view.dart';
 import 'timeline_items.dart';
 import 'timeline_selection.dart';
 import 'todo_list.dart';
@@ -437,7 +439,8 @@ MarkdownStyleSheet markdownStyle(ThemeData theme, AppColors colors) {
 /// Assistant markdown (AV-061, AV-095): full width with no bubble. Links
 /// open in the browser; right-clicking one shows it in [showLinkDialog]
 /// (AV-075). Below a [FileLinkScope], file paths (links to files, code
-/// spans and bare paths) are links that open the file (AV-106).
+/// spans and bare paths) are links that open the file (AV-106). TeX math
+/// is typeset (AV-078).
 class MarkdownText extends StatelessWidget {
   /// Creates a [MarkdownText] for [data].
   const MarkdownText(this.data, {super.key});
@@ -459,8 +462,12 @@ class MarkdownText extends StatelessWidget {
         child: MarkdownBody(
           data: data,
           styleSheet: markdownStyle(Theme.of(context), AppColors.of(context)),
-          builders: {'pre': _codeBlocks},
-          inlineSyntaxes: openFile == null ? null : fileLinkSyntaxes,
+          builders: {'pre': _codeBlocks, mathTag: _math},
+          blockSyntaxes: mathBlockSyntaxes,
+          inlineSyntaxes: [
+            ...mathInlineSyntaxes,
+            if (openFile != null) ...fileLinkSyntaxes,
+          ],
           onTapLink: (_, href, _) {
             if (href != null) followLink(href, openFile: openFile);
           },
@@ -593,6 +600,7 @@ class StepsRow extends StatelessWidget {
 }
 
 final _codeBlocks = CodeBlockBuilder();
+final _math = MathBuilder();
 
 /// Model reasoning, collapsed by default (AV-062).
 class ReasoningBlock extends StatelessWidget {

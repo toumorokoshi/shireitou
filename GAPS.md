@@ -842,3 +842,18 @@ AppImage and the release workflow (see
   line still shows only the host's turn duration.
 - Timings of chats that are no longer open are never dropped; they are
   small, but a very long-lived connection keeps them all.
+
+## Math (AV-078)
+
+- Typeset math is not selectable: a selection across a paragraph copies
+  the text around an equation but not the equation, and display math
+  cannot be selected at all. "Copy as markdown" and "Copy as HTML" keep
+  the TeX source; the HTML has no MathML.
+- Only replies (`MarkdownText`) typeset math. The parallel runs compare
+  screen (`compare_screen.dart`), plan reviews and user messages show
+  the TeX as written.
+- `$…$` cannot span lines, and display math cannot contain blank lines.
+  Environments such as `\begin{align}…\end{align}` outside `$$` are not
+  recognised.
+- `flutter_math_fork` covers most of KaTeX but not every package
+  (`\ce` from mhchem, for example); those show as written.
