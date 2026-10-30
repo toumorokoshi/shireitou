@@ -65,7 +65,8 @@ jobs:
         run: scripts/annotate-test-failure integration.log
 
   web:
-    runs-on: ubuntu-latest
+    # Playwright has no Chromium build for ubuntu-latest (26.04) yet.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4

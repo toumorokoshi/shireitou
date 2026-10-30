@@ -857,3 +857,9 @@ AppImage and the release workflow (see
   recognised.
 - `flutter_math_fork` covers most of KaTeX but not every package
   (`\ce` from mhchem, for example); those show as written.
+
+## CI runners
+
+- The `web` job runs on `ubuntu-24.04` rather than `ubuntu-latest`,
+  because Playwright cannot install Chromium on Ubuntu 26.04 yet. Move
+  it back once a Playwright release supports 26.04.
