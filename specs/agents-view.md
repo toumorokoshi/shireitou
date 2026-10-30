@@ -286,7 +286,9 @@ prose, and paths in tool-call titles. A path is a name with an
 extension, a dotfile or a well-known name (`Makefile`) after optional
 folders; a name without folders needs a common code or text extension,
 so `e.g.`, `v1.2` and `foo.bar` stay text, and URLs (`https://…`,
-`www.…`, `github.com/…`) are left to the autolinker. `:12`, `:12:4`,
+`www.…`, `github.com/…`) are left to the autolinker. A markdown link's
+text is not linked again, so `[main.dart](/work/lib/main.dart)` opens
+`/work/lib/main.dart`, not a `main.dart` in the working directory. `:12`, `:12:4`,
 `:12-20` and `#L12-L20` name lines. Relative paths resolve against the
 session's working directory. The desktop apps read the file over the
 system `ssh` to the AHP host, as the terminal panel (AV-016) reaches it

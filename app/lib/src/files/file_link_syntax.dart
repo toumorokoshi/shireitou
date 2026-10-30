@@ -11,8 +11,37 @@ import 'file_paths.dart';
 
 /// The syntaxes to give a `MarkdownBody` whose file paths open files.
 final List<md.InlineSyntax> fileLinkSyntaxes = [
+  _OuterLinkSyntax(),
   _FilePathCodeSyntax(),
   _FilePathTextSyntax(),
+];
+
+/// The default link syntax, but a link's text keeps no links of its own:
+/// `[main.dart](/work/lib/main.dart)` opens the link's target, not the
+/// `main.dart` the path syntaxes found in its text (links do not nest).
+class _OuterLinkSyntax extends md.LinkSyntax {
+  @override
+  md.Node createNode(
+    String destination,
+    String? title, {
+    required List<md.Node> Function() getChildren,
+  }) => super.createNode(
+    destination,
+    title,
+    getChildren: () => _withoutLinks(getChildren()),
+  );
+}
+
+/// [nodes] with each link replaced by its content, at any depth.
+List<md.Node> _withoutLinks(List<md.Node> nodes) => [
+  for (final node in nodes)
+    if (node is md.Element && node.tag == 'a')
+      ..._withoutLinks(node.children ?? const [])
+    else if (node is md.Element && node.children != null)
+      md.Element(node.tag, _withoutLinks(node.children!))
+        ..attributes.addAll(node.attributes)
+    else
+      node,
 ];
 
 /// A one-backtick code span whose content is a file path: a link around

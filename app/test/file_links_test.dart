@@ -206,6 +206,22 @@ void main() {
     );
   });
 
+  test('a link whose text is a path keeps only its own target', () {
+    expect(
+      _html('See [main.dart](/home/me/p/lib/main.dart).'),
+      '<p>See <a href="/home/me/p/lib/main.dart">main.dart</a>.</p>\n',
+    );
+    expect(
+      _html('See [`main.dart`](/home/me/p/lib/main.dart:3).'),
+      '<p>See <a href="/home/me/p/lib/main.dart:3"><code>main.dart</code></a>.</p>\n',
+    );
+    expect(
+      _html('See [**lib/main.dart**](file:///home/me/p/lib/main.dart).'),
+      '<p>See <a href="file:///home/me/p/lib/main.dart">'
+      '<strong>lib/main.dart</strong></a>.</p>\n',
+    );
+  });
+
   test('the file viewer helpers', () {
     expect(fileLines('a\nb\n'), ['a', 'b']);
     expect(fileLines('a\nb'), ['a', 'b']);
@@ -253,6 +269,22 @@ void main() {
       await tester.tapOnText(find.textRange.ofSubstring('the guide'));
 
       expect(opened, [(path: 'docs/guide.md', line: 2, endLine: null)]);
+    });
+
+    testWidgets('a link named after a file opens its target', (tester) async {
+      final opened = <FileReference>[];
+      await tester.pumpWidget(
+        app(
+          const MarkdownText('See [main.dart](/srv/app/lib/main.dart:7).'),
+          opened,
+        ),
+      );
+
+      await tester.tapOnText(find.textRange.ofSubstring('main.dart'));
+
+      expect(opened, [
+        (path: '/srv/app/lib/main.dart', line: 7, endLine: null),
+      ]);
     });
 
     testWidgets('without a scope paths stay text', (tester) async {

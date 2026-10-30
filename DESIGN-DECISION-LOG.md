@@ -1,5 +1,23 @@
 # Design Decision Log
 
+## 2026-10-29: Links named after a file open their target (AV-106)
+
+Clicking a markdown link such as `[main.dart](/srv/app/lib/main.dart)`
+in a reply tried to open `main.dart` in the session's folder rather
+than the linked path. The file path syntaxes also matched the link's
+text, so the link held a second link (to the bare name), and a tap hit
+the inner one.
+
+- **The link syntax drops links inside a link's text.**
+  `fileLinkSyntaxes` starts with a `LinkSyntax` subclass whose
+  `createNode` replaces any inner link with its content. The syntax
+  that matches `[` is the one that closes the link, so it runs ahead of
+  the default one. HTML does not allow nested links either, so the
+  outer target is always the one meant.
+- Detecting "inside link text" in the path syntaxes was rejected: the
+  parser's delimiter stack is private, and scanning the source for a
+  following `](` would guess wrong on brackets in prose.
+
 ## 2026-10-28: Selecting and copying diffs
 
 The full diff page (`FileDiffPage`, opened from "Files changed" and a
