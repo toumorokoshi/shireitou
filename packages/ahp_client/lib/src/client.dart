@@ -11,6 +11,7 @@ import 'package:uuid/uuid.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import 'auth.dart';
+import 'background_work.dart';
 import 'host_state.dart';
 import 'channel_mirror.dart';
 import 'connection_problems.dart';
@@ -155,6 +156,10 @@ class AhpClient {
   bool _pingInFlight = false;
   HostState _state = const HostState();
   SubscriptionCounts _subscriptions = const {rootChannel: 1};
+
+  /// Channels [release]d while they had background work; each keeps one
+  /// subscription until the work ends.
+  Set<String> _held = const {};
   Peer? _peer;
   int _clientSeq = 0;
   bool _closed = false;
@@ -318,6 +323,26 @@ class AhpClient {
     }
   }
 
+  /// Releases [channel] like [unsubscribe], except that a chat with
+  /// background work, or a session with such a chat
+  /// ([holdsBackgroundWork]), stays subscribed until the host removes the
+  /// last entry, so the session can still be shown as working (AHP-033).
+  void release(String channel) {
+    if (!_held.contains(channel) && holdsBackgroundWork(_state, channel)) {
+      _held = {..._held, channel};
+      return;
+    }
+    unsubscribe(channel);
+  }
+
+  /// Lets go of held channels whose background work ended.
+  void _releaseFinished() {
+    final done = _held.where((c) => !holdsBackgroundWork(_state, c)).toList();
+    if (done.isEmpty) return;
+    _held = _held.difference(done.toSet());
+    done.forEach(unsubscribe);
+  }
+
   /// Subscribes to [session] and its default chat, and returns the chat URI
   /// (null when the session has no chat). Release both with
   /// [closeSession].
@@ -329,10 +354,10 @@ class AhpClient {
     return chat;
   }
 
-  /// Releases the subscriptions taken by [openSession].
+  /// Releases the subscriptions taken by [openSession] with [release].
   void closeSession(String session, String? chat) {
-    if (chat != null) unsubscribe(chat);
-    unsubscribe(session);
+    if (chat != null) release(chat);
+    release(session);
   }
 
   /// Dispatches a client [action] on [channel] (AHP-022) and returns its
@@ -989,6 +1014,7 @@ class AhpClient {
   void _set(HostState next) {
     _state = next;
     if (!_states.isClosed) _states.add(next);
+    _releaseFinished();
   }
 
   static String _describe(Object error) => switch (error) {

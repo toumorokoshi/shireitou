@@ -1,5 +1,31 @@
 # Design Decision Log
 
+## 2026-10-30: Sessions with background work show as working (AV-021, AHP-033)
+
+A session whose turn ended while a background shell or subagent kept
+running showed as idle, and "Finished" was announced while the work
+still ran. AHP reports background work only in `ChatState`
+(`chat/backgroundWorkSet`), deliberately not in any summary, and the
+app unsubscribed from a session's chats as soon as it was closed.
+
+- **Hold the subscription while the work runs.** `AhpClient.release`
+  keeps a chat with background work, and its session, subscribed when
+  the app lets go of them, and unsubscribes on the state change that
+  empties the list. This costs one subscription per busy session, not
+  one per session. Subscribing to every chat was rejected: each mirrors
+  the chat's whole history. Having the host keep `InProgress` set was
+  rejected too: it changes what `InProgress` means (a running turn) for
+  every client, and it lives in the host, not here.
+- **The session is also held**, because its mirror's `chats` is the
+  only reliable way back from a chat to its session (`SessionSummary`'s
+  `chats` is optional).
+- **The status is adjusted once, in `allSessionsProvider`.** Setting
+  `InProgress` on the merged list means the row's spinner, the filters
+  and notifications agree without each checking background work. The
+  busy set comes from a provider that only notifies when the set
+  changes, so streamed deltas do not rebuild the list.
+- Only work the app has seen is known; see GAPS.md.
+
 ## 2026-10-29: Typesetting TeX math in replies (AV-078)
 
 Models often answer with formulas in TeX, such as

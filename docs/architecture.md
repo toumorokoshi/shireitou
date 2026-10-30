@@ -69,6 +69,19 @@ WebSocket ──► json_rpc_2 Peer ──► AhpClient (I/O edge)
   working directories, `_meta` and the session-level `inputNeeded` list,
   which also sets the `InputNeeded` status bit. Tool calls are the
   generated `ToolCallState` sealed union, one class per lifecycle status.
+- **Background work (AHP-033):** `ChatState.backgroundWork` is not in any
+  summary, so the client only knows it for mirrored chats.
+  `AhpClient.release` (used by `closeSession` and the app's
+  `HostConnection.unsubscribe`) keeps a chat with background work, and a
+  session with such a chat, subscribed until the host removes the last
+  entry; every state change lets go of the ones that finished.
+  `background_work.dart` is pure: `sessionsWithBackgroundWork` finds the
+  busy sessions (through the session mirror's chats or the catalogue's
+  `defaultChat` and `chats`), and `withBackgroundWork` sets `InProgress`
+  on their status. The app's `backgroundWorkSessionsProvider` follows
+  that set (notifying only when it changes), and `allSessionsProvider`
+  applies it, so the row's spinner, the "working" filter and the
+  "Finished" notification all wait for the work to end.
 - **Terminal, changeset and canvas channels:** `subscribe(uri, kind:)`
   with `ChannelKind.terminal`, `.changeset` or `.canvas` mirrors them too,
   advanced by `reduceTerminal` (`terminal_reducer.dart`, a port of

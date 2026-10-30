@@ -9,15 +9,17 @@ import '../theme/app_colors.dart';
 import 'status_badges.dart';
 
 /// Whether the session is working: a turn is running ([SessionStatus]
-/// `InProgress`, or [hasActiveTurn] before the catalogue catches up) and
-/// it is not waiting on the user (`InputNeeded`).
+/// `InProgress`, or [hasActiveTurn] before the catalogue catches up) or
+/// background work is ([hasBackgroundWork]), and it is not waiting on the
+/// user (`InputNeeded`).
 bool isSessionWorking({
   required SessionStatus? status,
   bool hasActiveTurn = false,
+  bool hasBackgroundWork = false,
 }) {
   if (status?.isInputNeeded ?? false) return false;
   if (status?.isInProgress ?? false) return true;
-  return hasActiveTurn;
+  return hasActiveTurn || hasBackgroundWork;
 }
 
 /// A small spinner while [isSessionWorking] is true, else the status dot

@@ -1118,6 +1118,7 @@ class _Header extends StatelessWidget {
           if (isSessionWorking(
             status: status,
             hasActiveTurn: chat?.activeTurn != null,
+            hasBackgroundWork: chat?.backgroundWork?.isNotEmpty ?? false,
           ))
             Tooltip(
               message: SessionBadge.working.label,

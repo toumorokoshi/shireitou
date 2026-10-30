@@ -25,6 +25,23 @@ void main() {
       );
     });
 
+    test('background work counts after the turn ended', () {
+      expect(
+        isSessionWorking(
+          status: const SessionStatus(33),
+          hasBackgroundWork: true,
+        ),
+        isTrue,
+      );
+      expect(
+        isSessionWorking(
+          status: SessionStatus.inputNeeded,
+          hasBackgroundWork: true,
+        ),
+        isFalse,
+      );
+    });
+
     test('idle with no active turn', () {
       expect(isSessionWorking(status: const SessionStatus(33)), isFalse);
     });

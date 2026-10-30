@@ -7,6 +7,7 @@ import 'dart:async';
 
 import 'package:ahp_client/ahp_client.dart';
 import 'package:clock/clock.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
@@ -47,6 +48,36 @@ class ToolCallTimingsNotifier extends Notifier<ToolCallTimings> {
   /// Advances the timings to [next], observed at [now].
   void observe(HostState next, DateTime now) =>
       state = observeToolCalls(state, next, now);
+}
+
+/// The sessions of a host, by host key, with background work running in
+/// a chat the app mirrors (AHP-033). It changes only when that set does,
+/// not with every streamed delta.
+final backgroundWorkSessionsProvider =
+    NotifierProvider.family<BackgroundWorkSessions, Set<String>, String>(
+      BackgroundWorkSessions.new,
+    );
+
+/// Follows one host's [sessionsWithBackgroundWork].
+class BackgroundWorkSessions extends Notifier<Set<String>> {
+  /// Creates the busy sessions of the host with key [host].
+  BackgroundWorkSessions(this.host);
+
+  /// The host key ([SavedHost.key]).
+  final String host;
+
+  @override
+  Set<String> build() {
+    ref.listen(
+      hostConnectionProvider(host),
+      (_, next) => state = sessionsWithBackgroundWork(next),
+    );
+    return sessionsWithBackgroundWork(ref.read(hostConnectionProvider(host)));
+  }
+
+  @override
+  bool updateShouldNotify(Set<String> previous, Set<String> next) =>
+      !setEquals(previous, next);
 }
 
 /// The protected resources a host holds a token for (AHP-060), by host
@@ -188,8 +219,9 @@ class HostConnection extends Notifier<HostState> {
     await _connected.subscribe(channel, kind: kind);
   }
 
-  /// Releases a [subscribe].
-  void unsubscribe(String channel) => _client?.unsubscribe(channel);
+  /// Releases a [subscribe]. A chat or session with background work stays
+  /// subscribed until the work ends (`AhpClient.release`).
+  void unsubscribe(String channel) => _client?.release(channel);
 
   /// Pages older turns into [chat] when the host windowed it (AV-068,
   /// AHP-029). False when there is nothing more to load.

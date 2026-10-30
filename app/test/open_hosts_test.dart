@@ -7,6 +7,8 @@ import 'package:shireitou/src/hosts/host_store.dart';
 import 'package:shireitou/src/hosts/open_hosts.dart';
 import 'package:shireitou/src/hosts/saved_hosts.dart';
 
+import 'fake_connection.dart';
+
 HostInfo _info(String url, {String name = '', String? server}) => HostInfo(
   host: SavedHost(url: url, name: name),
   status: ConnectionStatus.connected,
@@ -42,7 +44,59 @@ class _LockedStore extends HostStore {
   }
 }
 
+HostState _withChat({required bool busy}) => HostState(
+  status: ConnectionStatus.connected,
+  sessions: {
+    'pi:/a': SessionSummary.fromJson(const {
+      'resource': 'pi:/a',
+      'provider': 'pi',
+      'title': 't',
+      'status': 33,
+      'createdAt': '2026-01-01T00:00:00Z',
+      'modifiedAt': '2026-01-01T00:00:00Z',
+      'defaultChat': 'ahp-chat:/a',
+    }),
+  },
+  chatChannels: {
+    'ahp-chat:/a': ChannelMirror.snapshot(
+      ChatState.fromJson({
+        'resource': 'ahp-chat:/a',
+        'title': 't',
+        'status': 33,
+        'modifiedAt': '2026-01-01T00:00:00Z',
+        'turns': const <Object?>[],
+        if (busy)
+          'backgroundWork': const [
+            {
+              'kind': 'shell',
+              'id': 'w1',
+              'label': 'npm test',
+              'startedAt': '2026-01-01T00:00:00.000Z',
+              'command': 'npm test',
+            },
+          ],
+      }),
+    ),
+  },
+);
+
 void main() {
+  test('a session with background work reads as in progress', () {
+    final connection = FakeHostConnection(_withChat(busy: true));
+    final container = ProviderContainer(
+      overrides: hostOverrides(connection: connection),
+    );
+    addTearDown(container.dispose);
+    SessionStatus status() =>
+        container.read(allSessionsProvider).single.summary.status;
+
+    expect(status().isInProgress, isTrue);
+    expect(status().isReadFlag, isTrue);
+
+    connection.emit(_withChat(busy: false));
+    expect(status().bits, 33);
+  });
+
   test('withHost replaces in place or appends', () {
     const a = SavedHost(url: 'ws://a:1?tkn=x');
     const b = SavedHost(url: 'ws://b:1');

@@ -843,6 +843,22 @@ AppImage and the release workflow (see
 - Timings of chats that are no longer open are never dropped; they are
   small, but a very long-lived connection keeps them all.
 
+## Background work status (AV-021, AHP-033)
+
+- Only background work in a chat the app has mirrored is known: work a
+  session started while it was not open in this app (or before the app
+  started, or in a subagent chat that was never opened) leaves its row
+  idle. Seeing it would need a subscription to every chat, or the host
+  reporting background work in `SessionSummary` (AHP has no field for
+  it).
+- A held chat or session is subscribed for this connection only: after
+  the app restarts it is not known again until the session is opened.
+- The status is the client's: other clients, and this app's push relay
+  (`specs/push-relay.md`, not built), still see the host's `Idle`.
+- There is no notification of its own for background work ending; the
+  "Finished" notification moves from the end of the turn to the end of
+  the work, and its text does not say which.
+
 ## Math (AV-078)
 
 - Typeset math is not selectable: a selection across a paragraph copies

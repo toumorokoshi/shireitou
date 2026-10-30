@@ -287,6 +287,58 @@ void main() {
     expect(host.requests.where((r) => r.$1 == 'unsubscribe'), hasLength(2));
   });
 
+  test(
+    'closeSession holds a chat with background work until it ends',
+    () async {
+      await client.connect();
+      final chat = await client.openSession('pi:/a');
+      final peer = host.peers.single;
+      peer.sendNotification('action', {
+        'channel': 'ahp-chat:/a',
+        'action': {
+          'type': 'chat/backgroundWorkSet',
+          'work': {
+            'kind': 'shell',
+            'id': 'w1',
+            'label': 'npm test',
+            'startedAt': '2026-01-01T00:00:00.000Z',
+            'command': 'npm test',
+          },
+        },
+        'serverSeq': 6,
+      });
+      await _settle();
+      expect(sessionsWithBackgroundWork(client.state), {'pi:/a'});
+
+      client.closeSession('pi:/a', chat);
+      await _settle();
+      expect(host.requests.where((r) => r.$1 == 'unsubscribe'), isEmpty);
+      expect(sessionsWithBackgroundWork(client.state), {'pi:/a'});
+
+      // Reopening and closing again does not hold a second subscription.
+      await client.openSession('pi:/a');
+      client.closeSession('pi:/a', chat);
+      await _settle();
+      expect(host.requests.where((r) => r.$1 == 'unsubscribe'), isEmpty);
+
+      peer.sendNotification('action', {
+        'channel': 'ahp-chat:/a',
+        'action': {'type': 'chat/backgroundWorkRemoved', 'id': 'w1'},
+        'serverSeq': 7,
+      });
+      await _settle();
+      expect(
+        host.requests
+            .where((r) => r.$1 == 'unsubscribe')
+            .map((r) => r.$2['channel']),
+        unorderedEquals(['pi:/a', 'ahp-chat:/a']),
+      );
+      expect(client.state.chatChannels, isEmpty);
+      expect(client.state.sessionChannels, isEmpty);
+      expect(sessionsWithBackgroundWork(client.state), isEmpty);
+    },
+  );
+
   test('dispatch applies optimistically and the echo confirms it', () async {
     await client.connect();
     await client.openSession('pi:/a');

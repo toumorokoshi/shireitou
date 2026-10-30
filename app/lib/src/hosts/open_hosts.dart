@@ -302,7 +302,8 @@ class HostSession {
 
 /// The sessions of every live host, merged into one inbox (AV-012). An
 /// open session shows its channel's title, so a pending rename (AV-073)
-/// shows before the host updates its catalogue.
+/// shows before the host updates its catalogue, and a session with
+/// background work running reads as in progress ([withBackgroundWork]).
 final allSessionsProvider = Provider<List<HostSession>>((ref) {
   final all = <HostSession>[];
   for (final info in ref.watch(hostInfosProvider)) {
@@ -312,14 +313,24 @@ final allSessionsProvider = Provider<List<HostSession>>((ref) {
       hostConnectionProvider(info.key)
           .select((s) => (s.sessions, s.sessionChannels)),
     );
+    final busy = ref.watch(backgroundWorkSessionsProvider(info.key));
     for (final summary in sessions.values) {
       all.add(
         HostSession(
           info.key,
-          withMirroredTitle(summary, channels[summary.resource]?.state),
+          withBusyStatus(
+            withMirroredTitle(summary, channels[summary.resource]?.state),
+            busy: busy.contains(summary.resource),
+          ),
         ),
       );
     }
   }
   return all;
 });
+
+/// [summary] with its status as [withBackgroundWork] gives it.
+SessionSummary withBusyStatus(SessionSummary summary, {required bool busy}) {
+  final status = withBackgroundWork(summary.status, busy: busy);
+  return status == summary.status ? summary : summary.copyWith(status: status);
+}

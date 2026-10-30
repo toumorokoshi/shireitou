@@ -3,6 +3,7 @@
 library;
 
 export 'src/auth.dart';
+export 'src/background_work.dart';
 export 'src/changeset_reducer.dart';
 export 'src/changesets.dart';
 export 'src/channel_mirror.dart';

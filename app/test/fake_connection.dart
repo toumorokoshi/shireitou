@@ -92,6 +92,9 @@ class FakeHostConnection extends HostConnection {
   @override
   void checkConnection() => checks++;
 
+  /// Moves to [next], as if the host changed it.
+  void emit(HostState next) => state = next;
+
   @override
   Future<void> disconnect() async => state = const HostState();
 
