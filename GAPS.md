@@ -845,14 +845,14 @@ AppImage and the release workflow (see
 
 ## Background work status (AV-021, AHP-033)
 
-- Only background work in a chat the app has mirrored is known: work a
-  session started while it was not open in this app (or before the app
-  started, or in a subagent chat that was never opened) leaves its row
-  idle. Seeing it would need a subscription to every chat, or the host
-  reporting background work in `SessionSummary` (AHP has no field for
-  it).
-- A held chat or session is subscribed for this connection only: after
-  the app restarts it is not known again until the session is opened.
+- pi-agent-host-protocol reports background work in each session
+  summary's `_meta`, so every session it runs is covered. Other hosts
+  have no such field (AHP has none): from them only background work in a
+  chat the app has mirrored is known, so work a session started while it
+  was not open here (or before the app started) leaves its row idle
+  until the session is opened.
+- The `_meta` key is pi-agent-host-protocol's own, not part of AHP. If
+  AHP adds a summary field for background work, it should replace it.
 - The status is the client's: other clients, and this app's push relay
   (`specs/push-relay.md`, not built), still see the host's `Idle`.
 - There is no notification of its own for background work ending; the

@@ -2,12 +2,25 @@
 /// 1.0.0) of the chats the client mirrors (AHP-033).
 ///
 /// Background work is absent from `SessionSummary` and `ChatSummary`, so
-/// the client only knows about it for chats it is subscribed to.
+/// the client knows about it for chats it is subscribed to, and for
+/// sessions whose host reports it in the summary's `_meta`
+/// ([backgroundWorkMetaKey]).
 library;
 
 import 'host_state.dart';
 import 'session_status.dart';
 import 'wire.dart';
+
+/// The `SessionSummary._meta` key pi-agent-host-protocol sets to the number
+/// of background work entries in the session's chat while it has any.
+const backgroundWorkMetaKey = 'pi-agent-host-protocol/backgroundWork';
+
+/// Whether [summary]'s `_meta` reports background work.
+bool summaryReportsBackgroundWork(SessionSummary summary) =>
+    switch (summary.meta?[backgroundWorkMetaKey]) {
+      final num count => count > 0,
+      _ => false,
+    };
 
 /// Whether the mirror of [chat] lists background work.
 bool chatHasBackgroundWork(HostState state, String chat) =>
@@ -37,12 +50,18 @@ bool holdsBackgroundWork(HostState state, String channel) =>
           channel,
         ).any((chat) => chatHasBackgroundWork(state, chat)));
 
-/// The sessions with a mirrored chat that lists background work.
+/// The sessions with background work: their summary reports some, or a
+/// mirrored chat of theirs lists some.
 Set<String> sessionsWithBackgroundWork(HostState state) {
+  final reported = {
+    for (final MapEntry(:key, :value) in state.sessions.entries)
+      if (summaryReportsBackgroundWork(value)) key,
+  };
   if (!state.chatChannels.keys.any((c) => chatHasBackgroundWork(state, c))) {
-    return const {};
+    return reported;
   }
   return {
+    ...reported,
     for (final session in {
       ...state.sessions.keys,
       ...state.sessionChannels.keys,

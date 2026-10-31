@@ -41,16 +41,20 @@ ChannelMirror<SessionState> _session(List<String> chats) =>
       }),
     );
 
-SessionSummary _summary(String resource, {String? defaultChat}) =>
-    SessionSummary.fromJson({
-      'resource': resource,
-      'provider': 'pi',
-      'title': 't',
-      'status': 33,
-      'createdAt': '2026-01-01T00:00:00Z',
-      'modifiedAt': '2026-01-01T00:00:00Z',
-      'defaultChat': ?defaultChat,
-    });
+SessionSummary _summary(
+  String resource, {
+  String? defaultChat,
+  Object? backgroundWork,
+}) => SessionSummary.fromJson({
+  'resource': resource,
+  'provider': 'pi',
+  'title': 't',
+  'status': 33,
+  'createdAt': '2026-01-01T00:00:00Z',
+  'modifiedAt': '2026-01-01T00:00:00Z',
+  'defaultChat': ?defaultChat,
+  if (backgroundWork != null) '_meta': {backgroundWorkMetaKey: backgroundWork},
+});
 
 void main() {
   group('sessionsWithBackgroundWork', () {
@@ -71,6 +75,31 @@ void main() {
         },
       );
       expect(sessionsWithBackgroundWork(state), {'pi:/a', 'pi:/b'});
+    });
+
+    test('finds a session its summary reports, without any chat', () {
+      final state = HostState(
+        sessions: {
+          'pi:/a': _summary('pi:/a', backgroundWork: 2),
+          'pi:/b': _summary('pi:/b', backgroundWork: 0),
+          'pi:/c': _summary('pi:/c', backgroundWork: 'yes'),
+          'pi:/d': _summary('pi:/d'),
+        },
+      );
+      expect(sessionsWithBackgroundWork(state), {'pi:/a'});
+    });
+
+    test('a summary change with an empty _meta clears it', () {
+      final catalogue = applySessionSummaryChanged(
+        {'pi:/a': _summary('pi:/a', backgroundWork: 1)},
+        'pi:/a',
+        const {'_meta': <String, Object?>{}},
+      );
+      expect(summaryReportsBackgroundWork(catalogue['pi:/a']!), isFalse);
+      expect(
+        sessionsWithBackgroundWork(HostState(sessions: catalogue)),
+        isEmpty,
+      );
     });
 
     test('is empty when no mirrored chat has background work', () {

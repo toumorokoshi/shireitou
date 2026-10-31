@@ -97,6 +97,36 @@ void main() {
     expect(status().bits, 33);
   });
 
+  test(
+    'a session whose summary reports background work reads as in progress',
+    () {
+      final summary = SessionSummary.fromJson(const {
+        'resource': 'pi:/a',
+        'provider': 'pi',
+        'title': 't',
+        'status': 33,
+        'createdAt': '2026-01-01T00:00:00Z',
+        'modifiedAt': '2026-01-01T00:00:00Z',
+        '_meta': {backgroundWorkMetaKey: 1},
+      });
+      final container = ProviderContainer(
+        overrides: hostOverrides(
+          connection: FakeHostConnection(
+            HostState(
+              status: ConnectionStatus.connected,
+              sessions: {'pi:/a': summary},
+            ),
+          ),
+        ),
+      );
+      addTearDown(container.dispose);
+      expect(
+        container.read(allSessionsProvider).single.summary.status.isInProgress,
+        isTrue,
+      );
+    },
+  );
+
   test('withHost replaces in place or appends', () {
     const a = SavedHost(url: 'ws://a:1?tkn=x');
     const b = SavedHost(url: 'ws://b:1');

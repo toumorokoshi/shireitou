@@ -77,7 +77,10 @@ WebSocket ──► json_rpc_2 Peer ──► AhpClient (I/O edge)
   entry; every state change lets go of the ones that finished.
   `background_work.dart` is pure: `sessionsWithBackgroundWork` finds the
   busy sessions (through the session mirror's chats or the catalogue's
-  `defaultChat` and `chats`), and `withBackgroundWork` sets `InProgress`
+  `defaultChat` and `chats`, or a summary whose `_meta` reports a count
+  under `pi-agent-host-protocol/backgroundWork`, which
+  pi-agent-host-protocol keeps current with `root/sessionSummaryChanged`),
+  and `withBackgroundWork` sets `InProgress`
   on their status. The app's `backgroundWorkSessionsProvider` follows
   that set (notifying only when it changes), and `allSessionsProvider`
   applies it, so the row's spinner, the "working" filter and the

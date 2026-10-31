@@ -1,5 +1,25 @@
 # Design Decision Log
 
+## 2026-10-30: Background work from the session summary's `_meta` (AHP-033)
+
+Holding chat subscriptions only covered sessions opened in this app, and
+pi did not send background work at all. pi-agent-host-protocol now
+publishes it (`chat/backgroundWorkSet`) and keeps a count in each
+session summary's `_meta` under `pi-agent-host-protocol/backgroundWork`,
+updated with `root/sessionSummaryChanged` (`_meta: {}` when none is
+left).
+
+- **Read it from the catalogue.** `sessionsWithBackgroundWork` also
+  counts sessions whose summary reports a positive count, so every row
+  of a pi host is right without subscribing to any chat, including
+  sessions started before the app or never opened in it. A one-time scan
+  of every chat at start was rejected: pi sends full histories and keeps
+  every session it loads in memory.
+- **Kept the chat-based detection** for other hosts, and because a
+  mirrored chat updates as soon as an entry changes.
+- The key is the host's, not AHP's; non-numeric or zero values are
+  ignored.
+
 ## 2026-10-30: Sessions with background work show as working (AV-021, AHP-033)
 
 A session whose turn ended while a background shell or subagent kept
