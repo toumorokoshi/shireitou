@@ -31,9 +31,9 @@ Future<List<JsonMap>> _pump(
         body: PendingMessagesPanel(
           pending: pending,
           onAction: dispatched.add,
+          onSendNow: onSendNow,
           editNewestRequests: editNewestRequests,
           onEditorClosed: onEditorClosed,
-          onSendNow: onSendNow,
         ),
       ),
     ),

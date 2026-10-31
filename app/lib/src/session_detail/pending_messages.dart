@@ -18,9 +18,9 @@ class PendingMessagesPanel extends StatefulWidget {
     super.key,
     required this.pending,
     required this.onAction,
+    this.onSendNow,
     this.editNewestRequests,
     this.onEditorClosed,
-    this.onSendNow,
   });
 
   /// The steering message first, then the queue (see `pendingMessages`).
@@ -29,8 +29,8 @@ class PendingMessagesPanel extends StatefulWidget {
   /// Dispatches a chat action.
   final ValueChanged<JsonMap> onAction;
 
-  /// Sends a queued message now (see `sendQueuedNowActions`); null hides
-  /// the "Send now" buttons.
+  /// Sends a queued message now, stopping the running turn (see
+  /// `sendQueuedNowActions`); null hides the "Send now" buttons.
   final ValueChanged<PendingMessage>? onSendNow;
 
   /// Opens the newest message (the last queued one, else the steering
@@ -200,7 +200,8 @@ class _PendingRow extends StatelessWidget {
   /// Dispatches a chat action.
   final ValueChanged<JsonMap> onAction;
 
-  /// Sends the queued message now, or null for the steering message.
+  /// Sends the queued message now, stopping the running turn; null for
+  /// the steering message.
   final VoidCallback? onSendNow;
 
   /// Index in the queue, or null for the steering message.

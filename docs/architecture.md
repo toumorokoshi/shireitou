@@ -557,7 +557,8 @@ Dart source); `bin/generate.dart` does the file I/O. See
   `session_info.dart` are the chat switcher (AV-069), the queued messages
   panel (AV-081; clicking a message opens an inline editor, saved with
   the pure `savePendingEditAction`; "Send now" on a queued message
-  dispatches the pure `sendQueuedNowActions`; ↑ in the empty composer opens the
+  dispatches the pure `sendQueuedNowActions`, which stops the running turn
+  and starts the message; ↑ in the empty composer opens the
   newest message through `editNewestRequests`, AV-087) and the session
   details page. `inline_message_editor.dart` is the inline editor shared
   by queued messages and the latest user message, whose edit button

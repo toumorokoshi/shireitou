@@ -53,7 +53,7 @@ const _mode = ConfigField(
 
 /// What a [FollowUpInput] reported.
 class _Calls {
-  final sent = <({String text, bool steer, ModelSelection? model})>[];
+  final sent = <({String text, bool sendNow, ModelSelection? model})>[];
   final settings = <(String, Object?)>[];
   var stops = 0;
 }
@@ -85,8 +85,8 @@ Future<_Calls> _pump(
             onSessionSettingChanged: (id, value) =>
                 calls.settings.add((id, value)),
             onStop: () => calls.stops++,
-            onSend: (text, {required steer, model, attachments = const []}) =>
-                calls.sent.add((text: text, steer: steer, model: model)),
+            onSend: (text, {required sendNow, model, attachments = const []}) =>
+                calls.sent.add((text: text, sendNow: sendNow, model: model)),
           ),
         ),
       ),
@@ -224,7 +224,7 @@ void main() {
     await tester.tap(find.byTooltip('Send'));
     await tester.pump();
     expect(calls.sent.single.text, 'Go');
-    expect(calls.sent.single.steer, isFalse);
+    expect(calls.sent.single.sendNow, isFalse);
     expect(calls.sent.single.model?.config?['thinkingLevel'], 'high');
   });
 
@@ -248,7 +248,7 @@ void main() {
     expect(find.byTooltip('Queue'), findsOneWidget);
     await tester.tap(find.byTooltip('Send now'));
     await tester.pump();
-    expect(calls.sent.single.steer, isTrue);
+    expect(calls.sent.single.sendNow, isTrue);
     // Sent, so the box is empty and stops again.
     expect(find.byTooltip('Stop'), findsOneWidget);
   });

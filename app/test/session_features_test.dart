@@ -961,7 +961,7 @@ void main() {
     });
   });
 
-  testWidgets('"Send now" steers with a queued message (AV-081)', (
+  testWidgets('"Send now" stops the turn and runs a queued message (AV-081)', (
     tester,
   ) async {
     reduceMotion(tester);
@@ -977,21 +977,21 @@ void main() {
     );
     await tester.tap(find.byTooltip('Send now'));
     await tester.pumpAndSettle();
+    final actions = [for (final (_, action) in connection.dispatched) action];
     expect(
-      [for (final (_, action) in connection.dispatched) action],
-      [
-        {
-          'type': 'chat/pendingMessageSet',
-          'kind': 'steering',
-          'id': 'q1',
-          'message': {
-            'text': 'first',
-            'origin': {'kind': 'user'},
-          },
-        },
-        {'type': 'chat/pendingMessageRemoved', 'kind': 'queued', 'id': 'q1'},
-      ],
+      [for (final a in actions) a['type']],
+      ['chat/pendingMessageRemoved', 'chat/turnCancelled', 'chat/turnStarted'],
     );
+    expect(actions[0], {
+      'type': 'chat/pendingMessageRemoved',
+      'kind': 'queued',
+      'id': 'q1',
+    });
+    expect(actions[1]['turnId'], 't1');
+    expect(actions[2]['message'], {
+      'text': 'first',
+      'origin': {'kind': 'user'},
+    });
   });
 
   testWidgets('drafts are shown, synced and cleared on send', (tester) async {

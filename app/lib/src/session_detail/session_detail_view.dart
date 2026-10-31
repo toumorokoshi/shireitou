@@ -359,6 +359,18 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
     }
   }
 
+  /// Dispatches [actions] in order, stopping at the first that fails, since
+  /// each depends on the ones before it.
+  void _dispatchAll(String channel, List<JsonMap> actions) {
+    try {
+      for (final action in actions) {
+        _connection.dispatch(channel, action);
+      }
+    } on StateError catch (error) {
+      _showMessage('Could not send that: ${error.message}');
+    }
+  }
+
   Future<void> _signIn(AuthChallenge challenge) =>
       signInFromUi(context, _connection, challenge);
 
@@ -531,9 +543,7 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
                     id: const Uuid().v4(),
                     now: DateTime.now(),
                   );
-                  for (final action in actions ?? const <JsonMap>[]) {
-                    _dispatch(chatUri!, action);
-                  }
+                  _dispatchAll(chatUri!, actions ?? const []);
                 },
           onFork: canFork ? (turnId) => _fork(chatUri!, turnId) : null,
         ),
@@ -624,17 +634,17 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
                       PendingMessagesPanel(
                         pending: pending,
                         onAction: (action) => _dispatch(chatUri!, action),
-                        onSendNow: (queued) {
-                          final actions = sendQueuedNowActions(
-                            chat!,
-                            queued,
-                            id: const Uuid().v4(),
-                            now: DateTime.now(),
-                          );
-                          for (final action in actions) {
-                            _dispatch(chatUri!, action);
-                          }
-                        },
+                        onSendNow: chat == null || readOnly
+                            ? null
+                            : (queued) => _dispatchAll(
+                                chatUri!,
+                                sendQueuedNowActions(
+                                  chat,
+                                  queued,
+                                  id: const Uuid().v4(),
+                                  now: DateTime.now(),
+                                ),
+                              ),
                         editNewestRequests: _editQueued,
                         onEditorClosed: () => _composerFocus.value++,
                       ),
@@ -712,17 +722,17 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
                         onSend:
                             (
                               text, {
-                              required steer,
+                              required sendNow,
                               model,
                               attachments = const [],
-                            }) => _dispatch(
+                            }) => _dispatchAll(
                               chatUri!,
-                              sendMessageAction(
+                              sendMessageActions(
                                 chat,
                                 text: text,
                                 id: const Uuid().v4(),
                                 now: DateTime.now(),
-                                steer: steer,
+                                sendNow: sendNow,
                                 model: model,
                                 attachments: attachments,
                               ),
@@ -1568,11 +1578,11 @@ class _TimelineState extends ConsumerState<_Timeline> {
 }
 
 /// Sends [text] with [model] (null for the host's default) and the
-/// [attachments] of accepted completions; [steer] asks to deliver it at
-/// the agent's next step.
+/// [attachments] of accepted completions; [sendNow] asks to stop the
+/// running turn and send it at once rather than queue it.
 typedef SendMessage = void Function(
   String text, {
-  required bool steer,
+  required bool sendNow,
   ModelSelection? model,
   List<MessageAttachment> attachments,
 });
@@ -1603,7 +1613,8 @@ double timelineEndInset(double paneWidth) =>
 /// The follow-up box (AV-080, AV-096): one rounded box with the text at
 /// the top and, along its bottom, "+" (attachments, not supported yet),
 /// the [MessageSettingsBar] chips and the send button. Enter sends (or
-/// queues while working), Cmd/Ctrl+Enter sends now while working,
+/// queues while working), Cmd/Ctrl+Enter sends now while working
+/// (stopping the turn),
 /// Shift+Enter adds a newline; while the agent works and the box is
 /// empty, the send button stops the turn ([onStop]).
 /// It starts from the chat's [draft] and syncs what the user types back
@@ -1816,7 +1827,7 @@ class _FollowUpInputState extends State<FollowUpInput> {
       if (event is! KeyDownEvent || keyboard.isShiftPressed) {
         return KeyEventResult.ignored;
       }
-      _send(steer: keyboard.isMetaPressed || keyboard.isControlPressed);
+      _send(sendNow: keyboard.isMetaPressed || keyboard.isControlPressed);
       return KeyEventResult.handled;
     }
     final handled =
@@ -1877,12 +1888,12 @@ class _FollowUpInputState extends State<FollowUpInput> {
     selection: TextSelection.collapsed(offset: text.length),
   );
 
-  void _send({required bool steer}) {
+  void _send({required bool sendNow}) {
     final text = _text.text.trim();
     if (text.isEmpty) return;
     widget.onSend(
       text,
-      steer: steer,
+      sendNow: sendNow,
       model: _model,
       attachments: acceptedAttachments(_accepted, text),
     );
@@ -1989,7 +2000,7 @@ class _FollowUpInputState extends State<FollowUpInput> {
               visualDensity: VisualDensity.compact,
               color: AppColors.of(context).mutedText,
               icon: const Icon(AppIcons.sendNow),
-              onPressed: () => _send(steer: true),
+              onPressed: () => _send(sendNow: true),
             ),
           if (showStop)
             ComposerActionButton(
@@ -2002,7 +2013,7 @@ class _FollowUpInputState extends State<FollowUpInput> {
               tooltip:
                   widget.sendTooltip ?? (widget.working ? 'Queue' : 'Send'),
               icon: const Icon(AppIcons.send),
-              onPressed: empty ? null : () => _send(steer: false),
+              onPressed: empty ? null : () => _send(sendNow: false),
             ),
         ],
       ),

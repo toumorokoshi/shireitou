@@ -13,9 +13,14 @@ void main() {
   final pendingTool =
       (active.activeTurn!.responseParts.first as ToolCallResponsePart).toolCall;
 
-  group('sendMessageAction', () {
+  group('sendMessageActions', () {
     test('starts a turn when idle', () {
-      final action = sendMessageAction(idle, text: 'hi', id: 't', now: now);
+      final action = sendMessageActions(
+        idle,
+        text: 'hi',
+        id: 't',
+        now: now,
+      ).single;
       expect(action['type'], 'chat/turnStarted');
       expect(action['turnId'], 't');
       expect(action['startedAt'], '2026-10-01T00:00:02.000Z');
@@ -25,18 +30,45 @@ void main() {
       });
     });
 
-    test('queues, or steers, while a turn runs', () {
-      final queued = sendMessageAction(active, text: 'a', id: 'q', now: now);
+    test('queues while a turn runs', () {
+      final queued = sendMessageActions(
+        active,
+        text: 'a',
+        id: 'q',
+        now: now,
+      ).single;
       expect(queued['type'], 'chat/pendingMessageSet');
       expect(queued['kind'], 'queued');
-      final steering = sendMessageAction(
+    });
+
+    test('send now stops the running turn and starts the message', () {
+      final actions = sendMessageActions(
         active,
         text: 'a',
         id: 's',
         now: now,
-        steer: true,
+        sendNow: true,
       );
-      expect(steering['kind'], 'steering');
+      expect(actions.first, {
+        'type': 'chat/turnCancelled',
+        'turnId': 'turn-2',
+        'duration': 2000,
+      });
+      expect(actions.last['type'], 'chat/turnStarted');
+      expect(actions.last['turnId'], 's');
+      expect((actions.last['message']! as JsonMap)['text'], 'a');
+      expect(actions, hasLength(2));
+    });
+
+    test('send now with no turn running just starts it', () {
+      final actions = sendMessageActions(
+        idle,
+        text: 'a',
+        id: 's',
+        now: now,
+        sendNow: true,
+      );
+      expect([for (final a in actions) a['type']], ['chat/turnStarted']);
     });
   });
 
@@ -125,57 +157,51 @@ void main() {
   });
 
   group('sendQueuedNowActions', () {
-    final first = PendingMessage(id: 'q1', message: userMessage('first'));
+    final queued = PendingMessage(id: 'q1', message: userMessage('first'));
     final second = PendingMessage(id: 'q2', message: userMessage('second'));
-    ChatState apply(ChatState chat, PendingMessage queued) =>
-        sendQueuedNowActions(
-          chat,
-          queued,
-          id: 't',
-          now: now,
-        ).fold(chat, reduceChatJson);
 
-    test('makes the message the steering one and drops it from the queue', () {
-      final chat = apply(
-        active.copyWith(queuedMessages: [first, second]),
-        second,
+    test('send now unqueues the message, stops the turn and starts it', () {
+      final withModel = PendingMessage(
+        id: 'q1',
+        message: userMessage('first', model: const ModelSelection(id: 'fast')),
       );
-      expect(chat.steeringMessage?.id, 'q2');
-      expect(chat.steeringMessage?.message.text, 'second');
-      expect(chat.queuedMessages, [first]);
-    });
-
-    test('appends to a steering message already waiting', () {
-      final steering = PendingMessage(
-        id: 's',
-        message: userMessage(
-          'steer',
-          attachments: const [SimpleMessageAttachment(label: 'a.dart')],
-        ),
-      );
-      final chat = apply(
-        active.copyWith(steeringMessage: steering, queuedMessages: [first]),
-        first,
-      );
-      expect(chat.steeringMessage?.id, 's');
-      expect(chat.steeringMessage?.message.text, 'steer\n\nfirst');
-      expect(chat.steeringMessage?.message.attachments, hasLength(1));
-      expect(chat.queuedMessages, isNull);
-    });
-
-    test('starts a turn from the message when idle', () {
       final actions = sendQueuedNowActions(
-        idle.copyWith(queuedMessages: [first, second]),
-        first,
-        id: 't',
+        active,
+        withModel,
+        id: 't3',
         now: now,
       );
-      expect(actions.single['type'], 'chat/turnStarted');
-      expect(actions.single['turnId'], 't');
-      expect(actions.single['queuedMessageId'], 'q1');
-      final chat = apply(idle.copyWith(queuedMessages: [first, second]), first);
+      expect(actions, [
+        {'type': 'chat/pendingMessageRemoved', 'kind': 'queued', 'id': 'q1'},
+        {'type': 'chat/turnCancelled', 'turnId': 'turn-2', 'duration': 2000},
+        {
+          'type': 'chat/turnStarted',
+          'turnId': 't3',
+          'startedAt': '2026-10-01T00:00:02.000Z',
+          'message': withModel.message.toJson(),
+        },
+      ]);
+      // With no turn running there is nothing to stop.
+      expect(
+        [
+          for (final a in sendQueuedNowActions(idle, queued, id: 't', now: now))
+            a['type'],
+        ],
+        ['chat/pendingMessageRemoved', 'chat/turnStarted'],
+      );
+    });
+
+    test('the message leaves the queue and runs as the new turn', () {
+      final chat = sendQueuedNowActions(
+        active.copyWith(queuedMessages: [queued, second]),
+        queued,
+        id: 't3',
+        now: now,
+      ).fold(active.copyWith(queuedMessages: [queued, second]), reduceChatJson);
+      expect(chat.activeTurn?.id, 't3');
       expect(chat.activeTurn?.message.text, 'first');
       expect(chat.queuedMessages, [second]);
+      expect(chat.steeringMessage, isNull);
     });
   });
 

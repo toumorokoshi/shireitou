@@ -197,10 +197,10 @@ just run chrome 'ws://127.0.0.1:63877?tkn=...'   # prefill the host URL
    the prompt and press Enter: the new session is listed atop the
    sidebar and shown at once ("Initializing…") while the host creates
    it, and the pane switches to it when it is ready. In a session, Enter sends a
-   follow-up (or queues it while the agent works), Cmd/Ctrl+Enter steers the
-   running turn, Shift+Enter adds a newline, and the round stop button (the
+   follow-up (or queues it while the agent works), Cmd/Ctrl+Enter stops the
+   running turn and sends it at once, Shift+Enter adds a newline, and the round stop button (the
    send button while the agent works and the box is empty) cancels the
-   turn. ↑ in the empty box edits the newest queued message (Enter
+   turn. A queued message's "Send now" sends it the same way. ↑ in the empty box edits the newest queued message (Enter
    re-queues it), or else recalls your earlier messages to edit and send
    again; ↓ steps back. The pencil beside your latest message (running or
    finished) edits it in place and restarts from it, dropping that turn

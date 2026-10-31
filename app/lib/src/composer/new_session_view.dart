@@ -647,7 +647,7 @@ class _NewSessionViewState extends ConsumerState<NewSessionView> {
               token: token,
               commands: commands,
             ),
-            onSend: (text, {required steer, model, attachments = const []}) =>
+            onSend: (text, {required sendNow, model, attachments = const []}) =>
                 _start(text, model, attachments),
           ),
         ),

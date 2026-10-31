@@ -115,7 +115,7 @@ Future<List<String>> _pump(
             working: false,
             dictation: dictation,
             controller: controller,
-            onSend: (text, {required steer, model, attachments = const []}) =>
+            onSend: (text, {required sendNow, model, attachments = const []}) =>
                 sent.add(text),
           ),
         ),
