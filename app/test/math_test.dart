@@ -100,5 +100,51 @@ void main() {
       await tester.pump();
       expect(tester.takeException(), isNull);
     });
+
+    testWidgets('math in table cells lays out and can be hovered', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        app(
+          '| a | b |\n|---|---|\n| \$x_i\$ | \$\$y\$\$ |\n'
+          '| \$$_mse\$ | \$\\sqrt{2}\$ |\n'
+          '| \$\\hat{x}\$ | \$\$\\boxed{\\sqrt{x}}\$\$ |',
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      expect(find.byType(Math), findsNWidgets(6));
+
+      // The columns are re-measured once the math has been laid out.
+      await tester.pump();
+      final table = tester.getRect(find.byType(Table));
+      for (final math in find.byType(Math).evaluate()) {
+        final box = tester.getRect(find.byWidget(math.widget));
+        expect(box.width, greaterThan(0));
+        expect(table.contains(box.topLeft), isTrue);
+        expect(table.contains(box.bottomRight - const Offset(1, 1)), isTrue);
+      }
+      expect(table.isEmpty, isFalse);
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      for (var y = table.top; y <= table.bottom; y += 4) {
+        for (var x = table.left; x <= table.right; x += 8) {
+          await mouse.moveTo(Offset(x, y));
+        }
+      }
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('inline math sits on the text baseline', (tester) async {
+      await tester.pumpWidget(app(r'Height $x$ here.'));
+      expect(tester.takeException(), isNull);
+
+      final math = tester.getRect(find.byType(Math));
+      final text = tester.getRect(
+        find.textContaining('Height', findRichText: true),
+      );
+      expect(math.top, greaterThanOrEqualTo(text.top));
+      expect(math.bottom, lessThanOrEqualTo(text.bottom));
+    });
   });
 }

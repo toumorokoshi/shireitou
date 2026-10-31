@@ -1,5 +1,40 @@
 # Design Decision Log
 
+## 2026-10-30: Math in table cells (AV-078, AV-145)
+
+The mouse tracker cascade of AV-145 came from a reply with a markdown
+table holding inline TeX. Reply tables use `IntrinsicColumnWidth`
+(AV-095), so each cell's paragraph measures its intrinsic width, and a
+paragraph asks a baseline-aligned `WidgetSpan` for its dry baseline.
+`flutter_math_fork` 0.7.4's `RenderLine` does not implement
+`computeDryBaseline`, so debug builds asserted, the table was left
+without a size, and every later mouse hit test threw. Intrinsic widths
+fail too: the layout builders behind `\sqrt`, `\left…\right`, stretchy
+operators and accents assert on intrinsic sizes (returning 0 in release
+builds), and Flutter's `LayoutBuilder` has no dry layout.
+
+- **Answer the queries from the last layout.** `math_view.dart` wraps
+  every equation, inline and display, in `_MeasuredMath`, a
+  `RenderProxyBox` that never forwards intrinsic, dry layout or dry
+  baseline queries to the math. It lays the math out at its natural
+  width (math does not wrap), remembers that size and baseline, and
+  answers with them (zero before the first layout). When a layout finds
+  a new size after an answer was given, it marks itself for layout in a
+  post-frame callback, which clears the cached intrinsics up to the
+  table, so the columns are re-measured in the next frame.
+- **Baseline alignment is kept.** `PlaceholderAlignment.middle` avoids
+  only the dry baseline query, not the intrinsic widths, and would move
+  subscripts and fractions off the text's baseline.
+- **Rejected: a dry baseline shim alone** (the child's dry height). It
+  fixes simple TeX but not `\sqrt` and the like, whose intrinsic widths
+  still throw.
+- **Rejected: laying the math out during the query.** A box may only
+  read its child's size during its own layout, and the table, not the
+  proxy, is laying out then.
+- **Rejected: `FlexColumnWidth` for tables with math**, which cannot
+  size columns in the horizontally scrolling table, and patching
+  `flutter_math_fork`, which would mean carrying a fork.
+
 ## 2026-10-30: A debug error log for error cascades (AV-145)
 
 The macOS app printed `'!_debugDuringDeviceUpdate': is not true` on every

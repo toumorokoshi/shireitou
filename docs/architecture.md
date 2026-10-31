@@ -549,7 +549,10 @@ Dart source); `bin/generate.dart` does the file I/O. See
   syntaxes that find TeX math (`$$…$$`, `\[…\]`, `\(…\)`, `$…$`) and
   `math_view.dart`'s `MathBuilder` typesets it with `flutter_math_fork`,
   inline math as a `WidgetSpan` so `flutter_markdown_plus` merges it into
-  the paragraph's text (AV-078); `terminal_text.dart` turns terminal output into
+  the paragraph's text; each equation sits in a `_MeasuredMath` proxy
+  that answers intrinsic and dry layout queries (a table's column widths)
+  from its last layout, since `flutter_math_fork`'s render objects
+  cannot (AV-078); `terminal_text.dart` turns terminal output into
   plain text. `chat_switcher.dart`, `pending_messages.dart` and
   `session_info.dart` are the chat switcher (AV-069), the queued messages
   panel (AV-081; clicking a message opens an inline editor, saved with

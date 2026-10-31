@@ -873,14 +873,21 @@ AppImage and the release workflow (see
   recognised.
 - `flutter_math_fork` covers most of KaTeX but not every package
   (`\ce` from mhchem, for example); those show as written.
+- Its render objects cannot answer intrinsic or dry layout queries, so
+  `math_view.dart` answers them from the math's last layout. A table
+  holding math is laid out twice when it first appears (or its math
+  changes): the first frame sizes the columns as if the math were empty,
+  so it overflows its cell for that frame.
 
 ## Mouse tracker assertions (AV-145)
 
-- The cause of the `'!_debugDuringDeviceUpdate': is not true` cascade
-  seen on macOS (2026-10-30) is not known: its first report was lost.
-  The error log in debug builds keeps it from the next occurrence; the
-  fix waits on that entry. Hovering math, a session's timeline and the
-  session rows' hover cards in widget tests did not reproduce it.
+- The `'!_debugDuringDeviceUpdate': is not true` cascade seen on macOS
+  (2026-10-30) was set off by inline math in a markdown table cell:
+  `flutter_math_fork`'s `RenderLine` does not implement
+  `computeDryBaseline`, the table's intrinsic column widths asked for
+  it, and the table was left without a size, so every hit test threw.
+  Fixed in `math_view.dart`; other cascades will still need the error
+  log's first entry.
 - Release and profile builds keep no error log, and the web app keeps
   none (the browser's console has every error).
 - The log is not shown in the app, and nothing offers to send it.
