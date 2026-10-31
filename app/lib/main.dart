@@ -6,6 +6,7 @@ import 'package:logging/logging.dart';
 import 'src/app.dart';
 import 'src/desktop/desktop_window.dart';
 import 'src/desktop/sandbox_prefs.dart';
+import 'src/diagnostics/error_log.dart';
 import 'src/prefs.dart';
 
 /// Keeps the semantics tree on for browser tests (`app/web_test`), which
@@ -21,6 +22,7 @@ Future<void> main() async {
     ),
   );
   WidgetsFlutterBinding.ensureInitialized();
+  await startErrorLog();
   if (const bool.fromEnvironment('SHIREITOU_SEMANTICS')) {
     testSemantics = SemanticsBinding.instance.ensureSemantics();
   }

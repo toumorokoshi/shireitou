@@ -2,6 +2,7 @@
 /// it and the widgets that typeset it.
 library;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -83,6 +84,21 @@ void main() {
       await tester.pumpWidget(app(r'Bad: $\frac{1$ here.'));
 
       expect(find.textContaining(r'$\frac{1$', findRichText: true), findsOne);
+    });
+
+    testWidgets('a mouse can hover over math', (tester) async {
+      await tester.pumpWidget(app('\$\$ $_mse \$\$\n\nWith \$N\$ samples.'));
+
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      for (final math in find.byType(Math).evaluate()) {
+        final box = tester.getRect(find.byWidget(math.widget));
+        for (var x = box.left; x <= box.right; x += 2) {
+          await mouse.moveTo(Offset(x, box.center.dy));
+        }
+      }
+      await tester.pump();
+      expect(tester.takeException(), isNull);
     });
   });
 }

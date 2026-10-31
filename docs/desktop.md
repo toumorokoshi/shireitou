@@ -241,6 +241,30 @@ because pi-agent-host-protocol reads only `tkn`. Browsers cannot set upgrade
 headers, so web sends only `tkn`. `webSocketConnector(tokenTransport: ...)`
 in `ahp_client` selects query, header or both.
 
+## Error log (AV-145)
+
+Flutter prints a run's first error in full and every later one as a
+single "Another exception was thrown" line. Some errors set off a
+cascade: one thrown in a hover callback or a hit test leaves the mouse
+tracker failing `'!_debugDuringDeviceUpdate': is not true` (and, after
+the pointer leaves and re-enters the window,
+`(event is PointerAddedEvent) == (lastEvent is PointerRemovedEvent)`)
+on every mouse move, so the report that names the cause scrolls away.
+
+Debug builds (`just run macos`, `flutter run`) therefore write the full
+report and stack of each distinct error to `logs/errors.log` in the app's
+support folder, up to 50 a run, and log its path at start ("Full error
+reports go to …"). The previous run's file is kept as
+`logs/errors.previous.log`. The support folder is:
+
+| Platform | Folder                                                  |
+| -------- | ------------------------------------------------------- |
+| macOS    | `~/Library/Application Support/dev.shireitou.shireitou` |
+| Linux    | `~/.local/share/dev.shireitou.shireitou`                |
+| Windows  | `%APPDATA%\dev.shireitou\shireitou`                     |
+
+For a mouse tracker cascade, the first entry in the file is the bug.
+
 ## Smoke test
 
 `app/integration_test/desktop_smoke_test.dart` runs the real app: it checks

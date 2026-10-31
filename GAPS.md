@@ -874,6 +874,17 @@ AppImage and the release workflow (see
 - `flutter_math_fork` covers most of KaTeX but not every package
   (`\ce` from mhchem, for example); those show as written.
 
+## Mouse tracker assertions (AV-145)
+
+- The cause of the `'!_debugDuringDeviceUpdate': is not true` cascade
+  seen on macOS (2026-10-30) is not known: its first report was lost.
+  The error log in debug builds keeps it from the next occurrence; the
+  fix waits on that entry. Hovering math, a session's timeline and the
+  session rows' hover cards in widget tests did not reproduce it.
+- Release and profile builds keep no error log, and the web app keeps
+  none (the browser's console has every error).
+- The log is not shown in the app, and nothing offers to send it.
+
 ## CI runners
 
 - The `web` job runs on `ubuntu-24.04` rather than `ubuntu-latest`,

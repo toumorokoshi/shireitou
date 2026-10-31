@@ -1,5 +1,32 @@
 # Design Decision Log
 
+## 2026-10-30: A debug error log for error cascades (AV-145)
+
+The macOS app printed `'!_debugDuringDeviceUpdate': is not true` on every
+mouse move, with an occasional
+`(event is PointerAddedEvent) == (lastEvent is PointerRemovedEvent)`.
+Both are knock-on failures: an exception thrown inside the mouse
+tracker's device update (a hover callback or a hit test, often after a
+layout error) leaves its debug flag set, so every later update fails,
+and a pointer removal that fails leaves the device behind for the next
+addition to trip over. The cause is in the first report only, which
+Flutter prints in full once, and it had scrolled out of the terminal.
+The app's hover handlers, a sweep of a session's timeline (math, tables,
+code, links) and the session rows' hover cards did not reproduce it.
+
+- **Keep the full reports in a file** rather than guess at a fix. Each
+  distinct error (by summary) is written once with its stack, so a
+  cascade adds one entry, not thousands; 50 a run bounds the file.
+- **The console is unchanged.** The log wraps the existing
+  `FlutterError.onError` and calls it first. Printing every error in
+  full (`forceReport`) was rejected: the cascade would flood the
+  console.
+- **Debug builds only, and not on the web.** The assertions behind these
+  cascades only fire in debug builds, and the browser's console keeps
+  every error.
+- **The last run's log is kept** (`errors.previous.log`), since the app
+  is often restarted before the log is read.
+
 ## 2026-10-30: Background work from the session summary's `_meta` (AHP-033)
 
 Holding chat subscriptions only covered sessions opened in this app, and
@@ -19,6 +46,8 @@ left).
   mirrored chat updates as soon as an entry changes.
 - The key is the host's, not AHP's; non-numeric or zero values are
   ignored.
+
+||||||| parent of 5b8e710 (feat(app): keep full error reports in a debug log file (AV-145))
 
 ## 2026-10-30: Sessions with background work show as working (AV-021, AHP-033)
 

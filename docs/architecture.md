@@ -342,6 +342,12 @@ Dart source); `bin/generate.dart` does the file I/O. See
   saves the placement with `shared_preferences`, and sets the window
   title; `app_menu.dart` is the macOS `PlatformMenuBar` (with the Session
   menu of shortcuts). See [desktop.md](desktop.md).
+- `lib/src/diagnostics/`: the AV-145 error log. `error_log.dart` formats
+  an entry (`errorLogEntry`, pure) and wraps `FlutterError.onError`
+  (`logFlutterErrors`) so each distinct error is written once, up to
+  `maxLoggedErrors`, after the console's report; `startErrorLog` turns
+  it on in debug builds. `error_log_io.dart` keeps the file in the app's
+  support folder; `error_log_web.dart` keeps none.
 - `lib/src/shortcuts.dart`: the AV-140 commands (`AppCommand`), their keys
   (`activatorFor`: Cmd on Apple platforms, Ctrl elsewhere; plus
   `extraActivatorsFor`, such as Ctrl+\` beside Alt+T for the terminal) and
