@@ -1,5 +1,32 @@
 # Design Decision Log
 
+## 2026-10-31: Forking against pi (AV-144, AHP-045)
+
+The "Fork from here" button never showed against pi, because
+pi-agent-host-protocol had one chat per session and did not advertise
+`multipleChats.fork`. Rather than give the app a fallback, the host
+learned to fork (pi-agent-host-protocol `cce8c79`, `specs/forks.md`).
+
+- **The fork is a pi session branched at the turn.** pi's
+  `createBranchedSession` copies the source chat's path through the turn
+  into a new session file, so the model keeps its real context; a
+  transcript pasted into a new session (rejected on 2026-10-28) would
+  not.
+- **A chat of the same session, as AHP models it.** The host publishes
+  the fork at the client's chat URI with `session/chatAdded` and keeps a
+  record of its forks, so after a restart they are chats again rather
+  than separate sessions in the inbox. The app needed no change: its
+  existing button, gate (`canForkChats`) and "open the fork once
+  listed" logic work as they are.
+- **A host bug found on the way.** The client watches a new session as
+  `ahp-session:/<id>`, then subscribes `pi:/<id>` and drops the first.
+  The host kept one spelling per channel, so dropping it unsubscribed
+  the session, and `session/chatAdded` (and renames) never arrived. The
+  host now keeps each spelling (`123c75f`).
+- **Tested against pi.** `pi_faux_flows_test.dart` forks at the first of
+  two turns and checks, with the faux model's `history` reply, that pi
+  sees only the history through the fork point.
+
 ## 2026-10-30: "Send now" stops the turn (AV-080, AV-081)
 
 "Send now" (a queued row's button or menu, the composer's button and

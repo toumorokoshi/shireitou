@@ -140,6 +140,44 @@ void main() {
     expect(replyOf(edited), 'pi faux history: one | history please');
   });
 
+  test('forks a chat at a completed turn (AV-144, AHP-045)', () async {
+    final agent = client.state.root!.agents.firstWhere(
+      (a) => a.provider == 'pi',
+    );
+    expect(canForkChats(agent), isTrue);
+    final (session, chat) = await newSession();
+    send(chat, 'one', id: 'one');
+    await finished(chat, 1);
+    send(chat, 'two', id: 'two');
+    await finished(chat, 2);
+
+    final fork = 'ahp-chat:/fork-${DateTime.now().microsecondsSinceEpoch}';
+    await client.createChat(
+      session,
+      fork,
+      source: ForkChatSource(chat: chat, turnId: 'one'),
+    );
+    final summary =
+        (await until(
+              (s) => s.sessionChannels[session]!.state.chats.any(
+                (c) => c.resource == fork,
+              ),
+            )).sessionChannels[session]!.state.chats
+            .firstWhere((c) => c.resource == fork);
+    expect(summary.origin, ChatOriginFork(chat: chat, turnId: 'one'));
+    await client.subscribe(fork, kind: ChannelKind.chat);
+    expect(
+      [for (final t in chatOf(client.state, fork).turns) t.message.text],
+      ['one'],
+    );
+
+    // pi sees the fork's own history: the source's later turn is not in it.
+    send(fork, 'history please');
+    final reply = await finished(fork, 2);
+    expect(replyOf(reply), 'pi faux history: one | history please');
+    expect(chatOf(client.state, chat).turns, hasLength(2));
+  });
+
   test('cancels a running turn', () async {
     final (_, chat) = await newSession();
     send(chat, 'slow', id: 'slow');

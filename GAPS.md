@@ -809,15 +809,13 @@ AppImage and the release workflow (see
 
 ## Forking a chat (AV-144, AHP-045)
 
-- pi-agent-host-protocol lists `createChat` among its unsupported
-  methods and its agent does not advertise `multipleChats.fork`, so the
-  "Fork from here" button never shows against pi. pi itself can fork a
-  session (`/fork`); the host would need to map `createChat` with a
-  `ForkChatSource` onto it (a new pi session branched at the turn,
-  exposed as a chat of the AHP session) and advertise the capability.
-- Forking is only verified against the fake host (client flow and
-  widget tests); the app is not driven end to end through a fork
-  (`just test-fake-host-app`).
+- pi-agent-host-protocol forks from `cce8c79` on (with the subscription
+  fix in `123c75f`, without which the fork never appears in the app); an
+  older pi host hides the button. Its own limits (no deleting a fork, a
+  running fork not shown in the session's status) are in its GAPS.md.
+- The client flow is verified against the fake host and against pi with
+  the faux model (`pi_faux_flows_test.dart`); the app is not driven end
+  to end through a fork (`just test-fake-host-app`, `just test-pi-app`).
 - Only completed turns fork. The running turn, and cancelled or failed
   ones, have no button; AHP's side chats (`SideChatSource`, from any
   turn and with a text selection) are not offered.
