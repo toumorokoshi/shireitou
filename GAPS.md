@@ -86,6 +86,10 @@ AppImage and the release workflow (see
   chip of its own. The tooltips name the action ("Send", "Queue",
   "Send now", "Stop") without the shortcut; the placeholder no longer
   explains Enter and Cmd/Ctrl+Enter (README and AV-080 do).
+  Pasting rich text (Google Docs, web pages) into the composer converts
+  HTML to Markdown, preserving bullets and structure (AV-079);
+  Shift+Cmd/Ctrl+V pastes plain text. Pasting complex nested tables with
+  merged cells (colspan/rowspan) flattens into standard Markdown tables.
 - **Theme and title bar (AV-090, AV-091), remaining details:** the
   theme's tokens are in `app/lib/src/theme/` (`AppColors.of(context)`;
   see [docs/architecture.md](docs/architecture.md)). Contrast is checked

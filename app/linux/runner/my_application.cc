@@ -67,8 +67,23 @@ static gboolean set_clipboard_html(const gchar* text, const gchar* html) {
   return TRUE;
 }
 
-// Rich copy (lib/src/clipboard/rich_clipboard.dart): `setHtml` with
-// `text` and `html` on dev.shireitou.shireitou/clipboard.
+// Reads HTML from the clipboard.
+static gchar* get_clipboard_html() {
+  GtkClipboard* clipboard = gtk_clipboard_get(GDK_SELECTION_CLIPBOARD);
+  GtkSelectionData* data = gtk_clipboard_wait_for_contents(
+      clipboard, gdk_atom_intern_static_string("text/html"));
+  if (data == nullptr) return nullptr;
+  const guchar* raw = gtk_selection_data_get_data(data);
+  gint length = gtk_selection_data_get_length(data);
+  gchar* html = (raw != nullptr && length > 0)
+                    ? g_strndup(reinterpret_cast<const gchar*>(raw), length)
+                    : nullptr;
+  gtk_selection_data_free(data);
+  return html;
+}
+
+// Rich copy and paste (lib/src/clipboard/rich_clipboard.dart): `setHtml` and
+// `getHtml` on dev.shireitou.shireitou/clipboard.
 static void clipboard_method_cb(FlMethodChannel* channel,
                                 FlMethodCall* method_call,
                                 gpointer user_data) {
@@ -80,19 +95,30 @@ static void clipboard_method_cb(FlMethodChannel* channel,
   FlValue* html = args != nullptr && fl_value_get_type(args) == FL_VALUE_TYPE_MAP
                       ? fl_value_lookup_string(args, "html")
                       : nullptr;
-  if (g_strcmp0(fl_method_call_get_name(method_call), "setHtml") != 0) {
-    response = FL_METHOD_RESPONSE(fl_method_not_implemented_response_new());
-  } else if (text == nullptr || html == nullptr ||
-             fl_value_get_type(text) != FL_VALUE_TYPE_STRING ||
-             fl_value_get_type(html) != FL_VALUE_TYPE_STRING) {
-    response = FL_METHOD_RESPONSE(fl_method_error_response_new(
-        "bad_arguments", "no text or html", nullptr));
-  } else if (!set_clipboard_html(fl_value_get_string(text),
-                                 fl_value_get_string(html))) {
-    response = FL_METHOD_RESPONSE(fl_method_error_response_new(
-        "clipboard_failed", "could not set the clipboard", nullptr));
+  if (g_strcmp0(fl_method_call_get_name(method_call), "setHtml") == 0) {
+    if (text == nullptr || html == nullptr ||
+        fl_value_get_type(text) != FL_VALUE_TYPE_STRING ||
+        fl_value_get_type(html) != FL_VALUE_TYPE_STRING) {
+      response = FL_METHOD_RESPONSE(fl_method_error_response_new(
+          "bad_arguments", "no text or html", nullptr));
+    } else if (!set_clipboard_html(fl_value_get_string(text),
+                                   fl_value_get_string(html))) {
+      response = FL_METHOD_RESPONSE(fl_method_error_response_new(
+          "clipboard_failed", "could not set the clipboard", nullptr));
+    } else {
+      response = FL_METHOD_RESPONSE(fl_method_success_response_new(nullptr));
+    }
+  } else if (g_strcmp0(fl_method_call_get_name(method_call), "getHtml") == 0) {
+    gchar* html_str = get_clipboard_html();
+    if (html_str != nullptr) {
+      response = FL_METHOD_RESPONSE(
+          fl_method_success_response_new(fl_value_new_string(html_str)));
+      g_free(html_str);
+    } else {
+      response = FL_METHOD_RESPONSE(fl_method_success_response_new(nullptr));
+    }
   } else {
-    response = FL_METHOD_RESPONSE(fl_method_success_response_new(nullptr));
+    response = FL_METHOD_RESPONSE(fl_method_not_implemented_response_new());
   }
   fl_method_call_respond(method_call, response, nullptr);
 }

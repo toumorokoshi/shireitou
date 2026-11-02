@@ -608,13 +608,25 @@ Dart source); `bin/generate.dart` does the file I/O. See
   italic, code; a markdown link's URL comes from `linkHref` in
   `link_menu.dart`), other pieces (code) into `<pre>` blocks.
 - `lib/src/clipboard/rich_clipboard.dart` puts HTML and plain text on
-  the clipboard together: `setHtml` on `dev.shireitou.shireitou/clipboard`,
-  handled by the macOS and iOS runners (`NSPasteboard`, `UIPasteboard`),
-  Android (`ClipData.newHtmlText`), Linux (a GTK clipboard with a
-  `text/html` target) and Windows (`CF_UNICODETEXT` plus "HTML Format",
-  whose header `windowsClipboardHtml` writes in Dart), and a
-  `ClipboardItem` on the web (`rich_clipboard_web.dart`). Without a
-  handler, or when the browser refuses, it copies the plain text.
+  the clipboard together and reads HTML back: `setHtml` and `getHtml` on
+  `dev.shireitou.shireitou/clipboard`, handled by the macOS and iOS runners
+  (`NSPasteboard`, `UIPasteboard`), Android (`ClipData.newHtmlText`),
+  Linux (a GTK clipboard with a `text/html` target) and Windows
+  (`CF_UNICODETEXT` plus "HTML Format", whose header
+  `windowsClipboardHtml` and `cleanWindowsClipboardHtml` handle in Dart),
+  and `navigator.clipboard` on the web (`rich_clipboard_web.dart`).
+- `lib/src/clipboard/html_to_markdown.dart` (pure) converts rich text HTML
+  (such as that copied from Google Docs, web pages, or rich text editors)
+  into clean Markdown: lists and bullets (both DOM-nested lists and Google
+  Docs flat lists with `aria-level` and `lst-kix_` class indentation, stripping
+  redundant bullet symbols), Google Docs wrapper styles (`docs-internal-guid`
+  with normal font weight), headings, bold, italic, strikethrough, inline code,
+  code blocks with language in `<pre>`, tables, blockquotes, links (unwrapping
+  Google redirection URLs), and task checkboxes (`- [ ]`, `- [x]`).
+- `lib/src/clipboard/rich_paste.dart` handles pasting into text controllers
+  (`FollowUpInput` and `InlineMessageEditor`): Cmd/Ctrl+V and the context
+  menu "Paste" convert rich text HTML to Markdown, while Shift+Cmd/Ctrl+V
+  pastes plain text without conversion.
 - `lib/src/session_detail/todo_list.dart` (pure) recognizes todo tools
   (`TodoWrite`, `update_todo`, `manage_todo_list`, `update_plan`) and
   parses their input into a `TodoList`; `latestTodoList` finds the

@@ -33,29 +33,36 @@ class MainFlutterWindow: NSWindow {
   }
 }
 
-/// Rich copy (`lib/src/clipboard/rich_clipboard.dart`): `setHtml` on
-/// `dev.shireitou.shireitou/clipboard` puts `html` and `text` on the
-/// general pasteboard.
+/// Rich copy and paste (`lib/src/clipboard/rich_clipboard.dart`):
+/// `setHtml` and `getHtml` on `dev.shireitou.shireitou/clipboard`.
 enum RichClipboard {
   static func register(messenger: FlutterBinaryMessenger) {
     let channel = FlutterMethodChannel(
       name: "dev.shireitou.shireitou/clipboard", binaryMessenger: messenger)
     channel.setMethodCallHandler { call, result in
-      guard call.method == "setHtml" else {
+      switch call.method {
+      case "setHtml":
+        guard let args = call.arguments as? [String: Any],
+          let text = args["text"] as? String, let html = args["html"] as? String
+        else {
+          result(FlutterError(code: "bad_arguments", message: "no text or html", details: nil))
+          return
+        }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(html, forType: .html)
+        pasteboard.setString(text, forType: .string)
+        result(nil)
+      case "getHtml":
+        let pasteboard = NSPasteboard.general
+        if let html = pasteboard.string(forType: .html) {
+          result(html)
+        } else {
+          result(nil)
+        }
+      default:
         result(FlutterMethodNotImplemented)
-        return
       }
-      guard let args = call.arguments as? [String: Any],
-        let text = args["text"] as? String, let html = args["html"] as? String
-      else {
-        result(FlutterError(code: "bad_arguments", message: "no text or html", details: nil))
-        return
-      }
-      let pasteboard = NSPasteboard.general
-      pasteboard.clearContents()
-      pasteboard.setString(html, forType: .html)
-      pasteboard.setString(text, forType: .string)
-      result(nil)
     }
   }
 }

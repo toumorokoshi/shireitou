@@ -43,6 +43,7 @@ import 'chat_commands.dart';
 import '../composer/completion_cache.dart';
 import '../composer/completion_popup.dart';
 import '../composer/completions.dart';
+import '../clipboard/rich_paste.dart';
 import '../composer/composer_action_button.dart';
 import '../composer/composer_labels.dart';
 import '../composer/config_fields.dart';
@@ -1817,6 +1818,8 @@ class _FollowUpInputState extends State<FollowUpInput> {
     if (_completions.currentState?.handleKey(event) == KeyEventResult.handled) {
       return KeyEventResult.handled;
     }
+    final pasteResult = handleRichPasteKey(event, _text);
+    if (pasteResult == KeyEventResult.handled) return KeyEventResult.handled;
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
     }
@@ -2020,26 +2023,38 @@ class _FollowUpInputState extends State<FollowUpInput> {
     );
   }
 
-  Widget _field(BuildContext context) => TextField(
-    controller: _text,
-    focusNode: _focus,
-    minLines: 2,
-    maxLines: 8,
-    keyboardType: TextInputType.multiline,
-    style: Theme.of(context).textTheme.bodyMedium,
-    // The box around the composer is its only border: the theme's
-    // enabled and focused borders would draw a second one inside it.
-    decoration:
-        InputDecoration.collapsed(
-          hintText: _listening
-              ? 'Listening…'
-              : widget.hintText ?? composerPlaceholder(),
-          hintStyle: Theme.of(context).textTheme.bodyMedium
-              ?.copyWith(color: AppColors.of(context).mutedText),
-        ).copyWith(
-          enabledBorder: InputBorder.none,
-          focusedBorder: InputBorder.none,
-        ),
+  Widget _field(BuildContext context) => Actions(
+    actions: {
+      PasteTextIntent: CallbackAction<PasteTextIntent>(
+        onInvoke: (intent) {
+          unawaited(pasteIntoController(_text));
+          return null;
+        },
+      ),
+    },
+    child: TextField(
+      controller: _text,
+      focusNode: _focus,
+      contextMenuBuilder: (context, editableTextState) =>
+          buildRichPasteContextMenu(context, editableTextState, _text),
+      minLines: 2,
+      maxLines: 8,
+      keyboardType: TextInputType.multiline,
+      style: Theme.of(context).textTheme.bodyMedium,
+      // The box around the composer is its only border: the theme's
+      // enabled and focused borders would draw a second one inside it.
+      decoration:
+          InputDecoration.collapsed(
+            hintText: _listening
+                ? 'Listening…'
+                : widget.hintText ?? composerPlaceholder(),
+            hintStyle: Theme.of(context).textTheme.bodyMedium
+                ?.copyWith(color: AppColors.of(context).mutedText),
+          ).copyWith(
+            enabledBorder: InputBorder.none,
+            focusedBorder: InputBorder.none,
+          ),
+    ),
   );
 
   Widget _withCompletions(Widget field) => switch (widget.completionSource) {

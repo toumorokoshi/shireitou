@@ -55,6 +55,24 @@ bool SetClipboardHtml(HWND window, const std::string& text,
   return ok;
 }
 
+// Reads HTML from the clipboard.
+std::string GetClipboardHtml(HWND window) {
+  static const UINT html_format = RegisterClipboardFormatW(L"HTML Format");
+  if (html_format == 0) return "";
+  if (!OpenClipboard(window)) return "";
+  std::string result;
+  HANDLE data = GetClipboardData(html_format);
+  if (data != nullptr) {
+    const char* str = static_cast<const char*>(GlobalLock(data));
+    if (str != nullptr) {
+      result = str;
+      GlobalUnlock(data);
+    }
+  }
+  CloseClipboard();
+  return result;
+}
+
 // The string argument |key| of |call|, or null.
 const std::string* StringArgument(
     const flutter::MethodCall<flutter::EncodableValue>& call,
@@ -97,6 +115,15 @@ bool FlutterWindow::OnCreate() {
       [this](const flutter::MethodCall<flutter::EncodableValue>& call,
              std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>
                  result) {
+        if (call.method_name() == "getHtml") {
+          std::string html = GetClipboardHtml(GetHandle());
+          if (html.empty()) {
+            result->Success();
+          } else {
+            result->Success(flutter::EncodableValue(html));
+          }
+          return;
+        }
         if (call.method_name() != "setHtml") {
           result->NotImplemented();
           return;

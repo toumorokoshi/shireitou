@@ -47,20 +47,29 @@ class MainActivity : FlutterActivity() {
                     result.error("no_browser", e.message, null)
                 }
             }
-        // Rich copy (lib/src/clipboard/rich_clipboard.dart): `setHtml`
-        // puts `html` and `text` on the clipboard as one clip.
+        // Rich copy and paste (lib/src/clipboard/rich_clipboard.dart):
+        // `setHtml` puts `html` and `text` on the clipboard as one clip,
+        // and `getHtml` reads it back.
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CLIPBOARD_CHANNEL)
             .setMethodCallHandler { call, result ->
-                val text = call.argument<String>("text")
-                val html = call.argument<String>("html")
-                if (call.method != "setHtml") {
-                    result.notImplemented()
-                } else if (text == null || html == null) {
-                    result.error("bad_arguments", "no text or html", null)
-                } else {
-                    getSystemService(ClipboardManager::class.java)
-                        .setPrimaryClip(ClipData.newHtmlText(null, text, html))
-                    result.success(null)
+                when (call.method) {
+                    "setHtml" -> {
+                        val text = call.argument<String>("text")
+                        val html = call.argument<String>("html")
+                        if (text == null || html == null) {
+                            result.error("bad_arguments", "no text or html", null)
+                        } else {
+                            getSystemService(ClipboardManager::class.java)
+                                .setPrimaryClip(ClipData.newHtmlText(null, text, html))
+                            result.success(null)
+                        }
+                    }
+                    "getHtml" -> {
+                        val clip = getSystemService(ClipboardManager::class.java).primaryClip
+                        val html = clip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.htmlText
+                        result.success(html)
+                    }
+                    else -> result.notImplemented()
                 }
             }
     }

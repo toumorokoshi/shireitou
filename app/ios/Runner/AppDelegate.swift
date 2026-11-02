@@ -22,26 +22,35 @@ import UIKit
   }
 }
 
-/// Rich copy (`lib/src/clipboard/rich_clipboard.dart`): `setHtml` on
-/// `dev.shireitou.shireitou/clipboard` puts `html` and `text` on the
-/// general pasteboard as one item.
+/// Rich copy and paste (`lib/src/clipboard/rich_clipboard.dart`):
+/// `setHtml` and `getHtml` on `dev.shireitou.shireitou/clipboard`.
 enum RichClipboard {
   static func register(messenger: FlutterBinaryMessenger) {
     let channel = FlutterMethodChannel(
       name: "dev.shireitou.shireitou/clipboard", binaryMessenger: messenger)
     channel.setMethodCallHandler { call, result in
-      guard call.method == "setHtml" else {
+      switch call.method {
+      case "setHtml":
+        guard let args = call.arguments as? [String: Any],
+          let text = args["text"] as? String, let html = args["html"] as? String
+        else {
+          result(FlutterError(code: "bad_arguments", message: "no text or html", details: nil))
+          return
+        }
+        UIPasteboard.general.items = [["public.html": html, "public.utf8-plain-text": text]]
+        result(nil)
+      case "getHtml":
+        if let data = UIPasteboard.general.data(forPasteboardType: "public.html"),
+           let html = String(data: data, encoding: .utf8) {
+          result(html)
+        } else if let html = UIPasteboard.general.value(forPasteboardType: "public.html") as? String {
+          result(html)
+        } else {
+          result(nil)
+        }
+      default:
         result(FlutterMethodNotImplemented)
-        return
       }
-      guard let args = call.arguments as? [String: Any],
-        let text = args["text"] as? String, let html = args["html"] as? String
-      else {
-        result(FlutterError(code: "bad_arguments", message: "no text or html", details: nil))
-        return
-      }
-      UIPasteboard.general.items = [["public.html": html, "public.utf8-plain-text": text]]
-      result(nil)
     }
   }
 }

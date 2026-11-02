@@ -2,8 +2,12 @@
 /// and for editing the latest message to restart from it (AV-088).
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
+import '../clipboard/rich_paste.dart';
 
 /// A message's text in an editor: Enter saves, Shift+Enter adds a line,
 /// Escape cancels.
@@ -50,6 +54,8 @@ class _InlineMessageEditorState extends State<InlineMessageEditor> {
   late final _focus = FocusNode(onKeyEvent: _onKey);
 
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
+    final pasteResult = handleRichPasteKey(event, _text);
+    if (pasteResult == KeyEventResult.handled) return KeyEventResult.handled;
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
     final key = event.logicalKey;
     if (key == LogicalKeyboardKey.escape) {
@@ -80,16 +86,28 @@ class _InlineMessageEditorState extends State<InlineMessageEditor> {
         if (widget.icon case final icon?)
           Padding(padding: const EdgeInsets.only(right: 16), child: icon),
         Expanded(
-          child: TextField(
-            controller: _text,
-            focusNode: _focus,
-            autofocus: true,
-            minLines: 1,
-            maxLines: 4,
-            decoration: InputDecoration(
-              isDense: true,
-              labelText: widget.labelText,
-              helperText: widget.helperText,
+          child: Actions(
+            actions: {
+              PasteTextIntent: CallbackAction<PasteTextIntent>(
+                onInvoke: (intent) {
+                  unawaited(pasteIntoController(_text));
+                  return null;
+                },
+              ),
+            },
+            child: TextField(
+              controller: _text,
+              focusNode: _focus,
+              contextMenuBuilder: (context, editableTextState) =>
+                  buildRichPasteContextMenu(context, editableTextState, _text),
+              autofocus: true,
+              minLines: 1,
+              maxLines: 4,
+              decoration: InputDecoration(
+                isDense: true,
+                labelText: widget.labelText,
+                helperText: widget.helperText,
+              ),
             ),
           ),
         ),

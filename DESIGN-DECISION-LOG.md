@@ -1,5 +1,33 @@
 # Design Decision Log
 
+## 2026-11-02: Rich paste converted to Markdown (AV-079)
+
+When copying rich text (such as contents from Google Docs, rich text
+editors, or web pages), clipboard text pasted into Flutter text fields
+normally strips all formatting and flattens lists/bullets. Pasting into
+the composer (`FollowUpInput`) and the inline message editor
+(`InlineMessageEditor`) now checks the clipboard for rich HTML and converts
+it into clean Markdown.
+
+- **Structure and bullets preserved.** Google Docs bullet and numbered
+  lists (both DOM-nested trees and flat lists with `aria-level` / `lst-kix_`
+  indentation classes) are translated into Markdown lists with proper indentation.
+  Leading bullet glyphs (`•`, `◦`, etc.) are stripped from list items to
+  avoid double-bulleting.
+- **Google Docs wrapper styles handled.** Google Docs wraps clipboard HTML in
+  an outer `<b id="docs-internal-guid-..." style="font-weight:normal;">`
+  container. The parser specifically recognizes this wrapper to prevent the
+  entire document from becoming bold.
+- **Rich inline and block elements.** Headings (`#`), bold (`**`), italic (`*`),
+  strikethrough (`~~`), inline code (`` ` ``) and code blocks in `<pre>`,
+  tables, blockquotes, and checkboxes (`- [ ]`, `- [x]`) are converted. Google
+  Docs redirect links (`google.com/url?q=...`) are decoded to clean target URLs.
+- **Cross-platform clipboard reading.** Native runners (macOS, iOS, Android,
+  Linux, Windows) implement `getHtml` on `dev.shireitou.shireitou/clipboard`,
+  and Web reads from `navigator.clipboard`.
+- **Paste plain text shortcut.** Shift+Cmd/Ctrl+V bypasses HTML conversion to
+  paste raw plain text directly.
+
 ## 2026-10-31: Forking against pi (AV-144, AHP-045)
 
 The "Fork from here" button never showed against pi, because
