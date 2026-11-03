@@ -1,5 +1,28 @@
 # Design Decision Log
 
+## 2026-11-03: Default model choice remembers last selection with host fallback (AV-041)
+
+When drafting new sessions or composing messages, the composer and follow-up
+box (`FollowUpInput`) previously always defaulted the model picker to "Host default
+model" (`null`), requiring the user to re-select their preferred model for every
+new session.
+
+- **Remember last selected model.** When a user selects a model or changes its
+  options in `MessageSettingsBar` or starts a session, the selection is saved
+  on the device via `lastSelectedModelProvider` backed by `PrefsStore` under key
+  `last_selected_model` (`StoredModelSelection`).
+- **Default model choice.** In `NewSessionView` and `SessionDetailView`, the default
+  model choice is resolved via `defaultModelChoice`: if the stored preferred model
+  exists in the current agent's `models` list, it is used by default.
+- **Fallback to host default.** If no model has been selected yet, or if the
+  preferred model does not exist among the current agent's models (e.g. when
+  switching between agents with different model catalogs or after a model is
+  deprecated), the picker safely falls back to "Host default model" (`null`).
+- **Dynamic model validation in composer.** In `FollowUpInput`, `initialModel`
+  and subsequent model selections are validated against available models (`_validatedModel`).
+  If an invalid or removed model is provided, it falls back to `null` instead of
+  sending invalid model ids on dispatch.
+
 ## 2026-11-02: Keyboard selection and completion in autocomplete (AV-044)
 
 When typing `/` or other completion triggers in the composer or follow-up

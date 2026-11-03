@@ -27,6 +27,7 @@ import 'completions.dart';
 import 'config_fields.dart';
 import 'config_form.dart';
 import 'directory_browser.dart';
+import 'model_store.dart';
 import 'new_session_draft.dart';
 import '../theme/app_icons.dart';
 import '../agent_names.dart';
@@ -305,6 +306,7 @@ class _NewSessionViewState extends ConsumerState<NewSessionView> {
       directory: _directory.text,
       prompt: _prompt.text,
     );
+    ref.read(lastSelectedModelProvider.notifier).set(model);
     setState(() {
       _sent = true;
       _error = null;
@@ -638,6 +640,12 @@ class _NewSessionViewState extends ConsumerState<NewSessionView> {
                 ? 'Start session'
                 : 'Start ${_extraRuns.length + 1} runs',
             models: agent?.models ?? const [],
+            initialModel: defaultModelChoice(
+              agent?.models ?? const [],
+              ref.watch(lastSelectedModelProvider),
+            ),
+            onModelChanged: (model) =>
+                ref.read(lastSelectedModelProvider.notifier).set(model),
             sessionFields: settingFields.where(isPickerField).toList(),
             sessionValues: settingValues,
             onSessionSettingChanged: _changeSetting,

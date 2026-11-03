@@ -48,6 +48,7 @@ import '../composer/composer_action_button.dart';
 import '../composer/composer_labels.dart';
 import '../composer/config_fields.dart';
 import '../composer/message_history.dart';
+import '../composer/model_store.dart';
 import '../dictation/dictation.dart';
 import '../dictation/dictation_button.dart';
 import 'chat_switcher.dart';
@@ -678,7 +679,14 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
                           return true;
                         },
                         models: models,
-                        initialModel: lastModelSelection(chat),
+                        initialModel: chatModelChoice(
+                          chat: chat,
+                          models: models,
+                          preferred: ref.watch(lastSelectedModelProvider),
+                        ),
+                        onModelChanged: (model) => ref
+                            .read(lastSelectedModelProvider.notifier)
+                            .set(model),
                         sessionFields: sessionFields,
                         sessionValues: sessionState?.config?.values ?? const {},
                         onSessionSettingChanged: (id, value) => _dispatch(
@@ -1639,6 +1647,7 @@ class FollowUpInput extends StatefulWidget {
     this.draftDelay = const Duration(milliseconds: 800),
     this.models = const [],
     this.initialModel,
+    this.onModelChanged,
     this.sessionFields = const [],
     this.sessionValues = const {},
     this.onSessionSettingChanged,
@@ -1694,8 +1703,11 @@ class FollowUpInput extends StatefulWidget {
   /// [sessionFields].
   final List<SessionModelInfo> models;
 
-  /// The model the chat last used (`Message.model`).
+  /// The model the chat last used (`Message.model`), or the default choice.
   final ModelSelection? initialModel;
+
+  /// Called when the user picks a model or changes its options.
+  final ValueChanged<ModelSelection?>? onModelChanged;
 
   /// Session settings that may change mid-session.
   final List<ConfigField> sessionFields;
@@ -1740,9 +1752,15 @@ class _FollowUpInputState extends State<FollowUpInput> {
   /// The text last synced with the chat's draft (sent or adopted).
   late String _synced = widget.draft?.text ?? '';
 
+  ModelSelection? _validatedModel(ModelSelection? selection) {
+    if (selection == null) return null;
+    return widget.models.any((m) => m.id == selection.id) ? selection : null;
+  }
+
   /// The model for the next message; follows [FollowUpInput.initialModel]
-  /// until the user picks one.
-  late ModelSelection? _model = widget.initialModel;
+  /// until the user picks one, falling back to null ("Host default model")
+  /// when the model does not exist.
+  late ModelSelection? _model = _validatedModel(widget.initialModel);
   bool _pickedModel = false;
 
   /// The index in [FollowUpInput.history] of the message recalled into the
@@ -1769,7 +1787,11 @@ class _FollowUpInputState extends State<FollowUpInput> {
       widget.focusRequests?.addListener(_takeFocus);
     }
     if (!_pickedModel && widget.initialModel != old.initialModel) {
-      _model = widget.initialModel;
+      _model = _validatedModel(widget.initialModel);
+    }
+    if (_model != null && !widget.models.any((m) => m.id == _model!.id)) {
+      _model = null;
+      _pickedModel = false;
     }
     final remote = widget.draft?.text ?? '';
     // Another client changed the draft, and the user has not typed since
@@ -1950,10 +1972,13 @@ class _FollowUpInputState extends State<FollowUpInput> {
                           child: MessageSettingsBar(
                             models: widget.models,
                             model: _model,
-                            onModelChanged: (model) => setState(() {
-                              _model = model;
-                              _pickedModel = true;
-                            }),
+                            onModelChanged: (model) {
+                              setState(() {
+                                _model = model;
+                                _pickedModel = true;
+                              });
+                              widget.onModelChanged?.call(model);
+                            },
                             sessionFields: widget.sessionFields,
                             sessionValues: widget.sessionValues,
                             onSessionSettingChanged:
