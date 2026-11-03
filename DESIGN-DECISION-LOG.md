@@ -1,5 +1,36 @@
 # Design Decision Log
 
+## 2026-11-02: Keyboard selection and completion in autocomplete (AV-044)
+
+When typing `/` or other completion triggers in the composer or follow-up
+box (`FollowUpInput`), the completion popup (`CompletionPopup`) lists
+available skills, prompts and commands. Navigating items using the up/down
+arrow keys and completing with Tab now has visible highlighting and natural
+scrolling:
+
+- **Visual selection highlight.** Previously, `ListTile` items in the popup
+  relied on default Material 3 styling where `selected: true` had no background
+  fill (`selectedTileColor` was unset) and selected text used the same
+  `onSurface` color as unselected text, leaving no visual feedback when
+  arrowing through items. The theme and popup now assign
+  `AppColors.of(context).selectedFill` (`tokens.selectedFill`) as
+  `selectedTileColor`, bold the selected title label (`FontWeight.w600`), and
+  mark `selected: true` in semantics.
+- **Natural viewport scrolling.** Previously, `first` visible index was
+  pinned directly to `_selected - maxVisible + 1`, which forced the active
+  item to remain pinned at the bottom row when navigating upward through lists
+  with more than `maxVisible` (8) items. A tracked `_firstVisible` viewport
+  offset now keeps visible items steady when navigating within the window and
+  scrolls smoothly when moving past either boundary.
+- **Wrapping navigation.** Pressing Arrow Up on the first item wraps to the
+  last item; pressing Arrow Down on the last item wraps back to the first.
+- **Top match on query change.** When typing filters the query, selection
+  resets to the top match (index 0) rather than staying clamped at a previously
+  navigated index.
+- **Tab completion.** Pressing Tab (or Enter) on the highlighted item
+  completes it via `applyCompletion`, closes the popup, and restores focus to
+  the text field.
+
 ## 2026-11-02: Rich paste converted to Markdown (AV-079)
 
 When copying rich text (such as contents from Google Docs, rich text

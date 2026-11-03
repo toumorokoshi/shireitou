@@ -191,6 +191,7 @@ ThemeData buildTheme(ThemeSpec theme, {TargetPlatform? platform}) {
     ),
     listTileTheme: ListTileThemeData(
       selectedColor: scheme.onSurface,
+      selectedTileColor: tokens.selectedFill,
       iconColor: tokens.mutedText,
       shape: RoundedRectangleBorder(borderRadius: radius),
     ),

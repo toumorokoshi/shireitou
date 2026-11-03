@@ -472,6 +472,110 @@ void main() {
       expect(_popup, findsOneWidget);
     });
 
+    testWidgets(
+      'up and down arrows highlight items with selectedFill and Tab completes',
+      (tester) async {
+        await _pumpInput(tester);
+        await _type(tester, '/');
+        expect(_popup, findsOneWidget);
+
+        // Initially the first item is selected.
+        ListTile tile(String label) =>
+            tester.widget<ListTile>(find.widgetWithText(ListTile, label));
+        expect(tile('/review').selected, isTrue);
+        expect(tile('/explain').selected, isFalse);
+        expect(tile('/refactor').selected, isFalse);
+        expect(tile('/review').selectedTileColor, isNotNull);
+
+        // Down arrow selects next item.
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pump();
+        expect(tile('/review').selected, isFalse);
+        expect(tile('/explain').selected, isTrue);
+        expect(tile('/refactor').selected, isFalse);
+
+        // Down arrow again selects third item.
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pump();
+        expect(tile('/review').selected, isFalse);
+        expect(tile('/explain').selected, isFalse);
+        expect(tile('/refactor').selected, isTrue);
+
+        // Down arrow wraps around to first item.
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pump();
+        expect(tile('/review').selected, isTrue);
+
+        // Up arrow wraps backwards to last item.
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+        await tester.pump();
+        expect(tile('/refactor').selected, isTrue);
+
+        // Tab accepts currently selected item.
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        final field = tester.widget<TextField>(find.byType(TextField));
+        expect(field.controller!.text, '/refactor ');
+        expect(_popup, findsNothing);
+      },
+    );
+
+    testWidgets('typing resets selection to top match', (tester) async {
+      await _pumpInput(tester);
+      await _type(tester, '/');
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+      ListTile tile(String label) =>
+          tester.widget<ListTile>(find.widgetWithText(ListTile, label));
+      expect(tile('/explain').selected, isTrue);
+
+      // Typing more text filters down and resets selection to the top match.
+      await _type(tester, '/re');
+      expect(tile('/review').selected, isTrue);
+      expect(tile('/refactor').selected, isFalse);
+
+      // Tab completes the top match.
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      final field = tester.widget<TextField>(find.byType(TextField));
+      expect(field.controller!.text, '/review ');
+    });
+
+    testWidgets('arrows scroll visible window when items exceed maxVisible', (
+      tester,
+    ) async {
+      final manyCommands = [
+        for (var i = 1; i <= 12; i++)
+          (name: 'skill$i', description: 'Skill $i', skillUri: null),
+      ];
+      await _pumpInput(
+        tester,
+        source: (text, token) => resolveCompletions(
+          text: text,
+          token: token,
+          commands: manyCommands,
+        ),
+      );
+      await _type(tester, '/');
+      expect(find.text('/skill1'), findsOneWidget);
+      expect(find.text('/skill8'), findsOneWidget);
+      expect(find.text('/skill9'), findsNothing);
+
+      // Down arrow past maxVisible brings subsequent items into view.
+      for (var i = 0; i < 8; i++) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      }
+      await tester.pump();
+      expect(find.text('/skill1'), findsNothing);
+      expect(find.text('/skill9'), findsOneWidget);
+
+      // Tab completes skill9.
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      final field = tester.widget<TextField>(find.byType(TextField));
+      expect(field.controller!.text, '/skill9 ');
+    });
+
     testWidgets('a tap accepts an item', (tester) async {
       await _pumpInput(tester);
       await _type(tester, '/');

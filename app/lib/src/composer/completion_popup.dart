@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
+import '../theme/app_colors.dart';
 import 'completions.dart';
 
 /// Answers the completions for [text] at [token] (the host's `completions`
@@ -83,8 +84,10 @@ class CompletionPopupState extends State<CompletionPopup> {
   List<ComposerCompletion> _items = const [];
   String? _itemsText;
   int? _itemsStart;
+  String? _lastQuery;
   List<ComposerCompletion> _shown = const [];
   int _selected = 0;
+  int _firstVisible = 0;
 
   /// The start of a word the user closed the popup on (Esc or accept).
   int? _dismissedStart;
@@ -185,12 +188,25 @@ class CompletionPopupState extends State<CompletionPopup> {
   /// filtered by what was typed since.
   void _filter() {
     final token = _token;
+    final query = token?.query;
+    final queryChanged = _lastQuery != query;
+    _lastQuery = query;
+
     _shown = token == null
         ? const []
         : _itemsText == _text
         ? _items
         : filterCompletions(_items, token.query);
-    _selected = _selected.clamp(0, math.max(0, _shown.length - 1));
+
+    if (queryChanged) {
+      _selected = 0;
+      _firstVisible = 0;
+    } else {
+      _selected = _selected.clamp(0, math.max(0, _shown.length - 1)).toInt();
+      _firstVisible = _firstVisible
+          .clamp(0, math.max(0, _shown.length - CompletionPopup.maxVisible))
+          .toInt();
+    }
     _update();
   }
 
@@ -199,12 +215,14 @@ class CompletionPopupState extends State<CompletionPopup> {
     _timer?.cancel();
     _generation++;
     _token = null;
+    _lastQuery = null;
     _text = '';
     _items = const [];
     _itemsText = null;
     _itemsStart = null;
     _shown = const [];
     _selected = 0;
+    _firstVisible = 0;
     _update();
   }
 
@@ -236,32 +254,56 @@ class CompletionPopupState extends State<CompletionPopup> {
   /// Handles ↑/↓, Enter, Tab and Esc while the popup is open; ignores
   /// everything else.
   KeyEventResult handleKey(KeyEvent event) {
-    if (!isOpen || event is KeyUpEvent) return KeyEventResult.ignored;
+    if (!isOpen) return KeyEventResult.ignored;
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
     final key = event.logicalKey;
     if (key == LogicalKeyboardKey.arrowDown) {
       _select(_selected + 1);
-    } else if (key == LogicalKeyboardKey.arrowUp) {
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowUp) {
       _select(_selected - 1);
-    } else if (event is KeyDownEvent &&
+      return KeyEventResult.handled;
+    }
+    if (event is KeyDownEvent &&
         (key == LogicalKeyboardKey.enter ||
             key == LogicalKeyboardKey.numpadEnter ||
             key == LogicalKeyboardKey.tab)) {
       accept(_selected);
-    } else if (event is KeyDownEvent && key == LogicalKeyboardKey.escape) {
+      return KeyEventResult.handled;
+    }
+    if (event is KeyDownEvent && key == LogicalKeyboardKey.escape) {
       _dismissedStart = _token?.start;
       _close();
-    } else {
-      return KeyEventResult.ignored;
+      return KeyEventResult.handled;
     }
-    return KeyEventResult.handled;
+    return KeyEventResult.ignored;
   }
 
-  void _select(int index) => setState(() => _selected = index % _shown.length);
+  void _select(int index) {
+    if (_shown.isEmpty) return;
+    final next = (index % _shown.length + _shown.length) % _shown.length;
+    setState(() {
+      _selected = next;
+      if (_selected < _firstVisible) {
+        _firstVisible = _selected;
+      } else if (_selected >= _firstVisible + CompletionPopup.maxVisible) {
+        _firstVisible = _selected - CompletionPopup.maxVisible + 1;
+      }
+      _firstVisible = _firstVisible
+          .clamp(0, math.max(0, _shown.length - CompletionPopup.maxVisible))
+          .toInt();
+    });
+  }
 
   /// Accepts the item at [index] of the shown items.
   void accept(int index) {
+    if (index < 0 || index >= _shown.length) return;
     final item = _shown[index];
     _dismissedStart = _token?.start;
+    _close();
     widget.controller.value = applyCompletion(widget.controller.value, item);
     widget.onAccepted?.call(item);
     widget.focusNode.requestFocus();
@@ -307,13 +349,10 @@ class CompletionPopupState extends State<CompletionPopup> {
   );
 
   Widget _popup(BuildContext context) {
-    final first = math.max(
-      0,
-      math.min(
-        _selected - CompletionPopup.maxVisible + 1,
-        _shown.length - CompletionPopup.maxVisible,
-      ),
-    );
+    final colors = AppColors.of(context);
+    final first = _firstVisible
+        .clamp(0, math.max(0, _shown.length - CompletionPopup.maxVisible))
+        .toInt();
     final visible = _shown
         .skip(first)
         .take(CompletionPopup.maxVisible)
@@ -344,11 +383,23 @@ class CompletionPopupState extends State<CompletionPopup> {
                     for (final (i, item) in visible.indexed)
                       Semantics(
                         role: SemanticsRole.listItem,
+                        selected: first + i == _selected,
                         container: true,
                         child: ListTile(
                           dense: true,
                           selected: first + i == _selected,
-                          title: Text(item.label),
+                          selectedTileColor: colors.selectedFill,
+                          selectedColor: Theme.of(context)
+                              .colorScheme
+                              .onSurface,
+                          title: Text(
+                            item.label,
+                            style: TextStyle(
+                              fontWeight: first + i == _selected
+                                  ? FontWeight.w600
+                                  : FontWeight.normal,
+                            ),
+                          ),
                           subtitle: item.description == null
                               ? null
                               : Text(
