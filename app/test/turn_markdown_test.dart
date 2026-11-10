@@ -12,14 +12,11 @@ Turn _turn(List<ResponsePart> parts) => Turn(
 );
 
 void main() {
-  test('a turn copies as markdown without its reasoning (AV-071)', () {
-    expect(
-      turnMarkdown(chatFixture().turns.single),
-      'Ran `ls`\n\nThere is **one** file.',
-    );
+  test('a turn copies as markdown without its tool calls (AV-071)', () {
+    expect(turnMarkdown(chatFixture().turns.single), 'There is **one** file.');
   });
 
-  test('failed and cancelled calls, errors, notes and resources', () {
+  test('errors, notes and resources, without tool calls or reasoning', () {
     final markdown = turnMarkdown(
       _turn(const [
         MarkdownResponsePart(id: 'a', content: 'Trying.\n'),
@@ -59,12 +56,29 @@ void main() {
     expect(
       markdown,
       'Trying.\n\n'
-      'Ran `make`\nexit code 2\n\n'
-      'Reading a.txt\nCancelled\n\n'
       'Rate limited\n\n'
       'Compacted\n\n'
       '`main.dart`\n\n'
       'https://example.com/a',
+    );
+  });
+
+  test('a turn of only tool calls copies as nothing', () {
+    expect(
+      turnMarkdown(
+        _turn(const [
+          ToolCallResponsePart(
+            toolCall: ToolCallCancelledState(
+              toolCallId: 'y',
+              toolName: 'read',
+              displayName: 'Read',
+              invocationMessage: PlainString('Reading a.txt'),
+              reason: ToolCallCancellationReason.denied,
+            ),
+          ),
+        ]),
+      ),
+      isEmpty,
     );
   });
 

@@ -6,14 +6,12 @@ library;
 import 'package:ahp_client/ahp_client.dart';
 import 'package:markdown/markdown.dart' as md;
 
-import 'timeline_items.dart';
-
 /// The reply of [turn] as markdown, one paragraph per part: markdown parts
-/// as written, each tool call's summary (and its error when it failed),
-/// errors and notes. Reasoning, input requests and unknown parts are left
-/// out. Links that only resolve on the host (absolute paths, `file:` and
-/// other non-web schemes) become their label as inline code
-/// ([portableMarkdown]).
+/// as written, errors, notes and resources. Tool calls (their summaries and
+/// errors), reasoning, input requests and unknown parts are left out, so
+/// the copy holds the agent's output only. Links that only resolve on the
+/// host (absolute paths, `file:` and other non-web schemes) become their
+/// label as inline code ([portableMarkdown]).
 String turnMarkdown(Turn turn) => portableMarkdown(
   [for (final part in turn.responseParts) ?_partMarkdown(part)]
       .where((block) => block.isNotEmpty)
@@ -27,23 +25,13 @@ String markdownHtml(String markdown) =>
 
 String? _partMarkdown(ResponsePart part) => switch (part) {
   MarkdownResponsePart(:final content) => content.trim(),
-  ToolCallResponsePart(:final toolCall) => [
-    toolCallSummary(toolCall),
-    ?_toolCallError(toolCall),
-  ].join('\n'),
   ErrorResponsePart(:final error) => error.message,
   SystemNotificationResponsePart(:final content) => content.text,
   ResourceResponsePart(:final uri) => _resourceMarkdown(uri),
+  ToolCallResponsePart() ||
   ReasoningResponsePart() ||
   InputRequestResponsePart() ||
   ResponsePartUnknown() => null,
-};
-
-String? _toolCallError(ToolCallState toolCall) => switch (toolCall) {
-  ToolCallCompletedState(:final error?, success: false) => error.message,
-  ToolCallCompletedState(success: false) => 'Failed',
-  ToolCallCancelledState() => 'Cancelled',
-  _ => null,
 };
 
 String _resourceMarkdown(String uri) => isPortableLinkTarget(uri)

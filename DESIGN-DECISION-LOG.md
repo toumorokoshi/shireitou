@@ -1,3 +1,19 @@
+## 2026-11-10: Copy as markdown leaves out tool calls
+
+"Copy as markdown" copied each tool call's summary (`Ran \`ls\``, with
+its error when it failed) beside the agent's text, so a reply pasted into
+an editor or a doc carried the agent's actions as well as its answer.
+
+- **Tool calls are dropped.** A tool call part contributes nothing to
+  `turnMarkdown`: neither its past-tense summary nor "Failed" or
+  "Cancelled". The copy is the agent's output: its markdown as written,
+  errors, system notes and resources, one paragraph per part.
+- **Errors stay.** An error of the turn is the agent's output, not a tool
+  call's, so it is still copied.
+- **HTML follows.** "Copy as HTML" renders the same markdown, so it drops
+  the tool calls too; the selection's copy (AV-076) is unchanged, since it
+  copies what is on screen.
+
 # Design Decision Log
 
 ## 2026-11-03: Default model choice remembers last selection with host fallback (AV-041)

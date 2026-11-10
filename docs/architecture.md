@@ -538,7 +538,7 @@ Dart source); `bin/generate.dart` does the file I/O. See
   highlights code with `re_highlight` and renders markdown code blocks
   with a copy button (`copy_button.dart`, which shows a check and
   "Copied" for 1.2 s); `turn_markdown.dart` (pure) turns a finished
-  turn's reply into the markdown its footer's "Copy as markdown" button copies
+  turn's reply, without its tool calls, into the markdown its footer's "Copy as markdown" button copies
   (AV-071), and "Copy as HTML" copies it rendered as HTML (AV-076); a
   completed turn's footer also forks the chat ("Fork from here", AV-144)
   when the agent can, and `SessionDetailView` opens the fork once the

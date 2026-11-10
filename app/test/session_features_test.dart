@@ -421,7 +421,7 @@ void main() {
     // Markdown is plain text only.
     await tester.tap(find.byTooltip('Copy as markdown'));
     await tester.pump();
-    expect(plain, ['Ran `ls`\n\nThere is **one** file.']);
+    expect(plain, ['There is **one** file.']);
     expect(rich, isEmpty);
     expect(find.byTooltip('Copied'), findsOneWidget);
     expect(find.byIcon(Icons.check), findsOneWidget);
@@ -434,10 +434,8 @@ void main() {
     expect(plain, hasLength(1));
     expect(rich, [
       {
-        'text': 'Ran `ls`\n\nThere is **one** file.',
-        'html':
-            '<meta charset="utf-8"><p>Ran <code>ls</code></p>\n'
-            '<p>There is <strong>one</strong> file.</p>\n',
+        'text': 'There is **one** file.',
+        'html': '<meta charset="utf-8"><p>There is <strong>one</strong> file.</p>\n',
       },
     ]);
     expect(find.byTooltip('Copied'), findsOneWidget);
