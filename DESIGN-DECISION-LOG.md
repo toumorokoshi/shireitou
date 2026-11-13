@@ -20,6 +20,19 @@ prompts.
   `ssh_migrated:<hostKey>` in `PrefsStore` after checking `ssh:<hostKey>`
   once, avoiding repeated secure-storage lookups for unconfigured hosts.
 
+## 2026-11-13: `just serve-web` builds and serves the web app
+
+`just run` defaults to `flutter run -d chrome`, which fails on machines
+without Chrome (such as aarch64 Linux), and serving the web build meant
+typing `flutter build web` and a `python3 -m http.server` command by hand.
+
+- **One recipe.** `just serve-web [port] [url]` builds `app/build/web`
+  (prefilling the host URL through `AHP_URL`, like `just run`) and serves
+  it with `python3 -m http.server`, so any browser can open it.
+- **All interfaces.** The server binds 0.0.0.0 so the UI can be opened
+  from another machine (a remote dev box, a phone on the LAN). It serves
+  only the static build; the agent host's own listen address and token
+  still decide who can drive sessions.
 ## 2026-11-10: Copy as markdown leaves out tool calls
 
 "Copy as markdown" copied each tool call's summary (`Ran \`ls\``, with
