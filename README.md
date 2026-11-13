@@ -161,6 +161,8 @@ just run macos           # needs a full Xcode install
 just run linux           # needs GTK 3, CMake, Ninja, clang, libsecret
 just run windows         # needs Visual Studio 2022 with C++ desktop tools
 just run chrome 'ws://127.0.0.1:63877?tkn=...'   # prefill the host URL
+just serve-web           # build the web app, serve it on port 8080 (all interfaces)
+just serve-web 8080 'ws://127.0.0.1:63877?tkn=...'   # same, host URL prefilled
 ```
 
 ## Trying it
@@ -179,12 +181,14 @@ just run chrome 'ws://127.0.0.1:63877?tkn=...'   # prefill the host URL
 
 2. Run the desktop app (`just run linux` or `just run macos`; see
    [docs/desktop.md](docs/desktop.md)), the app in Chrome (`just run`), or
-   build and serve the web app:
+   build and serve the web app for any browser (no Chrome needed):
 
    ```sh
-   cd app && flutter build web
-   python3 -m http.server 8080 --directory build/web   # open http://127.0.0.1:8080
+   just serve-web   # open http://<this machine>:8080
    ```
+
+   It listens on all interfaces, so other machines can open it too. The
+   host's `ws://` URL must then be one the browser can reach, too.
 
 3. Paste the whole `ws://…?tkn=…` URL into the connect screen, optionally
    with a name. Hosts you connect to are remembered (in secure storage)
