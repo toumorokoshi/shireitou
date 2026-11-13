@@ -33,6 +33,7 @@ typing `flutter build web` and a `python3 -m http.server` command by hand.
   from another machine (a remote dev box, a phone on the LAN). It serves
   only the static build; the agent host's own listen address and token
   still decide who can drive sessions.
+
 ## 2026-11-10: Copy as markdown leaves out tool calls
 
 "Copy as markdown" copied each tool call's summary (`Ran \`ls\``, with
