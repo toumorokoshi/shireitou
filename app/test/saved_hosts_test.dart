@@ -1,7 +1,11 @@
+import 'dart:convert';
+
+import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shireitou/src/hosts/host_store.dart';
 import 'package:shireitou/src/hosts/saved_hosts.dart';
+import 'package:shireitou/src/prefs.dart';
 
 void main() {
   const a = SavedHost(url: 'ws://127.0.0.1:1?tkn=old', name: 'laptop');
@@ -66,20 +70,170 @@ void main() {
         'last_host_url': 'ws://127.0.0.1:1?tkn=abc',
         'last_host_token': 'x',
       });
-      const store = HostStore(FlutterSecureStorage());
+      final store = HostStore(const FlutterSecureStorage());
       expect(await store.loadHosts(), [
         const SavedHost(url: 'ws://127.0.0.1:1?tkn=abc', token: 'x'),
       ]);
       final all = await const FlutterSecureStorage().readAll();
-      expect(all.keys, ['hosts']);
+      expect(all.keys, ['hosts_vault']);
     });
 
-    test('saves and loads the list', () async {
+    test('migrates legacy hosts and per-host tokens into one vault', () async {
+      final token = ResourceToken(
+        token: 'access',
+        obtainedAt: DateTime.utc(2026),
+        refreshToken: 'refresh',
+      );
+      FlutterSecureStorage.setMockInitialValues({
+        'hosts': encodeHosts([a, b]),
+        'tokens:${a.key}': encodeTokens({'https://mcp.example': token}),
+      });
+      final store = HostStore(const FlutterSecureStorage());
+      expect(await store.loadHosts(), [a, b]);
+      expect(
+        (await store.loadTokens(a.key))['https://mcp.example']?.token,
+        'access',
+      );
+      expect(await store.loadTokens(b.key), isEmpty);
+      final all = await const FlutterSecureStorage().readAll();
+      expect(all.keys, ['hosts_vault']);
+
+      // A fresh HostStore reads everything from that single vault entry.
+      final fresh = HostStore(const FlutterSecureStorage());
+      expect(await fresh.loadHosts(), [a, b]);
+      expect(
+        (await fresh.loadTokens(a.key))['https://mcp.example']?.token,
+        'access',
+      );
+    });
+
+    test(
+      'caches the vault so concurrent and repeated loads read once',
+      () async {
+        final token = ResourceToken(
+          token: 'access',
+          obtainedAt: DateTime.utc(2026),
+        );
+        final vault = HostVault(
+          hosts: [a, b],
+          tokens: {
+            a.key: {'https://mcp.example': token},
+          },
+        );
+        final fake = _CountingSecureStorage({
+          'hosts_vault': encodeVault(vault),
+        });
+        final store = HostStore(
+          fake,
+          prefs: MemoryPrefsStore({'open_hosts': '[]'}),
+        );
+
+        final results = await Future.wait([
+          store.loadHosts(),
+          store.loadTokens(a.key),
+          store.loadTokens(b.key),
+          store.loadOpenHosts(),
+        ]);
+        expect(results[0], [a, b]);
+        expect(fake.readCount, 1);
+        expect(fake.readKeys, ['hosts_vault']);
+
+        await store.loadHosts();
+        await store.loadTokens(a.key);
+        expect(fake.readCount, 1);
+      },
+    );
+
+    test('moves open_hosts out of secure storage into prefs', () async {
+      FlutterSecureStorage.setMockInitialValues({
+        'open_hosts': jsonEncode([a.key, b.key]),
+      });
+      final prefs = MemoryPrefsStore();
+      final store = HostStore(const FlutterSecureStorage(), prefs: prefs);
+
+      expect(await store.loadOpenHosts(), [a.key, b.key]);
+      expect(
+        await const FlutterSecureStorage().read(key: 'open_hosts'),
+        isNull,
+      );
+      expect(prefs.values['open_hosts'], jsonEncode([a.key, b.key]));
+
+      await store.saveOpenHosts([b.key]);
+      expect(await store.loadOpenHosts(), [b.key]);
+      expect(
+        await const FlutterSecureStorage().read(key: 'open_hosts'),
+        isNull,
+      );
+    });
+
+    test('saves and loads the list and tokens in one vault', () async {
       FlutterSecureStorage.setMockInitialValues({});
-      const store = HostStore(FlutterSecureStorage());
+      final store = HostStore(const FlutterSecureStorage());
       expect(await store.loadHosts(), isEmpty);
       await store.saveHosts([a, b]);
+      final token = ResourceToken(token: 'tok', obtainedAt: DateTime.utc(2026));
+      await store.saveTokens(a.key, {'https://mcp.example': token});
       expect(await store.loadHosts(), [a, b]);
+      expect(
+        (await store.loadTokens(a.key))['https://mcp.example']?.token,
+        'tok',
+      );
+      final all = await const FlutterSecureStorage().readAll();
+      expect(all.keys, ['hosts_vault']);
     });
   });
+}
+
+class _CountingSecureStorage extends FlutterSecureStorage {
+  _CountingSecureStorage(this._data);
+
+  final Map<String, String> _data;
+  int readCount = 0;
+  final List<String> readKeys = [];
+
+  @override
+  Future<String?> read({
+    required String key,
+    AppleOptions? iOptions,
+    AndroidOptions? aOptions,
+    LinuxOptions? lOptions,
+    WebOptions? webOptions,
+    AppleOptions? mOptions,
+    WindowsOptions? wOptions,
+  }) async {
+    readCount++;
+    readKeys.add(key);
+    return _data[key];
+  }
+
+  @override
+  Future<void> write({
+    required String key,
+    required String? value,
+    AppleOptions? iOptions,
+    AndroidOptions? aOptions,
+    LinuxOptions? lOptions,
+    WebOptions? webOptions,
+    AppleOptions? mOptions,
+    WindowsOptions? wOptions,
+  }) async {
+    if (value == null) {
+      _data.remove(key);
+    } else {
+      _data[key] = value;
+    }
+  }
+
+  @override
+  Future<void> delete({
+    required String key,
+    AppleOptions? iOptions,
+    AndroidOptions? aOptions,
+    LinuxOptions? lOptions,
+    WebOptions? webOptions,
+    AppleOptions? mOptions,
+    WindowsOptions? wOptions,
+  }) async {
+    _data.remove(key);
+  }
 }

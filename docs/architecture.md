@@ -238,9 +238,12 @@ Dart source); `bin/generate.dart` does the file I/O. See
   one.
 - `lib/src/hosts/`: `saved_hosts.dart` is the pure host list logic
   (`rememberHost`, `forgetHost`, `hostKey` = URL without `tkn`, JSON
-  encoding); `host_store.dart` keeps the list in `flutter_secure_storage`
-  (migrating the single host older versions saved) behind the
-  `savedHostsProvider` notifier, and reports storage errors (a locked
+  encoding); `host_store.dart` keeps the host list and per-host resource
+  tokens together in one `flutter_secure_storage` entry (`hosts_vault`,
+  cached in memory and migrating legacy `hosts`, `last_host_url` and
+  `tokens:*` entries) behind the `savedHostsProvider` notifier, keeps the
+  non-secret `open_hosts` keys in `PrefsStore` (migrating them out of
+  secure storage), and reports storage errors (a locked
   keyring) to `hostStorageProblemProvider`, shown by `HostStorageBanner`
   with Retry. `open_hosts.dart` holds the connected hosts
   (`openHostsProvider`), their status and labels (`hostInfosProvider`,

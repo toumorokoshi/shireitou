@@ -86,7 +86,11 @@ arm64 machine):
   login keychain. That needs no `keychain-access-groups` entitlement and so
   no provisioning profile, and an ad-hoc or Developer ID signed build can
   store tokens. Switch to the data protection keychain (and add the
-  entitlement) only if the app ever shares items with another app.
+  entitlement) only if the app ever shares items with another app. To
+  avoid prompting the login keychain multiple times on launch, `HostStore`
+  keeps all remembered hosts and per-host tokens in a single `hosts_vault`
+  keychain entry (cached in memory for the session), and keeps the
+  non-secret `open_hosts` list in `PrefsStore`.
 
 ### Microphone
 

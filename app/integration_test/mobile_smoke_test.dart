@@ -31,7 +31,7 @@ void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets('hosts and tokens survive in secure storage', (tester) async {
-    const store = HostStore(secureStorage);
+    final store = HostStore(secureStorage);
     const host = SavedHost(
       url: 'ws://192.168.1.20:63877',
       token: 't',
@@ -46,8 +46,9 @@ void main() {
       await store.saveHosts([host]);
       await store.saveTokens(host.key, {'https://mcp.example': token});
     });
-    final hosts = await tester.runAsync(store.loadHosts);
-    final tokens = await tester.runAsync(() => store.loadTokens(host.key));
+    final fresh = HostStore(secureStorage);
+    final hosts = await tester.runAsync(fresh.loadHosts);
+    final tokens = await tester.runAsync(() => fresh.loadTokens(host.key));
     expect(hosts!.single.label, 'lan');
     expect(tokens!['https://mcp.example']?.token, 'access');
     await tester.runAsync(() async {

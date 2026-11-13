@@ -9,6 +9,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shireitou/src/app.dart';
 import 'package:shireitou/src/composer/new_session_view.dart';
+import 'package:shireitou/src/hosts/host_store.dart';
 import 'package:shireitou/src/hosts/saved_hosts.dart';
 import 'package:shireitou/src/review/changes_pane.dart';
 import 'package:shireitou/src/session_detail/session_detail_view.dart';
@@ -97,8 +98,8 @@ void main() {
     await tester.tap(find.byTooltip('Forget ws://10.0.0.2:2'));
     await tester.pumpAndSettle();
     expect(find.byTooltip('Forget ws://10.0.0.2:2'), findsNothing);
-    final stored = await const FlutterSecureStorage().read(key: 'hosts');
-    expect(decodeHosts(stored).map((h) => h.label), ['laptop']);
+    final stored = await const FlutterSecureStorage().read(key: 'hosts_vault');
+    expect(decodeVault(stored).hosts.map((h) => h.label), ['laptop']);
   });
 
   testWidgets('macOS shows a native menu bar', (tester) async {

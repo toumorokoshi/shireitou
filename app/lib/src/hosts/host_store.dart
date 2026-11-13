@@ -4,11 +4,13 @@ library;
 import 'dart:convert';
 
 import 'package:ahp_client/ahp_client.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:logging/logging.dart';
 
+import '../prefs.dart';
 import 'saved_hosts.dart';
 
 final _log = Logger('host_store');
@@ -34,7 +36,7 @@ const secureStorage = FlutterSecureStorage(
 
 /// The [HostStore]; tests override it.
 final hostStoreProvider = Provider<HostStore>(
-  (ref) => const HostStore(secureStorage),
+  (ref) => HostStore(secureStorage, prefs: ref.watch(prefsStoreProvider)),
 );
 
 /// The remembered hosts, most recently used first.
@@ -140,66 +142,239 @@ String describeStorageError(Object error, {required bool reading}) {
   return '$what: secure storage failed ($message${message.isEmpty ? code : ''}).';
 }
 
-/// Reads and writes the host list in [storage]. URLs are kept in secure
-/// storage too, because a URL pasted from pi carries the token as `?tkn=`.
+/// All host credentials and resource tokens kept in one secure storage
+/// item (`hosts_vault`), so macOS prompts the login keychain at most once
+/// instead of once per host and token entry.
+@immutable
+class HostVault {
+  /// Creates a [HostVault].
+  const HostVault({this.hosts = const [], this.tokens = const {}});
+
+  /// The remembered hosts, most recently used first.
+  final List<SavedHost> hosts;
+
+  /// Saved OAuth and pasted tokens, keyed by `SavedHost.key`.
+  final Map<String, Map<String, ResourceToken>> tokens;
+}
+
+/// Encodes [vault] as JSON for [HostStore].
+String encodeVault(HostVault vault) => jsonEncode({
+  'hosts': [for (final host in vault.hosts) host.toJson()],
+  'tokens': {
+    for (final MapEntry(:key, :value) in vault.tokens.entries)
+      if (value.isNotEmpty)
+        key: {
+          for (final MapEntry(key: res, value: token) in value.entries)
+            res: token.toJson(),
+        },
+  },
+});
+
+/// Decodes a [HostVault] from [encoded]; null or invalid JSON decodes as
+/// empty.
+HostVault decodeVault(String? encoded) {
+  if (encoded == null || encoded.isEmpty) return const HostVault();
+  try {
+    final json = jsonDecode(encoded);
+    if (json is! Map<String, Object?>) return const HostVault();
+    final hosts = switch (json['hosts']) {
+      final List<Object?> list => [
+        for (final item in list)
+          if (item is Map<String, Object?>) ?_decodeHostItem(item),
+      ],
+      _ => const <SavedHost>[],
+    };
+    final tokens = <String, Map<String, ResourceToken>>{};
+    if (json['tokens'] case final Map<String, Object?> rawTokens) {
+      for (final MapEntry(:key, :value) in rawTokens.entries) {
+        if (value is! Map<String, Object?>) continue;
+        final decoded = {
+          for (final MapEntry(key: res, value: raw) in value.entries)
+            if (raw is Map<String, Object?>) res: ?_decodeToken(raw),
+        };
+        if (decoded.isNotEmpty) tokens[key] = decoded;
+      }
+    }
+    return HostVault(hosts: hosts, tokens: tokens);
+  } on FormatException {
+    return const HostVault();
+  }
+}
+
+SavedHost? _decodeHostItem(Map<String, Object?> json) {
+  final url = json['url'];
+  if (url is! String || url.trim().isEmpty) return null;
+  final token = json['token'];
+  final name = json['name'];
+  return SavedHost(
+    url: url.trim(),
+    token: token is String ? token : '',
+    name: name is String ? name : '',
+  );
+}
+
+/// Reads and writes the host list and resource tokens in a single
+/// [storage] entry (`hosts_vault`), and the non-secret open-host list in
+/// [prefs] when provided. URLs are kept in secure storage too, because a
+/// URL pasted from pi carries the token as `?tkn=`.
 class HostStore {
-  /// Creates a [HostStore] over [storage].
-  const HostStore(this.storage);
+  /// Creates a [HostStore] over [storage] (and [prefs] for non-secret
+  /// open-host keys).
+  HostStore(this.storage, {this.prefs});
 
   /// The platform secure storage.
   final FlutterSecureStorage storage;
 
+  /// Non-secret device preferences (used for `open_hosts`).
+  final PrefsStore? prefs;
+
+  HostVault? _cache;
+  Future<HostVault>? _loading;
+  Future<void> _writeQueue = Future.value();
+
+  static const _vaultKey = 'hosts_vault';
   static const _hostsKey = 'hosts';
   static const _openHostsKey = 'open_hosts';
   static const _legacyUrlKey = 'last_host_url';
   static const _legacyTokenKey = 'last_host_token';
 
-  /// The saved hosts, most recently used first. A host saved by an earlier
-  /// version (one `last_host_url`) is migrated. Throws the storage error
-  /// (for example a locked keyring).
-  Future<List<SavedHost>> loadHosts() async {
-    final encoded = await storage.read(key: _hostsKey);
-    if (encoded != null) return decodeHosts(encoded);
-    return _migrateLegacy();
+  Future<HostVault> _loadVault() {
+    final cached = _cache;
+    if (cached != null) return Future.value(cached);
+    final inFlight = _loading;
+    if (inFlight != null) return inFlight;
+    final future = _readOrMigrateVault()
+        .then((vault) {
+          _cache = vault;
+          return vault;
+        })
+        .whenComplete(() => _loading = null);
+    _loading = future;
+    return future;
   }
 
+  Future<HostVault> _readOrMigrateVault() async {
+    final encoded = await storage.read(key: _vaultKey);
+    if (encoded != null) return decodeVault(encoded);
+    return _migrateLegacyVault();
+  }
+
+  Future<HostVault> _migrateLegacyVault() async {
+    final legacyHostsRaw = await storage.read(key: _hostsKey);
+    final List<SavedHost> hosts;
+    if (legacyHostsRaw != null) {
+      hosts = decodeHosts(legacyHostsRaw);
+    } else {
+      final url = await storage.read(key: _legacyUrlKey);
+      if (url == null || url.isEmpty) {
+        hosts = const [];
+      } else {
+        final token = await storage.read(key: _legacyTokenKey) ?? '';
+        hosts = [SavedHost(url: url, token: token)];
+      }
+    }
+
+    final tokens = <String, Map<String, ResourceToken>>{};
+    for (final host in hosts) {
+      final hostTokens = decodeTokens(
+        await storage.read(key: _tokensKey(host.key)),
+      );
+      if (hostTokens.isNotEmpty) tokens[host.key] = hostTokens;
+    }
+
+    final vault = HostVault(hosts: hosts, tokens: tokens);
+    if (legacyHostsRaw != null || hosts.isNotEmpty || tokens.isNotEmpty) {
+      await storage.write(key: _vaultKey, value: encodeVault(vault));
+      await _deleteLegacyKeys(hosts);
+    }
+    return vault;
+  }
+
+  Future<void> _deleteLegacyKeys(List<SavedHost> hosts) async {
+    try {
+      await storage.delete(key: _hostsKey);
+      await storage.delete(key: _legacyUrlKey);
+      await storage.delete(key: _legacyTokenKey);
+      for (final host in hosts) {
+        await storage.delete(key: _tokensKey(host.key));
+      }
+    } on Object {
+      // Legacy keys are already migrated to hosts_vault; ignore cleanup errors.
+    }
+  }
+
+  Future<void> _updateVault(HostVault Function(HostVault) update) {
+    final next = _writeQueue.then((_) async {
+      final current = await _loadVault();
+      final updated = update(current);
+      await storage.write(key: _vaultKey, value: encodeVault(updated));
+      _cache = updated;
+    });
+    _writeQueue = next.catchError((Object _) {});
+    return next;
+  }
+
+  /// The saved hosts, most recently used first. Legacy entries (`hosts`,
+  /// `last_host_url`, `tokens:*`) are migrated into `hosts_vault`. Throws
+  /// the storage error (for example a locked keyring).
+  Future<List<SavedHost>> loadHosts() async => (await _loadVault()).hosts;
+
   /// Saves [hosts]. Throws the storage error.
-  Future<void> saveHosts(List<SavedHost> hosts) =>
-      storage.write(key: _hostsKey, value: encodeHosts(hosts));
+  Future<void> saveHosts(List<SavedHost> hosts) => _updateVault(
+    (current) => HostVault(hosts: hosts, tokens: current.tokens),
+  );
 
-  /// The keys of the hosts that were open, in order. Throws the storage
-  /// error.
-  Future<List<String>> loadOpenHosts() async =>
-      decodeHostKeys(await storage.read(key: _openHostsKey));
+  /// The keys of the hosts that were open, in order. Stored in [prefs]
+  /// (not secret; migrating any legacy `open_hosts` out of [storage]).
+  Future<List<String>> loadOpenHosts() async {
+    final store = prefs;
+    if (store == null) {
+      return decodeHostKeys(await storage.read(key: _openHostsKey));
+    }
+    final saved = await store.read(_openHostsKey);
+    if (saved != null) return decodeHostKeys(saved);
+    final legacy = await storage.read(key: _openHostsKey);
+    await store.write(_openHostsKey, legacy ?? '[]');
+    if (legacy != null) {
+      try {
+        await storage.delete(key: _openHostsKey);
+      } on Object {
+        // Migrated to prefs; ignore cleanup errors.
+      }
+    }
+    return decodeHostKeys(legacy);
+  }
 
-  /// Saves the keys of the open hosts. Throws the storage error.
-  Future<void> saveOpenHosts(List<String> keys) =>
-      storage.write(key: _openHostsKey, value: jsonEncode(keys));
+  /// Saves the keys of the open hosts.
+  Future<void> saveOpenHosts(List<String> keys) {
+    final encoded = jsonEncode(keys);
+    final store = prefs;
+    return store != null
+        ? store.write(_openHostsKey, encoded)
+        : storage.write(key: _openHostsKey, value: encoded);
+  }
 
   /// The OAuth and pasted tokens saved for the host with [hostKey], by
   /// resource (AHP-060, AHP-063). Throws the storage error.
   Future<Map<String, ResourceToken>> loadTokens(String hostKey) async =>
-      decodeTokens(await storage.read(key: _tokensKey(hostKey)));
+      (await _loadVault()).tokens[hostKey] ?? const {};
 
   /// Saves [hostKey]'s tokens (an empty map deletes them). Throws the
   /// storage error.
   Future<void> saveTokens(String hostKey, Map<String, ResourceToken> tokens) =>
-      tokens.isEmpty
-      ? storage.delete(key: _tokensKey(hostKey))
-      : storage.write(key: _tokensKey(hostKey), value: encodeTokens(tokens));
+      _updateVault((current) {
+        final next = Map<String, Map<String, ResourceToken>>.from(
+          current.tokens,
+        );
+        if (tokens.isEmpty) {
+          next.remove(hostKey);
+        } else {
+          next[hostKey] = Map<String, ResourceToken>.from(tokens);
+        }
+        return HostVault(hosts: current.hosts, tokens: next);
+      });
 
   static String _tokensKey(String hostKey) => 'tokens:$hostKey';
-
-  Future<List<SavedHost>> _migrateLegacy() async {
-    final url = await storage.read(key: _legacyUrlKey);
-    if (url == null || url.isEmpty) return const [];
-    final token = await storage.read(key: _legacyTokenKey) ?? '';
-    final hosts = [SavedHost(url: url, token: token)];
-    await saveHosts(hosts);
-    await storage.delete(key: _legacyUrlKey);
-    await storage.delete(key: _legacyTokenKey);
-    return hosts;
-  }
 }
 
 /// [tokens] as JSON, for [HostStore.saveTokens].

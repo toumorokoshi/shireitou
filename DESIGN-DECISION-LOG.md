@@ -1,3 +1,25 @@
+## 2026-11-13: Single keychain vault and non-secret open hosts (AV-010, AHP-063)
+
+On macOS (`usesDataProtectionKeychain: false`), each `flutter_secure_storage`
+key is a separate item in the legacy login keychain with its own ACL. On
+launch, reading `open_hosts`, `hosts`, per-host `tokens:<hostKey>`, and
+legacy `ssh:<hostKey>` entries triggered up to four separate keychain
+prompts.
+
+- **Single `hosts_vault` keychain item.** `HostStore` now stores the
+  remembered hosts and all per-host resource tokens in one JSON entry
+  (`hosts_vault`), cached in memory and coalescing concurrent reads so
+  startup reads the keychain at most once. Legacy `hosts`,
+  `last_host_url`/`last_host_token`, and `tokens:*` items are migrated on
+  first read and deleted.
+- **`open_hosts` moved to `PrefsStore`.** The open host keys have tokens
+  stripped (`hostKey`), so they are configuration rather than credentials.
+  `HostStore` stores them in `PrefsStore`, migrating any existing
+  `open_hosts` entry out of secure storage once.
+- **Legacy SSH migration guard.** `EditorTargetStore.load` records
+  `ssh_migrated:<hostKey>` in `PrefsStore` after checking `ssh:<hostKey>`
+  once, avoiding repeated secure-storage lookups for unconfigured hosts.
+
 ## 2026-11-10: Copy as markdown leaves out tool calls
 
 "Copy as markdown" copied each tool call's summary (`Ran \`ls\``, with

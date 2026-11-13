@@ -63,6 +63,7 @@ class EditorTargetStore {
   final FlutterSecureStorage secureStorage;
 
   static String _key(String hostKey) => 'editor_target:$hostKey';
+  static String _migratedKey(String hostKey) => 'ssh_migrated:$hostKey';
 
   /// The target of the AHP host with [hostKey] (a `SavedHost.key`), or
   /// null when none is saved. A host with only SSH terminal settings gets
@@ -70,6 +71,7 @@ class EditorTargetStore {
   Future<EditorTarget?> load(String hostKey) async {
     final saved = _decode(await prefs.read(_key(hostKey)));
     if (saved != null) return saved;
+    if (await prefs.read(_migratedKey(hostKey)) == 'true') return null;
     final legacyKey = 'ssh:$hostKey';
     final String? legacy;
     try {
@@ -77,6 +79,7 @@ class EditorTargetStore {
     } on Object {
       return null;
     }
+    await prefs.write(_migratedKey(hostKey), 'true');
     if (legacy == null) return null;
     final target = _decode(legacy);
     if (target != null) await save(hostKey, target);

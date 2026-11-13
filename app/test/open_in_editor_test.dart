@@ -190,6 +190,20 @@ void main() {
       expect(prefs.values['editor_target:h'], isNot(contains('secret')));
       expect(await store.load('h'), moved);
     });
+
+    test('checks legacy SSH terminal settings at most once per host', () async {
+      FlutterSecureStorage.setMockInitialValues({});
+      final prefs = MemoryPrefsStore();
+      final store = EditorTargetStore(prefs, const FlutterSecureStorage());
+      expect(await store.load('h'), isNull);
+      expect(prefs.values['ssh_migrated:h'], 'true');
+
+      // Even if a legacy entry appeared later, it is not read again.
+      FlutterSecureStorage.setMockInitialValues({
+        'ssh:h': jsonEncode({'host': 'box'}),
+      });
+      expect(await store.load('h'), isNull);
+    });
   });
 
   testWidgets('opens a session and a folder in the chosen editor', (

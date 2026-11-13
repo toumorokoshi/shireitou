@@ -18,6 +18,7 @@ import 'package:shireitou/src/app.dart';
 import 'package:shireitou/src/host_connection.dart';
 import 'package:shireitou/src/hosts/open_hosts.dart';
 import 'package:shireitou/src/hosts/saved_hosts.dart';
+import 'package:shireitou/src/prefs.dart';
 import 'package:shireitou/src/session_detail/session_detail_view.dart';
 import 'package:shireitou/src/session_detail/session_status_widgets.dart';
 import 'package:shireitou/src/session_list/session_list_view.dart';
@@ -552,11 +553,13 @@ void main() {
   group('open hosts', () {
     const other = SavedHost(url: 'ws://10.0.0.2:2', name: 'build box');
     late Map<String, FakeHostConnection> connections;
+    late MemoryPrefsStore prefs;
 
     Future<ProviderContainer> pumpRestoring(WidgetTester tester) async {
       tester.view.physicalSize = const Size(1400, 1000);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
+      prefs = MemoryPrefsStore();
       connections = {
         testHost.key: FakeHostConnection(
           const HostState(),
@@ -573,6 +576,7 @@ void main() {
       };
       final container = ProviderContainer(
         overrides: [
+          prefsStoreProvider.overrideWithValue(prefs),
           hostConnectionProvider.overrideWith2(
             (key) => connections[key] ?? FakeHostConnection(const HostState()),
           ),
@@ -639,8 +643,7 @@ void main() {
       expect(container.read(openHostsProvider).map((h) => h.key), [
         testHost.key,
       ]);
-      final stored = await const FlutterSecureStorage().read(key: 'open_hosts');
-      expect(decodeHostKeys(stored), [testHost.key]);
+      expect(decodeHostKeys(prefs.values['open_hosts']), [testHost.key]);
     });
 
     testWidgets('when every restored host fails, the connect screen lists '
@@ -667,8 +670,7 @@ void main() {
       // A host added from the connect screen fails at once instead.
       expect(connections[other.key]!.retried, [false]);
       expect(container.read(openHostsProvider), isEmpty);
-      final stored = await const FlutterSecureStorage().read(key: 'open_hosts');
-      expect(decodeHostKeys(stored), isEmpty);
+      expect(decodeHostKeys(prefs.values['open_hosts']), isEmpty);
     });
   });
 }
