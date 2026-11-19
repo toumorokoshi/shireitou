@@ -1,62 +1,62 @@
 # shireitou
 
-A cross-platform (Flutter/Dart) agents view: start, monitor, steer, and review
-coding-agent sessions running on
-[Agent Host Protocol](https://microsoft.github.io/agent-host-protocol/) hosts,
-with a UX modeled on the GitHub Agents view and Cursor's Agents Window.
+shireitou is a cross-platform (Flutter/Dart) agents view. It starts, monitors, steers and reviews coding-agent sessions on [Agent Host Protocol](https://microsoft.github.io/agent-host-protocol/) hosts. Its UX is modeled on the GitHub Agents view and Cursor's Agents Window.
 
-> Status: usable for chat and review, on the web and as macOS and Linux
-> desktop apps. The app connects to several hosts at once (remembering
-> recent hosts), lists their sessions in one inbox of Pinned, Chats and
-> one section per working directory (with the repository when the host
-> reports it, and the host's name on rows when several are open), opens a session's
-> history (paging older turns in when the host windows it, with a rail
-> of turn markers to jump between turns), streams
-> replies with highlighted code and typeset TeX math, timestamps each turn, copies a reply as markdown or as HTML, and a selection with its links and formatting (a rich copy that pastes into mail, docs and chat), and a link from its right-click dialog, folds each turn's tool calls into one
-> "Completed N steps" line (grouping similar ones, each call with roughly
-> how long it ran, timed by the app since the protocol does not say), shows live
-> terminal output and inline diffs, switches between a session's chats
-> (subagents, side chats), forks a chat from a finished turn (when the
-> host's agent supports it, as pi-agent-host-protocol does), sends, queues, edits and reorders follow-ups
-> (or sends a queued one now),
-> syncs drafts, stops turns, answers tool approvals (with the host's
-> options, risk assessments, edited input and result confirmation), input
-> requests (also from other chats, with synced drafts) and sign-in
-> prompts (OAuth in the browser with PKCE, or a pasted token; expired
-> tokens are refreshed), reviews changesets (files,
-> diffs, "reviewed" marks, host operations), opens the file paths a
-> reply prints (relative to the session's folder) in a file viewer in
-> that side pane (read over the system `ssh` on the desktop apps, as
-> the terminal is), shows background work,
-> canvases and session details, and starts new sessions from a draft
-> in the session pane (host, agent,
-> model and its options such as the thinking level, a folder browsed on
-> the host, and the agent's settings such as the mode). The inbox has
-> filters, search and sort in its header, a "Pinned" section at the top,
-> two-line rows with a status dot, pin and "mark as done" on hover and a
-> hover card, rename, archive
-> and mark read from a row's menu, a
-> swipe or multi-select, folders reordered by drag and drop (the order
-> and collapsed folders remembered), and the attention count in the window title; keyboard
-> shortcuts start sessions, search, step through sessions, stop turns and
-> focus the composer (in the macOS menu bar too), and the hosts open at
-> the last run reconnect on start. Agents' todo lists show as checklists,
-> plan reviews take a choice plus feedback, the session header (a
-> title and a "…" menu with the details and actions) links to
-> the branch's pull request, the composer is one rounded box with mode,
-> model and effort chips and a round send button that turns into stop, `/` in the composer and follow-up box
-> completes the agent's skills and commands (from the host's
-> `completions`), one prompt can start several runs to
-> compare and pick from, a microphone button dictates into the composer
-> with OpenAI's Whisper run on the device (the words appear as you speak;
-> desktop and mobile apps), and the desktop apps (and the web app, where
-> the browser allows) notify, with a chime, when a session needs input,
-> finishes or fails. A session's header and a folder's header open the folder in
-> VS Code, VS Code Insiders or Cursor (over Remote - SSH for a remote
-> host; desktop and web apps), and a VS Code-style terminal panel under
-> the session runs the system `ssh` to the host in the session's folder
-> (Alt+T or Ctrl+\`; desktop apps). Push notifications for a closed app
-> are not built; see [GAPS.md](GAPS.md).
+> Status: usable for chat and review, on the web and as macOS and Linux desktop apps. Push notifications for a closed app are not built; see [GAPS.md](GAPS.md).
+
+## Features
+
+The requirements are in [specs/agents-view.md](specs/agents-view.md).
+
+### Sessions
+
+- Connects to several hosts at once and remembers recent hosts. The hosts open at the last run reconnect on start.
+- Lists sessions in one inbox with Pinned, Chats, and one section per working directory. Rows show the repository when the host reports it, and the host's name when several hosts are open.
+- Opens a session's history and pages in older turns when the host windows it. A rail of turn markers jumps between turns.
+- Switches between a session's chats, including subagents and side chats.
+- Forks a chat from a finished turn when the host's agent supports it, as [pi-agent-host-protocol](https://github.com/toumorokoshi/pi-agent-host-protocol) does.
+- Starts new sessions from a draft in the session pane. The draft sets the host, agent, model and its options (such as the thinking level), a folder browsed on the host, and the agent's settings (such as the mode).
+- Shows background work, canvases, and session details.
+- The session header links to the branch's pull request. Its "…" menu holds the details and actions.
+
+### Replies and tool calls
+
+- Streams replies with highlighted code and typeset TeX math.
+- Timestamps each turn. Copies a reply as markdown or as HTML.
+- Copies a selection with its links and formatting as rich text, which pastes into mail, docs and chat. Copies a link from the right-click dialog.
+- Folds each turn's tool calls into one "Completed N steps" line. Similar calls are grouped, and each call shows roughly how long it ran. The app times the calls itself because the protocol does not report durations.
+- Shows live terminal output and inline diffs.
+- Shows agents' todo lists as checklists. Plan reviews take a choice plus feedback.
+- Opens file paths that a reply prints, relative to the session's folder, in a file viewer in the side pane. Desktop apps read the file over the system `ssh`, as the terminal does.
+
+### Input and approvals
+
+- Sends, queues, edits and reorders follow-ups, or sends a queued one now. Syncs drafts.
+- Stops turns.
+- Answers tool approvals with the host's options, risk assessments, edited input and result confirmation.
+- Answers input requests, including those from other chats.
+- Completes sign-in prompts with OAuth in the browser (PKCE) or a pasted token. Refreshes expired tokens.
+- Completes `/` skills and commands in the composer and follow-up box from the host's `completions`.
+- Runs one prompt as several runs to compare and pick from.
+- Dictates into the composer with OpenAI's Whisper, run on the device. Words appear as you speak. Available in desktop and mobile apps. See [docs/dictation.md](docs/dictation.md).
+- The composer has mode, model and effort chips, and a round send button that turns into a stop button while the agent works.
+
+### Review and inbox
+
+- Reviews changesets: files, diffs, "reviewed" marks and host operations.
+- Filters, searches and sorts sessions in the inbox header. Search takes `agent:`, `status:`, `repo:` and `host:` qualifiers.
+- A session's menu renames it, archives it, and marks it read or unread. Hovering a row shows pin and "mark as done" buttons and a hover card.
+- Swipe left to archive a session, or select several sessions at once.
+- Reorders folders by drag and drop. The folder order and collapsed folders are remembered.
+- Shows the attention count in the window title.
+
+### Desktop and web
+
+- Notifies with a chime when a session needs input, finishes or fails. The desktop apps do this, and the web app does so where the browser allows.
+- Keyboard shortcuts start sessions, search, step through sessions, stop turns and focus the composer. The macOS menu bar has them too. See [Trying it](#trying-it).
+- Opens a session's folder, or a folder's header, in VS Code, VS Code Insiders or Cursor. For a remote host, this uses Remote - SSH. See [docs/open-in-editor.md](docs/open-in-editor.md).
+- Runs a VS Code-style terminal panel under the session, which runs the system `ssh` to the host in the session's folder. Open it with Alt+T or Ctrl+\`. Desktop apps only. See [docs/terminal.md](docs/terminal.md).
+- Sets the appearance to light, dark, or the system setting, with colour themes from VS Code, Neovim and Emacs favourites such as Dracula, Catppuccin, Tokyo Night, Gruvbox, Solarized and Nord. See [docs/themes.md](docs/themes.md).
 
 ## Screenshots
 
