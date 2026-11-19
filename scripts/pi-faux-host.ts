@@ -11,9 +11,10 @@
  *
  * --pi-dir     the checkout (default $PI_AHP_HOST_DIR, else a sibling of
  *              this repo); it needs `npm ci`.
- * --state-dir  where sessions, settings and the archive live (default: a
- *              new temp directory, removed on exit). Pass the same one to
- *              a restarted host to keep its sessions.
+ * --state-dir  where sessions, settings, the archive and the session URI
+ *              schemes live (default: a new temp directory, removed on
+ *              exit). Pass the same one to a restarted host to keep its
+ *              sessions under the URIs they were created with.
  * --port       0 (default) for a free port; reuse a port to restart a
  *              host where clients expect it.
  *
@@ -29,6 +30,7 @@
  *   "think" → reasoning, then a reply;
  *   else    → "pi faux reply: <message>".
  */
+import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -67,6 +69,15 @@ const piAi = await load("node_modules/@earendil-works/pi-ai/dist/index.js");
 const piAgent = await load("node_modules/@earendil-works/pi-coding-agent/dist/index.js");
 const { AgentHost } = await load("src/host/agent-host.ts");
 const { fileArchiveStore } = await load("src/host/archive-store.ts");
+// Current pi publishes a session under the scheme it was created with and
+// keeps that in session-schemes.json. Without the file, a restart lists an
+// `ahp-session:/<id>` session as `pi:/<id>`. Older checkouts have no store.
+let schemes: unknown;
+if (existsSync(join(piDir, "src/host/scheme-store.ts"))) {
+	const store = await load("src/host/scheme-store.ts");
+	const { settingsPath } = await load("src/host/settings.ts");
+	schemes = await store.fileSchemeStore(store.schemeStorePath(settingsPath()));
+}
 const { EmbeddedBackend } = await load("src/pi/embedded-backend.ts");
 const { listen } = await load("src/transport/websocket.ts");
 const { createLogger } = await load("src/core/logger.ts");
@@ -139,6 +150,7 @@ const host = new AgentHost({
 	serverVersion: "faux",
 	logger: createLogger("warn"),
 	archive: await fileArchiveStore(join(stateDir, "archived-sessions.json")),
+	...(schemes ? { schemes } : {}),
 });
 await host.refreshAgents();
 const listener = await listen(host, {

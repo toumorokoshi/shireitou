@@ -108,8 +108,10 @@ void main() {
         provider: 'pi',
         workingDirectories: [Uri.directory(host.temp.path).toString()],
       );
-      // pi publishes `pi:/<id>` for a session created as `ahp-session:/<id>`.
-      expect(session, startsWith('pi:/'));
+      // pi lists the session under the scheme it was created with.
+      // shireitou sends `ahp-session:/<uuid>`. A host that still rewrites
+      // that to `pi:/<id>` is accepted too (`resolveSessionResource`).
+      expect(session, anyOf(startsWith('ahp-session:/'), startsWith('pi:/')));
       expect(client.state.sessions[session]!.status.isIdle, isTrue);
 
       final chat = await client.openSession(session);

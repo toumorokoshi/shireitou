@@ -139,7 +139,8 @@ class FakeHost {
                   },
           'subscribe' => {'snapshot': _snapshots[params['channel']]},
           'createSession' => () {
-            // Publish the session under pi's `pi:/<id>` form, like pi does.
+            // Older hosts list `ahp-session:/<id>` as `pi:/<id>`. Current
+            // pi keeps the sent scheme; this still covers the alias.
             final id = (params['channel']! as String).split('/').last;
             Timer.run(
               () => peer.sendNotification('root/sessionAdded', {

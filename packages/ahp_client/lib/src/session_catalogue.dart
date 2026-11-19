@@ -76,8 +76,10 @@ SessionCatalogue applyRootNotification(
 /// not listed yet.
 ///
 /// Hosts may publish a session under another URI than the one sent to
-/// `createSession` (pi lists `ahp-session:/<id>` as `pi:/<id>`), so this
-/// matches the exact URI first, then the same trailing ID.
+/// `createSession`. Current pi keeps the scheme the client chose
+/// (`ahp-session:/<id>`). Older pi, and sessions pi did not create, are
+/// listed as `pi:/<id>`. This matches the exact URI first, then the same
+/// trailing ID.
 String? resolveSessionResource(SessionCatalogue catalogue, String created) {
   if (catalogue.containsKey(created)) return created;
   final id = sessionIdOf(created);

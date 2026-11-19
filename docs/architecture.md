@@ -56,8 +56,9 @@ WebSocket ──► json_rpc_2 Peer ──► AhpClient (I/O edge)
   Those notifications are not replayed by `reconnect`, so the client reloads
   the list after every reconnect.
 - **Session and chat channels:** `openSession(uri)` subscribes to the
-  session channel, then to its `defaultChat` (pi publishes it as
-  `ahp-chat://default/<base64url(pi:/<id>)>`). Their snapshots become
+  session channel, then to its `defaultChat` (pi derives it as
+  `ahp-chat://default/<base64url(sessionUri)>` from the session URI it
+  published). Their snapshots become
   `ChannelMirror<SessionState>` and `ChannelMirror<ChatState>` entries in
   `HostState`, advanced by `reduceSession` and `reduceChat`, ports of the
   protocol's `sessionReducer` and `chatReducer` that handle every 1.0.0
@@ -164,10 +165,11 @@ now)` takes every state the client publishes (each action is its own
   An interactive callback asks the user when no refresh is possible.
 - **Creating sessions:** `createSession` retries on `-32003`, then waits for
   the session in the catalogue and returns the URI the host lists
-  (`resolveSessionResource` matches pi's `pi:/<id>` to the
-  `ahp-session:/<id>` that was sent). Meanwhile it subscribes to the sent
-  URI, so `session/creationFailed` (or a snapshot whose `lifecycle` is
-  `failed`) throws `SessionCreationFailedError` at once; the pure
+  (`resolveSessionResource` matches a host that lists the session as
+  `pi:/<id>` to the `ahp-session:/<id>` that was sent). Meanwhile it
+  subscribes to the sent URI, so `session/creationFailed` (or a snapshot
+  whose `lifecycle` is `failed`) throws `SessionCreationFailedError` at
+  once; the pure
   `creationOutcome` (`session_creation.dart`) decides. A second subscriber
   to a channel waits for the first one's snapshot.
 - **Composer commands:** `listDirectory` (`resourceList`),
@@ -201,9 +203,10 @@ now)` takes every state the client publishes (each action is its own
   dropped Wi-Fi, a proxy that swallowed the close) is noticed within about
   25 s instead of waiting for TCP. Any JSON-RPC answer, even an error,
   counts as alive (`isLivenessFailure`).
-- **URIs are opaque:** pi publishes sessions as `pi:/<id>` even when they
-  were created as `ahp-session:/<id>`, so the catalogue is keyed by the
-  `resource` the host sends.
+- **URIs are opaque:** the catalogue is keyed by the `resource` the host
+  sends. pi publishes a session under the scheme it was created with, so
+  one shireitou creates is `ahp-session:/<id>`. Sessions pi did not create,
+  and sessions on older hosts, stay `pi:/<id>`.
 
 ## packages/ahp_fake_host
 

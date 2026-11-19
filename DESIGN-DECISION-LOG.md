@@ -1,3 +1,27 @@
+## 2026-11-19: pi publishes the session URI the client created
+
+CI's integration job failed after pi-agent-host-protocol `dcaf6ce`.
+shireitou creates every session as `ahp-session:/<uuid>`, and the
+handshake test required the host to list it as `pi:/<id>`. Current pi
+keeps the scheme the client chose, so VS Code can match
+`root/sessionSummaryChanged` and the derived default chat. The client
+already returns the catalogue key (`resolveSessionResource`), so sessions
+still open. The test now accepts `ahp-session:/` and the older `pi:/`
+alias.
+
+- **Older hosts stay supported.** A session pi did not create, and a
+  session on a host that still rewrites the URI, is listed as `pi:/<id>`.
+  The catalogue match is exact first, then the same trailing id.
+- **Docs follow the host.** `docs/architecture.md` and
+  `specs/agent-host-protocol-client.md` describe the scheme the host
+  publishes instead of saying every session is `pi:/<id>`.
+- **The faux host keeps the scheme across a restart.**
+  `scripts/pi-faux-host.ts` writes pi's `session-schemes.json` into the
+  state directory when that host has a scheme store. Without the file a
+  restart listed the session as `pi:/<id>`, and the client reported the
+  open `ahp-session:/<id>` channel missing. Checkouts from before the
+  store still run; they publish `pi:/` throughout.
+
 ## 2026-11-19: v0.2.0 is the first release that attaches packages
 
 The v0.1.0 tag built every package, including the macOS disk image, then

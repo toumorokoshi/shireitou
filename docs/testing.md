@@ -77,9 +77,9 @@ process), so tests stream real pi turns without an API key or network
 access. It imports the host from a pi-agent-host-protocol checkout
 (`--pi-dir`, else `PI_AHP_HOST_DIR`, else a sibling of this repo) that has
 had `npm ci`. Options: `--port` (0 for a free one), `--token T` (default
-`faux-token`) or `--no-token`, `--state-dir` (sessions, settings and the
-archive; a temp directory removed on exit by default) and
-`--tokens-per-second` (default 500).
+`faux-token`) or `--no-token`, `--state-dir` (sessions, settings, the
+archive and, on current pi, the session URI schemes; a temp directory
+removed on exit by default) and `--tokens-per-second` (default 500).
 
 The model replies by keyword in the newest user message:
 
@@ -96,7 +96,8 @@ which finds the script from the current directory, the running executable
 or `SHIREITOU_REPO`, and is skipped (`PiFauxHost.unavailable`) without a
 checkout. `restart()` stops pi and starts it again on the same port and
 state directory, as a host restart: pi forgets its clients (a `reconnect`
-gets `-32008`) but keeps the sessions it saved.
+gets `-32008`) but keeps the sessions it saved, under the URIs they were
+created with.
 
 ## Breaking the connection
 

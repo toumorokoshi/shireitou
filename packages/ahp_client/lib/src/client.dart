@@ -557,8 +557,8 @@ class AhpClient {
   }
 
   Future<String> _awaitCreated(String session, Duration timeout) async {
-    // Hosts that publish the session under another URI (pi) may refuse
-    // the sent one; then only the catalogue tells.
+    // Hosts that publish the session under another URI may refuse the
+    // sent one; then only the catalogue tells.
     final watched = subscribe(session, kind: ChannelKind.session).then(
       (_) => true,
       onError: (Object error) {
