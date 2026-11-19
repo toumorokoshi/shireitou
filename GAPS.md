@@ -599,16 +599,15 @@ AppImage and the release workflow (see
   - Linux: the minimum size is checked under openbox only, not under
     GNOME's or KDE's window managers or a Wayland compositor.
 - **Packaging and releases** (see [docs/packaging.md](docs/packaging.md)):
-  the release workflow builds every package on each packaging change, but
-  has never published a release (no `v*` tag was pushed), and no signing
-  secrets are set, so every signing step has never run: the `.dmg` is
-  unsigned and not notarized (needs a Developer ID Application
-  certificate and an Apple ID with an app-specific password, which need
-  a paid Apple Developer account), the Windows `.zip` is unsigned and the
-  `.msix` left out of releases (needs a code signing certificate), the
-  APK has no release key yet (`scripts/android-keystore --upload` makes
-  one; a tag is refused until it exists, and the signing path has only
-  run in CI with a throwaway key) and `SHA256SUMS` is not GPG-signed. The
+  [v0.2.0](https://github.com/toumorokoshi/shireitou/releases/tag/v0.2.0)
+  is the first release with packages, including
+  `shireitou-0.2.0-macos.dmg`. The Android release key is set, so that
+  APK is release-signed. The other signing secrets are still unset, so
+  those steps have never run: the `.dmg` is unsigned and not notarized
+  (needs a Developer ID Application certificate and an Apple ID with an
+  app-specific password, which need a paid Apple Developer account), the
+  Windows `.zip` is unsigned and the `.msix` left out of releases (needs
+  a code signing certificate), and `SHA256SUMS` is not GPG-signed. The
   APK is one universal file (about three ABIs' worth of native code);
   per-ABI APKs would be smaller. The release is all or nothing: a
   failing macOS or Windows build blocks the Android APK too. No apt repository, Flathub or Snap package, Homebrew cask,

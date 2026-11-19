@@ -1,3 +1,19 @@
+## 2026-11-19: v0.2.0 is the first release that attaches packages
+
+The v0.1.0 tag built every package, including the macOS disk image, then
+skipped publishing because `ANDROID_KEYSTORE` was unset. A GitHub Release
+existed with notes and no files.
+
+- **The Android release key is an Actions secret.** The keystore, password
+  and alias were uploaded with `scripts/android-keystore --upload`. The
+  only file copies are outside the repository
+  (`~/secrets/shireitou-release.jks` and the `.password` file beside it).
+  The certificate SHA-256 is
+  `3B:C2:4E:27:9A:A4:B7:DF:2F:9A:DD:C6:4A:58:2E:C9:89:77:BB:3B:2A:DA:13:49:A5:46:EE:B1:DD:CA:90:04`.
+- **The tag is `v0.2.0`, build number 2.** It matches `app/pubspec.yaml`.
+  The release asset for macOS is `shireitou-0.2.0-macos.dmg`. It is
+  unsigned: the Developer ID and notarization secrets are still unset.
+
 ## 2026-11-13: Single keychain vault and non-secret open hosts (AV-010, AHP-063)
 
 On macOS (`usesDataProtectionKeychain: false`), each `flutter_secure_storage`
