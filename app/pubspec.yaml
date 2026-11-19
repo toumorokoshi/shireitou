@@ -2,7 +2,7 @@ name: shireitou
 description: "Cross-platform agents view for Agent Host Protocol hosts."
 publish_to: 'none'
 resolution: workspace
-version: 0.1.0+1
+version: 0.2.0+2
 
 environment:
   sdk: ^3.13.5
