@@ -342,12 +342,18 @@ Dart source); `bin/generate.dart` does the file I/O. See
   above the caret (`OverlayPortal` and `CompositedTransformFollower`) and
   takes ↑/↓, Enter, Tab and Esc through `handleKey`, which the field's
   key handler calls first.
-- `lib/src/desktop/`: native window setup. `window_bounds.dart` is pure
-  (placement encoding, minimum size, whether a saved position is on a
-  display); `desktop_window.dart` applies it with `window_manager` and
-  saves the placement with `shared_preferences`, and sets the window
-  title; `app_menu.dart` is the macOS `PlatformMenuBar` (with the Session
-  menu of shortcuts). See [desktop.md](desktop.md).
+- `lib/src/desktop/`: native window setup and system tray.
+  `window_bounds.dart` is pure (placement encoding, minimum size, whether
+  a saved position is on a display); `desktop_window.dart` applies it
+  with `window_manager` and saves the placement with
+  `shared_preferences`, and sets the window title; `app_menu.dart` is
+  the macOS `PlatformMenuBar` (with the Session menu of shortcuts).
+  `tray_menu_items.dart` is pure (`buildTrayMenuModel`, active
+  conversations at the top, then pinned conversations); `tray_backend.dart`
+  (`tray_backend_io.dart` on `tray_manager`, `tray_backend_web.dart` stub)
+  and `tray_menu.dart` (`TrayMenu`) keep the desktop tray dropdown synced
+  and open clicked conversations via `bringWindowToFront` and
+  `openSessionRequestsProvider`. See [desktop.md](desktop.md).
 - `lib/src/diagnostics/`: the AV-145 error log. `error_log.dart` formats
   an entry (`errorLogEntry`, pure) and wraps `FlutterError.onError`
   (`logFlutterErrors`) so each distinct error is written once, up to

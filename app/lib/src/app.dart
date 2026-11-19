@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'auth/sign_in_dialog.dart';
 import 'desktop/app_menu.dart';
 import 'desktop/desktop_window.dart';
+import 'desktop/tray_menu.dart';
 import 'hosts/open_hosts.dart';
 import 'notifications/notifications.dart';
 import 'screens/connect_screen.dart';
@@ -49,10 +50,12 @@ class _ShireitouAppState extends ConsumerState<ShireitouApp> {
       theme: buildTheme(appearance.light),
       darkTheme: buildTheme(appearance.dark),
       themeMode: appearance.mode,
-      builder: (context, child) => AttentionNotifications(
-        child: AppShortcuts(
-          enabled: !hasNativeMenuBar,
-          child: AppMenuBar(child: child!),
+      builder: (context, child) => TrayMenu(
+        child: AttentionNotifications(
+          child: AppShortcuts(
+            enabled: !hasNativeMenuBar,
+            child: AppMenuBar(child: child!),
+          ),
         ),
       ),
       home: const HomeScreen(),

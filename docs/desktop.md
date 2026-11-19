@@ -12,7 +12,7 @@ signing and releases are in [packaging.md](packaging.md).
 ### Build dependencies
 
 ```sh
-sudo apt-get install clang cmake ninja-build pkg-config libgtk-3-dev libsecret-1-dev
+sudo apt-get install clang cmake ninja-build pkg-config libgtk-3-dev libx11-dev libxi-dev libsecret-1-dev
 cd app && flutter build linux --release
 ```
 
@@ -165,6 +165,27 @@ answer is in System Settings > Privacy & Security > Microphone. See
   `window_manager`; on the web it is the tab title. macOS hides the
   title text (the app's bar is drawn there), but it still names the
   window in the Window menu and Mission Control.
+
+## System tray
+
+On desktop (macOS, Linux and Windows), [`tray_manager`](https://pub.dev/packages/tray_manager)
+(`lib/src/desktop/tray_menu.dart`, `tray_backend_io.dart`) shows a tray
+icon (`assets/icon/icon-foreground.png` as a template image on macOS,
+`assets/icon/icon-rounded.png` on Linux and Windows) whose dropdown menu
+lists:
+
+- **Active** conversations at the top (non-archived sessions that need
+  input or are in progress, with needs-input first, then most recently
+  modified),
+- **Pinned** conversations next, in pin order (excluding any already
+  listed under Active),
+- **Show shireitou** and **Quit shireitou**.
+
+Clicking a conversation brings the window to the front
+(`bringWindowToFront`) and opens that session
+(`openSessionRequestsProvider`). On Linux, the tray icon is a
+StatusNotifierItem over D-Bus (GNOME requires the AppIndicator shell
+extension).
 
 ## Notifications (AV-121)
 

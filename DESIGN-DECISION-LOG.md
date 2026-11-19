@@ -1,3 +1,29 @@
+## 2026-11-19: Desktop system tray icon with active and pinned conversations (AV-008)
+
+Added a desktop system tray icon and dropdown menu for macOS, Linux, and
+Windows so users can jump directly to active or pinned conversations.
+
+- **`tray_manager` native API with conditional web stub.** `NativeTrayBackend`
+  (`app/lib/src/desktop/tray_backend_io.dart`) uses `tray_manager` 0.8.3's
+  native `TrayIcon`/`Menu`/`MenuItem` API (which uses `StatusNotifierItem`
+  over D-Bus on Linux, `NSStatusItem` on macOS, and Win32 on Windows),
+  while `tray_backend_web.dart` returns `null` so web builds do not import
+  `dart:ffi`. On macOS, `assets/icon/icon-foreground.png` is used as a
+  template image; Linux and Windows use `assets/icon/icon-rounded.png`.
+- **Pure menu model.** `buildTrayMenuModel`
+  (`app/lib/src/desktop/tray_menu_items.dart`) places non-archived active
+  conversations (`isInputNeeded` first, then `isInProgress`, most recently
+  modified first within each) under **Active** at the top, followed by
+  non-archived pinned conversations in pin order under **Pinned** (omitting
+  duplicates already shown under Active), plus **Show shireitou** and
+  **Quit shireitou**. Equality on `TrayMenuModel` avoids rebuilding the
+  native menu when unrelated state changes, and replaced native menu
+  handles are disposed asynchronously on `Timer.run` so click callbacks
+  outlive their native dispatch.
+- **Click to open.** Selecting a conversation calls
+  `bringWindowToFront()` and dispatches to `openSessionRequestsProvider`,
+  reusing the same navigation path as clicked OS notifications.
+
 ## 2026-11-19: pi publishes the session URI the client created
 
 CI's integration job failed after pi-agent-host-protocol `dcaf6ce`.

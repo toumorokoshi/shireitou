@@ -598,6 +598,12 @@ AppImage and the release workflow (see
     not tried.
   - Linux: the minimum size is checked under openbox only, not under
     GNOME's or KDE's window managers or a Wayland compositor.
+  - System tray (AV-008): the menu model and click-to-open wiring are
+    covered by unit and widget tests against a recording `TrayBackend`,
+    not driven interactively against the native OS tray on macOS, Linux
+    (StatusNotifierItem / GNOME AppIndicator), or Windows. Clicking a
+    session while the app is on the connect screen (no live hosts) is
+    not handled, though the menu only lists sessions from live hosts.
 - **Packaging and releases** (see [docs/packaging.md](docs/packaging.md)):
   [v0.2.0](https://github.com/toumorokoshi/shireitou/releases/tag/v0.2.0)
   is the first release with packages, including
