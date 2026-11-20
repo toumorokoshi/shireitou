@@ -60,9 +60,13 @@ pid_t pty_forkpty(
 
     if (pid == 0)
     {
-        setsid();
+        if (setsid() == -1)
+            perror("DEBUG setsid");
         if (ioctl(pts, TIOCSCTTY, (char *)NULL) == -1)
+        {
+            perror("DEBUG TIOCSCTTY");
             exit(-1);
+        }
 
         dup2(pts, STDIN_FILENO);
         dup2(pts, STDOUT_FILENO);

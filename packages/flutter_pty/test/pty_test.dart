@@ -40,6 +40,7 @@ void main() {
       contains(
         Platform.isWindows ? 'two words' : 'tty xterm-256color two words',
       ),
+      reason: 'DEBUG exit code ${await pty.exitCode}, pid ${pty.pid}',
     );
   });
 
