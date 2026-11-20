@@ -511,6 +511,7 @@ hosts (shortcuts, OAuth through `oauth_callback.html`, reconnects); see
 
 | AV-145 | Done | Mouse tracker assertions fix in `math_view.dart`. |
 | AV-146 | Done | `canReplacePrimaryWorkingDirectory` and `replacePrimaryWorkingDirectoryAction` in `packages/ahp_client/lib/src/working_directory.dart`; "Move to folder…" in the session header's "…" menu (`session_detail_view.dart`) and the session list row menu (`session_list_view.dart`, `sessions_screen.dart`), opening `showDirectoryBrowser` and dispatching `session/workingDirectoryReplaced` when the agent's `capabilities.multipleWorkingDirectories` allows replacing index `0` and no turn is running. Verified in `packages/ahp_client/test/working_directory_test.dart`, `packages/ahp_fake_host/test/fake_host_flows_test.dart`, and `app/test/move_session_folder_test.dart`. |
+| AV-147 | Done | The session details sheet (AV-060, `session_info.dart`, "Session details" in the header's "…" menu) shows a "pi session ID" section for sessions whose `SessionState.provider` is `pi`: the session URI's ID (`sessionIdOf`), which the pi host reuses as the pi session ID that names the session file under `~/.pi/agent/sessions` and that `pi --resume` takes, with a copy button. Verified in `app/test/session_features_test.dart` ("session details show a pi session ID to copy" and "session details hide the pi session ID for other agents"). |
 
 ## Out of scope (initially)
 

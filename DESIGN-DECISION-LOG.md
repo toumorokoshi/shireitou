@@ -1,3 +1,22 @@
+## 2026-11-20: Showing the pi session ID in session details (AV-147)
+
+Added a "pi session ID" section, with a copy button, to the Session
+details sheet, so a pi session can be matched to its file in
+`~/.pi/agent/sessions` or resumed with `pi --resume`.
+
+- **The ID comes from the session URI, not from a host field.** The pi
+  host reuses a session's ID as its pi session ID (pi-agent-host-protocol
+  `specs/forks.md` and the README: "Session ids are reused as pi session
+  ids"), and the session file's header `id` matches the file name. So
+  `sessionIdOf(session)` from `ahp_client` gives the pi ID for both
+  `ahp-session:/<id>` and `pi:/<id>`, with no new protocol surface.
+- **Shown only for pi sessions.** The section is gated on
+  `SessionState.provider == 'pi'`, since the ID means nothing to pi for
+  other agents.
+- **Not in the header's "Details…" popover.** That popover is compact and
+  already crowded; the details sheet is where the rest of the session's
+  identifiers live.
+
 ## 2026-11-20: Moving a session to a different working directory (AV-146)
 
 Added "Move to folder…" to the session header's "…" menu and the

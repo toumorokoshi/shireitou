@@ -1350,6 +1350,51 @@ void main() {
     });
   });
 
+  testWidgets('session details show a pi session ID to copy', (tester) async {
+    String? copied;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied = (call.arguments as Map)['text'] as String?;
+        }
+        return null;
+      },
+    );
+    await _pump(
+      tester,
+      _state(chat: _chatWith(const []), sessionState: _session()),
+    );
+    await tester.tap(find.byTooltip('Session actions'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Session details'));
+    await tester.pumpAndSettle();
+    expect(find.text('pi session ID'), findsOneWidget);
+    expect(find.text('1'), findsOneWidget);
+    await tester.tap(find.byTooltip('Copy pi session ID'));
+    await tester.pump();
+    expect(copied, '1');
+  });
+
+  testWidgets('session details hide the pi session ID for other agents', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      _state(
+        chat: _chatWith(const []),
+        sessionState: _session().copyWith(provider: 'copilot'),
+      ),
+    );
+    await tester.tap(find.byTooltip('Session actions'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Session details'));
+    await tester.pumpAndSettle();
+    expect(find.text('Working directories'), findsOneWidget);
+    expect(find.text('pi session ID'), findsNothing);
+    expect(find.byTooltip('Copy pi session ID'), findsNothing);
+  });
+
   testWidgets('canvases show as chips on 1.0.0 only', (tester) async {
     final chat = _chatWith(const [])
         .copyWith(canvases: const [CanvasReference(resource: 'ahp-canvas:/c')]);

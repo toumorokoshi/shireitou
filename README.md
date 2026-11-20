@@ -16,7 +16,7 @@ The requirements are in [specs/agents-view.md](specs/agents-view.md).
 - Switches between a session's chats, including subagents and side chats.
 - Forks a chat from a finished turn when the host's agent supports it, as [pi-agent-host-protocol](https://github.com/toumorokoshi/pi-agent-host-protocol) does.
 - Starts new sessions from a draft in the session pane. The draft sets the host, agent, model and its options (such as the thinking level), a folder browsed on the host, and the agent's settings (such as the mode).
-- Shows background work, canvases, and session details.
+- Shows background work, canvases, and session details. For a pi session, the details show its pi session ID to copy (it names the session file that `pi --resume` takes).
 - The session header links to the branch's pull request. Its "…" menu holds the details and actions.
 
 ### Replies and tool calls

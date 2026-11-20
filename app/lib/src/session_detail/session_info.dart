@@ -10,6 +10,7 @@ import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'copy_button.dart';
 import 'link_menu.dart';
 
 import '../channels.dart';
@@ -157,6 +158,28 @@ class SessionInfoSheet extends ConsumerWidget {
           : ListView(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               children: [
+                // The pi host reuses the session's ID as the pi session ID:
+                // it names the session file and is what `pi --resume` takes.
+                if (state.provider == 'pi') ...[
+                  heading('pi session ID'),
+                  ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.fingerprint),
+                    title: SelectableText(
+                      sessionIdOf(session),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontFamily: 'monospace',
+                      ),
+                    ),
+                    subtitle: const Text(
+                      'Names the session file in ~/.pi/agent/sessions',
+                    ),
+                    trailing: CopyButton(
+                      text: () => sessionIdOf(session),
+                      tooltip: 'Copy pi session ID',
+                    ),
+                  ),
+                ],
                 heading('Working directories'),
                 if (directories.isEmpty) none,
                 for (final d in directories)

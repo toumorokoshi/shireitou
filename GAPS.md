@@ -928,3 +928,10 @@ AppImage and the release workflow (see
   (and from the row menu while `InProgress` is set), and a move from the
   row menu of a session that is not open updates the sidebar only once
   the host emits `root/sessionSummaryChanged`.
+
+## pi session ID (AV-147)
+
+- The pi session ID is shown only in the Session details sheet. The
+  header's "Details…" popover and the session list do not show it.
+- Only the ID is shown. Opening the session file or running `pi --resume`
+  from the app is not offered.
