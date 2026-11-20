@@ -429,8 +429,11 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
           AppCommand.previousTurn ||
           AppCommand.nextTurn ||
           AppCommand.toggleReviewPane ||
-          AppCommand.toggleTerminal:
-        // The open session view handles these.
+          AppCommand.toggleTerminal ||
+          AppCommand.increaseFontSize ||
+          AppCommand.decreaseFontSize ||
+          AppCommand.resetFontSize:
+        // Handled by the open session view or the root app.
         break;
     }
   }

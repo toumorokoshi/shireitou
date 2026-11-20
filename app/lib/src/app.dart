@@ -18,6 +18,7 @@ import 'session_list/session_filter.dart';
 import 'shortcuts.dart';
 import 'theme/app_theme.dart';
 import 'theme/appearance.dart';
+import 'theme/font_scale.dart';
 
 /// The shireitou app: in the user's appearance (AV-097; by default the
 /// system light/dark setting), and shows
@@ -32,6 +33,42 @@ class ShireitouApp extends ConsumerStatefulWidget {
 
 class _ShireitouAppState extends ConsumerState<ShireitouApp> {
   String? _windowTitle;
+  StreamSubscription<AppCommand>? _commands;
+
+  @override
+  void initState() {
+    super.initState();
+    _commands = ref.read(appCommandsProvider).stream.listen(_onCommand);
+  }
+
+  void _onCommand(AppCommand command) {
+    final notifier = ref.read(fontScaleProvider.notifier);
+    switch (command) {
+      case AppCommand.increaseFontSize:
+        unawaited(notifier.increase());
+      case AppCommand.decreaseFontSize:
+        unawaited(notifier.decrease());
+      case AppCommand.resetFontSize:
+        unawaited(notifier.reset());
+      case AppCommand.newSession ||
+          AppCommand.searchSessions ||
+          AppCommand.nextSession ||
+          AppCommand.previousSession ||
+          AppCommand.stop ||
+          AppCommand.focusComposer ||
+          AppCommand.previousTurn ||
+          AppCommand.nextTurn ||
+          AppCommand.toggleReviewPane ||
+          AppCommand.toggleTerminal:
+        break;
+    }
+  }
+
+  @override
+  void dispose() {
+    unawaited(_commands?.cancel());
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -43,6 +80,7 @@ class _ShireitouAppState extends ConsumerState<ShireitouApp> {
       unawaited(setWindowTitle(title));
     }
     final appearance = ref.watch(appearanceProvider);
+    final fontScale = ref.watch(fontScaleProvider);
     return MaterialApp(
       navigatorKey: rootNavigatorKey,
       debugShowCheckedModeBanner: false,
@@ -50,14 +88,22 @@ class _ShireitouAppState extends ConsumerState<ShireitouApp> {
       theme: buildTheme(appearance.light),
       darkTheme: buildTheme(appearance.dark),
       themeMode: appearance.mode,
-      builder: (context, child) => TrayMenu(
-        child: AttentionNotifications(
-          child: AppShortcuts(
-            enabled: !hasNativeMenuBar,
-            child: AppMenuBar(child: child!),
+      builder: (context, child) {
+        final media = MediaQuery.of(context);
+        return MediaQuery(
+          data: media.copyWith(
+            textScaler: scaledTextScaler(media.textScaler, fontScale),
           ),
-        ),
-      ),
+          child: TrayMenu(
+            child: AttentionNotifications(
+              child: AppShortcuts(
+                enabled: !hasNativeMenuBar,
+                child: AppMenuBar(child: child!),
+              ),
+            ),
+          ),
+        );
+      },
       home: const HomeScreen(),
     );
   }

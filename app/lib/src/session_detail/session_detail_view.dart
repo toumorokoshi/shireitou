@@ -331,6 +331,11 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
       case AppCommand.previousTurn || AppCommand.nextTurn:
         // The timeline handles these.
         break;
+      case AppCommand.increaseFontSize ||
+          AppCommand.decreaseFontSize ||
+          AppCommand.resetFontSize:
+        // The root app handles these.
+        break;
     }
   }
 

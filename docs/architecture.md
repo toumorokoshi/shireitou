@@ -372,7 +372,10 @@ Dart source); `bin/generate.dart` does the file I/O. See
 - `lib/src/app.dart`: `MaterialApp` with light and dark themes in the
   user's appearance (`appearanceProvider`: the mode, by default the
   system's, and a dark and a light colour theme, AV-097), titled with
-  the attention count (`windowTitle`, AV-120). Shows the connect screen
+  the attention count (`windowTitle`, AV-120), and applies the persisted
+  font scale (`fontScaleProvider`, `font_scale.dart`) via
+  `MediaQuery.textScaler` while listening for `increaseFontSize`,
+  `decreaseFontSize` and `resetFontSize` commands. Shows the connect screen
   until connected, and restores the hosts that were open.
 - `lib/src/theme/`: the colour themes (AV-090, AV-097) and the chrome's
   icons: `app_icons.dart` (`AppIcons`) names the title bar, sidebar,

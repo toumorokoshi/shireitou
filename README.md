@@ -216,7 +216,8 @@ just serve-web 8080 'ws://127.0.0.1:63877?tkn=...'   # same, host URL prefilled
    `host:` qualifiers), Alt+↓/↑ next and previous session, Cmd/Ctrl+.
    stop, Cmd/Ctrl+L focus the follow-up box, Cmd/Ctrl+Alt+B open or close
    the review pane (wide windows; it starts closed), Cmd/Ctrl+Alt+↑/↓
-   previous and next turn in the open chat. Right-click or
+   previous and next turn in the open chat, and Cmd/Ctrl+= (or +),
+   Cmd/Ctrl+-, Cmd/Ctrl+0 to increase, decrease and reset the font size. Right-click or
    long-press a session to rename it, archive it, mark it read or unread,
    or select several; swipe it left to archive it, or hover it and click
    the check to mark it done. The filter icon above the list picks the

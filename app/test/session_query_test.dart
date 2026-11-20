@@ -180,6 +180,18 @@ void main() {
         'Ctrl+Alt+↑',
       );
       expect(shortcutLabel(AppCommand.nextTurn, apple: true), '⌥⌘↓');
+      expect(shortcutLabel(AppCommand.increaseFontSize, apple: true), '⌘=');
+      expect(
+        shortcutLabel(AppCommand.increaseFontSize, apple: false),
+        'Ctrl+=',
+      );
+      expect(shortcutLabel(AppCommand.decreaseFontSize, apple: true), '⌘-');
+      expect(
+        shortcutLabel(AppCommand.decreaseFontSize, apple: false),
+        'Ctrl+-',
+      );
+      expect(shortcutLabel(AppCommand.resetFontSize, apple: true), '⌘0');
+      expect(shortcutLabel(AppCommand.resetFontSize, apple: false), 'Ctrl+0');
     });
 
     test('the terminal toggles with Alt+T and Ctrl+`', () {
@@ -188,6 +200,41 @@ void main() {
         SingleActivator(LogicalKeyboardKey.backquote, control: true),
       ]);
       expect(extraActivatorsFor(AppCommand.newSession), isEmpty);
+      expect(
+        [
+          for (final a in extraActivatorsFor(
+            AppCommand.increaseFontSize,
+            apple: false,
+          ))
+            a.debugDescribeKeys(),
+        ],
+        [
+          'Control + Shift + Equal',
+          'Control + Add',
+          'Control + Shift + Add',
+          'Control + Numpad Add',
+        ],
+      );
+      expect(
+        [
+          for (final a in extraActivatorsFor(
+            AppCommand.decreaseFontSize,
+            apple: true,
+          ))
+            a.debugDescribeKeys(),
+        ],
+        ['Meta + Numpad Subtract'],
+      );
+      expect(
+        [
+          for (final a in extraActivatorsFor(
+            AppCommand.resetFontSize,
+            apple: false,
+          ))
+            a.debugDescribeKeys(),
+        ],
+        ['Control + Numpad 0'],
+      );
     });
 
     testWidgets('under a native menu bar only the extra keys are mapped', (
@@ -217,29 +264,38 @@ void main() {
       expect(sent, [AppCommand.toggleTerminal]);
     });
 
-    test('the macOS Session menu lists every command with its key', () {
-      final sent = <AppCommand>[];
-      List<PlatformMenuItem> flatten(List<PlatformMenuItem> groups) => [
-        for (final g in groups.whereType<PlatformMenuItemGroup>()) ...g.members,
-      ];
-      final items = flatten(
-        sessionMenuItems(connected: true, onCommand: sent.add),
-      );
-      expect(
-        [for (final i in items) i.label],
-        [for (final c in AppCommand.values) c.label],
-      );
-      expect(
-        (items.first.shortcut as SingleActivator).trigger,
-        LogicalKeyboardKey.keyN,
-      );
-      items.last.onSelected!();
-      expect(sent, [AppCommand.toggleTerminal]);
-      final disabled = flatten(
-        sessionMenuItems(connected: false, onCommand: sent.add),
-      );
-      expect(disabled.every((i) => i.onSelected == null), isTrue);
-    });
+    test(
+      'the macOS Session and View menus list every command with its key',
+      () {
+        final sent = <AppCommand>[];
+        List<PlatformMenuItem> flatten(List<PlatformMenuItem> groups) => [
+          for (final g in groups.whereType<PlatformMenuItemGroup>())
+            ...g.members,
+        ];
+        final sessionItems = flatten(
+          sessionMenuItems(connected: true, onCommand: sent.add),
+        );
+        final viewItems = flatten(viewMenuItems(onCommand: sent.add));
+        expect(
+          [
+            for (final i in [...sessionItems, ...viewItems]) i.label,
+          ],
+          [for (final c in AppCommand.values) c.label],
+        );
+        expect(
+          (sessionItems.first.shortcut as SingleActivator).trigger,
+          LogicalKeyboardKey.keyN,
+        );
+        sessionItems.last.onSelected!();
+        viewItems.first.onSelected!();
+        expect(sent, [AppCommand.toggleTerminal, AppCommand.increaseFontSize]);
+        final disabled = flatten(
+          sessionMenuItems(connected: false, onCommand: sent.add),
+        );
+        expect(disabled.every((i) => i.onSelected == null), isTrue);
+        expect(viewItems.every((i) => i.onSelected != null), isTrue);
+      },
+    );
   });
 
   group('open hosts', () {

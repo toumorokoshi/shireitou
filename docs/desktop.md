@@ -142,8 +142,8 @@ answer is in System Settings > Privacy & Security > Microphone. See
   Services, Hide, Quit), the Session menu with the AV-140 shortcuts (New
   Session ⌘N, Search Sessions ⌘K, Next/Previous Session ⌥↓/⌥↑, Stop ⌘.,
   Focus Composer ⌘L, Previous Turn ⌥⌘↑, Next Turn ⌥⌘↓, Toggle Review
-  Pane ⌥⌘B), Host > Disconnect All (Cmd+Shift+D), View > Enter Full
-  Screen, and the Window menu. On macOS the menu owns those keys (the
+  Pane ⌥⌘B), Host > Disconnect All (Cmd+Shift+D), View > Increase/Decrease/Reset
+  Font Size (⌘=, ⌘-, ⌘0) and Enter Full Screen, and the Window menu. On macOS the menu owns those keys (the
   Flutter `Shortcuts` for them are left out, so a key press cannot run a
   command twice); on Linux, Windows and the web the same keys, with Ctrl,
   are Flutter shortcuts (`lib/src/shortcuts.dart`). Linux uses the GTK

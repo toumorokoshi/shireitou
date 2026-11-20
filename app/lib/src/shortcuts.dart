@@ -48,7 +48,16 @@ enum AppCommand {
 
   /// Opens or closes the terminal panel (Alt+T everywhere, and Ctrl+` as
   /// in VS Code, AV-016).
-  toggleTerminal('Toggle Terminal');
+  toggleTerminal('Toggle Terminal'),
+
+  /// Increases the app-wide font size (Cmd/Ctrl+=, Cmd/Ctrl++).
+  increaseFontSize('Increase Font Size'),
+
+  /// Decreases the app-wide font size (Cmd/Ctrl+-).
+  decreaseFontSize('Decrease Font Size'),
+
+  /// Resets the app-wide font size to 100% (Cmd/Ctrl+0).
+  resetFontSize('Reset Font Size');
 
   const AppCommand(this.label);
 
@@ -103,23 +112,54 @@ SingleActivator activatorFor(AppCommand command, {bool? apple}) {
       LogicalKeyboardKey.keyT,
       alt: true,
     ),
+    AppCommand.increaseFontSize => primary(LogicalKeyboardKey.equal),
+    AppCommand.decreaseFontSize => primary(LogicalKeyboardKey.minus),
+    AppCommand.resetFontSize => primary(LogicalKeyboardKey.digit0),
   };
 }
 
 /// The other keys for [command], besides [activatorFor]'s. A native menu
 /// item takes one key, so [AppShortcuts] handles these on macOS too.
-List<SingleActivator> extraActivatorsFor(AppCommand command) =>
-    switch (command) {
-      AppCommand.toggleTerminal => const [
-        SingleActivator(LogicalKeyboardKey.backquote, control: true),
-      ],
-      _ => const [],
-    };
+List<SingleActivator> extraActivatorsFor(AppCommand command, {bool? apple}) {
+  final cmd = apple ?? usesCommandKey;
+  return switch (command) {
+    AppCommand.toggleTerminal => const [
+      SingleActivator(LogicalKeyboardKey.backquote, control: true),
+    ],
+    AppCommand.increaseFontSize => [
+      SingleActivator(
+        LogicalKeyboardKey.equal,
+        meta: cmd,
+        control: !cmd,
+        shift: true,
+      ),
+      SingleActivator(LogicalKeyboardKey.add, meta: cmd, control: !cmd),
+      SingleActivator(
+        LogicalKeyboardKey.add,
+        meta: cmd,
+        control: !cmd,
+        shift: true,
+      ),
+      SingleActivator(LogicalKeyboardKey.numpadAdd, meta: cmd, control: !cmd),
+    ],
+    AppCommand.decreaseFontSize => [
+      SingleActivator(
+        LogicalKeyboardKey.numpadSubtract,
+        meta: cmd,
+        control: !cmd,
+      ),
+    ],
+    AppCommand.resetFontSize => [
+      SingleActivator(LogicalKeyboardKey.numpad0, meta: cmd, control: !cmd),
+    ],
+    _ => const [],
+  };
+}
 
 /// Every key for [command]: [activatorFor]'s, then [extraActivatorsFor].
 List<SingleActivator> activatorsFor(AppCommand command, {bool? apple}) => [
   activatorFor(command, apple: apple),
-  ...extraActivatorsFor(command),
+  ...extraActivatorsFor(command, apple: apple),
 ];
 
 /// "Ctrl+K" or "⌘K": [command]'s key for tooltips and help text.

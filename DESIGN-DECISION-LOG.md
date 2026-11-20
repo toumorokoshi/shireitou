@@ -1,3 +1,25 @@
+## 2026-11-19: App-wide font size scaling shortcuts (AV-140)
+
+Added `Cmd/Ctrl +` (`Cmd/Ctrl+=`, `Cmd/Ctrl+Shift+=`, `Cmd/Ctrl+Numpad+`),
+`Cmd/Ctrl -` (`Cmd/Ctrl+-`, `Cmd/Ctrl+Numpad-`), and `Cmd/Ctrl+0` to
+increase, decrease, and reset the app-wide font size.
+
+- **Root `MediaQuery.textScaler` rather than rebuilding `ThemeData`.**
+  `fontScaleProvider` (`app/lib/src/theme/font_scale.dart`) stores a
+  clamped scale factor (`0.7` to `2.0` in `0.1` steps, rounded to one
+  decimal place) in `PrefsStore` under `font_scale`. `ShireitouApp`
+  applies it via `scaledTextScaler` inside `MaterialApp.builder` so all
+  text—including explicit `fontSize` styles, markdown, file viewer,
+  tooltips, and `xterm` terminal text—scales proportionally without
+  rebuilding `ThemeData` or losing OS accessibility scaling.
+- **macOS `View` menu + `extraActivatorsFor` for `+` variants.**
+  `Increase Font Size`, `Decrease Font Size`, and `Reset Font Size`
+  are always-enabled items in the macOS `View` menu (`viewMenuItems` in
+  `app/lib/src/desktop/app_menu.dart`) using `Cmd+=`, `Cmd+-`, and
+  `Cmd+0`, while `extraActivatorsFor` in `app/lib/src/shortcuts.dart`
+  maps `Cmd/Ctrl+Shift+=`, `LogicalKeyboardKey.add`, and numpad keys
+  across platforms.
+
 ## 2026-11-19: Client-side message queue while disconnected (AV-080, AV-081)
 
 Sending a follow-up message while a host is disconnected or reconnecting

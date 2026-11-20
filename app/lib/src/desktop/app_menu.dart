@@ -74,6 +74,26 @@ List<PlatformMenuItem> sessionMenuItems({
   ];
 }
 
+/// The View menu items for font scaling, always enabled.
+List<PlatformMenuItem> viewMenuItems({
+  required ValueChanged<AppCommand> onCommand,
+}) => [
+  PlatformMenuItemGroup(
+    members: [
+      for (final command in const [
+        AppCommand.increaseFontSize,
+        AppCommand.decreaseFontSize,
+        AppCommand.resetFontSize,
+      ])
+        PlatformMenuItem(
+          label: command.label,
+          shortcut: activatorFor(command, apple: true),
+          onSelected: () => onCommand(command),
+        ),
+    ],
+  ),
+];
+
 /// The menus for the macOS menu bar. "Disconnect All" (⌘⇧D) and the
 /// Session menu ([sessionMenuItems]) are enabled while [connected] to any
 /// host.
@@ -131,11 +151,16 @@ List<PlatformMenuItem> appMenus({
       ),
     ],
   ),
-  const PlatformMenu(
+  PlatformMenu(
     label: 'View',
     menus: [
-      PlatformProvidedMenuItem(
-        type: PlatformProvidedMenuItemType.toggleFullScreen,
+      ...viewMenuItems(onCommand: onCommand),
+      const PlatformMenuItemGroup(
+        members: [
+          PlatformProvidedMenuItem(
+            type: PlatformProvidedMenuItemType.toggleFullScreen,
+          ),
+        ],
       ),
     ],
   ),
