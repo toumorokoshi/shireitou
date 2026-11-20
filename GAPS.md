@@ -908,3 +908,10 @@ AppImage and the release workflow (see
 - The `web` job runs on `ubuntu-24.04` rather than `ubuntu-latest`,
   because Playwright cannot install Chromium on Ubuntu 26.04 yet. Move
   it back once a Playwright release supports 26.04.
+
+## Session cache
+
+- `SessionCache` (`app/lib/src/session_cache.dart`) is in-memory per
+  host connection (capacity 64); it is not persisted to disk across app
+  restarts, and pre-warming on connection fetches only each pinned
+  session's default chat (secondary chats are cached once opened).

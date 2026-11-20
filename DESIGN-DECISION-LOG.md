@@ -1,3 +1,30 @@
+## 2026-11-20: In-memory session cache and pinned session warming
+
+Added an in-memory LRU cache (`SessionCache` in
+`app/lib/src/session_cache.dart`) per `HostConnection` so switching back
+and forth between already-opened sessions renders immediately without
+waiting for `openSession` to re-subscribe.
+
+- **Cache snapshots rather than keeping channels subscribed.**
+  Keeping every opened session subscribed on the host would list the
+  client in `SessionState.activeClients`, stream deltas for background
+  sessions, and increase reconnect snapshot payloads. Instead,
+  `recordSessionCache` captures `SessionState`, `defaultChat`, and
+  mirrored `ChatState`s into `SessionCache` (capacity 64) on every
+  `HostConnection._publish`, and evicts entries on `missingChannels`,
+  catalogue removal, `connect`, or `disconnect`.
+- **Render cached state while refreshing live.** `SessionDetailView`
+  and `ChangesPane` fall back to `HostConnection.cachedSession` while
+  `openSession` (or `ChannelSubscriber` for a previously opened
+  secondary chat) subscribes in the background, then transition
+  seamlessly to the live mirror once the snapshot arrives (preserving
+  timeline `ValueKey` and scroll state).
+- **Pre-warm pinned sessions on connection.** When a host connects (and
+  when `pinnedSessionsProvider` loads or updates), `HostConnection`
+  sequentially pre-fetches uncached pinned sessions for that host via
+  `openSession` + `closeSession` (`pinnedSessionsToWarm`), without
+  marking unread sessions as read.
+
 ## 2026-11-19: Clickable skill links in turns, responses, and text (AV-106)
 
 Made `/skill` and `/skill:name` references clickable in user turns

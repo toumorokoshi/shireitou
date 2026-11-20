@@ -10,13 +10,19 @@ import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:logging/logging.dart';
 import 'package:uuid/uuid.dart';
 
 import 'auth/oauth_browser.dart';
 import 'auth/sign_in_dialog.dart';
 import 'composer/completion_cache.dart';
 import 'hosts/host_store.dart';
+import 'hosts/open_hosts.dart';
 import 'hosts/saved_hosts.dart';
+import 'session_cache.dart';
+import 'session_list/pinned_store.dart';
+
+final _log = Logger('host_connection');
 
 /// A host's state, by host key ([SavedHost.key], the URL without its
 /// token). Widgets watch this; the [AhpClient] owns the socket and
@@ -134,11 +140,26 @@ class HostConnection extends Notifier<HostState> {
   /// again (AV-044).
   final completionCache = CompletionCache();
 
+  /// Recently read sessions for this host, shown immediately when switching
+  /// back while the live subscription refreshes.
+  final sessionCache = SessionCache();
+  final _warmAttempted = <String>{};
+  bool _warmingActive = false;
+
   @override
   HostState build() {
     ref.onDispose(_dispose);
+    ref.listen(pinnedSessionsProvider, (_, pinned) {
+      _warmPinned(pinned);
+    });
     return const HostState();
   }
+
+  /// Returns the cached snapshot for [session] without changing its recency.
+  CachedSession? cachedSession(String session) => sessionCache.peek(session);
+
+  /// Marks [session] as most recently used in [sessionCache].
+  void touchCachedSession(String session) => sessionCache[session];
 
   /// This client's actions that were undone: rejected by the host, not
   /// confirmed in time, or lost in a reconnect (AHP-022).
@@ -156,6 +177,8 @@ class HostConnection extends Notifier<HostState> {
     bool retry = false,
   }) async {
     await _dispose();
+    sessionCache.clear();
+    _warmAttempted.clear();
     final client = AhpClient(
       uri: withConnectionToken(normalizeHostUri(url), token?.trim()),
       clientInfo: const Implementation(name: 'shireitou', version: '0.1.0'),
@@ -197,12 +220,74 @@ class HostConnection extends Notifier<HostState> {
   /// Closes the connection.
   Future<void> disconnect() async {
     await _dispose();
+    sessionCache.clear();
+    _warmAttempted.clear();
     _publish(const HostState());
   }
 
   void _publish(HostState next) {
+    final previous = state;
     ref.read(toolCallTimingsProvider(host).notifier).observe(next, clock.now());
+    recordSessionCache(sessionCache, previous, next);
     state = next;
+    if (next.status == ConnectionStatus.connected &&
+        (previous.status != ConnectionStatus.connected ||
+            !identical(previous.sessions, next.sessions))) {
+      if (previous.status != ConnectionStatus.connected) {
+        _warmAttempted.clear();
+      }
+      _warmPinned(ref.read(pinnedSessionsProvider));
+    }
+  }
+
+  void _warmPinned(Set<SessionRef> pinned) {
+    if (_client == null || state.status != ConnectionStatus.connected) return;
+    if (pinnedSessionsToWarm(
+      host: host,
+      pinned: pinned,
+      state: state,
+      cache: sessionCache,
+      attempted: _warmAttempted,
+    ).isEmpty) {
+      return;
+    }
+    unawaited(_drainWarmQueue());
+  }
+
+  Future<void> _drainWarmQueue() async {
+    if (_warmingActive) return;
+    _warmingActive = true;
+    try {
+      while (true) {
+        final client = _client;
+        if (client == null || state.status != ConnectionStatus.connected) {
+          break;
+        }
+        final next = pinnedSessionsToWarm(
+          host: host,
+          pinned: ref.read(pinnedSessionsProvider),
+          state: state,
+          cache: sessionCache,
+          attempted: _warmAttempted,
+        );
+        if (next.isEmpty) break;
+        final session = next.first;
+        _warmAttempted.add(session);
+        String? chat;
+        try {
+          chat = await client.openSession(session);
+        } on Object catch (error) {
+          _log.fine('could not pre-cache pinned session $session: $error');
+        } finally {
+          if (chat != null ||
+              client.state.sessionChannels.containsKey(session)) {
+            client.closeSession(session, chat);
+          }
+        }
+      }
+    } finally {
+      _warmingActive = false;
+    }
   }
 
   /// Subscribes to [session] and its default chat; returns the chat URI.

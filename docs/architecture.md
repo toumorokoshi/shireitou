@@ -235,7 +235,14 @@ Dart source); `bin/generate.dart` does the file I/O. See
   the model). Widgets `select` the fields they need, so chat streaming only
   rebuilds the open timeline. Every state it publishes also goes to
   `toolCallTimingsProvider` (the host's `ToolCallTimings`, AHP-032),
-  stamped with `clock.now()` (`package:clock`, so tests control time). `HostScope` (an `InheritedWidget`) tells the
+  stamped with `clock.now()` (`package:clock`, so tests control time),
+  and to `sessionCache` (`lib/src/session_cache.dart`: an in-memory LRU
+  cache of opened `SessionState` and `ChatState` snapshots, capacity 64,
+  evicted when a session is disposed or reported missing;
+  `SessionDetailView` and `ChangesPane` render from it while
+  `openSession` subscribes in the background, and `HostConnection` warms
+  pinned sessions from `pinnedSessionsProvider` sequentially on
+  connection). `HostScope` (an `InheritedWidget`) tells the
   session view and everything under it which host it shows
   (`context.host`); pages and dialogs pushed from there wrap themselves in
   one.

@@ -158,6 +158,7 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
   void initState() {
     super.initState();
     _connection = ref.read(hostConnectionProvider(context.host).notifier);
+    _connection.touchCachedSession(widget.session);
     _failures = _connection.failures.listen(_onFailure);
     _commands = ref.read(appCommandsProvider).stream.listen(_onCommand);
     unawaited(_open());
@@ -458,14 +459,23 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
         }
       },
     );
+    final cached = _connection.cachedSession(widget.session);
     final summary = ref.watch(
       hostConnectionProvider(context.host)
           .select((s) => s.sessions[widget.session]),
     );
-    final sessionState = ref.watch(
+    final liveSessionState = ref.watch(
       hostConnectionProvider(context.host)
           .select((s) => s.sessionChannels[widget.session]?.state),
     );
+    final missing = ref.watch(
+      hostConnectionProvider(context.host).select(
+        (s) =>
+            s.missingChannels.contains(widget.session) ||
+            (_chat != null && s.missingChannels.contains(_chat!)),
+      ),
+    );
+    final sessionState = missing ? null : (liveSessionState ?? cached?.session);
     final chats = switchableChats(sessionState);
     // A fork opens once the session lists it.
     if (_forkedChat case final forked?
@@ -479,13 +489,16 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
             !chats.any((c) => c.resource == selected)) {
       _selectedChat = null;
     }
-    final chatUri = _chat;
-    final chat = chatUri == null
+    final chatUri = _chat ?? (_selectedChat ?? cached?.defaultChat);
+    final liveChat = chatUri == null
         ? null
         : ref.watch(
             hostConnectionProvider(context.host)
                 .select((s) => s.chatChannels[chatUri]?.state),
           );
+    final chat = missing
+        ? null
+        : (liveChat ?? (chatUri == null ? null : cached?.chats[chatUri]));
     final timings = chatUri == null
         ? null
         : ref.watch(
@@ -505,14 +518,6 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
     );
     _declineOwnExecutions(sessionState);
     final elsewhere = otherClientExecutions(sessionState, _connection.clientId);
-    // The host could not resume the session after a reconnect (AHP-004).
-    final missing = ref.watch(
-      hostConnectionProvider(context.host).select(
-        (s) =>
-            s.missingChannels.contains(widget.session) ||
-            (chatUri != null && s.missingChannels.contains(chatUri)),
-      ),
-    );
     final summaryOfChat = chats.where((c) => c.resource == chatUri).firstOrNull;
     final readOnly =
         (chat?.interactivity ?? summaryOfChat?.interactivity) ==

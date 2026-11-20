@@ -39,17 +39,22 @@ class _ChangesPaneState extends ConsumerState<ChangesPane> {
 
   @override
   Widget build(BuildContext context) {
-    final session = ref.watch(
+    final cached = ref
+        .read(hostConnectionProvider(context.host).notifier)
+        .cachedSession(widget.session);
+    final liveSession = ref.watch(
       hostConnectionProvider(context.host)
           .select((s) => s.sessionChannels[widget.session]?.state),
     );
+    final session = liveSession ?? cached?.session;
     final chatUri = widget.chat;
-    final chat = chatUri == null
+    final liveChat = chatUri == null
         ? null
         : ref.watch(
             hostConnectionProvider(context.host)
                 .select((s) => s.chatChannels[chatUri]?.state),
           );
+    final chat = liveChat ?? (chatUri == null ? null : cached?.chats[chatUri]);
     final version = ref.watch(
       hostConnectionProvider(context.host).select((s) => s.protocolVersion),
     );
