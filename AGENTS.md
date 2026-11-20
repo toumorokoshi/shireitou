@@ -35,6 +35,7 @@ Always add and update documentation as appropriate. Update at least the followin
 - Use the conventional commit format for commit messages.
 - The commit description must explain the problem first.
 - The commit description must a summary of each area modified.
+- Expect `docs/images/` screenshots to be updated when running tests/checks; stage and check them in alongside your other changes in the commit.
 
 ## Linting
 
