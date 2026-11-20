@@ -12,6 +12,7 @@ import '../auth/sign_in_dialog.dart';
 import '../files/file_link_syntax.dart';
 import '../files/file_path_text.dart';
 import '../files/open_file_store.dart';
+import '../files/skill_links.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_icons.dart';
 import 'approval_bar.dart';
@@ -353,8 +354,9 @@ class _UserMessageBubbleState extends State<UserMessageBubble> {
                     // would expose the text only as the row's aria-label.
                     child: Semantics(
                       container: true,
-                      child: Text(
+                      child: FilePathText(
                         widget.message.text,
+                        attachments: widget.message.attachments,
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: scheme.onSurface,
                           height: 1.5,
@@ -451,6 +453,7 @@ class MarkdownText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final openFile = FileLinkScope.maybeOf(context);
+    final skills = SkillLinkScope.maybeOf(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: LinkSecondaryTap(
@@ -466,6 +469,7 @@ class MarkdownText extends StatelessWidget {
           blockSyntaxes: mathBlockSyntaxes,
           inlineSyntaxes: [
             ...mathInlineSyntaxes,
+            if (skills.isNotEmpty) ...skillLinkSyntaxes(skills),
             if (openFile != null) ...fileLinkSyntaxes,
           ],
           onTapLink: (_, href, _) {
@@ -625,7 +629,7 @@ class ReasoningBlock extends StatelessWidget {
       childrenPadding: const EdgeInsets.only(left: 40, bottom: 8),
       expandedAlignment: Alignment.centerLeft,
       children: [
-        Text(
+        FilePathText(
           content.trim(),
           style: theme.textTheme.bodySmall?.copyWith(color: muted),
         ),

@@ -23,6 +23,7 @@ import 'package:flutter/rendering.dart';
 import '../clipboard/rich_clipboard.dart';
 import '../clipboard/span_html.dart';
 import '../files/file_paths.dart';
+import '../files/skill_links.dart';
 import 'link_menu.dart';
 
 /// A piece of selected text and where it is on screen.
@@ -199,7 +200,10 @@ Rect? _paragraphBounds(RenderParagraph paragraph) => paragraph.hasSize
 /// links, which only open on the host.
 String? _spanHref(TextSpan span) => switch (span.recognizer) {
   final TapGestureRecognizer link => switch (linkHref(link)) {
-    final href? when !href.startsWith(filePathHrefPrefix) => href,
+    final href?
+        when !href.startsWith(filePathHrefPrefix) &&
+            !href.startsWith(skillHrefPrefix) =>
+      href,
     _ => null,
   },
   _ => null,

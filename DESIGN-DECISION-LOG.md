@@ -1,3 +1,30 @@
+## 2026-11-19: Clickable skill links in turns, responses, and text (AV-106)
+
+Made `/skill` and `/skill:name` references clickable in user turns
+(`UserMessageBubble`), agent markdown replies (`MarkdownText`), and
+plain-text surfaces (`FilePathText`, `ToolCallCard` titles, and
+`ReasoningBlock`).
+
+- **Pure skill indexing and matching (`app/lib/src/files/skill_links.dart`).**
+  `skillTargetsOf` collects enabled `SkillCustomization` entries
+  (including model-only skills) from `AgentInfo.customizations` and
+  `SessionState.customizations`, preserving 1-based line ranges when
+  present. `findSkillReferences` also merges `SimpleMessageAttachment`
+  skill attachments on user messages and honors explicit attachment
+  `range` spans.
+- **`shireitou-skill:` internal hrefs.**
+  Using `shireitou-skill:` (alongside `shireitou-file:`) lets
+  `followLink` and `showLinkDialog` (`link_menu.dart`) open `file:` skill
+  URIs in `FileViewer` and `http`/`https` plugin URLs in the browser,
+  while `_spanHref` (`timeline_selection.dart`) keeps rich copy as plain
+  text.
+- **Shared `FilePathText` and `SkillLinkScope`.**
+  `SessionDetailView` provides `SkillLinkScope` beside `FileLinkScope`.
+  `FilePathText` merges skill and file matches, adds `LinkSecondaryTap`
+  for right-click menus, and is reused by `UserMessageBubble` and
+  `ReasoningBlock`; `MarkdownText` adds `skillLinkSyntaxes` for prose
+  and inline code spans.
+
 ## 2026-11-19: App-wide font size scaling shortcuts (AV-140)
 
 Added `Cmd/Ctrl +` (`Cmd/Ctrl+=`, `Cmd/Ctrl+Shift+=`, `Cmd/Ctrl+Numpad+`),

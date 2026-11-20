@@ -788,9 +788,12 @@ AppImage and the release workflow (see
 
 ## File viewer (AV-106)
 
-- Only replies (markdown parts) and tool-call titles link their paths.
-  Paths in tool input and output (such as `grep` results), user
-  messages, notes and `resource` response parts stay text.
+- Only replies (markdown parts), user messages, reasoning text, and tool-call
+  titles link their paths and `/skill` references. Paths in tool input and
+  output (such as `grep` results), notes and `resource` response parts stay text.
+- Skill links match `/name` and `/skill:name` tokens (plus explicit
+  `MessageAttachment` skill ranges); bare skill names without `/` and
+  customization tiles in `session_info.dart` are not linked.
 - Paths are recognised by shape, so a word with a slash and an
   extension (`React.js/Vue.js`) becomes a link, and a file the host
   cannot read shows "Could not open …" in the viewer rather than the

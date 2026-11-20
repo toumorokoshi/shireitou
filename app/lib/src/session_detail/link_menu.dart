@@ -13,6 +13,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../files/file_paths.dart';
 import '../files/open_file_store.dart';
+import '../files/skill_links.dart';
 
 /// Opens [url] in the browser, or does nothing when it does not parse.
 void openLink(String url) {
@@ -32,19 +33,37 @@ ValueChanged<String>? _readingHref;
 void followLink(String url, {OpenFile? openFile}) {
   if (_readingHref case final read?) {
     read(url);
-  } else if (openFile != null && fileReferenceOfHref(url) != null) {
-    openFile(fileReferenceOfHref(url)!);
-  } else if (!url.trim().startsWith('#')) {
-    openLink(url);
+    return;
+  }
+  final target = skillTargetOfHref(url) ?? url;
+  if (openFile != null && fileReferenceOfHref(target) != null) {
+    openFile(fileReferenceOfHref(target)!);
+  } else if (!target.trim().startsWith('#')) {
+    openLink(target);
   }
 }
 
 /// The text a link to [url] shows in [showLinkDialog] and copies: the
-/// path of a link the app made for a file path ([filePathHref]), else
-/// [url].
-String linkText(String url) => url.startsWith(filePathHrefPrefix)
-    ? url.substring(filePathHrefPrefix.length)
-    : url;
+/// path of a link the app made for a file path ([filePathHref]) or a skill
+/// ([skillHref]), else [url].
+String linkText(String url) {
+  if (url.startsWith(filePathHrefPrefix)) {
+    return url.substring(filePathHrefPrefix.length);
+  }
+  if (skillTargetOfHref(url) case final target?) {
+    if (target.trimLeft().toLowerCase().startsWith('file:')) {
+      if (fileReferenceOfHref(target) case final ref?) {
+        return switch ((ref.line, ref.endLine)) {
+          (final line?, final end?) when end > line => '${ref.path}:$line-$end',
+          (final line?, _) => '${ref.path}:$line',
+          _ => ref.path,
+        };
+      }
+    }
+    return target;
+  }
+  return url;
+}
 
 /// The URL [link] opens, read by running its tap while [followLink]
 /// reports instead of opening (the markdown package keeps a link's URL
@@ -67,7 +86,8 @@ String? linkHref(TapGestureRecognizer link) {
 Future<void> showLinkDialog(BuildContext context, String url) {
   final messenger = ScaffoldMessenger.maybeOf(context);
   final openFile = FileLinkScope.maybeOf(context);
-  final file = openFile != null && fileReferenceOfHref(url) != null;
+  final target = skillTargetOfHref(url) ?? url;
+  final file = openFile != null && fileReferenceOfHref(target) != null;
   final text = linkText(url);
   return showDialog<void>(
     context: context,

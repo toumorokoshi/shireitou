@@ -38,6 +38,7 @@ import '../editor/open_in_editor.dart';
 import '../files/file_paths.dart';
 import '../files/file_viewer.dart';
 import '../files/open_file_store.dart';
+import '../files/skill_links.dart';
 import '../terminal/terminal_panel.dart';
 import 'chat_commands.dart';
 import 'client_queued_messages.dart';
@@ -908,18 +909,25 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
         null => null,
       },
     );
+    final skills = {
+      ...skillTargetsOf(agent?.customizations),
+      ...skillTargetsOf(sessionState?.customizations),
+    };
     final conversationWithTerminal = FileLinkScope(
       onOpen: _openFile,
-      child: switch (openHost) {
-        final host? => TerminalDock(
-          hostKey: host.key,
-          onNewTerminal: () => unawaited(
-            openNewTerminal(context, ref, host, directory: directory),
+      child: SkillLinkScope(
+        skills: skills,
+        child: switch (openHost) {
+          final host? => TerminalDock(
+            hostKey: host.key,
+            onNewTerminal: () => unawaited(
+              openNewTerminal(context, ref, host, directory: directory),
+            ),
+            child: conversation,
           ),
-          child: conversation,
-        ),
-        null => conversation,
-      },
+          null => conversation,
+        },
+      ),
     );
     if (widget.reviewAsPane) {
       final open = ref.watch(reviewPaneOpenProvider);

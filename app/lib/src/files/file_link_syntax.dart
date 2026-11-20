@@ -8,6 +8,7 @@ import 'dart:convert';
 import 'package:markdown/markdown.dart' as md;
 
 import 'file_paths.dart';
+import 'skill_links.dart';
 
 /// The syntaxes to give a `MarkdownBody` whose file paths open files.
 final List<md.InlineSyntax> fileLinkSyntaxes = [
@@ -15,6 +16,13 @@ final List<md.InlineSyntax> fileLinkSyntaxes = [
   _FilePathCodeSyntax(),
   _FilePathTextSyntax(),
 ];
+
+/// The syntaxes to give a `MarkdownBody` whose `/skill` and `/skill:name`
+/// tokens (in prose and code spans) link to the skill's file or URL.
+List<md.InlineSyntax> skillLinkSyntaxes(Map<String, SkillTarget> skills) =>
+    skills.isEmpty
+    ? const []
+    : [_OuterLinkSyntax(), _SkillCodeSyntax(skills), _SkillTextSyntax(skills)];
 
 /// The default link syntax, but a link's text keeps no links of its own:
 /// `[main.dart](/work/lib/main.dart)` opens the link's target, not the
@@ -101,3 +109,67 @@ class _FilePathTextSyntax extends md.InlineSyntax {
 String _escape(String text) =>
     const HtmlEscape(HtmlEscapeMode(escapeLtGt: true, escapeQuot: true))
         .convert(text);
+
+/// A one-backtick code span whose content is a `/skill` or `/skill:name`
+/// token for a known skill: a link around the code.
+class _SkillCodeSyntax extends md.InlineSyntax {
+  _SkillCodeSyntax(this.skills)
+    : super(r'(?<!`)`([^`\n]+)`(?!`)', startCharacter: 0x60);
+
+  final Map<String, SkillTarget> skills;
+
+  @override
+  bool tryMatch(md.InlineParser parser, [int? startMatchPos]) {
+    final match = pattern.matchAsPrefix(
+      parser.source,
+      startMatchPos ?? parser.pos,
+    );
+    if (match == null || parseSkillReference(match[1]!, skills) == null) {
+      return false;
+    }
+    return super.tryMatch(parser, startMatchPos);
+  }
+
+  @override
+  bool onMatch(md.InlineParser parser, Match match) {
+    final text = match[1]!.trim();
+    final target = parseSkillReference(text, skills)!;
+    final code = parser.encodeHtml ? _escape(text) : text;
+    parser.addNode(
+      md.Element('a', [md.Element.text('code', code)])
+        ..attributes['href'] = skillHref(target),
+    );
+    return true;
+  }
+}
+
+/// A `/skill` or `/skill:name` token in prose ([skillTokenPattern]): a link
+/// with the token as its text.
+class _SkillTextSyntax extends md.InlineSyntax {
+  _SkillTextSyntax(this.skills) : super(skillTokenPattern.pattern);
+
+  final Map<String, SkillTarget> skills;
+
+  @override
+  bool tryMatch(md.InlineParser parser, [int? startMatchPos]) {
+    final match = pattern.matchAsPrefix(
+      parser.source,
+      startMatchPos ?? parser.pos,
+    );
+    if (match == null || lookupSkillTarget(match[1]!, skills) == null) {
+      return false;
+    }
+    return super.tryMatch(parser, startMatchPos);
+  }
+
+  @override
+  bool onMatch(md.InlineParser parser, Match match) {
+    final text = match[0]!;
+    final target = lookupSkillTarget(match[1]!, skills)!;
+    parser.addNode(
+      md.Element('a', [md.Text(parser.encodeHtml ? _escape(text) : text)])
+        ..attributes['href'] = skillHref(target),
+    );
+    return true;
+  }
+}
