@@ -6,6 +6,7 @@ library;
 import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter/material.dart';
 
+import '../theme/app_colors.dart';
 import '../theme/app_icons.dart';
 import 'chat_commands.dart';
 import 'inline_message_editor.dart';
@@ -19,6 +20,9 @@ class PendingMessagesPanel extends StatefulWidget {
     required this.pending,
     required this.onAction,
     this.onSendNow,
+    this.onEditClientQueued,
+    this.onRemoveClientQueued,
+    this.onReorderClientQueued,
     this.editNewestRequests,
     this.onEditorClosed,
   });
@@ -32,6 +36,15 @@ class PendingMessagesPanel extends StatefulWidget {
   /// Sends a queued message now, stopping the running turn (see
   /// `sendQueuedNowActions`); null hides the "Send now" buttons.
   final ValueChanged<PendingMessage>? onSendNow;
+
+  /// Updates the text of a client-side queued message.
+  final void Function(String id, String text)? onEditClientQueued;
+
+  /// Removes a client-side queued message.
+  final ValueChanged<String>? onRemoveClientQueued;
+
+  /// Reorders client-side queued messages from `from` to `to`.
+  final void Function(int from, int to)? onReorderClientQueued;
 
   /// Opens the newest message (the last queued one, else the steering
   /// one) in the inline editor whenever this changes (↑ in the composer,
@@ -53,9 +66,14 @@ class _PendingMessagesPanelState extends State<PendingMessagesPanel> {
   PendingMessageItem? _find(String id) =>
       widget.pending.where((p) => p.pending.id == id).firstOrNull;
 
-  List<PendingMessage> get _queued => [
+  List<PendingMessage> get _serverQueued => [
     for (final p in widget.pending)
-      if (p.kind == PendingMessageKind.queued) p.pending,
+      if (p.kind == PendingMessageKind.queued && !p.clientQueued) p.pending,
+  ];
+
+  List<PendingMessage> get _clientQueued => [
+    for (final p in widget.pending)
+      if (p.clientQueued) p.pending,
   ];
 
   @override
@@ -105,16 +123,26 @@ class _PendingMessagesPanelState extends State<PendingMessagesPanel> {
     });
   }
 
-  void _move(int from, int to) {
-    if (reorderQueuedAction(_queued, from, to) case final action?) {
+  void _moveServer(int from, int to) {
+    if (reorderQueuedAction(_serverQueued, from, to) case final action?) {
       widget.onAction(action);
     }
   }
 
+  void _moveClient(int from, int to) =>
+      widget.onReorderClientQueued?.call(from, to);
+
   void _save(String id, String text) {
     final item = _find(id);
     if (item != null) {
-      if (savePendingEditAction(item.kind, item.pending, text)
+      if (item.clientQueued) {
+        final trimmed = text.trim();
+        if (trimmed.isEmpty) {
+          widget.onRemoveClientQueued?.call(id);
+        } else if (trimmed != item.pending.message.text) {
+          widget.onEditClientQueued?.call(id, trimmed);
+        }
+      } else if (savePendingEditAction(item.kind, item.pending, text)
           case final action?) {
         widget.onAction(action);
       }
@@ -125,16 +153,22 @@ class _PendingMessagesPanelState extends State<PendingMessagesPanel> {
   Widget _row(PendingMessageItem item, {Key? key, int? position}) {
     final id = item.pending.id;
     final sendNow = widget.onSendNow;
+    final clientQueued = item.clientQueued;
+    final count = clientQueued ? _clientQueued.length : _serverQueued.length;
     return _PendingRow(
       key: key,
       item: item,
       onAction: widget.onAction,
-      onSendNow: sendNow == null || item.kind != PendingMessageKind.queued
+      onRemoveClientQueued: widget.onRemoveClientQueued,
+      onSendNow:
+          sendNow == null ||
+              item.kind != PendingMessageKind.queued ||
+              clientQueued
           ? null
           : () => sendNow(item.pending),
       position: position,
-      count: _queued.length,
-      onMove: _move,
+      count: count,
+      onMove: clientQueued ? _moveClient : _moveServer,
       editing: _editingId == id,
       onEdit: () => setState(() => _editingId = id),
       onSave: (text) => _save(id, text),
@@ -146,9 +180,10 @@ class _PendingMessagesPanelState extends State<PendingMessagesPanel> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final steering = widget.pending.where(
-      (p) => p.kind == PendingMessageKind.steering,
+      (p) => p.kind == PendingMessageKind.steering && !p.clientQueued,
     );
-    final queued = _queued;
+    final queued = _serverQueued;
+    final clientQueued = _clientQueued;
     return Material(
       color: theme.colorScheme.surfaceContainerLow,
       child: ConstrainedBox(
@@ -158,20 +193,40 @@ class _PendingMessagesPanelState extends State<PendingMessagesPanel> {
           padding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
           children: [
             for (final item in steering) _row(item),
-            ReorderableListView(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              buildDefaultDragHandles: false,
-              onReorderItem: _move,
-              children: [
-                for (final (i, message) in queued.indexed)
-                  _row(
-                    PendingMessageItem(PendingMessageKind.queued, message),
-                    key: ValueKey(message.id),
-                    position: i,
-                  ),
-              ],
-            ),
+            if (queued.isNotEmpty)
+              ReorderableListView(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                buildDefaultDragHandles: false,
+                onReorderItem: _moveServer,
+                children: [
+                  for (final (i, message) in queued.indexed)
+                    _row(
+                      PendingMessageItem(PendingMessageKind.queued, message),
+                      key: ValueKey(message.id),
+                      position: i,
+                    ),
+                ],
+              ),
+            if (clientQueued.isNotEmpty)
+              ReorderableListView(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                buildDefaultDragHandles: false,
+                onReorderItem: _moveClient,
+                children: [
+                  for (final (i, message) in clientQueued.indexed)
+                    _row(
+                      PendingMessageItem(
+                        PendingMessageKind.queued,
+                        message,
+                        clientQueued: true,
+                      ),
+                      key: ValueKey('client:${message.id}'),
+                      position: i,
+                    ),
+                ],
+              ),
           ],
         ),
       ),
@@ -192,6 +247,7 @@ class _PendingRow extends StatelessWidget {
     required this.onSave,
     required this.onCancel,
     this.onSendNow,
+    this.onRemoveClientQueued,
   });
 
   /// The message shown.
@@ -199,6 +255,9 @@ class _PendingRow extends StatelessWidget {
 
   /// Dispatches a chat action.
   final ValueChanged<JsonMap> onAction;
+
+  /// Removes a client-side queued message.
+  final ValueChanged<String>? onRemoveClientQueued;
 
   /// Sends the queued message now, stopping the running turn; null for
   /// the steering message.
@@ -228,9 +287,25 @@ class _PendingRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final steering = item.kind == PendingMessageKind.steering;
+    final clientQueued = item.clientQueued;
     final position = this.position;
     final sendNow = onSendNow;
-    final icon = Icon(steering ? Icons.bolt : Icons.schedule, size: 18);
+    final theme = Theme.of(context);
+    final muted =
+        theme.extension<AppColors>()?.mutedText ??
+        theme.colorScheme.onSurfaceVariant;
+    final icon = Icon(
+      steering
+          ? Icons.bolt
+          : clientQueued
+          ? Icons.cloud_off
+          : Icons.schedule,
+      size: 18,
+      color: clientQueued ? muted : null,
+      semanticLabel: clientQueued
+          ? 'Queued locally (not sent to server)'
+          : null,
+    );
     if (editing) {
       return InlineMessageEditor(
         icon: icon,
@@ -249,13 +324,24 @@ class _PendingRow extends StatelessWidget {
             dense: true,
             contentPadding: EdgeInsets.zero,
             onTap: onEdit,
-            leading: icon,
+            leading: clientQueued
+                ? Tooltip(
+                    message: 'Not sent to server yet; waiting to connect',
+                    child: icon,
+                  )
+                : icon,
             title: Text(
               item.pending.message.text,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
-            subtitle: Text(steering ? 'Steering (next step)' : 'Queued'),
+            subtitle: Text(
+              steering
+                  ? 'Steering (next step)'
+                  : clientQueued
+                  ? 'Queued locally · Waiting to connect'
+                  : 'Queued',
+            ),
           ),
         ),
         if (sendNow != null)
@@ -284,8 +370,9 @@ class _PendingRow extends StatelessWidget {
                 child: const Text('Move down'),
               ),
             PopupMenuItem(
-              value: () =>
-                  onAction(removePendingAction(item.kind, item.pending.id)),
+              value: () => clientQueued
+                  ? onRemoveClientQueued?.call(item.pending.id)
+                  : onAction(removePendingAction(item.kind, item.pending.id)),
               child: const Text('Remove'),
             ),
           ],

@@ -40,6 +40,7 @@ import '../files/file_viewer.dart';
 import '../files/open_file_store.dart';
 import '../terminal/terminal_panel.dart';
 import 'chat_commands.dart';
+import 'client_queued_messages.dart';
 import '../composer/completion_cache.dart';
 import '../composer/completion_popup.dart';
 import '../composer/completions.dart';
@@ -551,9 +552,16 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
         ),
       ),
     };
+    final hostStatus = ref.watch(
+      hostConnectionProvider(context.host).select((s) => s.status),
+    );
+    final clientQueued = ref.watch(clientQueuedMessagesProvider(context.host));
     final pending = chat == null
         ? const <PendingMessageItem>[]
-        : pendingMessages(chat);
+        : [
+            ...pendingMessages(chat),
+            ...clientQueuedForChat(clientQueued, chatUri!),
+          ];
     // Model and mode pickers (AV-041): models of the session's agent, and
     // the session settings that may change mid-session.
     final models = agent?.models ?? const <SessionModelInfo>[];
@@ -647,6 +655,24 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
                                   now: DateTime.now(),
                                 ),
                               ),
+                        onEditClientQueued: (id, text) => ref
+                            .read(
+                              clientQueuedMessagesProvider(context.host)
+                                  .notifier,
+                            )
+                            .edit(id, text),
+                        onRemoveClientQueued: (id) => ref
+                            .read(
+                              clientQueuedMessagesProvider(context.host)
+                                  .notifier,
+                            )
+                            .remove(id),
+                        onReorderClientQueued: (from, to) => ref
+                            .read(
+                              clientQueuedMessagesProvider(context.host)
+                                  .notifier,
+                            )
+                            .reorder(chatUri!, from, to),
                         editNewestRequests: _editQueued,
                         onEditorClosed: () => _composerFocus.value++,
                       ),
@@ -667,6 +693,9 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
                               : agentDisplayName(provider, agents),
                           folder: folder == null ? null : folderLabelOf(folder),
                         ),
+                        sendTooltip: hostStatus == ConnectionStatus.connected
+                            ? null
+                            : 'Queue locally (waiting to connect)',
                         onStop: () {
                           final action = stopAction(chat, DateTime.now());
                           if (action != null) _dispatch(chatUri!, action);
@@ -694,10 +723,13 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
                           SessionConfigChangedAction(config: {id: value})
                               .toJson(),
                         ),
-                        onDraftChanged: (text) => _dispatch(
-                          chatUri!,
-                          draftAction(text, previous: chat.draft),
-                        ),
+                        onDraftChanged: (text) {
+                          if (hostStatus != ConnectionStatus.connected) return;
+                          _dispatch(
+                            chatUri!,
+                            draftAction(text, previous: chat.draft),
+                          );
+                        },
                         completionTriggers: completionTriggers(
                           hostTriggers,
                           commands,
@@ -734,18 +766,43 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
                               required sendNow,
                               model,
                               attachments = const [],
-                            }) => _dispatchAll(
-                              chatUri!,
-                              sendMessageActions(
-                                chat,
-                                text: text,
-                                id: const Uuid().v4(),
-                                now: DateTime.now(),
-                                sendNow: sendNow,
-                                model: model,
-                                attachments: attachments,
-                              ),
-                            ),
+                            }) {
+                              final status = ref
+                                  .read(hostConnectionProvider(context.host))
+                                  .status;
+                              if (status != ConnectionStatus.connected) {
+                                ref
+                                    .read(
+                                      clientQueuedMessagesProvider(context.host)
+                                          .notifier,
+                                    )
+                                    .enqueue(
+                                      ClientQueuedMessage(
+                                        id: const Uuid().v4(),
+                                        chat: chatUri!,
+                                        message: userMessage(
+                                          text,
+                                          model: model,
+                                          attachments: attachments,
+                                        ),
+                                        sendNow: sendNow,
+                                      ),
+                                    );
+                                return;
+                              }
+                              _dispatchAll(
+                                chatUri!,
+                                sendMessageActions(
+                                  chat,
+                                  text: text,
+                                  id: const Uuid().v4(),
+                                  now: DateTime.now(),
+                                  sendNow: sendNow,
+                                  model: model,
+                                  attachments: attachments,
+                                ),
+                              );
+                            },
                       ),
                   ],
                 ),

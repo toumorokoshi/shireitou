@@ -194,13 +194,21 @@ double typingDotOpacity(int dot, double t) {
 /// A steering or queued message waiting to be delivered (AV-081).
 class PendingMessageItem {
   /// Creates a [PendingMessageItem].
-  const PendingMessageItem(this.kind, this.pending);
+  const PendingMessageItem(
+    this.kind,
+    this.pending, {
+    this.clientQueued = false,
+  });
 
   /// Steering or queued.
   final PendingMessageKind kind;
 
   /// The message.
   final PendingMessage pending;
+
+  /// Whether this message is queued locally on the client because the host
+  /// is disconnected, and has not been sent to the AHP server yet.
+  final bool clientQueued;
 }
 
 /// A stable identifier of [part] within its turn, when it has one.

@@ -20,8 +20,26 @@ List<JsonMap> sendMessageActions(
   bool sendNow = false,
   ModelSelection? model,
   List<MessageAttachment>? attachments,
+}) => sendMessageActionsForMessage(
+  chat,
+  message: userMessage(text, model: model, attachments: attachments),
+  id: id,
+  now: now,
+  sendNow: sendNow,
+);
+
+/// The actions that send [message] (AV-080).
+///
+/// With no turn running they start a turn. While a turn runs they queue
+/// the message, or with [sendNow] stop the turn and start one with it
+/// (see [runNowActions]). [id] is the new turn or pending-message ID.
+List<JsonMap> sendMessageActionsForMessage(
+  ChatState chat, {
+  required Message message,
+  required String id,
+  required DateTime now,
+  bool sendNow = false,
 }) {
-  final message = userMessage(text, model: model, attachments: attachments);
   if (chat.activeTurn != null && !sendNow) {
     return [
       ChatPendingMessageSetAction(

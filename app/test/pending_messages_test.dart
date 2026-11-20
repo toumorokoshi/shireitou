@@ -23,6 +23,9 @@ Future<List<JsonMap>> _pump(
   Listenable? editNewestRequests,
   VoidCallback? onEditorClosed,
   ValueChanged<PendingMessage>? onSendNow,
+  void Function(String id, String text)? onEditClientQueued,
+  ValueChanged<String>? onRemoveClientQueued,
+  void Function(int from, int to)? onReorderClientQueued,
 }) async {
   final dispatched = actions ?? <JsonMap>[];
   await tester.pumpWidget(
@@ -32,6 +35,9 @@ Future<List<JsonMap>> _pump(
           pending: pending,
           onAction: dispatched.add,
           onSendNow: onSendNow,
+          onEditClientQueued: onEditClientQueued,
+          onRemoveClientQueued: onRemoveClientQueued,
+          onReorderClientQueued: onReorderClientQueued,
           editNewestRequests: editNewestRequests,
           onEditorClosed: onEditorClosed,
         ),
@@ -176,4 +182,61 @@ void main() {
     );
     expect(actions, isEmpty);
   });
+
+  testWidgets(
+    'client-side queued items show local icon, subtitle, and edit/remove/reorder',
+    (tester) async {
+      final edited = <(String, String)>[];
+      final removed = <String>[];
+      final reordered = <(int, int)>[];
+      final actions = await _pump(
+        tester,
+        [
+          PendingMessageItem(
+            PendingMessageKind.queued,
+            PendingMessage(id: 'c1', message: userMessage('local first')),
+            clientQueued: true,
+          ),
+          PendingMessageItem(
+            PendingMessageKind.queued,
+            PendingMessage(id: 'c2', message: userMessage('local second')),
+            clientQueued: true,
+          ),
+        ],
+        onSendNow: (_) {},
+        onEditClientQueued: (id, text) => edited.add((id, text)),
+        onRemoveClientQueued: removed.add,
+        onReorderClientQueued: (from, to) => reordered.add((from, to)),
+      );
+
+      expect(find.byIcon(Icons.cloud_off), findsNWidgets(2));
+      expect(find.byIcon(Icons.schedule), findsNothing);
+      expect(
+        find.text('Queued locally · Waiting to connect'),
+        findsNWidgets(2),
+      );
+      // Client-side queued items cannot be "Send now"'d while disconnected.
+      expect(find.byTooltip('Send now'), findsNothing);
+
+      await tester.tap(find.text('local first'));
+      await tester.pumpAndSettle();
+      await tester.enterText(_editor, 'local first, edited');
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(edited, [('c1', 'local first, edited')]);
+
+      await tester.tap(find.byTooltip('Message actions').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Move down'));
+      await tester.pumpAndSettle();
+      expect(reordered, [(0, 1)]);
+
+      await tester.tap(find.byTooltip('Message actions').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Remove'));
+      await tester.pumpAndSettle();
+      expect(removed, ['c2']);
+      expect(actions, isEmpty);
+    },
+  );
 }

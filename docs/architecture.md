@@ -572,7 +572,12 @@ Dart source); `bin/generate.dart` does the file I/O. See
   dispatches the pure `sendQueuedNowActions`, which stops the running turn
   and starts the message; ↑ in the empty composer opens the
   newest message through `editNewestRequests`, AV-087) and the session
-  details page. `inline_message_editor.dart` is the inline editor shared
+  details page. `client_queued_messages.dart` holds messages sent while
+  the host is disconnected (`clientQueuedMessagesProvider` per host,
+  using pure list helpers), which `PendingMessagesPanel` shows with a
+  local `cloud_off` icon and "Queued locally · Waiting to connect" label
+  (editable, removable, and reorderable) and flushes in order as soon as
+  the host connects. `inline_message_editor.dart` is the inline editor shared
   by queued messages and the latest user message, whose edit button
   (AV-088) restarts from it with the pure `editableTurnId` and
   `restartActions` (`chat/truncated`, then `chat/turnStarted`) in

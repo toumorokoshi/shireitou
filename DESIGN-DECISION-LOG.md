@@ -1,3 +1,27 @@
+## 2026-11-19: Client-side message queue while disconnected (AV-080, AV-081)
+
+Sending a follow-up message while a host is disconnected or reconnecting
+now queues it locally instead of failing with a `StateError` snackbar,
+and flushes it in order once the host connects.
+
+- **Per-host Riverpod queue with pure list helpers.**
+  `clientQueuedMessagesProvider` (`app/lib/src/session_detail/client_queued_messages.dart`)
+  stores `ClientQueuedMessage` entries per host using pure functions
+  (`enqueueClientMessage`, `editClientMessage`, `removeClientMessage`,
+  `reorderClientMessages`, `clientQueuedForChat`). Listening to
+  `hostConnectionProvider(host)` automatically flushes queued messages
+  via `sendMessageActionsForMessage` (advancing local `ChatState` with
+  `reduceChatJson` between items so multiple queued messages become
+  one `chat/turnStarted` plus `chat/pendingMessageSet`s) when the host
+  reaches `ConnectionStatus.connected`, and clears the queue on an
+  explicit disconnect.
+- **Distinct local-queue UI.** `PendingMessageItem.clientQueued`
+  (`PendingMessagesPanel`) renders locally queued messages with a muted
+  `Icons.cloud_off` icon (with tooltip `'Not sent to server yet; waiting
+to connect'`) and `'Queued locally · Waiting to connect'` subtitle
+  instead of `Icons.schedule` / `'Queued'`, hides `'Send now'`, and
+  supports inline editing, removal, and reordering.
+
 ## 2026-11-19: Desktop system tray icon with active and pinned conversations (AV-008)
 
 Added a desktop system tray icon and dropdown menu for macOS, Linux, and
