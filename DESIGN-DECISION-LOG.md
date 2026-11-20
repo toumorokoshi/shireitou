@@ -1,3 +1,23 @@
+## 2026-11-20: Moving a session to a different working directory (AV-146)
+
+Added "Move to folder…" to the session header's "…" menu and the
+session list row menu to move a session's primary working directory via
+AHP 1.0.0's `session/workingDirectoryReplaced` action.
+
+- **Capability-gated in `ahp_client`.**
+  `canReplacePrimaryWorkingDirectory` (`packages/ahp_client/lib/src/working_directory.dart`)
+  checks `AgentCapabilities.multipleWorkingDirectories`: the action is
+  offered only when `primaryReplacement == true` or
+  `immutablePrimary != true`, matching the AHP 1.0.0 contract.
+- **Reuses `DirectoryBrowser` and write-ahead dispatch.** Choosing a
+  folder via `showDirectoryBrowser` builds a
+  `SessionWorkingDirectoryReplacedAction` (`replacePrimaryWorkingDirectoryAction`)
+  and dispatches it on the session channel. On an open session, the
+  reducer updates `SessionState.workingDirectories` immediately and rolls
+  back on host rejection; on the sidebar, the host's
+  `root/sessionSummaryChanged` moves the session into its new folder
+  group.
+
 ## 2026-11-20: In-memory session cache and pinned session warming
 
 Added an in-memory LRU cache (`SessionCache` in

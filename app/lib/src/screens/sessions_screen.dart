@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../composer/directory_browser.dart';
 import '../composer/new_session_draft.dart';
 import '../composer/new_session_view.dart';
 import '../connection_notices.dart';
@@ -552,6 +553,29 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
     }
   }
 
+  /// Picks another folder on the host and moves [session]'s primary
+  /// working directory there (`session/workingDirectoryReplaced`).
+  Future<void> _moveToFolder(SessionRef session) async {
+    final current = ref
+        .read(allSessionsProvider)
+        .where((s) => s.ref == session)
+        .firstOrNull
+        ?.summary
+        .workingDirectories
+        ?.firstOrNull;
+    if (current == null) return;
+    final chosen = await showDirectoryBrowser(
+      context,
+      host: session.host,
+      initial: normalizeFolderKey(current),
+    );
+    if (chosen == null || !mounted) return;
+    final action = replacePrimaryWorkingDirectoryAction([
+      current,
+    ], directoryUri(chosen));
+    if (action != null) _dispatchToSession(session, action);
+  }
+
   void _toggleSelected(SessionRef session) => setState(() {
     final selection = {...?_selection};
     if (!selection.remove(session)) selection.add(session);
@@ -796,6 +820,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                         .setPinned(s, pinned: pin),
                     onCompare: _compare,
                     onRename: _rename,
+                    onMoveToFolder: _moveToFolder,
                   ),
                 ),
               ),

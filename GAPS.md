@@ -915,3 +915,16 @@ AppImage and the release workflow (see
   host connection (capacity 64); it is not persisted to disk across app
   restarts, and pre-warming on connection fetches only each pinned
   session's default chat (secondary chats are cached once opened).
+
+## Moving a session's working directory (AV-146)
+
+- Only the primary working directory (index `0`) can be replaced via
+  "Move to folder…" (`session/workingDirectoryReplaced`); adding or
+  removing secondary working directories (`session/workingDirectorySet`,
+  `session/workingDirectoryRemoved`) and per-chat working-directory
+  subsets (`chat/workingDirectorySet`, `chat/workingDirectoryRemoved`) are
+  not exposed in the UI.
+- Moving a session is disabled while a turn is running in the open chat
+  (and from the row menu while `InProgress` is set), and a move from the
+  row menu of a session that is not open updates the sidebar only once
+  the host emits `root/sessionSummaryChanged`.

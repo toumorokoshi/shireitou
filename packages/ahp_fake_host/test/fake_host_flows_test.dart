@@ -710,6 +710,47 @@ void main() {
     expect(client.state.sessions[seededSession]!.title, original);
   });
 
+  test(
+    'moving the primary working directory updates session and catalogue',
+    () async {
+      final original = sessionState().workingDirectories!.first;
+      const replacement = '/workspace/packages';
+      client.dispatch(
+        seededSession,
+        SessionWorkingDirectoryReplacedAction(
+          directory: original,
+          replacement: replacement,
+        ).toJson(),
+      );
+      expect(sessionState().workingDirectories, [replacement]);
+      await until(
+        (s) =>
+            s.sessions[seededSession]!.workingDirectories?.firstOrNull ==
+            replacement,
+      );
+      expect(client.state.sessionChannels[seededSession]!.pending, isEmpty);
+    },
+  );
+
+  test('a refused working directory move is rolled back', () async {
+    final original = sessionState().workingDirectories!.first;
+    final failures = client.failures.first;
+    client.dispatch(
+      seededSession,
+      SessionWorkingDirectoryReplacedAction(
+        directory: original,
+        replacement: '/no/such/folder',
+      ).toJson(),
+    );
+    expect(sessionState().workingDirectories, ['/no/such/folder']);
+    final failure = await failures.timeout(_timeout);
+    expect(failure.kind, ActionFailureKind.rejected);
+    expect(sessionState().workingDirectories, [original]);
+    expect(client.state.sessions[seededSession]!.workingDirectories, [
+      original,
+    ]);
+  });
+
   test('unknown client actions are rejected', () async {
     final failures = client.failures.first;
     client.dispatch(seededSession, {

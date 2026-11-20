@@ -31,6 +31,7 @@ class SessionRowActions {
     this.onPin,
     this.onCompare,
     this.onRename,
+    this.onMoveToFolder,
     this.onMarkDone,
   });
 
@@ -59,6 +60,10 @@ class SessionRowActions {
   /// Asks for a new title and renames the session (AV-073); not offered
   /// when null.
   final ValueChanged<SessionRef>? onRename;
+
+  /// Picks another folder on the host and moves the session's primary
+  /// working directory there; not offered when null or unsupported.
+  final ValueChanged<SessionRef>? onMoveToFolder;
 }
 
 /// Shows the sidebar's sections ([sidebarRows], AV-092): the [pinned]
@@ -218,6 +223,14 @@ class SessionListView extends StatelessWidget {
       onOpen: onSelect,
       runLabel: runLabels[ref],
       agent: agentDisplayName(session.provider, agents[ref.host] ?? const []),
+      canMoveToFolder:
+          canReplacePrimaryWorkingDirectory(
+            (agents[ref.host] ?? const [])
+                .where((a) => a.provider == session.provider)
+                .firstOrNull,
+          ) &&
+          session.workingDirectories?.firstOrNull != null &&
+          !session.status.isInProgress,
     ),
   };
 
@@ -814,12 +827,16 @@ class _SessionRow extends StatelessWidget {
     required this.onOpen,
     this.runLabel,
     this.agent,
+    this.canMoveToFolder = false,
   });
 
   final SessionSummary session;
 
   /// The agent's name for the hover card ([agentDisplayName]).
   final String? agent;
+
+  /// Whether the session's primary working directory can be moved.
+  final bool canMoveToFolder;
 
   /// Where the session lives ([sessionPlace]).
   final String place;
@@ -853,6 +870,11 @@ class _SessionRow extends StatelessWidget {
           PopupMenuItem(
             value: () => onRename(ref),
             child: const Text('Rename…'),
+          ),
+        if (canMoveToFolder && actions.onMoveToFolder != null)
+          PopupMenuItem(
+            value: () => actions.onMoveToFolder!(ref),
+            child: const Text('Move to folder…'),
           ),
         PopupMenuItem(
           value: () => actions.onArchive(ref, !_archived),
@@ -947,6 +969,9 @@ class _SessionRow extends StatelessWidget {
               onPin(ref, !pinned),
         if (actions.onRename case final onRename?)
           const CustomSemanticsAction(label: 'Rename'): () => onRename(ref),
+        if (canMoveToFolder && actions.onMoveToFolder != null)
+          const CustomSemanticsAction(label: 'Move to folder'): () =>
+              actions.onMoveToFolder!(ref),
       },
       child: GestureDetector(
         onSecondaryTapUp: (details) =>

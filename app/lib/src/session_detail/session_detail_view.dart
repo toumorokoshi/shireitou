@@ -13,6 +13,7 @@ import 'package:super_sliver_list/super_sliver_list.dart';
 import 'package:uuid/uuid.dart';
 
 import '../auth/sign_in_dialog.dart';
+import '../composer/directory_browser.dart';
 import '../connection_notices.dart';
 import '../host_connection.dart';
 import '../layout.dart';
@@ -400,6 +401,21 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
     if (renameAction(current, typed) case final action?) {
       _dispatch(widget.session, action);
     }
+  }
+
+  /// Picks a new folder on the host and replaces the session's primary
+  /// working directory (`session/workingDirectoryReplaced`).
+  Future<void> _moveFolder(String currentUri) async {
+    final chosen = await showDirectoryBrowser(
+      context,
+      host: context.host,
+      initial: normalizeFolderKey(currentUri),
+    );
+    if (chosen == null || !mounted) return;
+    final action = replacePrimaryWorkingDirectoryAction([
+      currentUri,
+    ], directoryUri(chosen));
+    if (action != null) _dispatch(widget.session, action);
   }
 
   void _selectChat(String chat) =>
@@ -866,6 +882,18 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
             ),
       title: title,
       onRename: (typed) => _rename(title, typed),
+      onMoveFolder:
+          canReplacePrimaryWorkingDirectory(agent) &&
+              !missing &&
+              chat?.activeTurn == null &&
+              (sessionState?.workingDirectories?.firstOrNull ??
+                      summary?.workingDirectories?.firstOrNull) !=
+                  null
+          ? () => _moveFolder(
+              (sessionState?.workingDirectories?.firstOrNull ??
+                  summary?.workingDirectories?.firstOrNull)!,
+            )
+          : null,
       renameRequests: _renameRequests,
       detailsController: _detailsMenu,
       summary: summary,
@@ -1032,6 +1060,7 @@ class _Header extends StatelessWidget {
     required this.onCompareRuns,
     required this.title,
     required this.onRename,
+    this.onMoveFolder,
     required this.renameRequests,
     required this.detailsController,
     required this.summary,
@@ -1070,6 +1099,9 @@ class _Header extends StatelessWidget {
 
   /// Renames the session to the typed text (AV-073).
   final ValueChanged<String> onRename;
+
+  /// Moves the session's primary working directory to another folder.
+  final VoidCallback? onMoveFolder;
 
   /// Opens the title's text field when it notifies.
   final ValueNotifier<int> renameRequests;
@@ -1294,6 +1326,11 @@ class _Header extends StatelessWidget {
                   value: () => renameRequests.value++,
                   child: const Text('Rename…'),
                 ),
+                if (onMoveFolder case final moveFolder?)
+                  PopupMenuItem(
+                    value: moveFolder,
+                    child: const Text('Move to folder…'),
+                  ),
                 PopupMenuItem(
                   value: () => onArchive(!archived),
                   child: Text(archived ? 'Unarchive' : 'Archive'),

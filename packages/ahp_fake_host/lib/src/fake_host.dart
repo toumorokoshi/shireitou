@@ -59,6 +59,7 @@ const clientDispatchable = <String>{
   'session/isReadChanged',
   'session/isArchivedChanged',
   'session/titleChanged',
+  'session/workingDirectoryReplaced',
   'session/configChanged',
   'session/mcpServerStartRequested',
   'session/mcpServerStopRequested',
@@ -548,6 +549,10 @@ class FakeAhpHost {
         models: fakeModels,
         capabilities: AgentCapabilities(
           multipleChats: MultipleChatsCapability(fork: true),
+          multipleWorkingDirectories: MultipleWorkingDirectoriesCapability(
+            immutablePrimary: true,
+            primaryReplacement: true,
+          ),
         ),
       ),
       AgentInfo(
@@ -902,6 +907,7 @@ class FakeAhpHost {
     if (old == null) return;
     final next = old.copyWith(
       title: state.title,
+      workingDirectories: state.workingDirectories,
       status: summaryStatus(
         state.status,
         chat?.status ?? SessionStatus.idle,
@@ -917,6 +923,7 @@ class FakeAhpHost {
       'session': session,
       'changes': {
         'title': next.title,
+        'workingDirectories': next.workingDirectories,
         'status': next.status.bits,
         'activity': next.activity,
         'modifiedAt': next.modifiedAt,
@@ -944,6 +951,8 @@ class FakeAhpHost {
         ? 'unknown turn'
         : type == 'session/configChanged'
         ? _configRejection(channel, action)
+        : type == 'session/workingDirectoryReplaced'
+        ? _workingDirectoryRejection(channel, action)
         : rejectTypes.contains(type)
         ? '$type is refused by this test host'
         : null;
@@ -985,6 +994,29 @@ class FakeAhpHost {
         if (schema.properties[key]?.sessionMutable != true) key,
     ];
     return fixed.isEmpty ? null : 'cannot change ${fixed.join(', ')}';
+  }
+
+  /// Why a `session/workingDirectoryReplaced` on [session] is refused.
+  String? _workingDirectoryRejection(String session, JsonMap action) {
+    final state = _sessions[session];
+    if (state == null) return 'unknown session';
+    final directory = action['directory'];
+    final replacement = action['replacement'];
+    if (directory is! String || replacement is! String) {
+      return 'directory and replacement are required';
+    }
+    if (!(state.workingDirectories?.contains(directory) ?? false)) {
+      return 'unknown working directory $directory';
+    }
+    if (!directories.contains(pathOfUri(replacement))) {
+      return 'directory does not exist: $replacement';
+    }
+    for (final c in state.chats) {
+      if (_chats[c.resource]?.activeTurn != null) {
+        return 'a turn is already running';
+      }
+    }
+    return null;
   }
 
   // ── Script ───────────────────────────────────────────────────────────
