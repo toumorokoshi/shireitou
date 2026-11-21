@@ -56,8 +56,9 @@ class FakeHostConnection extends HostConnection {
     this.initial, {
     String host = '',
     this.connectResult,
-    this.chats = const {},
-  }) : super(host.isEmpty ? testHost.key : host);
+    Map<String, String> chats = const {},
+  }) : chats = Map.of(chats),
+       super(host.isEmpty ? testHost.key : host);
 
   final HostState initial;
 
@@ -189,12 +190,20 @@ class FakeHostConnection extends HostConnection {
   /// (chat, destination) of each move.
   final moved = <(String, ChatMoveDestination)>[];
 
+  /// Optional override for [moveChat], e.g. to return a new session URI
+  /// or throw.
+  Future<MoveChatResult> Function(String chat, ChatMoveDestination destination)?
+  onMoveChat;
+
   @override
   Future<MoveChatResult> moveChat(
     String chat,
     ChatMoveDestination destination,
   ) async {
     moved.add((chat, destination));
+    if (onMoveChat case final handler?) {
+      return handler(chat, destination);
+    }
     return const MoveChatResult(session: 'pi:/1');
   }
 

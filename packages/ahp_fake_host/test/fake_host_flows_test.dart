@@ -940,6 +940,32 @@ void main() {
     );
   });
 
+  test('moveChat with newSession detaches a fork into a new session', () async {
+    await send('first');
+    await turnDone();
+    final first = chatState().turns.single;
+    const fork = 'ahp-chat:/fork-detach';
+    await client.createChat(
+      seededSession,
+      fork,
+      source: ForkChatSource(chat: chat, turnId: first.id),
+    );
+    await until((_) => sessionState().chats.any((c) => c.resource == fork));
+
+    final result = await client.moveChat(
+      fork,
+      const ChatMoveToNewSessionDestination(),
+    );
+    expect(result.session, isNot(seededSession));
+    await until((_) => !sessionState().chats.any((c) => c.resource == fork));
+    await until((_) => client.state.sessions.containsKey(result.session));
+    await client.openSession(result.session);
+    final detached = client.state.sessionChannels[result.session]!.state;
+    expect(detached.defaultChat, fork);
+    expect(detached.chats.single.resource, fork);
+    expect(detached.chats.single.movable, isFalse);
+  });
+
   test('a canvas is referenced from the chat and subscribable', () async {
     await send('canvas');
     await turnDone();

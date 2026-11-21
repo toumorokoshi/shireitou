@@ -45,8 +45,11 @@ IconData chatOriginIcon(ChatSummary chat) => switch (chat.origin) {
 /// Moves a chat by an offset among the session's chats.
 typedef MoveChat = void Function(String chat, int delta);
 
+/// Detaches a chat into a new session (`moveChat` with `newSession`).
+typedef DetachChat = void Function(String chat);
+
 /// Chips for the session's chats; the open one is selected. A movable
-/// open chat has a menu to move it (when [onMove] is set).
+/// open chat has a menu to move it (when [onMove] or [onDetach] is set).
 class ChatSwitcher extends StatelessWidget {
   /// Creates a [ChatSwitcher] for [chats] (at least two).
   const ChatSwitcher({
@@ -55,6 +58,7 @@ class ChatSwitcher extends StatelessWidget {
     required this.selected,
     required this.onSelect,
     this.onMove,
+    this.onDetach,
   });
 
   /// The chats, in order.
@@ -69,12 +73,22 @@ class ChatSwitcher extends StatelessWidget {
   /// Moves a chat; null when the host cannot move chats (0.9.0).
   final MoveChat? onMove;
 
+  /// Detaches a movable chat into a new session; null when the host
+  /// cannot move chats (0.9.0).
+  final DetachChat? onDetach;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final current = chats.where((c) => c.resource == selected).firstOrNull;
     final index = current == null ? -1 : chats.indexOf(current);
     final onMove = this.onMove;
+    final onDetach = this.onDetach;
+    final movable = current != null && (current.movable ?? false);
+    final hasActions =
+        movable &&
+        ((onMove != null && (index > 0 || index < chats.length - 1)) ||
+            onDetach != null);
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 6, 4, 6),
       child: Row(
@@ -112,16 +126,27 @@ class ChatSwitcher extends StatelessWidget {
               ),
             ),
           ),
-          if (current != null && (current.movable ?? false) && onMove != null)
-            PopupMenuButton<int>(
+          if (hasActions)
+            PopupMenuButton<VoidCallback>(
               tooltip: 'Chat actions',
               icon: Icon(Icons.more_horiz, color: theme.colorScheme.onSurface),
-              onSelected: (delta) => onMove(current.resource, delta),
+              onSelected: (action) => action(),
               itemBuilder: (_) => [
-                if (index > 0)
-                  const PopupMenuItem(value: -1, child: Text('Move left')),
-                if (index < chats.length - 1)
-                  const PopupMenuItem(value: 1, child: Text('Move right')),
+                if (onMove != null && index > 0)
+                  PopupMenuItem(
+                    value: () => onMove(current.resource, -1),
+                    child: const Text('Move left'),
+                  ),
+                if (onMove != null && index < chats.length - 1)
+                  PopupMenuItem(
+                    value: () => onMove(current.resource, 1),
+                    child: const Text('Move right'),
+                  ),
+                if (onDetach != null)
+                  PopupMenuItem(
+                    value: () => onDetach(current.resource),
+                    child: const Text('Detach to new session'),
+                  ),
               ],
             ),
         ],

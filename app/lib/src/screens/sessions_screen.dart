@@ -204,6 +204,8 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
           key: ValueKey(session),
           session: session.session,
           showBackButton: true,
+          onSessionDetached: (detached) =>
+              _select((host: session.host, session: detached)),
         ),
       ),
     ),
@@ -917,6 +919,10 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                                       key: ValueKey(selected),
                                       session: selected.session,
                                       reviewAsPane: tier == LayoutTier.wide,
+                                      onSessionDetached: (detached) => _select((
+                                        host: selected.host,
+                                        session: detached,
+                                      )),
                                     ),
                                   ),
                           ),

@@ -1,3 +1,22 @@
+## 2026-11-21: Detach movable chat to a new session (AV-069, AV-144)
+
+Users who fork a conversation and want to move just that fork (for
+example to a different working directory via AV-146) could not do so
+because working directories belong to the session and `ChatSwitcher` only
+used `moveChat` to reorder chats within the same session.
+
+- **"Detach to new session" in `ChatSwitcher`.** Movable chats
+  (`ChatSummary.movable == true`) on AHP 1.0.0 hosts now show "Detach to
+  new session" in the `Chat actions` menu alongside "Move left" and
+  "Move right". Choosing it calls `moveChat` with
+  `ChatMoveToNewSessionDestination`, resets the old view's selected chat
+  to the default chat, and invokes `onSessionDetached` so `SessionsScreen`
+  opens the newly created session.
+- **Fake host support.** `ahp_fake_host`'s `_moveChat` now handles
+  `ChatMoveToNewSessionDestination` by removing the chat from its old
+  session, marking it non-movable as the new session's `defaultChat`, and
+  emitting `root/sessionAdded`.
+
 ## 2026-11-21: Copy button on one-line identifier fields (AV-147)
 
 The pi session ID and working-directory paths in Session details were

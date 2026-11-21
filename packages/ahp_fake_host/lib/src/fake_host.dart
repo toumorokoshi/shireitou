@@ -2262,32 +2262,85 @@ class FakeAhpHost {
     }
   }
 
-  /// Reorders a movable chat within its session (moving to another
-  /// session is not scripted).
+  /// Moves a movable chat within its session or into a new session.
   JsonMap _moveChat(MoveChatParams params) {
     final chat = params.channel;
     final session = _sessionOfChat[chat];
     final state = session == null ? null : _sessions[session];
-    if (state == null || !(_chats[chat]?.movable ?? false)) {
+    final chatState = _chats[chat];
+    if (session == null ||
+        state == null ||
+        chatState == null ||
+        !(chatState.movable ?? false)) {
       throw RpcException(error_code.INVALID_PARAMS, '$chat is not movable');
     }
-    final ChatMoveToSessionDestination(:after) = switch (params.destination) {
-      final ChatMoveToSessionDestination d when d.session == session => d,
-      _ => throw RpcException(
-        error_code.INVALID_PARAMS,
-        'only moves within the session are scripted',
-      ),
-    };
-    final order = [
-      for (final c in state.chats)
-        if (c.resource != chat) c.resource,
-    ];
-    if (after != null && !order.contains(after)) {
-      throw RpcException(error_code.INVALID_PARAMS, 'unknown anchor $after');
+    switch (params.destination) {
+      case final ChatMoveToSessionDestination d when d.session == session:
+        final after = d.after;
+        final order = [
+          for (final c in state.chats)
+            if (c.resource != chat) c.resource,
+        ];
+        if (after != null && !order.contains(after)) {
+          throw RpcException(
+            error_code.INVALID_PARAMS,
+            'unknown anchor $after',
+          );
+        }
+        order.insert(after == null ? 0 : order.indexOf(after) + 1, chat);
+        _emit(session, SessionChatsReorderedAction(chats: order).toJson());
+        return MoveChatResult(session: session).toJson();
+      case ChatMoveToNewSessionDestination():
+        final newSession = 'ahp-session:/detached-${++_ids}';
+        _emit(session, SessionChatRemovedAction(chat: chat).toJson());
+        _chats[chat] = chatState.copyWith(movable: false);
+        _sessionOfChat[chat] = newSession;
+        final now = _now();
+        _sessions[newSession] = SessionState(
+          provider: state.provider,
+          title: chatState.title,
+          status: chatState.status,
+          workingDirectories: state.workingDirectories,
+          project: state.project,
+          meta: state.meta,
+          lifecycle: SessionLifecycle.ready,
+          config: state.config,
+          activeClients: const [],
+          chats: [_chatSummary(chat)],
+          defaultChat: chat,
+          changesets: sessionChangesets(newSession),
+          serverTools: state.serverTools,
+          customizations: state.customizations,
+        );
+        _changesets['ahp-changeset:/${changesetKey(newSession)}/session'] =
+            const ChangesetState(
+              status: ChangesetStatus.ready,
+              files: [],
+              operations: changesetOperations,
+            );
+        _summaries[newSession] = SessionSummary(
+          provider: state.provider,
+          title: chatState.title,
+          status: chatState.status,
+          workingDirectories: state.workingDirectories,
+          project: state.project,
+          meta: state.meta,
+          resource: newSession,
+          createdAt: now,
+          modifiedAt: now,
+          defaultChat: chat,
+        );
+        _notifyRoot('root/sessionAdded', {
+          'channel': rootChannel,
+          'summary': _summaries[newSession]!.toJson(),
+        });
+        return MoveChatResult(session: newSession).toJson();
+      default:
+        throw RpcException(
+          error_code.INVALID_PARAMS,
+          'only moves within the session or to a new session are scripted',
+        );
     }
-    order.insert(after == null ? 0 : order.indexOf(after) + 1, chat);
-    _emit(session!, SessionChatsReorderedAction(chats: order).toJson());
-    return MoveChatResult(session: session).toJson();
   }
 
   /// Forks a chat of the session at a completed turn: the new, movable

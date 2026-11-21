@@ -906,6 +906,108 @@ void main() {
     expect(find.byTooltip('Chat actions'), findsNothing);
   });
 
+  testWidgets('detaching a movable forked chat moves it to a new session', (
+    tester,
+  ) async {
+    const fork = 'ahp-chat:/fork';
+    const forkSummary = ChatSummary(
+      resource: fork,
+      title: 'Fix login (fork)',
+      status: SessionStatus.idle,
+      modifiedAt: '2026-10-01T00:00:00Z',
+      movable: true,
+      origin: ChatOriginFork(chat: _chat, turnId: 't1'),
+    );
+    final forkChat = _chatWith(const [
+      MarkdownResponsePart(id: 'm', content: 'Forked reply'),
+    ]).copyWith(resource: fork, title: 'Fix login (fork)', movable: true);
+    final connection = await _pump(
+      tester,
+      _state(
+        chat: _chatWith(const [MarkdownResponsePart(id: 'm', content: 'Main')]),
+        sessionState: _session(chats: const [_mainSummary, forkSummary]),
+        otherChats: {fork: ChannelMirror.snapshot(forkChat)},
+      ),
+    );
+    const detachedSession = 'pi:/2';
+    connection.onMoveChat = (chat, destination) async {
+      connection.chats[detachedSession] = fork;
+      final detachedSummary = SessionSummary(
+        resource: detachedSession,
+        provider: 'pi',
+        title: 'Fix login (fork)',
+        status: SessionStatus.idle,
+        createdAt: '2026-10-01T00:00:00Z',
+        modifiedAt: '2026-10-01T00:00:00Z',
+        defaultChat: fork,
+      );
+      connection.state = connection.state.copyWith(
+        sessions: {
+          ...connection.state.sessions,
+          detachedSession: detachedSummary,
+        },
+        sessionChannels: {
+          ...connection.state.sessionChannels,
+          detachedSession: ChannelMirror.snapshot(
+            _session(chats: [forkSummary.copyWith(movable: false)])
+                .copyWith(title: 'Fix login (fork)', defaultChat: fork),
+          ),
+        },
+        chatChannels: {
+          ...connection.state.chatChannels,
+          fork: ChannelMirror.snapshot(forkChat.copyWith(movable: false)),
+        },
+      );
+      return const MoveChatResult(session: detachedSession);
+    };
+
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Fix login (fork)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Chat actions'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Detach to new session'));
+    await tester.pumpAndSettle();
+
+    expect(connection.moved, [(fork, const ChatMoveToNewSessionDestination())]);
+    // The new session is now selected, showing the detached fork as its
+    // sole chat (no chat switcher).
+    expect(find.byType(ChoiceChip), findsNothing);
+    expect(find.text('Forked reply'), findsOneWidget);
+  });
+
+  testWidgets('detach failure shows an error snackbar', (tester) async {
+    const fork = 'ahp-chat:/fork';
+    const forkSummary = ChatSummary(
+      resource: fork,
+      title: 'Fix login (fork)',
+      status: SessionStatus.idle,
+      modifiedAt: '2026-10-01T00:00:00Z',
+      movable: true,
+      origin: ChatOriginFork(chat: _chat, turnId: 't1'),
+    );
+    final forkChat = _chatWith(const [
+      MarkdownResponsePart(id: 'm', content: 'Forked reply'),
+    ]).copyWith(resource: fork, title: 'Fix login (fork)', movable: true);
+    final connection = await _pump(
+      tester,
+      _state(
+        chat: _chatWith(const []),
+        sessionState: _session(chats: const [_mainSummary, forkSummary]),
+        otherChats: {fork: ChannelMirror.snapshot(forkChat)},
+      ),
+    );
+    connection.onMoveChat = (_, _) => throw StateError('not supported');
+
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Fix login (fork)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Chat actions'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Detach to new session'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Could not detach the chat:'), findsOneWidget);
+  });
+
   testWidgets('queued messages are edited, reordered and removed (AV-081)', (
     tester,
   ) async {

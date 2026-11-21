@@ -832,8 +832,12 @@ AppImage and the release workflow (see
   ones, have no button; AHP's side chats (`SideChatSource`, from any
   turn and with a text selection) are not offered.
 - A fork is a chat of the same session, not a new session: AHP has no
-  fork source for `createSession`. Moving the fork into a session of its
-  own (`moveChat` to `newSession`) is not offered.
+  fork source for `createSession`. Movable chats can be detached into
+  their own session via "Detach to new session" (`moveChat` with
+  `newSession`, AV-069), though hosts that do not support `newSession`
+  (or mark the chat non-movable) will hide or reject the action. Moving a
+  chat into an existing different session (`session` destination) is not
+  offered.
 - While the host creates the chat there is no progress indicator; the
   view switches to it when `session/chatAdded` arrives.
 

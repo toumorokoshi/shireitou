@@ -89,6 +89,7 @@ class SessionDetailView extends ConsumerStatefulWidget {
     required this.session,
     this.reviewAsPane = false,
     this.showBackButton = false,
+    this.onSessionDetached,
   });
 
   /// The session's URI as the catalogue lists it.
@@ -100,6 +101,10 @@ class SessionDetailView extends ConsumerStatefulWidget {
   /// Whether the header starts with a back button: the view is a page of
   /// its own (compact layouts) with no app bar above it.
   final bool showBackButton;
+
+  /// Called with the new session URI when a chat is detached into a new
+  /// session (`moveChat` with `newSession`).
+  final ValueChanged<String>? onSessionDetached;
 
   @override
   ConsumerState<SessionDetailView> createState() => _SessionDetailViewState();
@@ -436,6 +441,21 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
     }
   }
 
+  /// Detaches [chat] into a new session (`moveChat` with `newSession`).
+  Future<void> _detachChat(String chat) async {
+    try {
+      final result = await _connection.moveChat(
+        chat,
+        const ChatMoveToNewSessionDestination(),
+      );
+      if (!mounted) return;
+      setState(() => _selectedChat = null);
+      widget.onSessionDetached?.call(result.session);
+    } on Object catch (error) {
+      _showMessage('Could not detach the chat: $error');
+    }
+  }
+
   /// Forks [source] at its completed turn [turnId] into a new chat of the
   /// session, and opens it (AV-144).
   Future<void> _fork(String source, String turnId) async {
@@ -623,6 +643,10 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
                 onMove:
                     supports(ProtocolFeature.moveChat) && sessionState != null
                     ? (chat, delta) => _moveChat(sessionState, chat, delta)
+                    : null,
+                onDetach:
+                    supports(ProtocolFeature.moveChat) && sessionState != null
+                    ? _detachChat
                     : null,
               ),
               const Divider(height: 1),
