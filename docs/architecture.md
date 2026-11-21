@@ -467,7 +467,10 @@ Dart source); `bin/generate.dart` does the file I/O. See
   `status_badges.dart` derives a row's one status dot from the bitset
   (`dotBadgeFor`) and holds the dot palette (`statusDotColor`);
   `session_status_indicator.dart` shows that dot or a working spinner
-  (`SessionStatusLeading`, `isSessionWorking`).
+  (`SessionStatusLeading`, `isSessionWorking`), with a hover tooltip
+  (`workingStatusTooltip`, `workingStatusTooltipForSession`) listing
+  foreground activity (running tools, thinking, responding) and
+  background work (shells, subagents, or summary counts).
   `folder_order.dart` orders folders by the user's order
   (`orderFolders`) and moves one (`movedFolder`) across hosts;
   `sidebar_store.dart` keeps that order and the collapsed sections on

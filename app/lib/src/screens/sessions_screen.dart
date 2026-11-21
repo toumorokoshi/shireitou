@@ -657,6 +657,16 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
     final selected = _selected;
     final byRef = {for (final s in sessions) s.ref: s.summary};
     final runLabels = labelsOfRuns(ref.watch(runGroupsProvider));
+    final workingTooltips = <SessionRef, String>{
+      for (final s in onHost)
+        if (isSessionWorking(status: s.summary.status))
+          s.ref: ref.watch(
+            hostConnectionProvider(s.host).select(
+              (hostState) =>
+                  workingStatusTooltipForSession(hostState, s.summary),
+            ),
+          ),
+    };
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _syncVisible();
     });
@@ -811,6 +821,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                       : null,
                   selection: selection,
                   runLabels: runLabels,
+                  workingTooltips: workingTooltips,
                   dense: tier != LayoutTier.compact,
                   actions: SessionRowActions(
                     onArchive: (s, archived) => _setArchived([s], archived),

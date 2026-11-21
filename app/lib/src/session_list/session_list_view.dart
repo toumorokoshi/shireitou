@@ -98,6 +98,7 @@ class SessionListView extends StatelessWidget {
     this.actions,
     this.selection,
     this.runLabels = const {},
+    this.workingTooltips = const {},
     this.emptyText = noSessionsText,
     this.dense = true,
   });
@@ -116,6 +117,9 @@ class SessionListView extends StatelessWidget {
   /// The labels of the hosts by key when several are open
   /// ([hostLabelsOf]), shown on rows and folder headers.
   final Map<String, String> hostLabels;
+
+  /// Working spinner tooltips by session ref ([workingStatusTooltipForSession]).
+  final Map<SessionRef, String> workingTooltips;
 
   /// The agents of each host by key, which name a session's agent on its
   /// hover card ([agentDisplayName]).
@@ -222,6 +226,7 @@ class SessionListView extends StatelessWidget {
       actions: actions,
       onOpen: onSelect,
       runLabel: runLabels[ref],
+      workingTooltip: workingTooltips[ref],
       agent: agentDisplayName(session.provider, agents[ref.host] ?? const []),
       canMoveToFolder:
           canReplacePrimaryWorkingDirectory(
@@ -826,6 +831,7 @@ class _SessionRow extends StatelessWidget {
     required this.actions,
     required this.onOpen,
     this.runLabel,
+    this.workingTooltip,
     this.agent,
     this.canMoveToFolder = false,
   });
@@ -841,6 +847,7 @@ class _SessionRow extends StatelessWidget {
   /// Where the session lives ([sessionPlace]).
   final String place;
   final String? runLabel;
+  final String? workingTooltip;
   final SessionRef ref;
   final DateTime now;
   final bool dense;
@@ -930,6 +937,7 @@ class _SessionRow extends StatelessWidget {
       session: session,
       now: now,
       runLabel: runLabel,
+      workingTooltip: workingTooltip,
       agent: agent,
       place: place,
       dense: dense,
@@ -1089,6 +1097,7 @@ class SessionTile extends StatelessWidget {
     this.leading,
     this.trailing = const [],
     this.runLabel,
+    this.workingTooltip,
     this.agent,
     this.dense = true,
   });
@@ -1103,6 +1112,9 @@ class SessionTile extends StatelessWidget {
   /// "Run 2 of 3" when the session is one of several parallel runs
   /// (AV-045).
   final String? runLabel;
+
+  /// Hover tooltip for the working spinner ([workingStatusTooltip]).
+  final String? workingTooltip;
 
   /// The agent's name for the hover card ([agentDisplayName]); the
   /// provider id when null.
@@ -1182,7 +1194,11 @@ class SessionTile extends StatelessWidget {
       onTap: onTap,
       leading:
           leading ??
-          SessionStatusLeading(status: status, semanticLabel: statusLabel),
+          SessionStatusLeading(
+            status: status,
+            workingTooltip: workingTooltip,
+            semanticLabel: statusLabel,
+          ),
       title: content,
       trailing: trailing.isEmpty
           ? null

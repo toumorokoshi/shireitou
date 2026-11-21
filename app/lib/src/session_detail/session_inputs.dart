@@ -5,6 +5,8 @@ library;
 
 import 'package:ahp_client/ahp_client.dart';
 
+export '../session_list/session_status_indicator.dart' show backgroundWorkLabel;
+
 /// The session's open input requests that the timeline of [chat] (the open
 /// chat, if any) does not show, in the host's order.
 ///
@@ -159,14 +161,6 @@ String? changesLabel(ChangesSummary? changes) {
     if (files != null) '$files ${files == 1 ? 'file' : 'files'}',
   ].join(' · ');
 }
-
-/// A short label for background [work]: "Shell: npm test" or
-/// "Subagent: Explore".
-String backgroundWorkLabel(BackgroundWork work) => switch (work) {
-  BackgroundShellWork(:final label) => 'Shell: $label',
-  BackgroundSubagentWork(:final label) => 'Subagent: $label',
-  BackgroundWorkUnknown(:final label) => label,
-};
 
 /// An MCP server that needs the user: waiting for sign-in, or failed.
 typedef McpServerAlert = ({McpServerCustomization server, String message});

@@ -1,3 +1,26 @@
+## 2026-11-21: Working spinner hover tooltip lists foreground & background work (AV-021)
+
+Hovering over the working spinner in the session header or sidebar row
+previously showed only `"Working"`, even when background shells/subagents
+or foreground tool calls were active.
+
+- **Pure tooltip builder (`workingStatusTooltip`,
+  `workingStatusTooltipForSession`).** Added to
+  `app/lib/src/session_list/session_status_indicator.dart` (reusing
+  `backgroundWorkLabel`, now exported by `session_inputs.dart`). When
+  chats are mirrored, it inspects `activeTurn.responseParts` for running
+  non-blocking tool calls, falling back to `Thinking` (on
+  `ReasoningResponsePart` or before output starts), `chat.activity`, or
+  `Responding` (on `MarkdownResponsePart`), plus any
+  `SessionToolClientExecutionRequest` entries and all `BackgroundWork`
+  entries across the session's mirrored chats. When no chat is mirrored,
+  it falls back to `SessionSummary.activity` and the
+  `pi-agent-host-protocol/backgroundWork` count.
+- **Selective sidebar updates.** `SessionsScreen` computes
+  `workingTooltips` via `hostConnectionProvider(...).select(...)` only
+  for working sessions, so markdown token deltas do not trigger
+  sidebar rebuilds unless the tooltip text itself changes.
+
 ## 2026-11-21: Detach movable chat to a new session (AV-069, AV-144)
 
 Users who fork a conversation and want to move just that fork (for

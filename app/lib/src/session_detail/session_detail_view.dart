@@ -1268,10 +1268,16 @@ class _Header extends StatelessWidget {
           if (isSessionWorking(
             status: status,
             hasActiveTurn: chat?.activeTurn != null,
-            hasBackgroundWork: chat?.backgroundWork?.isNotEmpty ?? false,
+            hasBackgroundWork: backgroundWork.isNotEmpty,
           ))
             Tooltip(
-              message: SessionBadge.working.label,
+              message: workingStatusTooltip(
+                summary: summary,
+                chats: [?chat],
+                backgroundWork: backgroundWork,
+                clientExecutions: clientExecutions,
+              ),
+              textAlign: TextAlign.start,
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 child: SessionWorkingIcon(
