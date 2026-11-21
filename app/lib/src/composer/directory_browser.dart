@@ -6,12 +6,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../host_connection.dart';
+import '../session_list/folder_grouping.dart';
 
 /// A working-directory URI for [input]: `file:` URIs are kept, paths are
 /// converted to `file://` URIs.
 String directoryUri(String input) {
   final text = input.trim();
   return text.startsWith('file:') ? text : Uri.file(text).toString();
+}
+
+/// Normalizes a typed or pasted folder [input] (trimming whitespace and
+/// decoding `file://` URIs / stripping trailing slashes via
+/// [normalizeFolderKey]), or returns null when empty.
+String? normalizeFolderInput(String input) {
+  final trimmed = input.trim();
+  if (trimmed.isEmpty) return null;
+  return normalizeFolderKey(trimmed);
 }
 
 /// The folder above [path], or null at the root.
@@ -63,8 +73,19 @@ class DirectoryBrowser extends ConsumerStatefulWidget {
 }
 
 class _DirectoryBrowserState extends ConsumerState<DirectoryBrowser> {
-  late String _path = widget.initial.isEmpty ? '/' : widget.initial;
+  late String _path = normalizeFolderInput(widget.initial) ?? '/';
+  late final TextEditingController _controller = TextEditingController(
+    text: _path,
+  );
   late Future<List<String>> _folders = _list(_path);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  String? get _typedPath => normalizeFolderInput(_controller.text);
 
   Future<List<String>> _list(String path) async => folderNames(
     await ref
@@ -72,10 +93,18 @@ class _DirectoryBrowserState extends ConsumerState<DirectoryBrowser> {
         .listDirectory(directoryUri(path)),
   );
 
-  void _open(String path) => setState(() {
-    _path = path;
-    _folders = _list(path);
-  });
+  void _open(String path) {
+    final normalized = normalizeFolderInput(path);
+    if (normalized == null) return;
+    setState(() {
+      _path = normalized;
+      _controller.value = TextEditingValue(
+        text: normalized,
+        selection: TextSelection.collapsed(offset: normalized.length),
+      );
+      _folders = _list(normalized);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -88,8 +117,30 @@ class _DirectoryBrowserState extends ConsumerState<DirectoryBrowser> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(_path, style: Theme.of(context).textTheme.bodySmall),
-            const Divider(),
+            Semantics(
+              label: 'Folder path',
+              child: TextField(
+                controller: _controller,
+                style: Theme.of(context).textTheme.bodySmall,
+                decoration: InputDecoration(
+                  isDense: true,
+                  border: const OutlineInputBorder(),
+                  hintText: '/path/to/folder',
+                  prefixIcon: const Icon(Icons.folder_outlined, size: 18),
+                  suffixIcon: IconButton(
+                    tooltip: 'Open folder',
+                    icon: const Icon(Icons.arrow_forward, size: 18),
+                    onPressed: _typedPath == null
+                        ? null
+                        : () => _open(_typedPath!),
+                  ),
+                ),
+                textInputAction: TextInputAction.go,
+                onSubmitted: _open,
+                onChanged: (_) => setState(() {}),
+              ),
+            ),
+            const SizedBox(height: 8),
             Expanded(
               child: FutureBuilder<List<String>>(
                 future: _folders,
@@ -148,7 +199,9 @@ class _DirectoryBrowserState extends ConsumerState<DirectoryBrowser> {
           child: const Text('Cancel'),
         ),
         FilledButton(
-          onPressed: () => Navigator.pop(context, _path),
+          onPressed: _typedPath == null
+              ? null
+              : () => Navigator.pop(context, _typedPath),
           child: const Text('Choose this folder'),
         ),
       ],

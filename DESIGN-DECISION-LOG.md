@@ -1,3 +1,18 @@
+## 2026-11-21: Editable path field in the folder picker (AV-043)
+
+Replaced the read-only path label in `DirectoryBrowser` with an editable
+path `TextField` so users can paste or type a folder path (or `file://`
+URI) directly in both "Browse…" and "Move to folder…".
+
+- **Choose directly or navigate first.** Clicking "Choose this folder"
+  returns the normalized path currently in the field even if the user did
+  not press Enter first, while pressing Enter or clicking the "Open
+  folder" button navigates the browser list to that path.
+- **Normalize pasted input.** `normalizeFolderInput` trims whitespace
+  and reuses `normalizeFolderKey` so `file://` URIs and trailing slashes
+  are handled cleanly; an empty field disables both "Open folder" and
+  "Choose this folder".
+
 ## 2026-11-20: Showing the pi session ID in session details (AV-147)
 
 Added a "pi session ID" section, with a copy button, to the Session
