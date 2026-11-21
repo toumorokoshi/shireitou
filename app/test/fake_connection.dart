@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter_riverpod/misc.dart';
+import 'package:shireitou/src/desktop/tray_backend.dart';
+import 'package:shireitou/src/desktop/tray_menu.dart';
 import 'package:shireitou/src/host_connection.dart';
 import 'package:shireitou/src/hosts/open_hosts.dart';
 import 'package:shireitou/src/hosts/saved_hosts.dart';
@@ -16,14 +18,19 @@ const testHost = SavedHost(url: 'ws://127.0.0.1:1', name: 'test host');
 /// Overrides that make [connections] (by host) the app's hosts, open
 /// when their state is connected or reconnecting. One [connection]
 /// stands for [testHost]. The app plays [chime], by default none.
+///
+/// The system tray is [tray], by default none: the real backend's GTK code
+/// on Linux aborts the test process when there is no display.
 List<Override> hostOverrides({
   FakeHostConnection? connection,
   Map<SavedHost, FakeHostConnection> connections = const {},
   Chime? chime,
+  TrayBackend? tray,
 }) {
   final all = {...connections, testHost: ?connection};
   return [
     chimeProvider.overrideWithValue(chime),
+    trayBackendProvider.overrideWithValue(tray),
     hostConnectionProvider.overrideWith2(
       (key) =>
           all.entries.where((e) => e.key.key == key).firstOrNull?.value ??

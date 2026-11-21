@@ -94,6 +94,24 @@ URI) directly in both "Browse…" and "Move to folder…".
   are handled cleanly; an empty field disables both "Open folder" and
   "Choose this folder".
 
+||||||| parent of 6838e34 (fix(test): keep the system tray out of app tests)
+
+## 2026-11-21: No system tray in app tests (CI)
+
+Linux CI runs `just test` without a window, and the tests that build the
+app aborted there: the tray backend (`tray_manager`, added in 54cef11)
+calls GTK on Linux, and without a display GTK aborts the test process
+("Can't create a GtkStyleContext without a display connection"), which
+`flutter test` reports as a failure even though every test passed.
+
+- **The tests get no tray.** `hostOverrides()` in
+  `app/test/fake_connection.dart` overrides `trayBackendProvider` with
+  `tray` (null by default), so every test that builds the app runs
+  without the native tray. `tray_menu_test` passes its fake that way; a
+  second override of the same provider asserts in Riverpod.
+- **Not a skip in the app.** The production code still creates the tray
+  on desktop; only the tests change.
+
 ## 2026-11-20: Showing the pi session ID in session details (AV-147)
 
 Added a "pi session ID" section, with a copy button, to the Session
