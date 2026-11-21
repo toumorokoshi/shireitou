@@ -1,5 +1,9 @@
+import 'dart:ui' show PointerDeviceKind;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shireitou/src/session_detail/timeline_parts.dart';
 import 'package:shireitou/src/session_detail/timeline_selection.dart';
 
 SelectedPiece _piece(double top, double bottom, String text) =>
@@ -52,5 +56,100 @@ void main() {
       expect(rowWiseEdge(const Offset(-20, 10), size), const Offset(-20, 10));
       expect(rowWiseEdge(const Offset(40, 10), size), const Offset(40, 10));
     });
+  });
+
+  group('inlineCodeRanges', () {
+    test(
+      'finds monospace spans, merges adjacent ones, and counts placeholders',
+      () {
+        final span = TextSpan(
+          children: [
+            const TextSpan(text: 'Run '),
+            const WidgetSpan(child: SizedBox(width: 10, height: 10)),
+            const TextSpan(
+              text: 'git',
+              style: TextStyle(fontFamily: 'monospace'),
+            ),
+            const TextSpan(
+              text: ' status',
+              style: TextStyle(fontFamily: 'monospace'),
+            ),
+            const TextSpan(text: ' and '),
+            const TextSpan(
+              text: 'ls',
+              style: TextStyle(fontFamily: 'monospace'),
+            ),
+          ],
+        );
+        expect(inlineCodeRanges(span), [
+          (start: 5, end: 15),
+          (start: 20, end: 22),
+        ]);
+      },
+    );
+  });
+
+  group('InlineCodeBackground', () {
+    testWidgets(
+      'paints inline code background before selection highlight so dragging highlights inline code',
+      (tester) async {
+        const codeBg = Color(0xFF334455);
+        const selectionColor = Color(0x6600AAFF);
+        final theme = ThemeData.dark().copyWith(
+          colorScheme: ThemeData.dark().colorScheme.copyWith(
+            surfaceContainerHighest: codeBg,
+          ),
+          textSelectionTheme: const TextSelectionThemeData(
+            selectionColor: selectionColor,
+          ),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: theme,
+            home: const Scaffold(
+              body: RichSelectionArea(
+                child: LineSelection(
+                  child: MarkdownText('Run `git status` now.'),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        // Inline code spans have no TextStyle.backgroundColor (which would
+        // paint over RenderParagraph's selection highlight).
+        final paragraph = tester.renderObject<RenderParagraph>(
+          find.byType(RichText),
+        );
+        final hasOpaqueCodeBg = paragraph.text.visitChildren((span) {
+          if (span is TextSpan && span.style?.fontFamily == 'monospace') {
+            return span.style?.backgroundColor == null;
+          }
+          return true;
+        });
+        expect(hasOpaqueCodeBg, isTrue);
+
+        // Click and drag across the inline code snippet.
+        final rect = tester.getRect(find.byType(RichText));
+        final gesture = await tester.startGesture(
+          rect.centerLeft + const Offset(2, 0),
+          kind: PointerDeviceKind.mouse,
+        );
+        await tester.pump();
+        await gesture.moveTo(rect.centerRight - const Offset(2, 0));
+        await tester.pump();
+
+        expect(
+          find.byType(InlineCodeBackground),
+          paints
+            ..rrect(color: codeBg)
+            ..rect(color: selectionColor),
+        );
+
+        await gesture.up();
+        await tester.pumpAndSettle();
+      },
+    );
   });
 }

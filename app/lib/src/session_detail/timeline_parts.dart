@@ -6,6 +6,7 @@ import 'dart:async';
 
 import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 
 import '../auth/sign_in_dialog.dart';
@@ -430,12 +431,118 @@ MarkdownStyleSheet markdownStyle(ThemeData theme, AppColors colors) {
     code: text.bodySmall?.copyWith(
       fontFamily: 'monospace',
       fontFamilyFallback: const ['Menlo', 'Consolas', 'DejaVu Sans Mono'],
-      backgroundColor: scheme.surfaceContainerHighest,
     ),
     tableBorder: TableBorder.all(color: scheme.outline),
     tableCellsPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
     tableColumnWidth: const IntrinsicColumnWidth(),
   );
+}
+
+/// The UTF-16 ranges in [root] whose effective style uses `'monospace'`,
+/// with adjacent ranges merged.
+List<({int start, int end})> inlineCodeRanges(InlineSpan root) {
+  final ranges = <({int start, int end})>[];
+  var offset = 0;
+
+  void walk(InlineSpan span, TextStyle style) {
+    switch (span) {
+      case TextSpan(:final text, :final children):
+        final merged = style.merge(span.style);
+        if (text != null && text.isNotEmpty) {
+          final start = offset;
+          final end = offset + text.length;
+          offset = end;
+          if (merged.fontFamily == 'monospace') {
+            if (ranges.isNotEmpty && ranges.last.end == start) {
+              ranges.last = (start: ranges.last.start, end: end);
+            } else {
+              ranges.add((start: start, end: end));
+            }
+          }
+        }
+        for (final child in children ?? const <InlineSpan>[]) {
+          walk(child, merged);
+        }
+      case PlaceholderSpan():
+        offset += 1;
+      default:
+        offset += span.toPlainText(includeSemanticsLabels: false).length;
+    }
+  }
+
+  walk(root, const TextStyle());
+  return ranges;
+}
+
+/// Paints [color] behind inline `'monospace'` spans in [child] before
+/// [child] paints, so selection highlights (which `RenderParagraph` paints
+/// before text) stay visible over inline code instead of being covered by
+/// `TextStyle.backgroundColor`.
+class InlineCodeBackground extends SingleChildRenderObjectWidget {
+  /// Creates an [InlineCodeBackground] around [child].
+  const InlineCodeBackground({
+    super.key,
+    required this.color,
+    required super.child,
+  });
+
+  /// The background fill for inline code spans.
+  final Color color;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderInlineCodeBackground(color);
+
+  @override
+  void updateRenderObject(BuildContext context, RenderObject renderObject) {
+    (renderObject as _RenderInlineCodeBackground).color = color;
+  }
+}
+
+class _RenderInlineCodeBackground extends RenderProxyBox {
+  _RenderInlineCodeBackground(this._color);
+
+  Color _color;
+  Color get color => _color;
+  set color(Color value) {
+    if (_color == value) return;
+    _color = value;
+    markNeedsPaint();
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    final child = this.child;
+    if (child != null) {
+      final paint = Paint()..color = _color;
+      void visit(RenderObject node) {
+        if (node is RenderAbstractViewport) return;
+        if (node is RenderParagraph && node.hasSize) {
+          final transform = node.getTransformTo(this);
+          for (final range in inlineCodeRanges(node.text)) {
+            final boxes = node.getBoxesForSelection(
+              TextSelection(baseOffset: range.start, extentOffset: range.end),
+            );
+            for (final box in boxes) {
+              final rect = MatrixUtils.transformRect(
+                transform,
+                box.toRect(),
+              ).shift(offset);
+              context.canvas.drawRRect(
+                RRect.fromRectAndRadius(rect, const Radius.circular(3)),
+                paint,
+              );
+            }
+          }
+          return;
+        }
+        node.visitChildren(visit);
+      }
+
+      visit(child);
+    }
+    super.paint(context, offset);
+  }
 }
 
 /// Assistant markdown (AV-061, AV-095): full width with no bubble. Links
@@ -452,6 +559,7 @@ class MarkdownText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final openFile = FileLinkScope.maybeOf(context);
     final skills = SkillLinkScope.maybeOf(context);
     return Padding(
@@ -462,19 +570,22 @@ class MarkdownText extends StatelessWidget {
             unawaited(showLinkDialog(context, href));
           }
         },
-        child: MarkdownBody(
-          data: data,
-          styleSheet: markdownStyle(Theme.of(context), AppColors.of(context)),
-          builders: {'pre': _codeBlocks, mathTag: _math},
-          blockSyntaxes: mathBlockSyntaxes,
-          inlineSyntaxes: [
-            ...mathInlineSyntaxes,
-            if (skills.isNotEmpty) ...skillLinkSyntaxes(skills),
-            if (openFile != null) ...fileLinkSyntaxes,
-          ],
-          onTapLink: (_, href, _) {
-            if (href != null) followLink(href, openFile: openFile);
-          },
+        child: InlineCodeBackground(
+          color: theme.colorScheme.surfaceContainerHighest,
+          child: MarkdownBody(
+            data: data,
+            styleSheet: markdownStyle(theme, AppColors.of(context)),
+            builders: {'pre': _codeBlocks, mathTag: _math},
+            blockSyntaxes: mathBlockSyntaxes,
+            inlineSyntaxes: [
+              ...mathInlineSyntaxes,
+              if (skills.isNotEmpty) ...skillLinkSyntaxes(skills),
+              if (openFile != null) ...fileLinkSyntaxes,
+            ],
+            onTapLink: (_, href, _) {
+              if (href != null) followLink(href, openFile: openFile);
+            },
+          ),
         ),
       ),
     );

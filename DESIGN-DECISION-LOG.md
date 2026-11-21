@@ -1,3 +1,28 @@
+## 2026-11-21: Inline code selection highlight painted above background (AV-061)
+
+Single-line inline code spans (wrapped in `` ` ``) in agent replies did
+not show a visual selection highlight when clicking and dragging, whereas
+multi-line ` ``` ` code blocks did.
+
+- **Root cause:** `RenderParagraph.paint` draws `_lastSelectableFragments`
+  (selection highlights) _before_ `_textPainter.paint`. Because
+  `markdownStyle` (`app/lib/src/session_detail/timeline_parts.dart`) set
+  `TextStyle.backgroundColor` on `code` to the opaque
+  `scheme.surfaceContainerHighest`, `_textPainter.paint` painted the
+  inline code background over the selection highlight, hiding it.
+  Multi-line `CodeBlock`s put `surfaceContainerHighest` on a `Container`
+  behind `Text.rich`, so their selection highlights remained visible.
+- **Paint inline code backgrounds behind `MarkdownBody`.** Removed
+  `backgroundColor` from `markdownStyle`'s `code` `TextStyle` and
+  wrapped `MarkdownBody` in `InlineCodeBackground`
+  (`_RenderInlineCodeBackground`), which walks `RenderParagraph`
+  descendants (skipping `RenderAbstractViewport` so `CodeBlock`s are
+  untouched), finds monospace spans via `inlineCodeRanges`, and draws
+  their `getBoxesForSelection` rects before `super.paint`. Selection
+  highlights now draw on top of the inline code fill, while keeping
+  `TextSpan`s intact for character-level selection and rich copy
+  (`span_html.dart`).
+
 ## 2026-11-21: Editable path field in the folder picker (AV-043)
 
 Replaced the read-only path label in `DirectoryBrowser` with an editable
