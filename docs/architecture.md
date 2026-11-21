@@ -593,6 +593,9 @@ Dart source); `bin/generate.dart` does the file I/O. See
   `restartActions` (`chat/truncated`, then `chat/turnStarted`) in
   `chat_commands.dart`. The session details page lists working
   directories, canvases, customizations, server tools and active clients.
+  The pi session ID and each directory path sit in a `CopyableField`
+  (`copy_button.dart`): a one-line read-only field with a copy button on
+  the right.
   `session_inputs.dart` is pure: `sessionPrompts` picks the session's `inputNeeded` entries the
   open chat does not already show (requests from other chats, or not yet
   mirrored), and `mcpServerAlerts` the MCP servers that need sign-in or

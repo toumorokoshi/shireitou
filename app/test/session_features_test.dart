@@ -1370,10 +1370,15 @@ void main() {
     await tester.tap(find.text('Session details'));
     await tester.pumpAndSettle();
     expect(find.text('pi session ID'), findsOneWidget);
-    expect(find.text('1'), findsOneWidget);
+    final id = tester.widget<TextField>(find.widgetWithText(TextField, '1'));
+    expect(id.maxLines, 1);
+    expect(id.readOnly, isTrue);
     await tester.tap(find.byTooltip('Copy pi session ID'));
     await tester.pump();
     expect(copied, '1');
+    await tester.tap(find.byTooltip('Copy directory'));
+    await tester.pump();
+    expect(copied, '/src/app');
   });
 
   testWidgets('session details hide the pi session ID for other agents', (

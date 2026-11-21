@@ -162,42 +162,31 @@ class SessionInfoSheet extends ConsumerWidget {
                 // it names the session file and is what `pi --resume` takes.
                 if (state.provider == 'pi') ...[
                   heading('pi session ID'),
-                  ListTile(
-                    dense: true,
-                    leading: const Icon(Icons.fingerprint),
-                    title: SelectableText(
-                      sessionIdOf(session),
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontFamily: 'monospace',
-                      ),
-                    ),
-                    subtitle: const Text(
-                      'Names the session file in ~/.pi/agent/sessions',
-                    ),
-                    trailing: CopyButton(
-                      text: () => sessionIdOf(session),
-                      tooltip: 'Copy pi session ID',
-                    ),
+                  CopyableField(
+                    text: sessionIdOf(session),
+                    tooltip: 'Copy pi session ID',
+                    icon: Icons.fingerprint,
+                    caption: 'Names the session file in ~/.pi/agent/sessions',
                   ),
                 ],
                 heading('Working directories'),
                 if (directories.isEmpty) none,
                 for (final d in directories)
-                  ListTile(
-                    dense: true,
-                    leading: const Icon(Icons.folder_outlined),
-                    title: Text(directoryLabel(d)),
-                    subtitle: d == directories.first && state.project != null
-                        ? Text(state.project!.displayName)
+                  CopyableField(
+                    text: directoryLabel(d),
+                    tooltip: 'Copy directory',
+                    icon: Icons.folder_outlined,
+                    caption: d == directories.first
+                        ? state.project?.displayName
                         : null,
                   ),
                 if (chatDirectories.isNotEmpty) ...[
                   heading('This chat uses'),
                   for (final d in chatDirectories)
-                    ListTile(
-                      dense: true,
-                      leading: const Icon(Icons.folder_special_outlined),
-                      title: Text(directoryLabel(d)),
+                    CopyableField(
+                      text: directoryLabel(d),
+                      tooltip: 'Copy directory',
+                      icon: Icons.folder_special_outlined,
                     ),
                 ],
                 if (state.config case final config?

@@ -935,3 +935,6 @@ AppImage and the release workflow (see
   header's "Details…" popover and the session list do not show it.
 - Only the ID is shown. Opening the session file or running `pi --resume`
   from the app is not offered.
+- The one-line copy field (`CopyableField`) is used for the pi session ID
+  and working-directory paths. Other one-line values (settings, the
+  header's detail lines, metadata) have no copy button.

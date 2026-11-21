@@ -1,3 +1,17 @@
+## 2026-11-21: Copy button on one-line identifier fields (AV-147)
+
+The pi session ID and working-directory paths in Session details were
+rows of text. A long ID wrapped, and the ID's copy button sat at the
+far edge of the row, beside the caption.
+
+- **A one-line read-only field, button on the right.** `CopyableField`
+  (`copy_button.dart`) is a `TextField` with `maxLines: 1` and `readOnly`,
+  so the value stays on one line and scrolls sideways, with the existing
+  `CopyButton` as the field's suffix. The button copies the whole value.
+- **Used for the values a person copies out.** The pi session ID and each
+  working directory (including "This chat uses") use it. Settings, tools
+  and client names stay as list rows, since those lines are labels.
+
 ## 2026-11-21: Inline code selection highlight painted above background (AV-061)
 
 Single-line inline code spans (wrapped in `` ` ``) in agent replies did
