@@ -8,7 +8,6 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shireitou/src/app.dart';
 import 'package:shireitou/src/desktop/tray_backend.dart';
-import 'package:shireitou/src/desktop/tray_menu.dart';
 import 'package:shireitou/src/desktop/tray_menu_items.dart';
 import 'package:shireitou/src/hosts/open_hosts.dart';
 import 'package:shireitou/src/prefs.dart';
@@ -263,9 +262,8 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            ...hostOverrides(connection: connection),
+            ...hostOverrides(connection: connection, tray: backend),
             prefsStoreProvider.overrideWithValue(prefs),
-            trayBackendProvider.overrideWithValue(backend),
           ],
           child: const ShireitouApp(),
         ),
