@@ -249,6 +249,17 @@ class AhpClient {
     }
   }
 
+  /// Closes any current socket or stalled attempt and reconnects immediately,
+  /// keeping [clientId] and `serverSeq` so missed actions replay.
+  void forceReconnect() {
+    if (_closed) return;
+    final generation = ++_generation;
+    _stopPings();
+    _endBackoff();
+    unawaited(_closePeer());
+    unawaited(_reconnectLoop(generation, immediate: true));
+  }
+
   /// Closes the connection and stops reconnecting.
   Future<void> close() async {
     _closed = true;
@@ -854,12 +865,14 @@ class AhpClient {
   /// (`-32008 NotFound`), and sends it first when it never initialized
   /// (`connect(retry: true)`); a failure there that retrying cannot fix
   /// ends the loop as [ConnectionStatus.failed].
-  Future<void> _reconnectLoop(int generation) async {
+  Future<void> _reconnectLoop(int generation, {bool immediate = false}) async {
     _reconnectingGeneration = generation;
     _set(_state.copyWith(status: ConnectionStatus.reconnecting));
     bool current() => !_closed && generation == _generation;
     for (var attempt = 0; current(); attempt++) {
-      await _wait(reconnectDelay(attempt));
+      if (!immediate || attempt > 0) {
+        await _wait(reconnectDelay(immediate ? attempt - 1 : attempt));
+      }
       if (!current()) break;
       try {
         final peer = await _open(generation);

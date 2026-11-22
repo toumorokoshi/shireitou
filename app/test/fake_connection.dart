@@ -85,6 +85,9 @@ class FakeHostConnection extends HostConnection {
   /// Calls to [checkConnection].
   var checks = 0;
 
+  /// Calls to [forceReconnect].
+  var forceReconnects = 0;
+
   @override
   Future<void> connect(
     String url, {
@@ -99,6 +102,9 @@ class FakeHostConnection extends HostConnection {
 
   @override
   void checkConnection() => checks++;
+
+  @override
+  void forceReconnect() => forceReconnects++;
 
   /// Moves to [next], as if the host changed it.
   void emit(HostState next) => state = next;

@@ -1,3 +1,27 @@
+## 2026-11-22: Force reconnect button and menu actions (AV-011, AHP-004)
+
+When the network drops and comes back, users had to wait for the
+exponential reconnect backoff (up to 30 s) or the liveness ping timeout
+(10 s) and handshake timeout (20 s) before the client reconnected.
+
+- **`AhpClient.forceReconnect()`** (`packages/ahp_client/lib/src/client.dart`):
+  bumps the connection generation, stops pings, ends any backoff wait,
+  closes any current peer, and starts `_reconnectLoop(..., immediate: true)`
+  so the first attempt runs with zero delay while keeping `clientId` and
+  `serverSeq` for replay.
+- **UI & menus**:
+  - `OpenHosts.forceReconnect(key)` and `forceReconnectAll()` in
+    `app/lib/src/hosts/open_hosts.dart` delegate to `forceReconnect()` for
+    active/reconnecting hosts and `retry(key)` for failed/disconnected ones.
+  - The title bar's `"Reconnecting…"` indicator in
+    `app/lib/src/screens/sessions_screen.dart` is now a button that forces
+    an immediate reconnect on reconnecting hosts.
+  - The sidebar `"…"` menu (`_HostsMenu`) adds `"Reconnect"` (or
+    `"Reconnect <host>"` when narrowed) and `"Reconnect <host>"` in each
+    active/reconnecting host's submenu.
+  - The macOS `Host` menu (`app/lib/src/desktop/app_menu.dart`) adds
+    `"Reconnect All"` (`⌘⇧R`).
+
 ## 2026-11-21: Working spinner hover tooltip lists foreground & background work (AV-021)
 
 Hovering over the working spinner in the session header or sidebar row

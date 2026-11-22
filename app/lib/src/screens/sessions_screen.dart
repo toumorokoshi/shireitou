@@ -687,12 +687,29 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
           ),
         ),
       if (reconnecting.isNotEmpty)
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: Text(
-            hosts.length > 1
-                ? 'Reconnecting ${reconnecting.join(', ')}…'
-                : 'Reconnecting…',
+        Tooltip(
+          message: 'Force reconnect now',
+          child: TextButton.icon(
+            style: TextButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              minimumSize: const Size(0, 28),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            onPressed: () {
+              final open = ref.read(openHostsProvider.notifier);
+              for (final h in hosts) {
+                if (h.status == ConnectionStatus.reconnecting) {
+                  unawaited(open.forceReconnect(h.key));
+                }
+              }
+            },
+            icon: const Icon(Icons.refresh, size: 16),
+            label: Text(
+              hosts.length > 1
+                  ? 'Reconnecting ${reconnecting.join(', ')}…'
+                  : 'Reconnecting…',
+            ),
           ),
         ),
       if (ref.watch(notifierProvider) != null ||
@@ -727,8 +744,18 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                   hostFilter: hostFilter,
                   onSelect: () => setState(() => _selection = {}),
                   onAddHost: _addHost,
+                  onReconnect: () {
+                    final open = ref.read(openHostsProvider.notifier);
+                    if (hostFilter == null) {
+                      unawaited(open.forceReconnectAll());
+                    } else {
+                      unawaited(open.forceReconnect(hostFilter));
+                    }
+                  },
                   onDisconnect: () => _disconnect(hosts),
                   onShowOnly: (host) => setState(() => _hostFilter = host),
+                  onReconnectHost: (host) =>
+                      ref.read(openHostsProvider.notifier).forceReconnect(host),
                   onRetry: (host) =>
                       ref.read(openHostsProvider.notifier).retry(host),
                   onRemove: (host) =>
@@ -1171,19 +1198,21 @@ class _SidebarHeader extends StatelessWidget {
 }
 
 /// The sidebar header's "…" menu (AV-092): "Select" (AV-029), "Add
-/// host…", "Disconnect", "Appearance" (AV-097), "Dictation model"
-/// (AV-047), and a submenu per open host with its status
-/// (AV-011), "Show only this host" with several hosts, Retry and Remove
-/// for a host that is not connected, and its editor settings (AV-015). The
-/// icon has a dot while a host is not connected.
+/// host…", "Reconnect", "Disconnect", "Appearance" (AV-097), "Dictation
+/// model" (AV-047), and a submenu per open host with its status
+/// (AV-011), "Show only this host" with several hosts, Reconnect (or
+/// Retry and Remove when not connected), and its editor settings
+/// (AV-015). The icon has a dot while a host is not connected.
 class _HostsMenu extends StatelessWidget {
   const _HostsMenu({
     required this.hosts,
     required this.hostFilter,
     required this.onSelect,
     required this.onAddHost,
+    required this.onReconnect,
     required this.onDisconnect,
     required this.onShowOnly,
+    required this.onReconnectHost,
     required this.onRetry,
     required this.onRemove,
     this.onEditorSettings,
@@ -1201,11 +1230,17 @@ class _HostsMenu extends StatelessWidget {
   /// Opens the page that connects another host.
   final VoidCallback onAddHost;
 
+  /// Force-reconnects [hostFilter], or every host when it is null.
+  final VoidCallback onReconnect;
+
   /// Disconnects [hostFilter], or every host when it is null.
   final VoidCallback onDisconnect;
 
   /// Narrows the list to a host, or to every host (null).
   final ValueChanged<String?> onShowOnly;
+
+  /// Force-reconnects a host, by key.
+  final ValueChanged<String> onReconnectHost;
 
   /// Connects a failed host again, by key.
   final ValueChanged<String> onRetry;
@@ -1240,6 +1275,12 @@ class _HostsMenu extends StatelessWidget {
             onChanged: (_) =>
                 onShowOnly(hostFilter == host.key ? null : host.key),
             child: const Text('Show only this host'),
+          ),
+        if (!idle)
+          MenuItemButton(
+            leadingIcon: const Icon(Icons.refresh),
+            onPressed: () => onReconnectHost(host.key),
+            child: Text('Reconnect ${host.label}'),
           ),
         if (idle) ...[
           MenuItemButton(
@@ -1286,6 +1327,15 @@ class _HostsMenu extends StatelessWidget {
           leadingIcon: const Icon(Icons.add_link),
           onPressed: onAddHost,
           child: const Text('Add host…'),
+        ),
+        MenuItemButton(
+          leadingIcon: const Icon(Icons.refresh),
+          onPressed: onReconnect,
+          child: Text(
+            narrowed == null || hosts.length == 1
+                ? 'Reconnect'
+                : 'Reconnect ${narrowed.label}',
+          ),
         ),
         MenuItemButton(
           leadingIcon: const Icon(Icons.logout),

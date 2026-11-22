@@ -217,6 +217,10 @@ class HostConnection extends Notifier<HostState> {
   /// Retries or pings now instead of waiting (`AhpClient.checkConnection`).
   void checkConnection() => _client?.checkConnection();
 
+  /// Closes any current socket or stalled attempt and reconnects immediately
+  /// (`AhpClient.forceReconnect`).
+  void forceReconnect() => _client?.forceReconnect();
+
   /// Closes the connection.
   Future<void> disconnect() async {
     await _dispose();

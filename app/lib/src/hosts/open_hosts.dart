@@ -62,6 +62,25 @@ class OpenHosts extends Notifier<List<SavedHost>> {
     }
   }
 
+  /// Forces an immediate reconnect to the open host with [key].
+  ///
+  /// If the host is failed or disconnected, connects again as [retry] does;
+  /// otherwise drops any current socket or stalled attempt and reconnects
+  /// immediately, keeping the session state.
+  Future<void> forceReconnect(String key) async {
+    final status = ref.read(hostConnectionProvider(key)).status;
+    if (status == ConnectionStatus.failed ||
+        status == ConnectionStatus.disconnected) {
+      await retry(key);
+    } else {
+      ref.read(hostConnectionProvider(key).notifier).forceReconnect();
+    }
+  }
+
+  /// Forces an immediate reconnect to every open host.
+  Future<void> forceReconnectAll() =>
+      Future.wait([for (final h in state) forceReconnect(h.key)]);
+
   /// Connects to [host] alongside the others (reconnecting it if it was
   /// already open). A host whose connect fails stays open, failed, when
   /// it is a remembered host (one that connected before), so it can be

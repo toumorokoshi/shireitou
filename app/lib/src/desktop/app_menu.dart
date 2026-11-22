@@ -94,9 +94,9 @@ List<PlatformMenuItem> viewMenuItems({
   ),
 ];
 
-/// The menus for the macOS menu bar. "Disconnect All" (⌘⇧D) and the
-/// Session menu ([sessionMenuItems]) are enabled while [connected] to any
-/// host.
+/// The menus for the macOS menu bar. "Reconnect All" (⌘⇧R), "Disconnect All"
+/// (⌘⇧D), and the Session menu ([sessionMenuItems]) are enabled while
+/// [connected] to any host.
 List<PlatformMenuItem> appMenus({
   required bool connected,
   required WidgetRef ref,
@@ -138,6 +138,17 @@ List<PlatformMenuItem> appMenus({
   PlatformMenu(
     label: 'Host',
     menus: [
+      PlatformMenuItem(
+        label: 'Reconnect All',
+        shortcut: const SingleActivator(
+          LogicalKeyboardKey.keyR,
+          meta: true,
+          shift: true,
+        ),
+        onSelected: connected
+            ? () => ref.read(openHostsProvider.notifier).forceReconnectAll()
+            : null,
+      ),
       PlatformMenuItem(
         label: 'Disconnect All',
         shortcut: const SingleActivator(

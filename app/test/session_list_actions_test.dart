@@ -672,5 +672,46 @@ void main() {
       expect(container.read(openHostsProvider), isEmpty);
       expect(decodeHostKeys(prefs.values['open_hosts']), isEmpty);
     });
+
+    testWidgets('force reconnect button and menu actions trigger reconnect', (
+      tester,
+    ) async {
+      FlutterSecureStorage.setMockInitialValues({
+        'hosts': encodeHosts(const [testHost, other]),
+        'open_hosts': jsonEncode([testHost.key, other.key]),
+      });
+      await pumpRestoring(tester);
+      connections[testHost.key]!.emit(
+        const HostState(status: ConnectionStatus.reconnecting),
+      );
+      connections[other.key]!.emit(
+        const HostState(status: ConnectionStatus.connected),
+      );
+      await tester.pumpAndSettle();
+
+      // The title bar button forces reconnect only on reconnecting hosts.
+      await tester.tap(find.text('Reconnecting test host…'));
+      await tester.pumpAndSettle();
+      expect(connections[testHost.key]!.forceReconnects, 1);
+      expect(connections[other.key]!.forceReconnects, 0);
+
+      // The "…" menu Reconnect action forces reconnect on all open hosts.
+      await tester.tap(find.byTooltip('More actions'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Reconnect'));
+      await tester.pumpAndSettle();
+      expect(connections[testHost.key]!.forceReconnects, 2);
+      expect(connections[other.key]!.forceReconnects, 1);
+
+      // The per-host submenu also offers Reconnect for non-idle hosts.
+      await tester.tap(find.byTooltip('More actions'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('build box · Connected'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Reconnect build box'));
+      await tester.pumpAndSettle();
+      expect(connections[testHost.key]!.forceReconnects, 2);
+      expect(connections[other.key]!.forceReconnects, 2);
+    });
   });
 }

@@ -221,7 +221,7 @@ just serve-web 8080 'ws://127.0.0.1:63877?tkn=...'   # same, host URL prefilled
    long-press a session to rename it, archive it, mark it read or unread,
    or select several; swipe it left to archive it, or hover it and click
    the check to mark it done. The filter icon above the list picks the
-   filter and sort; the "…" menu holds Select, Add host…, Disconnect,
+   filter and sort; the "…" menu holds Select, Add host…, Reconnect, Disconnect,
    Appearance (light, dark or the system's setting, and a dark and a
    light colour theme from VS Code, Neovim and Emacs favourites such as
    Dracula, Catppuccin, Tokyo Night, Gruvbox, Solarized and Nord)

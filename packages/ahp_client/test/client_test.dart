@@ -487,6 +487,30 @@ void main() {
         .timeout(const Duration(milliseconds: 300));
   });
 
+  test(
+    'forceReconnect skips reconnect backoff and reconnects immediately',
+    () async {
+      host.down = true;
+      await client.connect(retry: true);
+      host.down = false;
+      client.forceReconnect();
+      await next(ConnectionStatus.connected)
+          .timeout(const Duration(milliseconds: 300));
+    },
+  );
+
+  test(
+    'forceReconnect drops a connected socket and resumes with reconnect',
+    () async {
+      await client.connect();
+      expect(client.state.status, ConnectionStatus.connected);
+      client.forceReconnect();
+      await next(ConnectionStatus.connected)
+          .timeout(const Duration(milliseconds: 300));
+      expect(host.requests.map((r) => r.$1), contains('reconnect'));
+    },
+  );
+
   test('close stops a connect retry', () async {
     host.down = true;
     await client.connect(retry: true);

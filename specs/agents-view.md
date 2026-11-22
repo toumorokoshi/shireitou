@@ -99,12 +99,15 @@ same sections.
     header, focused; its close button or Escape clears and hides it. It
     stays shown while it holds a query.
   - The "…" menu has "Select" (starts multi-select), "Add host…",
-    "Disconnect" (the narrowed host, else every host), then one submenu
-    per open host, labelled with the host and its status or error: "Show
-    only this host" (with several hosts; narrows the list, and again
-    shows every host), Retry and Remove for a host that is not
-    connected, and "Editor settings…" (AV-015). The icon has a
-    dot while a host has failed.
+    "Reconnect" (the narrowed host, else every host), "Disconnect" (the
+    narrowed host, else every host), then one submenu per open host,
+    labelled with the host and its status or error: "Show only this host"
+    (with several hosts; narrows the list, and again shows every host),
+    "Reconnect <host>" while connected, connecting or reconnecting, Retry
+    and Remove for a host that is not connected, and "Editor settings…"
+    (AV-015). The icon has a dot while a host has failed. The
+    "Reconnecting…" indicator in the title bar is also a button that
+    forces an immediate reconnect.
 - **Sections,** top to bottom, each left out when empty:
   - **Pinned** (AV-028): the pinned sessions of every host, in the order
     they were pinned. A pinned session is listed here and not in its
