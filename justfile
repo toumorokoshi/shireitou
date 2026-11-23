@@ -155,8 +155,12 @@ fetch-schema version="1.0.0":
 
 # Run the app. Pass a device, e.g. `just run macos`, and an optional host
 # URL to prefill: `just run chrome ws://127.0.0.1:63877?tkn=...`.
-run device="chrome" url="":
-    cd app && flutter run -d {{device}} --dart-define=AHP_URL='{{url}}'
+# Skips dependency resolution (`flutter run --no-pub`). Pass
+# `--pub-get=true` to run `flutter pub get` first, for example after
+# changing a pubspec: `just run macos --pub-get=true`.
+[arg("pub_get", long="pub-get", pattern="true|false")]
+run device="chrome" url="" pub_get="false":
+    cd app && flutter run -d {{device}} --dart-define=AHP_URL='{{url}}' {{ if pub_get == "true" { "--pub" } else { "--no-pub" } }}
 
 # Build the web app and serve it on all interfaces (0.0.0.0), so any browser,
 # on this machine or another, can open it; no Chrome needed. Pass a port and

@@ -1,3 +1,14 @@
+## 2026-11-23: Skip pub get in `just run` unless `--pub-get=true`
+
+`flutter run` resolves packages before every launch, so `just run macos`
+waited on dependency resolution even when no pubspec had changed.
+
+- **`justfile` `run`:** passes `--no-pub` by default. `--pub-get=true`
+  passes `--pub` instead, so a launch can still run `flutter pub get`
+  after a pubspec change. `--pub-get=false` keeps `--no-pub`.
+- **`README.md`, `docs/desktop.md`:** document the flag next to the
+  `just run` examples and the macOS build notes.
+
 ## 2026-11-22: Request recent 5 turns on chat subscribe and add "Load all turns" (AHP-029, AV-068, AV-074)
 
 Long sessions took a long time to transfer and render because the client

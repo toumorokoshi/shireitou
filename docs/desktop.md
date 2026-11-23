@@ -61,6 +61,8 @@ arm64 machine):
   when the signing secrets are set ([packaging.md](packaging.md));
   otherwise Gatekeeper blocks it on other Macs (right-click > Open, or
   `xattr -d com.apple.quarantine`).
+- `just run macos` skips `flutter pub get`. After a pubspec change, pass
+  `--pub-get=true`: `just run macos --pub-get=true`.
 - The app is not sandboxed (no `com.apple.security.app-sandbox`): the
   terminal panel (AV-016) runs the system `ssh`, which inherits the
   sandbox and could not read `~/.ssh` or reach the SSH agent there. The

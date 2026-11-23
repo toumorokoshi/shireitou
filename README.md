@@ -156,11 +156,12 @@ just themes              # regenerate the colour themes (see docs/themes.md)
 just android-keystore <file.jks>   # create the Android release key and its secrets
 just codegen             # regenerate the wire types (and freezed code)
 just fetch-schema        # re-download the vendored AHP 1.0.0 JSON Schemas
-just run                 # flutter run -d chrome
+just run                 # flutter run -d chrome (skips pub get)
 just run macos           # needs a full Xcode install
 just run linux           # needs GTK 3, CMake, Ninja, clang, libsecret
 just run windows         # needs Visual Studio 2022 with C++ desktop tools
 just run chrome 'ws://127.0.0.1:63877?tkn=...'   # prefill the host URL
+just run macos --pub-get=true   # resolve dependencies before launching
 just serve-web           # build the web app, serve it on port 8080 (all interfaces)
 just serve-web 8080 'ws://127.0.0.1:63877?tkn=...'   # same, host URL prefilled
 ```
