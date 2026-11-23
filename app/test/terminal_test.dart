@@ -407,6 +407,56 @@ void main() {
     await tester.pump(kDoubleTapTimeout);
   }, variant: TargetPlatformVariant.only(TargetPlatform.linux));
 
+  testWidgets('Ctrl+click opens the full multi-line URL in the terminal', (
+    tester,
+  ) async {
+    final spawner = FakeSpawner();
+    final opened = <Uri>[];
+    await pumpApp(
+      tester,
+      spawner: spawner,
+      launcher: (uri) async {
+        opened.add(uri);
+        return true;
+      },
+    );
+    await tester.tap(find.byTooltip(toggleTerminalLabel));
+    await tester.pumpAndSettle();
+
+    final view = tester.state<TerminalViewState>(find.byType(TerminalView));
+    final render = view.renderTerminal;
+    final cols = view.widget.terminal.viewWidth;
+    const prefix = 'open ';
+    final firstLineUrl = 'https://example.com/'.padRight(
+      cols - prefix.length,
+      'a',
+    );
+    const secondLineUrl = 'bbbb/end';
+    final fullUrl = '$firstLineUrl$secondLineUrl';
+    // Emit with CRLF at `cols` so the continuation line is hard-wrapped
+    // (`isWrapped == false`), as tmux or TUI programs do.
+    spawner.started.single.emit('$prefix$firstLineUrl\r\n$secondLineUrl\r\n');
+    await tester.pumpAndSettle();
+
+    Offset cell(int x, int y) => render.localToGlobal(
+      Offset(
+        (x + 0.5) * render.cellSize.width,
+        (y + 0.5) * render.cellSize.height,
+      ),
+    );
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pump();
+    // Click on the first line of the multi-line URL.
+    await tester.tapAt(cell(8, 0));
+    // Click on the second line of the multi-line URL.
+    await tester.tapAt(cell(2, 1));
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+    expect(opened, [Uri.parse(fullUrl), Uri.parse(fullUrl)]);
+    await tester.pump(kDoubleTapTimeout);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.linux));
+
   testWidgets('without a pty the button opens an ssh link', (tester) async {
     final opened = <Uri>[];
     var installed = true;

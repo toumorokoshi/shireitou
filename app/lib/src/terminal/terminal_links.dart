@@ -46,17 +46,18 @@ int _trimmedLength(String url) {
 }
 
 /// The link in [buffer] under [cell], if any. A line the terminal
-/// wrapped is read with the lines it continues, so a long URL that runs
-/// onto the next line is one link.
+/// wrapped—either softly ([BufferLine.isWrapped]) or by hitting the
+/// right edge before continuing at column 0—is read with the lines it
+/// continues, so a long URL that runs onto the next line is one link.
 TerminalLink? terminalLinkAt(Buffer buffer, CellOffset cell) {
   final lines = buffer.lines;
   if (cell.y < 0 || cell.y >= lines.length) return null;
   var first = cell.y;
-  while (first > 0 && lines[first].isWrapped) {
+  while (first > 0 && _continuesOntoNextLine(buffer, first - 1)) {
     first--;
   }
   var last = cell.y;
-  while (last + 1 < lines.length && lines[last + 1].isWrapped) {
+  while (_continuesOntoNextLine(buffer, last)) {
     last++;
   }
 
@@ -88,3 +89,25 @@ TerminalLink? terminalLinkAt(Buffer buffer, CellOffset cell) {
     end: CellOffset(lastCell.x + (width < 1 ? 1 : width), lastCell.y),
   );
 }
+
+bool _continuesOntoNextLine(Buffer buffer, int y) {
+  final lines = buffer.lines;
+  if (y < 0 || y + 1 >= lines.length) return false;
+  if (lines[y + 1].isWrapped) return true;
+  final line = lines[y];
+  final length = line.getTrimmedLength();
+  if (length < buffer.viewWidth) return false;
+  return _isNonSpace(_lastCodePoint(line, length)) &&
+      _isNonSpace(lines[y + 1].getCodePoint(0));
+}
+
+int _lastCodePoint(BufferLine line, int length) {
+  var x = length - 1;
+  if (x > 0 && line.getCodePoint(x) == 0 && line.getWidth(x - 1) == 2) {
+    x--;
+  }
+  return line.getCodePoint(x);
+}
+
+bool _isNonSpace(int codePoint) =>
+    codePoint != 0 && codePoint != 0x20 && codePoint != 0x09;

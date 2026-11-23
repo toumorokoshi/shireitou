@@ -42,7 +42,8 @@ keys, port, jump hosts and host key checks all come from your
 - Links: Cmd+click (Ctrl+click on Linux and Windows) on an `http` or
   `https` URL opens it in the browser, as in VS Code. While the key is
   held, the link under the pointer is highlighted and the pointer turns
-  into a hand. A URL the terminal wrapped onto the next line is one
+  into a hand. A URL wrapped onto the next line—either softly by the
+  terminal or hard-wrapped at the right edge by `tmux` or a TUI—is one
   link, and trailing punctuation (`.`, `,`, `)` without its `(`) is left
   out. A plain click still goes to the terminal (selection, or the
   program when it reads the mouse).

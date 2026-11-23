@@ -70,5 +70,57 @@ void main() {
       expect(link?.start, const CellOffset(5, 0));
       expect(link?.end, const CellOffset(19, 0));
     });
+
+    test('joins a URL hard-wrapped at the right edge with CRLF', () {
+      // 20-column terminal where a program (e.g. tmux or a TUI) emits CRLF at
+      // column 20 so `isWrapped` is false on the continuation lines.
+      const part1 = 'x https://example.co';
+      const part2 = 'm/a/very/long/path/t';
+      const part3 = 'o/resource y';
+      final t = terminal('$part1\r\n$part2\r\n$part3', columns: 20);
+      expect(t.buffer.lines[1].isWrapped, isFalse);
+      expect(t.buffer.lines[2].isWrapped, isFalse);
+      const fullUrl = 'https://example.com/a/very/long/path/to/resource';
+      for (final cell in const [
+        CellOffset(5, 0),
+        CellOffset(3, 1),
+        CellOffset(4, 2),
+      ]) {
+        final link = terminalLinkAt(t.buffer, cell);
+        expect(link?.uri, Uri.parse(fullUrl));
+        expect(link?.start, const CellOffset(2, 0));
+        expect(link?.end, const CellOffset(10, 2));
+      }
+    });
+
+    test('does not join hard-wrapped lines separated by spaces', () {
+      // Line 0 ends with a space at column 20, or line 1 starts with a space.
+      final trailingSpace = terminal(
+        'https://example.com \r\nmore\r\n',
+        columns: 20,
+      );
+      expect(
+        terminalLinkAt(trailingSpace.buffer, const CellOffset(5, 0))?.uri,
+        Uri.parse('https://example.com'),
+      );
+
+      final leadingSpace = terminal(
+        'https://example.com/\r\n next\r\n',
+        columns: 20,
+      );
+      expect(
+        terminalLinkAt(leadingSpace.buffer, const CellOffset(5, 0))?.uri,
+        Uri.parse('https://example.com/'),
+      );
+
+      final shortLine = terminal(
+        'https://example.com\r\nnext\r\n',
+        columns: 20,
+      );
+      expect(
+        terminalLinkAt(shortLine.buffer, const CellOffset(5, 0))?.uri,
+        Uri.parse('https://example.com'),
+      );
+    });
   });
 }

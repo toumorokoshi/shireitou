@@ -1,3 +1,17 @@
+## 2026-11-22: Join hard-wrapped multi-line URLs in the terminal (AV-016)
+
+Clicking a multi-line URL in the terminal panel only opened the first line
+when the continuation line had `isWrapped == false` (e.g. `tmux`,
+`screen`, or TUI apps that emit `\r\n` or cursor positioning at the
+right edge of the terminal).
+
+- **`_continuesOntoNextLine` in `app/lib/src/terminal/terminal_links.dart`.**
+  `terminalLinkAt` now treats line `y` as continuing onto `y + 1` when
+  either `lines[y + 1].isWrapped` is true, or `lines[y]` reaches
+  `buffer.viewWidth` with a non-whitespace last character and
+  `lines[y + 1]` starts at column 0 with a non-whitespace character.
+  Lines separated by spaces or shorter than `viewWidth` stay separate.
+
 ## 2026-11-22: Force reconnect button and menu actions (AV-011, AHP-004)
 
 When the network drops and comes back, users had to wait for the
