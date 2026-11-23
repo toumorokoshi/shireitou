@@ -1,3 +1,25 @@
+## 2026-11-23: Colored status dot icons on system tray dropdown items (AV-008)
+
+Replaced the Unicode text prefixes (`◆`, `●`, `✕`, `•`) in the system
+tray dropdown with native colored status dot icons on every active and
+pinned conversation item.
+
+- **Pure-Dart PNG dot renderer (`app/lib/src/desktop/tray_dot_icon.dart`):**
+  `renderStatusDotPng` / `statusDotDataUri` render an anti-aliased
+  16×16 transparent RGBA PNG with a centered 8 px-diameter circle in the
+  item's `Color`, encoded as a `data:image/png;base64,…` URI for
+  `tray_manager` / `nativeapi`'s `Image.fromBase64`. No extra image
+  dependency is needed and the renderer is unit-tested directly.
+- **Theme-matched status colors (`app/lib/src/desktop/tray_menu.dart`, `tray_menu_items.dart`):**
+  `TrayConversationItem` carries `SessionBadge status` (from
+  `dotBadgeFor`) and `Color? dotColor` (from `statusDotColor` using
+  `AppColors.of(context).statusColors` and `colorScheme.onSurface` for
+  unread), matching `SessionStatusLeading` in the session list.
+- **Cached native icons (`app/lib/src/desktop/tray_backend_io.dart`):**
+  `NativeTrayBackend` caches `nativeapi.Image` instances by ARGB color
+  in `_dotIcons`, assigns `item.icon` on each conversation menu item, and
+  disposes the cached images in `dispose()`.
+
 ## 2026-11-23: Skip pub get in `just run` unless `--pub-get=true`
 
 `flutter run` resolves packages before every launch, so `just run macos`

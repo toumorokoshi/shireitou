@@ -183,6 +183,11 @@ lists:
   listed under Active),
 - **Show shireitou** and **Quit shireitou**.
 
+Each conversation item displays a colored status dot icon matching the
+session list's `StatusColors` (`tray_dot_icon.dart` renders a 16×16 RGBA
+PNG per color for `tray_manager` / `nativeapi`), with the full title,
+status label, and workspace/host in its tooltip.
+
 Clicking a conversation brings the window to the front
 (`bringWindowToFront`) and opens that session
 (`openSessionRequestsProvider`). On Linux, the tray icon is a

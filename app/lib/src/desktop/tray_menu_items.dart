@@ -1,6 +1,8 @@
 /// Pure data model and builder for the desktop system tray dropdown menu.
 library;
 
+import 'dart:ui' show Color;
+
 import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter/foundation.dart';
 
@@ -9,6 +11,7 @@ import '../session_list/pinned_sessions.dart';
 import '../session_list/session_filter.dart';
 import '../session_list/session_tree.dart';
 import '../session_list/status_badges.dart';
+import '../theme/app_colors.dart';
 
 /// Maximum characters of a conversation title shown in a tray menu item.
 const maxTrayTitleLength = 60;
@@ -25,14 +28,22 @@ class TrayConversationItem {
   const TrayConversationItem({
     required this.ref,
     required this.label,
+    required this.status,
+    this.dotColor,
     this.tooltip,
   });
 
   /// The session to open when clicked.
   final SessionRef ref;
 
-  /// The menu item text (status prefix + truncated title).
+  /// The menu item text (truncated title).
   final String label;
+
+  /// The status badge shown as a dot next to [label].
+  final SessionBadge status;
+
+  /// Color of the status dot icon, when theme colors are available.
+  final Color? dotColor;
 
   /// Optional hover tooltip with full title, status and workspace/host.
   final String? tooltip;
@@ -42,10 +53,12 @@ class TrayConversationItem {
       other is TrayConversationItem &&
       other.ref == ref &&
       other.label == label &&
+      other.status == status &&
+      other.dotColor == dotColor &&
       other.tooltip == tooltip;
 
   @override
-  int get hashCode => Object.hash(ref, label, tooltip);
+  int get hashCode => Object.hash(ref, label, status, dotColor, tooltip);
 }
 
 /// The full state of the system tray dropdown: active conversations at
@@ -92,6 +105,8 @@ TrayMenuModel buildTrayMenuModel({
   required Set<SessionRef> pins,
   required Map<String, String> hostLabels,
   int attentionCount = 0,
+  StatusColors? statusColors,
+  Color? unreadColor,
 }) {
   final nonArchived = [
     for (final s in sessions)
@@ -111,10 +126,22 @@ TrayMenuModel buildTrayMenuModel({
 
   return TrayMenuModel(
     active: [
-      for (final s in activeSessions) _toItem(s, hostLabel: hostLabels[s.host]),
+      for (final s in activeSessions)
+        _toItem(
+          s,
+          hostLabel: hostLabels[s.host],
+          statusColors: statusColors,
+          unreadColor: unreadColor,
+        ),
     ],
     pinned: [
-      for (final s in pinnedSessions) _toItem(s, hostLabel: hostLabels[s.host]),
+      for (final s in pinnedSessions)
+        _toItem(
+          s,
+          hostLabel: hostLabels[s.host],
+          statusColors: statusColors,
+          unreadColor: unreadColor,
+        ),
     ],
     tooltip: windowTitle(attentionCount),
   );
@@ -127,15 +154,27 @@ int _compareActive(HostSession a, HostSession b) {
   return b.summary.modifiedAt.compareTo(a.summary.modifiedAt);
 }
 
-TrayConversationItem _toItem(HostSession session, {String? hostLabel}) {
+TrayConversationItem _toItem(
+  HostSession session, {
+  String? hostLabel,
+  StatusColors? statusColors,
+  Color? unreadColor,
+}) {
   final status = session.summary.status;
   final rawTitle = session.summary.title.trim();
   final fullTitle = rawTitle.isEmpty ? 'Untitled session' : rawTitle;
   final displayTitle = fullTitle.length > maxTrayTitleLength
       ? '${fullTitle.substring(0, maxTrayTitleLength - 1)}…'
       : fullTitle;
-  final prefix = _statusPrefix(status);
-  final statusLabel = _statusLabel(status);
+  final badge = dotBadgeFor(status);
+  final dotColor = statusColors == null
+      ? null
+      : statusDotColor(
+          badge,
+          statusColors,
+          unread: unreadColor ?? statusColors.idle,
+        );
+  final statusLabel = badge == SessionBadge.idle ? '' : badge.label;
   final place = sessionPlace(session.summary, hostLabel: hostLabel);
   final tooltipParts = [
     fullTitle,
@@ -144,20 +183,9 @@ TrayConversationItem _toItem(HostSession session, {String? hostLabel}) {
   ];
   return TrayConversationItem(
     ref: session.ref,
-    label: '$prefix$displayTitle',
+    label: displayTitle,
+    status: badge,
+    dotColor: dotColor,
     tooltip: tooltipParts.join(' · '),
   );
-}
-
-String _statusPrefix(SessionStatus status) {
-  if (status.isInputNeeded) return '◆ ';
-  if (status.isInProgress) return '● ';
-  if (status.isError) return '✕ ';
-  if (!status.isReadFlag) return '• ';
-  return '';
-}
-
-String _statusLabel(SessionStatus status) {
-  final badge = dotBadgeFor(status);
-  return badge == SessionBadge.idle ? '' : badge.label;
 }

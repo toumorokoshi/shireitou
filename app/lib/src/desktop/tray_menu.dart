@@ -5,6 +5,7 @@ library;
 import 'dart:async';
 import 'dart:ui';
 
+import 'package:flutter/material.dart' show Theme;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,6 +15,7 @@ import '../notifications/notifications.dart';
 import '../session_list/pinned_store.dart';
 import '../session_list/session_filter.dart';
 import '../session_list/session_tree.dart';
+import '../theme/app_colors.dart';
 import 'desktop_window.dart';
 import 'tray_backend.dart';
 import 'tray_menu_items.dart';
@@ -44,12 +46,16 @@ class TrayMenu extends ConsumerWidget {
     final pins = ref.watch(pinnedSessionsProvider);
     final hosts = ref.watch(hostInfosProvider);
     final attention = ref.watch(attentionCountProvider);
+    final colors = AppColors.of(context);
+    final unreadColor = Theme.of(context).colorScheme.onSurface;
 
     final model = buildTrayMenuModel(
       sessions: sessions,
       pins: pins,
       hostLabels: hostLabelsOf(hosts),
       attentionCount: attention,
+      statusColors: colors.statusColors,
+      unreadColor: unreadColor,
     );
 
     backend.update(

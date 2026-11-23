@@ -2,6 +2,7 @@
 library;
 
 import 'dart:async';
+import 'dart:ui' show Color;
 
 import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
@@ -10,6 +11,7 @@ import 'package:tray_manager/tray_manager.dart';
 import '../hosts/open_hosts.dart';
 import 'desktop_window.dart';
 import 'tray_backend.dart';
+import 'tray_dot_icon.dart';
 import 'tray_menu_items.dart';
 
 final _log = Logger('tray_menu');
@@ -27,7 +29,20 @@ class NativeTrayBackend implements TrayBackend {
   ListenerId? _trayListenerId;
   TrayMenuModel? _lastModel;
   bool _unavailable = false;
+  final Map<int, Image> _dotIcons = {};
   final List<(Timer, Menu?, List<MenuItem>)> _pendingDisposals = [];
+
+  Image? _dotIconFor(Color? color) {
+    if (color == null) return null;
+    final key = color.toARGB32();
+    final cached = _dotIcons[key];
+    if (cached != null) return cached;
+    final created = Image.fromBase64(statusDotDataUri(color));
+    if (created != null) {
+      _dotIcons[key] = created;
+    }
+    return created;
+  }
 
   TrayIcon? _ensureTrayIcon() {
     if (_unavailable) return null;
@@ -97,12 +112,21 @@ class NativeTrayBackend implements TrayBackend {
         menu.addItem(item);
       }
 
-      void addAction(String label, VoidCallback onTap, {String? tooltip}) {
+      void addAction(
+        String label,
+        VoidCallback onTap, {
+        String? tooltip,
+        Color? iconColor,
+      }) {
         final item = MenuItem.createWithLabelAndType(
           label,
           MenuItemType.normal,
         );
         if (item == null) return;
+        final icon = _dotIconFor(iconColor);
+        if (icon != null) {
+          item.icon = icon;
+        }
         if (tooltip != null && tooltip.isNotEmpty) {
           item.tooltip = tooltip;
         }
@@ -122,6 +146,7 @@ class NativeTrayBackend implements TrayBackend {
             conv.label,
             () => onSelectSession(conv.ref),
             tooltip: conv.tooltip,
+            iconColor: conv.dotColor,
           );
         }
       }
@@ -137,6 +162,7 @@ class NativeTrayBackend implements TrayBackend {
             conv.label,
             () => onSelectSession(conv.ref),
             tooltip: conv.tooltip,
+            iconColor: conv.dotColor,
           );
         }
       }
@@ -201,6 +227,10 @@ class NativeTrayBackend implements TrayBackend {
       item.dispose();
     }
     _items = const [];
+    for (final icon in _dotIcons.values) {
+      icon.dispose();
+    }
+    _dotIcons.clear();
     _menu?.dispose();
     _menu = null;
     _icon?.dispose();

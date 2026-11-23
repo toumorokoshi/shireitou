@@ -1,6 +1,9 @@
 /// System tray icon and dropdown menu for active and pinned conversations.
 library;
 
+import 'dart:convert';
+import 'dart:ui' as ui;
+
 import 'package:ahp_client/ahp_client.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,11 +11,14 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shireitou/src/app.dart';
 import 'package:shireitou/src/desktop/tray_backend.dart';
+import 'package:shireitou/src/desktop/tray_dot_icon.dart';
 import 'package:shireitou/src/desktop/tray_menu_items.dart';
 import 'package:shireitou/src/hosts/open_hosts.dart';
 import 'package:shireitou/src/prefs.dart';
 import 'package:shireitou/src/session_detail/session_detail_view.dart';
 import 'package:shireitou/src/session_list/pinned_sessions.dart';
+import 'package:shireitou/src/session_list/status_badges.dart';
+import 'package:shireitou/src/theme/app_colors.dart';
 
 import 'fake_connection.dart';
 import 'fixtures.dart';
@@ -131,9 +137,14 @@ void main() {
           'pi:/working-older',
         ]);
         expect(model.active.map((i) => i.label), [
-          '◆ Needs approval',
-          '● Working newer',
-          '● Working older',
+          'Needs approval',
+          'Working newer',
+          'Working older',
+        ]);
+        expect(model.active.map((i) => i.status), [
+          SessionBadge.needsInput,
+          SessionBadge.working,
+          SessionBadge.working,
         ]);
         // Preserves pin order, not modifiedAt order.
         expect(model.pinned.map((i) => i.ref.session), [
@@ -141,11 +152,57 @@ void main() {
           'pi:/idle-pinned-1',
         ]);
         expect(model.pinned.map((i) => i.label), [
-          '• Second pinned',
+          'Second pinned',
           'First pinned',
+        ]);
+        expect(model.pinned.map((i) => i.status), [
+          SessionBadge.unread,
+          SessionBadge.idle,
         ]);
       },
     );
+
+    test('assigns status dot colors from StatusColors', () {
+      const statusColors = StatusColors(
+        running: Color(0xFF112233),
+        attention: Color(0xFF445566),
+        done: Color(0xFF778899),
+        error: Color(0xFFAABBCC),
+        idle: Color(0xFFDDEEFF),
+      );
+      const unreadColor = Color(0xFF123456);
+
+      final sessions = [
+        HostSession('h', session('w', status: _working, title: 'Working')),
+        HostSession('h', session('i', status: _input, title: 'Input')),
+        HostSession('h', session('e', status: _failed, title: 'Error')),
+        HostSession('h', session('u', status: _unread, title: 'Unread')),
+        HostSession('h', session('d', status: _idle, title: 'Idle')),
+      ];
+      final pins = <SessionRef>{
+        (host: 'h', session: 'pi:/e'),
+        (host: 'h', session: 'pi:/u'),
+        (host: 'h', session: 'pi:/d'),
+      };
+
+      final model = buildTrayMenuModel(
+        sessions: sessions,
+        pins: pins,
+        hostLabels: const {},
+        statusColors: statusColors,
+        unreadColor: unreadColor,
+      );
+
+      expect(model.active.map((i) => (i.status, i.dotColor)), [
+        (SessionBadge.needsInput, statusColors.attention),
+        (SessionBadge.working, statusColors.running),
+      ]);
+      expect(model.pinned.map((i) => (i.status, i.dotColor)), [
+        (SessionBadge.error, statusColors.error),
+        (SessionBadge.unread, unreadColor),
+        (SessionBadge.idle, statusColors.idle),
+      ]);
+    });
 
     test('does not duplicate a pinned session that is also active', () {
       final sessions = [
@@ -171,7 +228,8 @@ void main() {
 
       expect(model.active.map((i) => i.ref.session), ['pi:/a']);
       expect(model.pinned.map((i) => i.ref.session), ['pi:/b']);
-      expect(model.pinned.single.label, '✕ Failed and pinned');
+      expect(model.pinned.single.label, 'Failed and pinned');
+      expect(model.pinned.single.status, SessionBadge.error);
     });
 
     test('excludes archived sessions even if pinned or in progress', () {
@@ -218,10 +276,7 @@ void main() {
           hostLabels: const {'h1': 'alpha', 'h2': 'beta'},
         );
 
-        expect(
-          model.active.single.label.length,
-          '● '.length + maxTrayTitleLength,
-        );
+        expect(model.active.single.label.length, maxTrayTitleLength);
         expect(model.active.single.label, endsWith('…'));
         expect(
           model.active.single.tooltip,
@@ -273,7 +328,11 @@ void main() {
 
       expect(backend.lastModel, isNotNull);
       expect(backend.lastModel!.active.map((i) => i.ref.session), ['pi:/a1']);
+      expect(backend.lastModel!.active.single.status, SessionBadge.working);
+      expect(backend.lastModel!.active.single.dotColor, isNotNull);
       expect(backend.lastModel!.pinned.map((i) => i.ref.session), ['pi:/p1']);
+      expect(backend.lastModel!.pinned.single.status, SessionBadge.idle);
+      expect(backend.lastModel!.pinned.single.dotColor, isNotNull);
 
       // Clicking a conversation in the tray opens it in the session pane.
       backend.onSelectSession!((host: testHost.key, session: 'pi:/p1'));
@@ -287,6 +346,36 @@ void main() {
         ),
         findsOneWidget,
       );
+    });
+  });
+
+  group('status dot PNG', () {
+    test('renders a valid 16x16 RGBA PNG data URI', () async {
+      const color = Color(0xFF3388FF);
+      final uri = statusDotDataUri(color);
+      expect(uri, startsWith('data:image/png;base64,'));
+
+      final bytes = base64Decode(
+        uri.substring('data:image/png;base64,'.length),
+      );
+      final codec = await ui.instantiateImageCodec(bytes);
+      final frame = await codec.getNextFrame();
+      final image = frame.image;
+      expect(image.width, 16);
+      expect(image.height, 16);
+
+      final rgba = (await image.toByteData(
+        format: ui.ImageByteFormat.rawRgba,
+      ))!;
+      // Top-left corner (0, 0) should be transparent.
+      expect(rgba.getUint8(3), 0);
+      // Center pixel (8, 8) should be opaque in the requested color.
+      final centerOffset = (8 * 16 + 8) * 4;
+      expect(rgba.getUint8(centerOffset), 0x33);
+      expect(rgba.getUint8(centerOffset + 1), 0x88);
+      expect(rgba.getUint8(centerOffset + 2), 0xFF);
+      expect(rgba.getUint8(centerOffset + 3), 255);
+      image.dispose();
     });
   });
 }
