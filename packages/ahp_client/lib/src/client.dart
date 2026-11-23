@@ -27,6 +27,10 @@ import 'wire.dart';
 
 final _log = Logger('ahp_client');
 
+/// How many recent turns [AhpClient.subscribe] asks for by default on a chat
+/// channel (`SubscribeView.turns`, AHP-029).
+const defaultChatTurnWindow = 5;
+
 /// Opens a text stream to a host. One JSON-RPC message per frame.
 typedef ChannelConnector = Future<StreamChannel<String>> Function(Uri uri);
 
@@ -150,7 +154,7 @@ class AhpClient {
   final _failures = StreamController<ActionFailure>.broadcast();
   final _authRequired = StreamController<AuthRequiredParams>.broadcast();
   final _pendingTimers = <Timer>{};
-  final _loadingTurns = <String>{};
+  final _loadingTurns = <String, Future<bool>>{};
   final _subscribing = <String, Future<Snapshot?>>{};
   Timer? _pingTimer;
   bool _pingInFlight = false;
@@ -277,9 +281,14 @@ class AhpClient {
   /// Subscribes to [channel], sending `subscribe` only for the first
   /// observer (AHP-020). Session and chat snapshots ([kind]) are mirrored in
   /// [HostState]. Returns the snapshot when one was requested.
+  ///
+  /// For [ChannelKind.chat], [view] defaults to asking for the most recent
+  /// [defaultChatTurnWindow] turns (AHP-029); hosts that do not support `view`
+  /// ignore it.
   Future<Snapshot?> subscribe(
     String channel, {
     ChannelKind kind = ChannelKind.other,
+    SubscribeView? view,
   }) async {
     final change = acquireSubscription(_subscriptions, channel);
     _subscriptions = change.counts;
@@ -290,7 +299,7 @@ class AhpClient {
       await _subscribing[channel]?.catchError((Object _) => null);
       return null;
     }
-    final request = _subscribeOnHost(peer, channel, kind);
+    final request = _subscribeOnHost(peer, channel, kind, view);
     _subscribing[channel] = request;
     try {
       return await request;
@@ -305,6 +314,7 @@ class AhpClient {
     Peer peer,
     String channel,
     ChannelKind kind,
+    SubscribeView? view,
   ) async {
     if (_state.missingChannels.contains(channel)) {
       _set(
@@ -315,7 +325,15 @@ class AhpClient {
         ),
       );
     }
-    final result = await _request('subscribe', {'channel': channel}) as JsonMap;
+    final effectiveView =
+        view ??
+        (kind == ChannelKind.chat
+            ? const SubscribeView(turns: defaultChatTurnWindow)
+            : null);
+    final result = await _request(
+      'subscribe',
+      SubscribeParams(channel: channel, view: effectiveView).toJson(),
+    ) as JsonMap;
     final snapshot = switch (result['snapshot']) {
       final JsonMap json => Snapshot.fromJson(json),
       _ => null,
@@ -357,11 +375,11 @@ class AhpClient {
   /// Subscribes to [session] and its default chat, and returns the chat URI
   /// (null when the session has no chat). Release both with
   /// [closeSession].
-  Future<String?> openSession(String session) async {
+  Future<String?> openSession(String session, {SubscribeView? view}) async {
     await subscribe(session, kind: ChannelKind.session);
     final state = _state.sessionChannels[session]?.state;
     final chat = state == null ? null : defaultChatOf(state);
-    if (chat != null) await subscribe(chat, kind: ChannelKind.chat);
+    if (chat != null) await subscribe(chat, kind: ChannelKind.chat, view: view);
     return chat;
   }
 
@@ -444,12 +462,36 @@ class AhpClient {
   /// running. The turns arrive as `chat/turnsLoaded` before this returns.
   Future<bool> loadOlderTurns(String chat) async {
     final cursor = _state.chatChannels[chat]?.state.turnsNextCursor;
-    if (cursor == null || !_loadingTurns.add(chat)) return false;
+    if (cursor == null || _loadingTurns.containsKey(chat)) return false;
+    final future = _fetchOlderTurns(chat, cursor);
+    _loadingTurns[chat] = future;
     try {
-      await fetchTurns(chat, cursor: cursor);
-      return true;
+      return await future;
     } finally {
-      _loadingTurns.remove(chat);
+      if (identical(_loadingTurns[chat], future)) {
+        unawaited(_loadingTurns.remove(chat));
+      }
+    }
+  }
+
+  Future<bool> _fetchOlderTurns(String chat, String cursor) async {
+    await fetchTurns(chat, cursor: cursor);
+    return true;
+  }
+
+  /// Pages all remaining older turns into [chat] until `turnsNextCursor` is
+  /// cleared (AHP-029). Waits for any in-flight `loadOlderTurns` call first.
+  Future<void> loadAllTurns(String chat) async {
+    while (_peer != null && _state.status == ConnectionStatus.connected) {
+      if (_loadingTurns[chat] case final inflight?) {
+        await inflight;
+        continue;
+      }
+      final cursor = _state.chatChannels[chat]?.state.turnsNextCursor;
+      if (cursor == null) break;
+      final loaded = await loadOlderTurns(chat);
+      if (!loaded) break;
+      if (_state.chatChannels[chat]?.state.turnsNextCursor == cursor) break;
     }
   }
 

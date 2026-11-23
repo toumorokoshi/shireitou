@@ -1577,12 +1577,29 @@ void main() {
     );
     expect(connection.loadedOlder, isEmpty);
     connection.olderState = _state(chat: _longChat(6));
-    await tester.tap(find.byTooltip('Load older turns'));
+    await tester.tap(find.bySemanticsLabel('Turn 1: Question 3'));
+    await tester.pumpAndSettle();
+    await _ctrlAlt(tester, LogicalKeyboardKey.arrowUp);
     await tester.pumpAndSettle();
     expect(connection.loadedOlder, [_chat]);
     // The newest of the paged-in turns is at the top.
     expect(_atTop(tester, 'Question 2\nwith details'), isTrue);
-    expect(find.byTooltip('Load older turns'), findsNothing);
+    expect(find.byTooltip('Load all turns'), findsNothing);
+  });
+
+  testWidgets('Load all turns button on the turn rail loads the full '
+      'conversation (AV-074)', (tester) async {
+    reduceMotion(tester);
+    final connection = await _pump(
+      tester,
+      _state(chat: _longChat(3, from: 3, cursor: 'c1')),
+    );
+    expect(connection.loadedAll, isEmpty);
+    connection.olderState = _state(chat: _longChat(6));
+    await tester.tap(find.byTooltip('Load all turns'));
+    await tester.pumpAndSettle();
+    expect(connection.loadedAll, [_chat]);
+    expect(find.byTooltip('Load all turns'), findsNothing);
   });
 
   testWidgets(

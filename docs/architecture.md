@@ -110,10 +110,13 @@ now)` takes every state the client publishes (each action is its own
   connection or the chat's subscription was lost; the time in between
   is not counted). Calls first seen finished get none. The caller owns
   the timings and the clock.
-- **Windowed history (AHP-029):** a chat snapshot may hold only the
-  newest turns and a `turnsNextCursor`; `loadOlderTurns(chat)` sends
-  `fetchTurns` with it (one at a time per chat), and the host prepends
-  the page with `chat/turnsLoaded` before answering.
+- **Windowed history (AHP-029):** chat subscriptions request the
+  newest `defaultChatTurnWindow` (5) turns (`SubscribeView.turns`), and
+  the host may return a tail window and a `turnsNextCursor`;
+  `loadOlderTurns(chat)` sends `fetchTurns` with it (one at a time per
+  chat), `loadAllTurns(chat)` pages until `turnsNextCursor` is cleared,
+  and the host prepends each page with `chat/turnsLoaded` before
+  answering.
 - **Write-ahead dispatch (AHP-022):** `dispatch(channel, action)` sends a
   `dispatchAction` notification with the next `clientSeq` and applies the
   action to the channel's mirror at once. A `ChannelMirror` holds the
@@ -542,7 +545,9 @@ Dart source); `bin/generate.dart` does the file I/O. See
   `currentTurn` and `steppedTurn` pick the turn in view and the one a
   step away from the oldest row on screen, and `turnRailLayout` spaces
   the dots. `turn_rail.dart` draws the 16 px `TurnRail`, always shown,
-  on the list's left side, clear of the scrollbar (AV-074); the timeline jumps to a marker's row with alignment 1 (the
+  on the list's left side, clear of the scrollbar (AV-074), with a
+  "Load all turns" button above the dots while `turnsNextCursor` is set;
+  the timeline jumps to a marker's row with alignment 1 (the
   top of the reversed list), and pages older turns in first when the
   user steps back past the oldest loaded one.
   `approval_bar.dart` is the bar under a waiting tool call: Approve/Deny

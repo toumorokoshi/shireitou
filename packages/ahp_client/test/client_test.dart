@@ -74,6 +74,12 @@ class FakeHost {
   /// simulate a dead socket.
   Object? Function()? onPing;
 
+  /// Overrides the `subscribe` snapshot per channel.
+  Object? Function(String channel)? onSubscribe;
+
+  /// Handles `fetchTurns` requests.
+  Object? Function(JsonMap params)? onFetchTurns;
+
   /// While set, connections are refused as if nothing listened.
   bool down = false;
 
@@ -100,6 +106,7 @@ class FakeHost {
       'listSessions',
       'ping',
       'subscribe',
+      'fetchTurns',
       'createSession',
       'dispatchAction',
       'unsubscribe',
@@ -137,7 +144,12 @@ class FakeHost {
                       {..._summaryJson, 'resource': 'pi:/b', 'title': 'second'},
                     ],
                   },
-          'subscribe' => {'snapshot': _snapshots[params['channel']]},
+          'subscribe' => {
+            'snapshot':
+                onSubscribe?.call(params['channel']! as String) ??
+                _snapshots[params['channel']],
+          },
+          'fetchTurns' => onFetchTurns?.call(params) ?? <String, Object?>{},
           'createSession' => () {
             // Older hosts list `ahp-session:/<id>` as `pi:/<id>`. Current
             // pi keeps the sent scheme; this still covers the alias.
@@ -272,12 +284,13 @@ void main() {
     await client.connect();
     final chat = await client.openSession('pi:/a');
     expect(chat, 'ahp-chat:/a');
-    expect(
-      host.requests
-          .where((r) => r.$1 == 'subscribe')
-          .map((r) => r.$2['channel']),
-      ['pi:/a', 'ahp-chat:/a'],
-    );
+    final subscribes = host.requests
+        .where((r) => r.$1 == 'subscribe')
+        .map((r) => r.$2)
+        .toList();
+    expect(subscribes.map((p) => p['channel']), ['pi:/a', 'ahp-chat:/a']);
+    expect(subscribes[0].containsKey('view'), isFalse);
+    expect(subscribes[1]['view'], {'turns': defaultChatTurnWindow});
     expect(client.state.sessionChannels['pi:/a']!.state.title, 'first');
     expect(client.state.chatChannels['ahp-chat:/a']!.state.turns, isEmpty);
 
@@ -286,6 +299,84 @@ void main() {
     expect(client.state.chatChannels, isEmpty);
     expect(client.state.sessionChannels, isEmpty);
     expect(host.requests.where((r) => r.$1 == 'unsubscribe'), hasLength(2));
+  });
+
+  test('loadAllTurns pages through every cursor until cleared', () async {
+    host.onSubscribe = (channel) {
+      if (channel != 'ahp-chat:/a') return null;
+      return {
+        'resource': channel,
+        'state': {
+          ..._chatState,
+          'turns': [
+            {
+              'id': 't3',
+              'state': 'complete',
+              'message': {
+                'text': 'three',
+                'origin': {'kind': 'user'},
+              },
+            },
+          ],
+          'turnsNextCursor': 'c2',
+        },
+        'fromSeq': 1,
+      };
+    };
+    final fetchCursors = <String?>[];
+    host.onFetchTurns = (params) {
+      final cursor = params['cursor'] as String?;
+      fetchCursors.add(cursor);
+      final peer = host.peers.single;
+      if (cursor == 'c2') {
+        peer.sendNotification('action', {
+          'channel': 'ahp-chat:/a',
+          'action': {
+            'type': 'chat/turnsLoaded',
+            'turns': [
+              {
+                'id': 't2',
+                'state': 'complete',
+                'message': {
+                  'text': 'two',
+                  'origin': {'kind': 'user'},
+                },
+              },
+            ],
+            'turnsNextCursor': 'c1',
+          },
+          'serverSeq': 2,
+        });
+      } else if (cursor == 'c1') {
+        peer.sendNotification('action', {
+          'channel': 'ahp-chat:/a',
+          'action': {
+            'type': 'chat/turnsLoaded',
+            'turns': [
+              {
+                'id': 't1',
+                'state': 'complete',
+                'message': {
+                  'text': 'one',
+                  'origin': {'kind': 'user'},
+                },
+              },
+            ],
+          },
+          'serverSeq': 3,
+        });
+      }
+      return {};
+    };
+
+    await client.connect();
+    await client.openSession('pi:/a');
+    await client.loadAllTurns('ahp-chat:/a');
+
+    expect(fetchCursors, ['c2', 'c1']);
+    final chat = client.state.chatChannels['ahp-chat:/a']!.state;
+    expect(chat.turns.map((t) => t.id), ['t1', 't2', 't3']);
+    expect(chat.turnsNextCursor, isNull);
   });
 
   test(

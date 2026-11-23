@@ -314,8 +314,7 @@ AppImage and the release workflow (see
     window (`turnsNextCursor`) and page older turns in with `fetchTurns`,
     but has no way to unload them again, and the host's chat state is
     shared by every client, so the client cannot drop turns it has loaded
-    without diverging from the host. pi always sends full history, so
-    paging is exercised only against the fake host's "Long session".
+    without diverging from the host.
   - Hidden chats (`interactivity: hidden`) are not listed; chats can only
     be moved within their session (no move to another or a new session,
     `ChatMoveToNewSessionDestination`), and only "left/right" from a menu,

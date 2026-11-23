@@ -304,8 +304,12 @@ class HostConnection extends Notifier<HostState> {
 
   /// Subscribes to [channel], mirrored as [kind] (reference counted,
   /// AHP-020). Pair every call with [unsubscribe].
-  Future<void> subscribe(String channel, ChannelKind kind) async {
-    await _connected.subscribe(channel, kind: kind);
+  Future<void> subscribe(
+    String channel,
+    ChannelKind kind, {
+    SubscribeView? view,
+  }) async {
+    await _connected.subscribe(channel, kind: kind, view: view);
   }
 
   /// Releases a [subscribe]. A chat or session with background work stays
@@ -315,6 +319,9 @@ class HostConnection extends Notifier<HostState> {
   /// Pages older turns into [chat] when the host windowed it (AV-068,
   /// AHP-029). False when there is nothing more to load.
   Future<bool> loadOlderTurns(String chat) => _connected.loadOlderTurns(chat);
+
+  /// Pages all remaining older turns into [chat] (AHP-029).
+  Future<void> loadAllTurns(String chat) => _connected.loadAllTurns(chat);
 
   /// Reads a `ContentRef` [uri] (`resourceRead`), for example a side of a
   /// file edit.

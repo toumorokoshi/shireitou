@@ -10,10 +10,10 @@ import 'turn_markers.dart';
 /// Tapping a dot, or dragging along the rail (scrubbing), calls
 /// [onSelect] with the marker's index; hovering shows the message's first
 /// line. The [current] turn's dot is highlighted, failed turns are red,
-/// running ones hollow and cancelled ones faint. When [onLoadOlder] is
-/// set (the host holds older turns back), a button above the dots pages
-/// them in. [compact] makes the rail thinner still (phones), where
-/// dragging along it scrubs.
+/// running ones hollow and cancelled ones faint. When [onLoadAll] is
+/// set (the host holds older turns back), a button above the dots loads
+/// the remaining turns. [compact] makes the rail thinner still (phones),
+/// where dragging along it scrubs.
 class TurnRail extends StatefulWidget {
   /// Creates a [TurnRail].
   const TurnRail({
@@ -21,7 +21,8 @@ class TurnRail extends StatefulWidget {
     required this.markers,
     required this.current,
     required this.onSelect,
-    this.onLoadOlder,
+    this.onLoadAll,
+    this.loadingAll = false,
     this.compact = false,
   });
 
@@ -34,8 +35,11 @@ class TurnRail extends StatefulWidget {
   /// Called with the index of the marker to jump to.
   final ValueChanged<int> onSelect;
 
-  /// Pages older turns in and jumps to them; null when all are loaded.
-  final VoidCallback? onLoadOlder;
+  /// Loads all remaining older turns; null when all are loaded.
+  final VoidCallback? onLoadAll;
+
+  /// Whether [onLoadAll] is currently running.
+  final bool loadingAll;
 
   /// Whether to draw the thin rail of compact layouts.
   final bool compact;
@@ -89,15 +93,23 @@ class _TurnRailState extends State<TurnRail> {
         label: 'Turns',
         child: Column(
           children: [
-            if (widget.onLoadOlder case final load?)
+            if (widget.onLoadAll case final load?)
               SizedBox(
                 height: 24,
                 child: IconButton(
                   padding: EdgeInsets.zero,
                   iconSize: widget.compact ? 12 : 16,
-                  tooltip: 'Load older turns',
-                  onPressed: load,
-                  icon: const Icon(Icons.more_horiz),
+                  tooltip: 'Load all turns',
+                  onPressed: widget.loadingAll ? null : load,
+                  icon: widget.loadingAll
+                      ? SizedBox(
+                          width: widget.compact ? 10 : 12,
+                          height: widget.compact ? 10 : 12,
+                          child: const CircularProgressIndicator(
+                            strokeWidth: 1.5,
+                          ),
+                        )
+                      : const Icon(Icons.more_horiz),
                 ),
               ),
             Expanded(

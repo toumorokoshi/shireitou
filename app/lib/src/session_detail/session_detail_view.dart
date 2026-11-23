@@ -482,6 +482,14 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
     }
   }
 
+  Future<void> _loadAll(String chat) async {
+    try {
+      await _connection.loadAllTurns(chat);
+    } on Object catch (error) {
+      _showMessage('Could not load older turns: $error');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // New turns clear IsRead; while the session is open, it stays read.
@@ -583,6 +591,7 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
           onSignIn: _signIn,
           onOpenChat: _selectChat,
           onLoadOlder: () => _loadOlder(chatUri!),
+          onLoadAll: () => _loadAll(chatUri!),
           onEditMessage: readOnly || missing
               ? null
               : (turnId, text) {
@@ -1460,6 +1469,7 @@ class _Timeline extends ConsumerStatefulWidget {
     required this.onSignIn,
     required this.onOpenChat,
     required this.onLoadOlder,
+    required this.onLoadAll,
     this.onEditMessage,
     this.onFork,
   });
@@ -1469,6 +1479,7 @@ class _Timeline extends ConsumerStatefulWidget {
   final SignIn onSignIn;
   final OpenChat onOpenChat;
   final Future<void> Function() onLoadOlder;
+  final Future<void> Function() onLoadAll;
 
   /// Restarts from the latest message with edited text (AV-088); no edit
   /// button when null.
@@ -1496,6 +1507,7 @@ class _TimelineState extends ConsumerState<_Timeline> {
 
   /// The index of the turn in view (AV-074).
   int? _currentTurn;
+  bool _loadingAll = false;
   StreamSubscription<AppCommand>? _commands;
 
   @override
@@ -1590,6 +1602,17 @@ class _TimelineState extends ConsumerState<_Timeline> {
       final before = markers.indexWhere((m) => m.turnId == oldest) - 1;
       if (before >= 0) _jumpTo(markers[before]);
     });
+  }
+
+  /// Loads all remaining older turns, keeping the current scroll position.
+  Future<void> _loadAllTurns() async {
+    if (_loadingAll || widget.chat.turnsNextCursor == null) return;
+    setState(() => _loadingAll = true);
+    try {
+      await widget.onLoadAll();
+    } finally {
+      if (mounted) setState(() => _loadingAll = false);
+    }
   }
 
   /// Scrolls so that [marker]'s message is at the top of the screen.
@@ -1717,9 +1740,10 @@ class _TimelineState extends ConsumerState<_Timeline> {
                 ? current
                 : null,
             onSelect: (index) => _jumpTo(markers[index]),
-            onLoadOlder: widget.chat.turnsNextCursor == null
+            onLoadAll: widget.chat.turnsNextCursor == null
                 ? null
-                : () => unawaited(_loadOlderAndJump()),
+                : () => unawaited(_loadAllTurns()),
+            loadingAll: _loadingAll,
             compact: compact,
           ),
         ),

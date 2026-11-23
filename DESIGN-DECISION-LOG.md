@@ -1,3 +1,24 @@
+## 2026-11-22: Request recent 5 turns on chat subscribe and add "Load all turns" (AHP-029, AV-068, AV-074)
+
+Long sessions took a long time to transfer and render because the client
+subscribed to chat channels without `SubscribeView.turns`, so hosts sent
+the entire conversation history upfront.
+
+- **Default 5-turn window (`packages/ahp_client/lib/src/client.dart`):**
+  `AhpClient.subscribe` and `openSession` now accept an optional
+  `SubscribeView? view` and default to `SubscribeView(turns: 5)`
+  (`defaultChatTurnWindow`) when `kind == ChannelKind.chat`. Older hosts
+  that do not understand `view` ignore it; hosts like
+  `pi-agent-host-protocol` return the last 5 turns with `turnsNextCursor`.
+- **Lazy-load on scroll + "Load all turns" (`loadAllTurns`, `TurnRail`):**
+  scrolling up continues to page older turns automatically via
+  `loadOlderTurns`. `AhpClient.loadAllTurns` (and `HostConnection.loadAllTurns`)
+  awaits any in-flight page load and loops `fetchTurns` until
+  `turnsNextCursor` is cleared. `TurnRail`'s top button now shows a
+  "Load all turns" tooltip (and a spinner while loading) and calls
+  `loadAllTurns` to populate the full conversation without jumping the
+  scroll position.
+
 ## 2026-11-22: Join hard-wrapped multi-line URLs in the terminal (AV-016)
 
 Clicking a multi-line URL in the terminal panel only opened the first line

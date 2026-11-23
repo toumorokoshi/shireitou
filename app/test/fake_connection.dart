@@ -153,8 +153,11 @@ class FakeHostConnection extends HostConnection {
   final subscribed = <String>[];
 
   @override
-  Future<void> subscribe(String channel, ChannelKind kind) async =>
-      subscribed.add(channel);
+  Future<void> subscribe(
+    String channel,
+    ChannelKind kind, {
+    SubscribeView? view,
+  }) async => subscribed.add(channel);
 
   @override
   void unsubscribe(String channel) {}
@@ -162,8 +165,11 @@ class FakeHostConnection extends HostConnection {
   /// Chats [loadOlderTurns] was called for.
   final loadedOlder = <String>[];
 
-  /// The state [loadOlderTurns] moves to, as if the older turns arrived;
-  /// null keeps the state.
+  /// Chats [loadAllTurns] was called for.
+  final loadedAll = <String>[];
+
+  /// The state [loadOlderTurns] / [loadAllTurns] moves to, as if the older
+  /// turns arrived; null keeps the state.
   HostState? olderState;
 
   @override
@@ -173,6 +179,13 @@ class FakeHostConnection extends HostConnection {
     if (older == null) return false;
     state = older;
     return true;
+  }
+
+  @override
+  Future<void> loadAllTurns(String chat) async {
+    loadedAll.add(chat);
+    final older = olderState;
+    if (older != null) state = older;
   }
 
   /// Content served by [readResource], by URI.
