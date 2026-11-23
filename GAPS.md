@@ -833,10 +833,12 @@ AppImage and the release workflow (see
 - A fork is a chat of the same session, not a new session: AHP has no
   fork source for `createSession`. Movable chats can be detached into
   their own session via "Detach to new session" (`moveChat` with
-  `newSession`, AV-069), though hosts that do not support `newSession`
-  (or mark the chat non-movable) will hide or reject the action. Moving a
-  chat into an existing different session (`session` destination) is not
-  offered.
+  `newSession`, AV-069) or created and detached in one step via "Fork
+  and detach" (AV-144), though hosts that do not support `newSession`
+  (or mark the chat non-movable) will hide or reject the action (with
+  "Fork and detach" falling back to opening the fork in the source
+  session). Moving a chat into an existing different session (`session`
+  destination) is not offered.
 - While the host creates the chat there is no progress indicator; the
   view switches to it when `session/chatAdded` arrives.
 

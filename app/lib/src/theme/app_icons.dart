@@ -125,6 +125,10 @@ abstract final class AppIcons {
   /// Fork the chat from a finished turn into a new chat (AV-144).
   static const IconData fork = Codicons.repoForked;
 
+  /// Fork the chat from a finished turn and detach it into a new session
+  /// (AV-144).
+  static const IconData forkAndDetach = Codicons.linkExternal;
+
   /// Scrolls the timeline to the latest message.
   static const IconData jumpToLatest = Codicons.chevronDown;
 

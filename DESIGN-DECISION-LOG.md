@@ -1,3 +1,21 @@
+## 2026-11-23: "Fork and detach" button on completed turns (AV-144, AV-069)
+
+Added a "Fork and detach" button (`AppIcons.forkAndDetach`,
+`Codicons.linkExternal`) next to "Fork from here" in `_TurnFooter` so
+users can fork a completed turn directly into a new session in one click.
+
+- **Chained `createChat` → `moveChat` (`newSession`):** AHP 1.0.0 has no
+  fork source on `createSession`, so `_forkAndDetach` in
+  `SessionDetailView` calls `forkChat`, tracks the created chat URI in
+  `_pendingDetachFork`, and when `session/chatAdded` lists it, calls
+  `moveChat` with `ChatMoveToNewSessionDestination` and switches to the
+  returned session via `onSessionDetached`.
+- **Gating and fallback:** The button is only shown on AHP 1.0.0 hosts
+  (`ProtocolFeature.moveChat`) for forkable turns (`canForkChats` and
+  `isForkableTurn`). If the host marks the forked chat non-movable or
+  rejects `moveChat`, the view falls back to opening the fork in the
+  source session and shows a snackbar.
+
 ## 2026-11-23: Colored status dot icons on system tray dropdown items (AV-008)
 
 Replaced the Unicode text prefixes (`◆`, `●`, `✕`, `•`) in the system

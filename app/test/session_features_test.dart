@@ -879,7 +879,191 @@ void main() {
     );
     expect(find.byTooltip('Copy as markdown'), findsOneWidget);
     expect(find.byTooltip(forkTooltip), findsNothing);
+    expect(find.byTooltip(forkAndDetachTooltip), findsNothing);
   });
+
+  testWidgets('no fork and detach button on a 0.9.0 host (AV-144)', (
+    tester,
+  ) async {
+    const forking = RootState(
+      agents: [
+        AgentInfo(
+          provider: 'pi',
+          displayName: 'Pi',
+          description: 'Pi',
+          models: [],
+          capabilities: AgentCapabilities(
+            multipleChats: MultipleChatsCapability(fork: true),
+          ),
+        ),
+      ],
+    );
+    await _pump(
+      tester,
+      _state(
+        chat: _chatWith(const [MarkdownResponsePart(id: 'm', content: 'Ok')]),
+        version: '0.9.0',
+        sessionState: _session(),
+        root: forking,
+      ),
+    );
+    expect(find.byTooltip(forkTooltip), findsOneWidget);
+    expect(find.byTooltip(forkAndDetachTooltip), findsNothing);
+  });
+
+  testWidgets(
+    'fork and detach creates a fork and detaches it to a new session (AV-144)',
+    (tester) async {
+      const forking = RootState(
+        agents: [
+          AgentInfo(
+            provider: 'pi',
+            displayName: 'Pi',
+            description: 'Pi',
+            models: [],
+            capabilities: AgentCapabilities(
+              multipleChats: MultipleChatsCapability(fork: true),
+            ),
+          ),
+        ],
+      );
+      final reply = _chatWith(const [
+        MarkdownResponsePart(id: 'm', content: 'Done.'),
+      ]);
+      final session = _session(chats: const [_mainSummary]);
+      final connection = await _pump(
+        tester,
+        _state(chat: reply, sessionState: session, root: forking),
+      );
+      ChatSummary? forkSummary;
+      ChatState? forkChatState;
+      connection.forkedState = (fork) {
+        forkSummary = ChatSummary(
+          resource: fork,
+          title: 'Fix login (fork)',
+          status: SessionStatus.idle,
+          modifiedAt: '2026-10-01T00:00:00Z',
+          movable: true,
+          origin: const ChatOriginFork(chat: _chat, turnId: 't1'),
+        );
+        forkChatState = _chatWith(const [
+          MarkdownResponsePart(id: 'm', content: 'Forked reply'),
+        ]).copyWith(resource: fork, title: 'Fix login (fork)', movable: true);
+        return _state(
+          chat: reply,
+          root: forking,
+          sessionState: session.copyWith(chats: [_mainSummary, forkSummary!]),
+          otherChats: {fork: ChannelMirror.snapshot(forkChatState!)},
+        );
+      };
+      const detachedSession = 'pi:/2';
+      connection.onMoveChat = (chat, destination) async {
+        connection.chats[detachedSession] = chat;
+        final detachedSummary = SessionSummary(
+          resource: detachedSession,
+          provider: 'pi',
+          title: 'Fix login (fork)',
+          status: SessionStatus.idle,
+          createdAt: '2026-10-01T00:00:00Z',
+          modifiedAt: '2026-10-01T00:00:00Z',
+          defaultChat: chat,
+        );
+        connection.state = connection.state.copyWith(
+          sessions: {
+            ...connection.state.sessions,
+            detachedSession: detachedSummary,
+          },
+          sessionChannels: {
+            ...connection.state.sessionChannels,
+            detachedSession: ChannelMirror.snapshot(
+              _session(chats: [forkSummary!.copyWith(movable: false)])
+                  .copyWith(title: 'Fix login (fork)', defaultChat: chat),
+            ),
+          },
+          chatChannels: {
+            ...connection.state.chatChannels,
+            chat: ChannelMirror.snapshot(
+              forkChatState!.copyWith(movable: false),
+            ),
+          },
+        );
+        return const MoveChatResult(session: detachedSession);
+      };
+
+      await tester.tap(find.byTooltip(forkAndDetachTooltip));
+      await tester.pumpAndSettle();
+
+      final (sessionUri, fork, source, turn) = connection.forked.single;
+      expect((sessionUri, source, turn), ('pi:/1', _chat, 't1'));
+      expect(connection.moved, [
+        (fork, const ChatMoveToNewSessionDestination()),
+      ]);
+      expect(find.byType(ChoiceChip), findsNothing);
+      expect(find.text('Forked reply'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'fork and detach falls back to opening in session when fork is not movable',
+    (tester) async {
+      const forking = RootState(
+        agents: [
+          AgentInfo(
+            provider: 'pi',
+            displayName: 'Pi',
+            description: 'Pi',
+            models: [],
+            capabilities: AgentCapabilities(
+              multipleChats: MultipleChatsCapability(fork: true),
+            ),
+          ),
+        ],
+      );
+      final reply = _chatWith(const [
+        MarkdownResponsePart(id: 'm', content: 'Done.'),
+      ]);
+      final session = _session(chats: const [_mainSummary]);
+      final connection = await _pump(
+        tester,
+        _state(chat: reply, sessionState: session, root: forking),
+      );
+      connection.forkedState = (fork) => _state(
+        chat: reply,
+        root: forking,
+        sessionState: session.copyWith(
+          chats: [
+            _mainSummary,
+            ChatSummary(
+              resource: fork,
+              title: 'Fix login (fork)',
+              status: SessionStatus.idle,
+              modifiedAt: '2026-10-01T00:00:00Z',
+              movable: false,
+              origin: const ChatOriginFork(chat: _chat, turnId: 't1'),
+            ),
+          ],
+        ),
+        otherChats: {
+          fork: ChannelMirror.snapshot(
+            reply.copyWith(resource: fork, title: 'Fix login (fork)'),
+          ),
+        },
+      );
+
+      await tester.tap(find.byTooltip(forkAndDetachTooltip));
+      await tester.pumpAndSettle();
+
+      expect(connection.moved, isEmpty);
+      final chip = tester.widget<ChoiceChip>(
+        find.widgetWithText(ChoiceChip, 'Fix login (fork)'),
+      );
+      expect(chip.selected, isTrue);
+      expect(
+        find.textContaining('does not allow detaching forked chats'),
+        findsOneWidget,
+      );
+    },
+  );
 
   testWidgets('a 0.9.0 host cannot move chats', (tester) async {
     await _pump(

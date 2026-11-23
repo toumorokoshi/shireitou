@@ -40,7 +40,7 @@ import 'turn_markdown.dart';
 /// message of turn [editableTurn] gets an edit button that calls
 /// [onEditMessage] with the turn and the edited text (AV-088). A completed
 /// turn's footer gets a fork button that calls [onFork] with the turn
-/// (AV-144).
+/// (AV-144), and a fork-and-detach button when [onForkAndDetach] is set.
 Widget buildTimelineItem(
   TimelineItem item,
   ValueChanged<JsonMap> onAction, {
@@ -52,6 +52,7 @@ Widget buildTimelineItem(
   String? editableTurn,
   void Function(String turnId, String text)? onEditMessage,
   ValueChanged<String>? onFork,
+  ValueChanged<String>? onForkAndDetach,
 }) => switch (item) {
   UserMessageItem(:final turnId, :final message, :final startedAt) =>
     UserMessageBubble(
@@ -113,11 +114,17 @@ Widget buildTimelineItem(
     onFork: onFork != null && isForkableTurn(turn)
         ? () => onFork(turn.id)
         : null,
+    onForkAndDetach: onForkAndDetach != null && isForkableTurn(turn)
+        ? () => onForkAndDetach(turn.id)
+        : null,
   ),
 };
 
 /// The fork button's tooltip (AV-144).
 const forkTooltip = 'Fork from here';
+
+/// The fork-and-detach button's tooltip (AV-144).
+const forkAndDetachTooltip = 'Fork and detach';
 
 /// The oldest row while the host holds older turns back (AV-068): it asks
 /// for them as soon as it is built, which happens when the user scrolls
@@ -1431,10 +1438,11 @@ class _Note extends StatelessWidget {
 /// smallest muted text, so it reads as metadata under the reply rather
 /// than part of it (the reference UI has no footer at all).
 class _TurnFooter extends StatelessWidget {
-  const _TurnFooter(this.turn, {this.onFork});
+  const _TurnFooter(this.turn, {this.onFork, this.onForkAndDetach});
 
   final Turn turn;
   final VoidCallback? onFork;
+  final VoidCallback? onForkAndDetach;
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -1459,6 +1467,14 @@ class _TurnFooter extends StatelessWidget {
             onPressed: fork,
             icon: const Icon(AppIcons.fork),
             tooltip: forkTooltip,
+            iconSize: 14,
+            visualDensity: VisualDensity.compact,
+          ),
+        if (onForkAndDetach case final forkAndDetach?)
+          IconButton(
+            onPressed: forkAndDetach,
+            icon: const Icon(AppIcons.forkAndDetach),
+            tooltip: forkAndDetachTooltip,
             iconSize: 14,
             visualDensity: VisualDensity.compact,
           ),

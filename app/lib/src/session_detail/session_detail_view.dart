@@ -128,6 +128,10 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
   /// A chat forked from this view (AV-144), opened once the session lists
   /// it.
   String? _forkedChat;
+
+  /// A chat forked from this view with "Fork and detach" (AV-144), detached
+  /// into a new session once the host lists it.
+  String? _pendingDetachFork;
   Object? _error;
   bool _opening = true;
 
@@ -474,6 +478,42 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
     if (mounted) setState(() => _forkedChat = chat);
   }
 
+  /// Forks [source] at its completed turn [turnId] into a new chat and
+  /// detaches it into a new session once the host lists it (AV-144).
+  Future<void> _forkAndDetach(String source, String turnId) async {
+    final chat = 'ahp-chat:/${const Uuid().v4()}';
+    setState(() => _pendingDetachFork = chat);
+    try {
+      await _connection.forkChat(
+        widget.session,
+        chat: chat,
+        source: source,
+        turnId: turnId,
+      );
+    } on Object catch (error) {
+      if (mounted && _pendingDetachFork == chat) {
+        setState(() => _pendingDetachFork = null);
+      }
+      _showMessage('Could not fork the chat: $error');
+    }
+  }
+
+  Future<void> _detachForkedChat(String chat) async {
+    try {
+      final result = await _connection.moveChat(
+        chat,
+        const ChatMoveToNewSessionDestination(),
+      );
+      if (!mounted) return;
+      setState(() => _selectedChat = null);
+      widget.onSessionDetached?.call(result.session);
+    } on Object catch (error) {
+      if (!mounted) return;
+      setState(() => _selectedChat = chat == _defaultChat ? null : chat);
+      _showMessage('Could not detach the forked chat: $error');
+    }
+  }
+
   Future<void> _loadOlder(String chat) async {
     try {
       await _connection.loadOlderTurns(chat);
@@ -533,6 +573,27 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
             !chats.any((c) => c.resource == selected)) {
       _selectedChat = null;
     }
+    final protocolVersion = ref.watch(
+      hostConnectionProvider(context.host).select((s) => s.protocolVersion),
+    );
+    bool supports(ProtocolFeature f) => supportsFeature(protocolVersion, f);
+    // A fork-and-detach detaches into a new session once the host lists it.
+    if (_pendingDetachFork case final pending?
+        when chats.any((c) => c.resource == pending)) {
+      final forkedSummary = chats.firstWhere((c) => c.resource == pending);
+      _pendingDetachFork = null;
+      if (supports(ProtocolFeature.moveChat) &&
+          (forkedSummary.movable ?? false)) {
+        scheduleMicrotask(() => _detachForkedChat(pending));
+      } else {
+        _selectedChat = pending == _defaultChat ? null : pending;
+        scheduleMicrotask(
+          () => _showMessage(
+            'This host does not allow detaching forked chats; opened in this session.',
+          ),
+        );
+      }
+    }
     final chatUri = _chat ?? (_selectedChat ?? cached?.defaultChat);
     final liveChat = chatUri == null
         ? null
@@ -548,10 +609,6 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
         : ref.watch(
             toolCallTimingsProvider(context.host).select((t) => t[chatUri]),
           );
-    final protocolVersion = ref.watch(
-      hostConnectionProvider(context.host).select((s) => s.protocolVersion),
-    );
-    bool supports(ProtocolFeature f) => supportsFeature(protocolVersion, f);
     // Answers the host has resolved need no tracking.
     for (final id in resolvedAnswers(_answered, sessionState)) {
       _forgetAnswer(id);
@@ -605,6 +662,9 @@ class _SessionDetailViewState extends ConsumerState<SessionDetailView> {
                   _dispatchAll(chatUri!, actions ?? const []);
                 },
           onFork: canFork ? (turnId) => _fork(chatUri!, turnId) : null,
+          onForkAndDetach: canFork && supports(ProtocolFeature.moveChat)
+              ? (turnId) => _forkAndDetach(chatUri!, turnId)
+              : null,
         ),
       ),
     };
@@ -1472,6 +1532,7 @@ class _Timeline extends ConsumerStatefulWidget {
     required this.onLoadAll,
     this.onEditMessage,
     this.onFork,
+    this.onForkAndDetach,
   });
 
   final ChatState chat;
@@ -1488,6 +1549,10 @@ class _Timeline extends ConsumerStatefulWidget {
   /// Forks the chat from a completed turn (AV-144); no fork button when
   /// null.
   final ValueChanged<String>? onFork;
+
+  /// Forks the chat from a completed turn and detaches it into a new session
+  /// (AV-144); no button when null.
+  final ValueChanged<String>? onForkAndDetach;
 
   @override
   ConsumerState<_Timeline> createState() => _TimelineState();
@@ -1689,6 +1754,7 @@ class _TimelineState extends ConsumerState<_Timeline> {
                           editableTurn: editableTurn,
                           onEditMessage: widget.onEditMessage,
                           onFork: widget.onFork,
+                          onForkAndDetach: widget.onForkAndDetach,
                           expandedSteps: _expandedSteps,
                           onToggleSteps: (key) => setState(
                             () => _expandedSteps.contains(key)
