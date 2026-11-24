@@ -416,3 +416,89 @@ class _ScrollSelectionDelegate extends StaticSelectionContainerDelegate {
     );
   }
 }
+
+/// Returns the vertical pointer-scroll delta to forward to an ancestor
+/// vertical [Scrollable] when a horizontal scroll view consumes a mostly
+/// vertical [PointerScrollEvent], or `null` when the ancestor will already
+/// receive the event itself.
+double? verticalScrollPassthroughDelta({
+  required Offset scrollDelta,
+  required double innerPixels,
+  required double innerMinExtent,
+  required double innerMaxExtent,
+  required bool innerReversed,
+  required bool outerReversed,
+}) {
+  final dx = innerReversed ? -scrollDelta.dx : scrollDelta.dx;
+  final dy = scrollDelta.dy;
+  if (dy == 0 || dx == 0 || dy.abs() <= dx.abs()) return null;
+  final innerCanScroll = dx > 0
+      ? innerPixels < innerMaxExtent
+      : innerPixels > innerMinExtent;
+  if (!innerCanScroll) return null;
+  return outerReversed ? -dy : dy;
+}
+
+/// A horizontal [SingleChildScrollView] that lets mostly-vertical pointer
+/// scroll events (such as trackpad or Magic Mouse diagonal scrolls) continue
+/// scrolling the ancestor vertical [Scrollable] instead of being swallowed by
+/// Flutter's [PointerSignalResolver].
+class HorizontalScrollPassthrough extends StatefulWidget {
+  /// Creates a [HorizontalScrollPassthrough] around [child].
+  const HorizontalScrollPassthrough({
+    super.key,
+    this.padding,
+    required this.child,
+  });
+
+  /// Padding around [child] inside the scroll view.
+  final EdgeInsetsGeometry? padding;
+
+  /// The horizontally scrolling content.
+  final Widget child;
+
+  @override
+  State<HorizontalScrollPassthrough> createState() =>
+      _HorizontalScrollPassthroughState();
+}
+
+class _HorizontalScrollPassthroughState
+    extends State<HorizontalScrollPassthrough> {
+  final _controller = ScrollController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onPointerSignal(PointerSignalEvent event) {
+    if (event is! PointerScrollEvent || !_controller.hasClients) return;
+    final inner = _controller.position;
+    if (!inner.hasContentDimensions) return;
+    final ancestor = Scrollable.maybeOf(context, axis: Axis.vertical);
+    if (ancestor == null) return;
+    final outer = ancestor.position;
+    if (!outer.hasContentDimensions) return;
+    final delta = verticalScrollPassthroughDelta(
+      scrollDelta: event.scrollDelta,
+      innerPixels: inner.pixels,
+      innerMinExtent: inner.minScrollExtent,
+      innerMaxExtent: inner.maxScrollExtent,
+      innerReversed: axisDirectionIsReversed(inner.axisDirection),
+      outerReversed: axisDirectionIsReversed(ancestor.axisDirection),
+    );
+    if (delta != null) outer.pointerScroll(delta);
+  }
+
+  @override
+  Widget build(BuildContext context) => Listener(
+    onPointerSignal: _onPointerSignal,
+    child: SingleChildScrollView(
+      controller: _controller,
+      scrollDirection: Axis.horizontal,
+      padding: widget.padding,
+      child: widget.child,
+    ),
+  );
+}

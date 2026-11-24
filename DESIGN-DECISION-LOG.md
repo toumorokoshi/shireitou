@@ -1,3 +1,21 @@
+## 2026-11-24: Forward vertical pointer scroll past horizontal timeline blocks
+
+Diagonal trackpad or Magic Mouse scroll events (`dx != 0` and
+`dy.abs() > dx.abs()`) over horizontally overflowing code blocks, diffs,
+and display math in the timeline were swallowed by Flutter's
+`PointerSignalResolver` because the inner horizontal `SingleChildScrollView`
+registered first, preventing the conversation's `SuperListView` from
+scrolling vertically.
+
+- **`HorizontalScrollPassthrough` and `verticalScrollPassthroughDelta`
+  (`app/lib/src/session_detail/timeline_selection.dart`):** wraps the
+  horizontal `SingleChildScrollView` in `CodeBlock` (`code_highlight.dart`),
+  `_CodeArea` (`diff_view.dart`), and display `MathBuilder` (`math_view.dart`).
+  When a `PointerScrollEvent` has a non-zero `dx` that the inner scroll
+  view can consume and `dy.abs() > dx.abs()`, it forwards `dy` (respecting
+  the ancestor's `axisDirection`) to the ancestor vertical `Scrollable`'s
+  `pointerScroll`.
+
 ## 2026-11-23: "Fork and detach" button on completed turns (AV-144, AV-069)
 
 Added a "Fork and detach" button (`AppIcons.forkAndDetach`,

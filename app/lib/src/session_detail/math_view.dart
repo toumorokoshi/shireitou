@@ -9,6 +9,8 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:markdown/markdown.dart' as md;
 
+import 'timeline_selection.dart';
+
 /// Renders math elements: display math on its own line, scrolling
 /// sideways when wide, and inline math as a span that flows with the
 /// paragraph's text. TeX that does not parse shows as written.
@@ -31,8 +33,7 @@ class MathBuilder extends MarkdownElementBuilder {
       ),
     );
     if (display) {
-      return SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
+      return HorizontalScrollPassthrough(
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: math,
       );

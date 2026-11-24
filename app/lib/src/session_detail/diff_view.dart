@@ -213,8 +213,7 @@ class _CodeArea extends StatelessWidget {
       borderRadius: BorderRadius.circular(6),
     ),
     child: ScrollSelection(
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
+      child: HorizontalScrollPassthrough(
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: JoinedLines(
           child: Column(

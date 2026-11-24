@@ -1,5 +1,4 @@
-import 'dart:ui' show PointerDeviceKind;
-
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -149,6 +148,130 @@ void main() {
 
         await gesture.up();
         await tester.pumpAndSettle();
+      },
+    );
+  });
+
+  group('verticalScrollPassthroughDelta', () {
+    test('returns null when dx is zero or horizontal scroll dominates', () {
+      expect(
+        verticalScrollPassthroughDelta(
+          scrollDelta: const Offset(0, 60),
+          innerPixels: 0,
+          innerMinExtent: 0,
+          innerMaxExtent: 100,
+          innerReversed: false,
+          outerReversed: true,
+        ),
+        isNull,
+      );
+      expect(
+        verticalScrollPassthroughDelta(
+          scrollDelta: const Offset(60, 20),
+          innerPixels: 0,
+          innerMinExtent: 0,
+          innerMaxExtent: 100,
+          innerReversed: false,
+          outerReversed: true,
+        ),
+        isNull,
+      );
+    });
+
+    test('returns null when inner scroll view is already at its edge', () {
+      expect(
+        verticalScrollPassthroughDelta(
+          scrollDelta: const Offset(-1, 60),
+          innerPixels: 0,
+          innerMinExtent: 0,
+          innerMaxExtent: 100,
+          innerReversed: false,
+          outerReversed: true,
+        ),
+        isNull,
+      );
+      expect(
+        verticalScrollPassthroughDelta(
+          scrollDelta: const Offset(1, 60),
+          innerPixels: 100,
+          innerMinExtent: 0,
+          innerMaxExtent: 100,
+          innerReversed: false,
+          outerReversed: true,
+        ),
+        isNull,
+      );
+    });
+
+    test('forwards vertical delta when inner consumes diagonal scroll', () {
+      expect(
+        verticalScrollPassthroughDelta(
+          scrollDelta: const Offset(1, 60),
+          innerPixels: 0,
+          innerMinExtent: 0,
+          innerMaxExtent: 100,
+          innerReversed: false,
+          outerReversed: true,
+        ),
+        -60,
+      );
+      expect(
+        verticalScrollPassthroughDelta(
+          scrollDelta: const Offset(1, 60),
+          innerPixels: 0,
+          innerMinExtent: 0,
+          innerMaxExtent: 100,
+          innerReversed: false,
+          outerReversed: false,
+        ),
+        60,
+      );
+    });
+  });
+
+  group('HorizontalScrollPassthrough', () {
+    testWidgets(
+      'scrolls the outer reversed list when diagonal wheel hits overflowing child',
+      (tester) async {
+        final outer = ScrollController(initialScrollOffset: 300);
+        addTearDown(outer.dispose);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SizedBox(
+                width: 300,
+                height: 300,
+                child: ListView(
+                  controller: outer,
+                  reverse: true,
+                  children: [
+                    const SizedBox(height: 400),
+                    HorizontalScrollPassthrough(
+                      child: SizedBox(width: 800, height: 150),
+                    ),
+                    const SizedBox(height: 400),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final before = outer.offset;
+        final target = tester.getCenter(
+          find.byType(HorizontalScrollPassthrough),
+        );
+        await tester.sendEventToBinding(
+          PointerScrollEvent(
+            position: target,
+            scrollDelta: const Offset(1, 60),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(outer.offset, lessThan(before));
       },
     );
   });

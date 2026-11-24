@@ -160,8 +160,7 @@ class CodeBlock extends StatelessWidget {
             ),
           ),
           ScrollSelection(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
+            child: HorizontalScrollPassthrough(
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
               child: Text.rich(
                 highlightCode(

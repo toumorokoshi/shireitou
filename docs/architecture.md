@@ -637,6 +637,10 @@ Dart source); `bin/generate.dart` does the file I/O. See
   kept out with `SelectionContainer.disabled`. `JoinedLines` joins the
   rows inside a diff's scroll view line by line too, and the full diff
   page (`FileDiffPage`) has its own `RichSelectionArea`.
+  `HorizontalScrollPassthrough` (used for code blocks, diffs and display
+  math) forwards mostly-vertical `PointerScrollEvent`s to the outer
+  timeline `Scrollable` when the inner horizontal scroll view would
+  otherwise consume a diagonal trackpad/wheel event.
   `RichSelectionArea` (the timeline's `SelectionArea`) makes copying a
   rich copy (AV-076): it overrides the copy shortcut (only while the
   selection itself is focused, so text fields keep theirs) and the
